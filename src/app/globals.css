@@ -1,33 +1,107 @@
+@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  /* Brand */
+  --primary: #6366F1;
+  --primary-dark: #4F46E5;
+  --primary-light: #EEF2FF;
+
+  /* Sidebar — EXACT values, do not substitute */
+  --sidebar-bg: #0F1629;
+  --sidebar-active: #312E81;
+  --sidebar-hover: #1E1B4B;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-border: #1E293B;
+
+  /* Layout */
+  --page-bg: #F1F5F9;
+  --card-bg: #FFFFFF;
+  --border: oklch(0.922 0 0);
+  --border-light: #F3F4F6;
+
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #1E293B;
+  --text-body: #374151;
+  --text-muted: #64748B;
+  --text-faint: #94A3B8;
+
+  /* Badges */
+  --badge-green-bg: #DCFCE7;   --badge-green-text: #15803D;
+  --badge-red-bg: #FEE2E2;     --badge-red-text: #DC2626;
+  --badge-orange-bg: #FEF3C7;  --badge-orange-text: #D97706;
+  --badge-blue-bg: #DBEAFE;    --badge-blue-text: #1D4ED8;
+  --badge-purple-bg: #EDE9FE;  --badge-purple-text: #7C3AED;
+
+  /* Inputs */
+  --input-bg: #FFFFFF;
+  --input-border: #D1D5DB;
+  --input-focus: #6366F1;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.10);
+
+  /* Shadcn variables defaults mapping */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
-}
-
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  body {
+    font-family: "Hanken Grotesk", Inter, system-ui, sans-serif;
+    background-color: var(--page-bg);
+    color: var(--text-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  html {
+    @apply font-sans;
   }
 }
