@@ -67,6 +67,47 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.625rem;
+
+  /* Settings-specific tokens */
+  --settings-card-header-icon-bg: #EEF2FF;
+  --settings-card-header-icon-color: #6366F1;
+  --settings-preview-label: #64748B;
+  --settings-preview-value: #374151;
+  --settings-divider: #F3F4F6;
+
+  /* Toggle states (shadcn Switch) */
+  --toggle-on: #6366F1;
+  --toggle-off: #D1D5DB;
+  --toggle-thumb: #FFFFFF;
+
+  /* Checkbox (shadcn Checkbox) */
+  --checkbox-checked-bg: #6366F1;
+  --checkbox-checked-border: #6366F1;
+  --checkbox-unchecked-border: #D1D5DB;
+  --checkbox-check-color: #FFFFFF;
+
+  /* Role badge exact colors */
+  --role-owner-bg: #0F172A;      --role-owner-text: #FFFFFF;
+  --role-admin-bg: #6366F1;      --role-admin-text: #FFFFFF;
+  --role-manager-bg: #DCFCE7;    --role-manager-text: #15803D;
+  --role-accountant-bg: #FEF3C7; --role-accountant-text: #D97706;
+  --role-staff-bg: #DBEAFE;      --role-staff-text: #1D4ED8;
+  --role-intern-bg: #F1F5F9;     --role-intern-text: #64748B;
+
+  /* Module badge colors (Audit Log) */
+  --module-users-bg: #EDE9FE;    --module-users-text: #7C3AED;
+  --module-inventory-bg: #DCFCE7; --module-inventory-text: #15803D;
+  --module-payments-bg: #FEE2E2; --module-payments-text: #DC2626;
+  --module-sales-bg: #FEF3C7;    --module-sales-text: #D97706;
+  --module-master-bg: #DBEAFE;   --module-master-text: #1D4ED8;
+  --module-settings-bg: #EDE9FE; --module-settings-text: #7C3AED;
+  --module-production-bg: #DBEAFE; --module-production-text: #1D4ED8;
+
+  /* Action badge colors (Audit Log) */
+  --action-create-bg: #DCFCE7;   --action-create-text: #15803D;
+  --action-update-bg: #DBEAFE;   --action-update-text: #1D4ED8;
+  --action-delete-bg: #FEE2E2;   --action-delete-text: #DC2626;
+  --action-login-bg: #DCFCE7;    --action-login-text: #15803D;
 }
 
 .dark {

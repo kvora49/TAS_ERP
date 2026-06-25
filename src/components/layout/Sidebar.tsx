@@ -16,6 +16,7 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   LogOut,
   User as UserIcon,
   Menu,
@@ -44,6 +45,7 @@ export default function Sidebar() {
     Production: false,
     "Sales & Billing": false,
     Reports: false,
+    Settings: false,
   });
 
   const navigatingTo = useAppStore((state) => state.navigatingTo);
@@ -51,6 +53,9 @@ export default function Sidebar() {
 
   useEffect(() => {
     setNavigatingTo(null);
+    if (pathname.startsWith("/settings")) {
+      setExpandedMenus((prev) => ({ ...prev, Settings: true }));
+    }
   }, [pathname, setNavigatingTo]);
 
   const toggleSubMenu = (menuName: string) => {
@@ -91,7 +96,7 @@ export default function Sidebar() {
       return;
     }
 
-    if (!IMPLEMENTED_ROUTES.includes(href)) {
+    if (!IMPLEMENTED_ROUTES.includes(href) && !href.startsWith("/settings")) {
       e.preventDefault();
       toast.info("This feature is coming soon!");
       return;
@@ -157,7 +162,22 @@ export default function Sidebar() {
       ],
     },
     { name: "Expenses", href: "/expenses", icon: Wallet },
-    { name: "Settings", href: "/settings", icon: Settings },
+    {
+      name: "Settings",
+      icon: Settings,
+      subItems: [
+        { name: "General", href: "/settings/general" },
+        { name: "Company Profile", href: "/settings/company-profile" },
+        { name: "Users & Roles", href: "/settings/users-roles" },
+        { name: "Financial", href: "/settings/financial" },
+        { name: "Inventory", href: "/settings/inventory" },
+        { name: "Production", href: "/settings/production" },
+        { name: "Notifications", href: "/settings/notifications" },
+        { name: "Backup & Restore", href: "/settings/backup-restore" },
+        { name: "Audit Logs", href: "/settings/audit-logs" },
+        { name: "Communication", href: "/settings/communication" },
+      ],
+    },
   ];
 
   const getInitials = (name: string) => {
@@ -210,7 +230,9 @@ export default function Sidebar() {
                   className={cn(
                     "w-[calc(100%-16px)] flex items-center justify-between px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer text-left",
                     isItemActive
-                      ? "text-white bg-[#1E1B4B]"
+                      ? item.name === "Settings"
+                        ? "text-white bg-[#312E81]"
+                        : "text-white bg-[#1E1B4B]"
                       : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
                   )}
                 >
@@ -218,7 +240,11 @@ export default function Sidebar() {
                     <Icon className="h-[18px] w-[18px]" />
                     <span>{item.name}</span>
                   </div>
-                  {isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {item.name === "Settings" ? (
+                    isMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                  ) : (
+                    isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                  )}
                 </button>
               ) : (
                 <Link
@@ -238,9 +264,28 @@ export default function Sidebar() {
 
               {/* Subitems container */}
               {isExpandable && isMenuOpen && (
-                <div className="pl-9 space-y-1.5 pr-2">
+                <div className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}>
                   {item.subItems?.map((sub, sIdx) => {
                     const isSubActive = pathname === sub.href || navigatingTo === sub.href;
+                    
+                    if (item.name === "Settings") {
+                      return (
+                        <Link
+                          key={sIdx}
+                          href={sub.href}
+                          onClick={(e) => handleNavigation(e, sub.href)}
+                          className={cn(
+                            "flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
+                            isSubActive
+                              ? "bg-[#312E81] text-white"
+                              : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
+                          )}
+                        >
+                          <span>{sub.name}</span>
+                        </Link>
+                      );
+                    }
+
                     return (
                       <Link
                         key={sIdx}
