@@ -23,7 +23,7 @@ try {
   process.exit(1);
 }
 
-async function listAllTables() {
+async function listRPCs() {
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/`, {
       headers: {
@@ -31,10 +31,11 @@ async function listAllTables() {
       }
     });
     const spec = await response.json();
-    console.log("Tables in database:", Object.keys(spec.definitions || {}));
+    const rpcs = Object.keys(spec.paths || {}).filter(p => p.startsWith('/rpc/'));
+    console.log("Available RPCs:", rpcs);
   } catch (err) {
     console.log("Exception:", err.message);
   }
 }
 
-listAllTables();
+listRPCs();

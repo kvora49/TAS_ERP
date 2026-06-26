@@ -108,6 +108,52 @@
   --action-update-bg: #DBEAFE;   --action-update-text: #1D4ED8;
   --action-delete-bg: #FEE2E2;   --action-delete-text: #DC2626;
   --action-login-bg: #DCFCE7;    --action-login-text: #15803D;
+
+  /* Party type badges */
+  --badge-supplier-bg: #DCFCE7;    --badge-supplier-text: #15803D;
+  --badge-customer-bg: #DBEAFE;    --badge-customer-text: #1D4ED8;
+  --badge-worker-bg: #FEF3C7;      --badge-worker-text: #D97706;
+
+  /* Payment status badges */
+  --badge-paid-bg: #DCFCE7;        --badge-paid-text: #15803D;
+  --badge-partial-bg: #FEF3C7;     --badge-partial-text: #D97706;
+  --badge-unpaid-bg: #FEE2E2;      --badge-unpaid-text: #DC2626;
+  --badge-pending-bg: #FEE2E2;     --badge-pending-text: #DC2626;
+
+  /* Bill type badges */
+  --badge-gst-bg: #EEF2FF;         --badge-gst-text: #6366F1;
+  --badge-local-bg: #F0FDF4;       --badge-local-text: #15803D;
+
+  /* Stock status badges */
+  --badge-instock-bg: #DCFCE7;     --badge-instock-text: #15803D;
+  --badge-lowstock-bg: #FEF3C7;    --badge-lowstock-text: #D97706;
+  --badge-outofstock-bg: #FEE2E2;  --badge-outofstock-text: #DC2626;
+
+  /* Ledger type badges */
+  --badge-purchase-bg: #DBEAFE;    --badge-purchase-text: #1D4ED8;
+  --badge-payment-bg: #DCFCE7;     --badge-payment-text: #15803D;
+  --badge-return-bg: #FEF3C7;      --badge-return-text: #D97706;
+  --badge-opening-bg: #F1F5F9;     --badge-opening-text: #64748B;
+
+  /* Debit Note status */
+  --badge-debitnote-bg: #EEF2FF;   --badge-debitnote-text: #6366F1;
+
+  /* Section header labels in sidebar */
+  --sidebar-section-label: rgba(148, 163, 184, 0.5);
+
+  /* Debit/Credit column colors in ledger */
+  --ledger-debit: #374151;
+  --ledger-credit: #15803D;
+  --ledger-balance-dr: #DC2626;
+  --ledger-balance-cr: #15803D;
+
+  /* Stock movement colors */
+  --stock-in-color: #15803D;
+  --stock-out-color: #DC2626;
+
+  /* Step number circle (Add Purchase, Add Return, Add Stock) */
+  --step-circle-bg: #6366F1;
+  --step-circle-text: #FFFFFF;
 }
 
 .dark {

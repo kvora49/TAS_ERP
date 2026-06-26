@@ -18,8 +18,7 @@ import {
   ChevronRight,
   ChevronUp,
   LogOut,
-  User as UserIcon,
-  Menu,
+  Users,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +28,7 @@ import { cn } from "@/lib/utils";
 interface NavItem {
   name: string;
   href?: string;
-  icon: React.ComponentType<any>;
+  icon?: React.ComponentType<any>;
   subItems?: { name: string; href: string }[];
 }
 
@@ -39,9 +38,10 @@ export default function Sidebar() {
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
-  
+
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     "Master Data": false,
+    "Raw Materials": false,
     Production: false,
     "Sales & Billing": false,
     Reports: false,
@@ -53,8 +53,24 @@ export default function Sidebar() {
 
   useEffect(() => {
     setNavigatingTo(null);
+    // Auto-expand menus based on active route
     if (pathname.startsWith("/settings")) {
       setExpandedMenus((prev) => ({ ...prev, Settings: true }));
+    }
+    if (pathname.startsWith("/master-data")) {
+      setExpandedMenus((prev) => ({ ...prev, "Master Data": true }));
+    }
+    if (pathname.startsWith("/raw-materials")) {
+      setExpandedMenus((prev) => ({ ...prev, "Raw Materials": true }));
+    }
+    if (pathname.startsWith("/production")) {
+      setExpandedMenus((prev) => ({ ...prev, Production: true }));
+    }
+    if (pathname.startsWith("/sales")) {
+      setExpandedMenus((prev) => ({ ...prev, "Sales & Billing": true }));
+    }
+    if (pathname.startsWith("/reports")) {
+      setExpandedMenus((prev) => ({ ...prev, Reports: true }));
     }
   }, [pathname, setNavigatingTo]);
 
@@ -85,18 +101,30 @@ export default function Sidebar() {
     "/master-data/gst-rates",
     "/master-data/banks-upi",
     "/master-data/raw-materials",
+    "/parties",
+    "/payments/supplier",
   ];
 
   const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href?: string) => {
     if (!href) return;
-    
+
     // Prevent double clicking on the active route
     if (pathname === href) {
       e.preventDefault();
       return;
     }
 
-    if (!IMPLEMENTED_ROUTES.includes(href) && !href.startsWith("/settings")) {
+    const isWhitelisted =
+      IMPLEMENTED_ROUTES.includes(href) ||
+      href.startsWith("/settings") ||
+      href.startsWith("/parties") ||
+      href.startsWith("/raw-materials/purchases") ||
+      href.startsWith("/raw-materials/purchase-returns") ||
+      href.startsWith("/raw-materials/stock") ||
+      href.startsWith("/payments/supplier") ||
+      href.startsWith("/master-data/parties");
+
+    if (!isWhitelisted) {
       e.preventDefault();
       toast.info("This feature is coming soon!");
       return;
@@ -126,9 +154,19 @@ export default function Sidebar() {
         { name: "GST Rates", href: "/master-data/gst-rates" },
         { name: "Banks & UPI", href: "/master-data/banks-upi" },
         { name: "Raw Materials", href: "/master-data/raw-materials" },
+        { name: "Parties", href: "/parties" },
       ],
     },
-    { name: "Raw Materials", href: "/raw-materials", icon: Package },
+    { name: "Parties", href: "/parties", icon: Users },
+    {
+      name: "Raw Materials",
+      icon: Package,
+      subItems: [
+        { name: "Raw Material Purchases", href: "/raw-materials/purchases" },
+        { name: "Purchase Returns", href: "/raw-materials/purchase-returns" },
+        { name: "Stock Overview", href: "/raw-materials/stock" },
+      ],
+    },
     {
       name: "Production",
       icon: Factory,
@@ -150,7 +188,8 @@ export default function Sidebar() {
         { name: "Payments", href: "/payments" },
       ],
     },
-    { name: "Payments", href: "/payments", icon: CreditCard },
+    { name: "Payments", href: "/payments/supplier", icon: CreditCard },
+    { name: "Expenses", href: "/expenses", icon: Wallet },
     {
       name: "Reports",
       icon: BarChart3,
@@ -161,7 +200,6 @@ export default function Sidebar() {
         { name: "Financial", href: "/reports/financial" },
       ],
     },
-    { name: "Expenses", href: "/expenses", icon: Wallet },
     {
       name: "Settings",
       icon: Settings,
@@ -217,9 +255,9 @@ export default function Sidebar() {
           const Icon = item.icon;
           const isExpandable = !!item.subItems;
           const isMenuOpen = expandedMenus[item.name];
-          const isItemActive = item.href 
-            ? (pathname === item.href || navigatingTo === item.href)
-            : (item.subItems?.some(s => pathname === s.href || navigatingTo === s.href));
+          const isItemActive = item.href
+            ? pathname === item.href || navigatingTo === item.href
+            : item.subItems?.some((s) => pathname === s.href || navigatingTo === s.href);
 
           return (
             <div key={idx} className="space-y-1">
@@ -237,7 +275,7 @@ export default function Sidebar() {
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className="h-[18px] w-[18px]" />
+                    {Icon && <Icon className="h-[18px] w-[18px]" />}
                     <span>{item.name}</span>
                   </div>
                   {item.name === "Settings" ? (
@@ -252,12 +290,12 @@ export default function Sidebar() {
                   onClick={(e) => handleNavigation(e, item.href)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
-                    (pathname === item.href || navigatingTo === item.href)
+                    pathname === item.href || navigatingTo === item.href
                       ? "bg-[#312E81] text-white"
                       : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
                   )}
                 >
-                  <Icon className="h-[18px] w-[18px]" />
+                  {Icon && <Icon className="h-[18px] w-[18px]" />}
                   <span>{item.name}{navigatingTo === item.href ? " (Loading...)" : ""}</span>
                 </Link>
               )}
@@ -267,7 +305,7 @@ export default function Sidebar() {
                 <div className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}>
                   {item.subItems?.map((sub, sIdx) => {
                     const isSubActive = pathname === sub.href || navigatingTo === sub.href;
-                    
+
                     if (item.name === "Settings") {
                       return (
                         <Link
@@ -325,7 +363,7 @@ export default function Sidebar() {
               </p>
             </div>
           </div>
-          
+
           <button
             onClick={handleLogout}
             className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B] transition-colors cursor-pointer"
