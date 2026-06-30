@@ -482,36 +482,31 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 No items added yet. Click &quot;Add Material Row&quot; to configure.
               </div>
             ) : (
-              <div className="space-y-4 overflow-x-auto min-w-[700px]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-[#E2E8F0] text-[#64748B] font-bold">
-                      <th className="pb-2 w-1/3">Raw Material Type *</th>
-                      <th className="pb-2 w-[80px]">HSN/SAC</th>
-                      <th className="pb-2 w-[60px]">Unit</th>
-                      <th className="pb-2 w-[80px] text-right">Qty *</th>
-                      <th className="pb-2 w-[80px] text-right">Rate (₹) *</th>
-                      <th className="pb-2 w-[70px] text-right">Disc (%)</th>
-                      <th className="pb-2 w-[80px] text-right">Taxable</th>
-                      {watchGstType === "with_gst" && (
-                        <>
-                          <th className="pb-2 w-[60px] text-right">GST %</th>
-                          <th className="pb-2 w-[80px] text-right">GST Amt</th>
-                        </>
-                      )}
-                      <th className="pb-2 w-[90px] text-right">Total (₹)</th>
-                      <th className="pb-2 w-[40px] text-center"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fields.map((field, index) => (
-                      <tr key={field.id} className="border-b border-[#F1F5F9] last:border-0 align-middle">
-                        <td className="py-2.5 pr-2">
+              <div className="space-y-4">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="p-4 bg-white rounded-xl border border-[#E2E8F0] space-y-4 relative shadow-sm">
+                    {/* Item header with count and delete action */}
+                    <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+                      <span className="text-xs font-bold text-[#6366F1] bg-[#EEF2FF] px-2.5 py-1 rounded-md">Item #{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center gap-1 text-xs font-semibold"
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove Item
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* Row 1 */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <div className="md:col-span-4">
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
                           <select
                             disabled={loadingMaterials}
                             {...register(`items.${index}.material_type_id` as const)}
                             onChange={(e) => handleMaterialChange(index, e.target.value)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md bg-white"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
                           >
                             <option value="">Select Material</option>
                             {materialTypes.map((m) => (
@@ -521,88 +516,106 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             ))}
                           </select>
                           {errors.items?.[index]?.material_type_id && (
-                            <p className="text-[9px] text-red-500 mt-0.5">{errors.items[index]?.material_type_id?.message}</p>
+                            <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
                           )}
-                        </td>
-                        <td className="py-2.5 pr-2">
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                           <input
                             type="text"
                             placeholder="HSN"
                             {...register(`items.${index}.hsn_sac` as const)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md font-mono text-[10px]"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
                           />
-                        </td>
-                        <td className="py-2.5 pr-2">
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
                           <input
                             type="text"
                             placeholder="Unit"
                             {...register(`items.${index}.unit` as const)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
                           />
-                        </td>
-                        <td className="py-2.5 pr-2">
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Qty *</label>
                           <input
                             type="number"
                             step="0.01"
                             placeholder="0"
                             {...register(`items.${index}.quantity` as const)}
                             onChange={() => recalcItem(index)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md text-right font-bold"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                        </td>
-                        <td className="py-2.5 pr-2">
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
                           <input
                             type="number"
                             step="0.01"
                             placeholder="0.00"
                             {...register(`items.${index}.rate` as const)}
                             onChange={() => recalcItem(index)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md text-right font-bold"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                        </td>
-                        <td className="py-2.5 pr-2">
+                        </div>
+                      </div>
+
+                      {/* Row 2 */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1.5">
+                        <div className={watchGstType === "with_gst" ? "md:col-span-2" : "md:col-span-3"}>
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Disc (%)</label>
                           <input
                             type="number"
                             placeholder="0"
                             {...register(`items.${index}.discount_percent` as const)}
                             onChange={() => recalcItem(index)}
-                            className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md text-right"
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                        </td>
-                        <td className="py-2.5 pr-2 text-right font-mono font-bold text-slate-600">
-                          ₹{Number(watchItems[index]?.taxable_value || 0).toFixed(2)}
-                        </td>
+                        </div>
+
+                        <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-4"}>
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Taxable</label>
+                          <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-slate-600 select-none">
+                            ₹{Number(watchItems[index]?.taxable_value || 0).toFixed(2)}
+                          </div>
+                        </div>
+
                         {watchGstType === "with_gst" && (
                           <>
-                            <td className="py-2.5 pr-2">
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST %</label>
                               <input
                                 type="number"
                                 {...register(`items.${index}.gst_percent` as const)}
                                 onChange={() => recalcItem(index)}
-                                className="w-full px-2 py-1.5 border border-[#CBD5E1] rounded-md text-right"
+                                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
-                            </td>
-                            <td className="py-2.5 pr-2 text-right font-mono font-bold text-slate-500">
-                              ₹{Number(watchItems[index]?.gst_amount || 0).toFixed(2)}
-                            </td>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST Amt</label>
+                              <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-slate-500 select-none">
+                                ₹{Number(watchItems[index]?.gst_amount || 0).toFixed(2)}
+                              </div>
+                            </div>
                           </>
                         )}
-                        <td className="py-2.5 text-right font-mono font-bold text-[#0F172A]">
-                          ₹{Number(watchItems[index]?.amount || 0).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => remove(index)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+                        <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-5"}>
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Total (₹)</label>
+                          <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-[#0F172A] select-none">
+                            ₹{Number(watchItems[index]?.amount || 0).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -32,11 +32,16 @@
   --text-faint: #94A3B8;
 
   /* Badges */
-  --badge-green-bg: #DCFCE7;   --badge-green-text: #15803D;
-  --badge-red-bg: #FEE2E2;     --badge-red-text: #DC2626;
-  --badge-orange-bg: #FEF3C7;  --badge-orange-text: #D97706;
-  --badge-blue-bg: #DBEAFE;    --badge-blue-text: #1D4ED8;
-  --badge-purple-bg: #EDE9FE;  --badge-purple-text: #7C3AED;
+  --badge-green-bg: #DCFCE7;
+  --badge-green-text: #15803D;
+  --badge-red-bg: #FEE2E2;
+  --badge-red-text: #DC2626;
+  --badge-orange-bg: #FEF3C7;
+  --badge-orange-text: #D97706;
+  --badge-blue-bg: #DBEAFE;
+  --badge-blue-text: #1D4ED8;
+  --badge-purple-bg: #EDE9FE;
+  --badge-purple-text: #7C3AED;
 
   /* Inputs */
   --input-bg: #FFFFFF;
@@ -44,9 +49,9 @@
   --input-focus: #6366F1;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.10);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.10);
 
   /* Shadcn variables defaults mapping */
   --background: oklch(1 0 0);
@@ -87,56 +92,90 @@
   --checkbox-check-color: #FFFFFF;
 
   /* Role badge exact colors */
-  --role-owner-bg: #0F172A;      --role-owner-text: #FFFFFF;
-  --role-admin-bg: #6366F1;      --role-admin-text: #FFFFFF;
-  --role-manager-bg: #DCFCE7;    --role-manager-text: #15803D;
-  --role-accountant-bg: #FEF3C7; --role-accountant-text: #D97706;
-  --role-staff-bg: #DBEAFE;      --role-staff-text: #1D4ED8;
-  --role-intern-bg: #F1F5F9;     --role-intern-text: #64748B;
+  --role-owner-bg: #0F172A;
+  --role-owner-text: #FFFFFF;
+  --role-admin-bg: #6366F1;
+  --role-admin-text: #FFFFFF;
+  --role-manager-bg: #DCFCE7;
+  --role-manager-text: #15803D;
+  --role-accountant-bg: #FEF3C7;
+  --role-accountant-text: #D97706;
+  --role-staff-bg: #DBEAFE;
+  --role-staff-text: #1D4ED8;
+  --role-intern-bg: #F1F5F9;
+  --role-intern-text: #64748B;
 
   /* Module badge colors (Audit Log) */
-  --module-users-bg: #EDE9FE;    --module-users-text: #7C3AED;
-  --module-inventory-bg: #DCFCE7; --module-inventory-text: #15803D;
-  --module-payments-bg: #FEE2E2; --module-payments-text: #DC2626;
-  --module-sales-bg: #FEF3C7;    --module-sales-text: #D97706;
-  --module-master-bg: #DBEAFE;   --module-master-text: #1D4ED8;
-  --module-settings-bg: #EDE9FE; --module-settings-text: #7C3AED;
-  --module-production-bg: #DBEAFE; --module-production-text: #1D4ED8;
+  --module-users-bg: #EDE9FE;
+  --module-users-text: #7C3AED;
+  --module-inventory-bg: #DCFCE7;
+  --module-inventory-text: #15803D;
+  --module-payments-bg: #FEE2E2;
+  --module-payments-text: #DC2626;
+  --module-sales-bg: #FEF3C7;
+  --module-sales-text: #D97706;
+  --module-master-bg: #DBEAFE;
+  --module-master-text: #1D4ED8;
+  --module-settings-bg: #EDE9FE;
+  --module-settings-text: #7C3AED;
+  --module-production-bg: #DBEAFE;
+  --module-production-text: #1D4ED8;
 
   /* Action badge colors (Audit Log) */
-  --action-create-bg: #DCFCE7;   --action-create-text: #15803D;
-  --action-update-bg: #DBEAFE;   --action-update-text: #1D4ED8;
-  --action-delete-bg: #FEE2E2;   --action-delete-text: #DC2626;
-  --action-login-bg: #DCFCE7;    --action-login-text: #15803D;
+  --action-create-bg: #DCFCE7;
+  --action-create-text: #15803D;
+  --action-update-bg: #DBEAFE;
+  --action-update-text: #1D4ED8;
+  --action-delete-bg: #FEE2E2;
+  --action-delete-text: #DC2626;
+  --action-login-bg: #DCFCE7;
+  --action-login-text: #15803D;
 
   /* Party type badges */
-  --badge-supplier-bg: #DCFCE7;    --badge-supplier-text: #15803D;
-  --badge-customer-bg: #DBEAFE;    --badge-customer-text: #1D4ED8;
-  --badge-worker-bg: #FEF3C7;      --badge-worker-text: #D97706;
+  --badge-supplier-bg: #DCFCE7;
+  --badge-supplier-text: #15803D;
+  --badge-customer-bg: #DBEAFE;
+  --badge-customer-text: #1D4ED8;
+  --badge-worker-bg: #FEF3C7;
+  --badge-worker-text: #D97706;
 
   /* Payment status badges */
-  --badge-paid-bg: #DCFCE7;        --badge-paid-text: #15803D;
-  --badge-partial-bg: #FEF3C7;     --badge-partial-text: #D97706;
-  --badge-unpaid-bg: #FEE2E2;      --badge-unpaid-text: #DC2626;
-  --badge-pending-bg: #FEE2E2;     --badge-pending-text: #DC2626;
+  --badge-paid-bg: #DCFCE7;
+  --badge-paid-text: #15803D;
+  --badge-partial-bg: #FEF3C7;
+  --badge-partial-text: #D97706;
+  --badge-unpaid-bg: #FEE2E2;
+  --badge-unpaid-text: #DC2626;
+  --badge-pending-bg: #FEE2E2;
+  --badge-pending-text: #DC2626;
 
   /* Bill type badges */
-  --badge-gst-bg: #EEF2FF;         --badge-gst-text: #6366F1;
-  --badge-local-bg: #F0FDF4;       --badge-local-text: #15803D;
+  --badge-gst-bg: #EEF2FF;
+  --badge-gst-text: #6366F1;
+  --badge-local-bg: #F0FDF4;
+  --badge-local-text: #15803D;
 
   /* Stock status badges */
-  --badge-instock-bg: #DCFCE7;     --badge-instock-text: #15803D;
-  --badge-lowstock-bg: #FEF3C7;    --badge-lowstock-text: #D97706;
-  --badge-outofstock-bg: #FEE2E2;  --badge-outofstock-text: #DC2626;
+  --badge-instock-bg: #DCFCE7;
+  --badge-instock-text: #15803D;
+  --badge-lowstock-bg: #FEF3C7;
+  --badge-lowstock-text: #D97706;
+  --badge-outofstock-bg: #FEE2E2;
+  --badge-outofstock-text: #DC2626;
 
   /* Ledger type badges */
-  --badge-purchase-bg: #DBEAFE;    --badge-purchase-text: #1D4ED8;
-  --badge-payment-bg: #DCFCE7;     --badge-payment-text: #15803D;
-  --badge-return-bg: #FEF3C7;      --badge-return-text: #D97706;
-  --badge-opening-bg: #F1F5F9;     --badge-opening-text: #64748B;
+  --badge-purchase-bg: #DBEAFE;
+  --badge-purchase-text: #1D4ED8;
+  --badge-payment-bg: #DCFCE7;
+  --badge-payment-text: #15803D;
+  --badge-return-bg: #FEF3C7;
+  --badge-return-text: #D97706;
+  --badge-opening-bg: #F1F5F9;
+  --badge-opening-text: #64748B;
 
   /* Debit Note status */
-  --badge-debitnote-bg: #EEF2FF;   --badge-debitnote-text: #6366F1;
+  --badge-debitnote-bg: #EEF2FF;
+  --badge-debitnote-text: #6366F1;
 
   /* Section header labels in sidebar */
   --sidebar-section-label: rgba(148, 163, 184, 0.5);
@@ -154,6 +193,70 @@
   /* Step number circle (Add Purchase, Add Return, Add Stock) */
   --step-circle-bg: #6366F1;
   --step-circle-text: #FFFFFF;
+
+  /* Day 1 Styling Tokens (Phase 4 Additions) */
+  --production-in-progress-bg: #DBEAFE;
+  --production-in-progress-text: #1D4ED8;
+  --production-completed-bg: #D1FAE5;
+  --production-completed-text: #065F46;
+  --production-on-hold-bg: #FEF3C7;
+  --production-on-hold-text: #92400E;
+  --production-cancelled-bg: #FEE2E2;
+  --production-cancelled-text: #991B1B;
+  
+  --step-pending-bg: #F3F4F6;
+  --step-pending-text: #9CA3AF;
+  --step-active-bg: #6366F1;
+  --step-active-text: #FFFFFF;
+
+  /* Production status badges */
+  --badge-inprogress-bg: #DBEAFE;   --badge-inprogress-text: #1D4ED8;
+  --badge-completed-bg: #DCFCE7;    --badge-completed-text: #15803D;
+  --badge-onhold-bg: #FEF3C7;       --badge-onhold-text: #D97706;
+  --badge-cancelled-bg: #FEE2E2;    --badge-cancelled-text: #DC2626;
+  --badge-pending-bg: #F1F5F9;      --badge-pending-text: #64748B;
+  --badge-draft-bg: #F1F5F9;        --badge-draft-text: #64748B;
+
+  /* Stage type badges */
+  --badge-inhouse-bg: #DBEAFE;      --badge-inhouse-text: #1D4ED8;
+  --badge-jobwork-bg: #FEF3C7;      --badge-jobwork-text: #D97706;
+
+  /* Worker type badges */
+  --badge-jobworker-bg: #EDE9FE;    --badge-jobworker-text: #7C3AED;
+  --badge-permanent-bg: #DBEAFE;    --badge-permanent-text: #1D4ED8;
+
+  /* Job work payment status */
+  --badge-paid-bg: #DCFCE7;         --badge-paid-text: #15803D;
+  --badge-partial-bg: #FEF3C7;      --badge-partial-text: #D97706;
+  --badge-unpaid-bg: #FEE2E2;       --badge-unpaid-text: #DC2626;
+
+  /* Stage progress tracker */
+  --stage-completed-ring: #15803D;
+  --stage-completed-bg: #DCFCE7;
+  --stage-active-ring: #6366F1;
+  --stage-active-bg: #FFFFFF;
+  --stage-pending-ring: #D1D5DB;
+  --stage-pending-bg: #F9FAFB;
+  --stage-connector-done: #15803D;
+  --stage-connector-pending: #E5E7EB;
+
+  /* Progress bar */
+  --progress-bg: #E5E7EB;
+  --progress-fill-done: #15803D;
+  --progress-fill-active: #6366F1;
+  --progress-fill-zero: #E5E7EB;
+
+  /* Wizard step indicator */
+  --wizard-step-active-bg: #6366F1;
+  --wizard-step-done-bg: #15803D;
+  --wizard-step-pending-bg: #E5E7EB;
+  --wizard-step-line-done: #15803D;
+  --wizard-step-line-pending: #E5E7EB;
+
+  /* Attendance status */
+  --att-present-bg: #DCFCE7;        --att-present-text: #15803D;
+  --att-absent-bg: #FEE2E2;         --att-absent-text: #DC2626;
+  --att-halfday-bg: #FEF3C7;        --att-halfday-text: #D97706;
 }
 
 .dark {
@@ -182,12 +285,14 @@
     @apply border-border outline-ring/50;
     box-sizing: border-box;
   }
+
   body {
     font-family: "Hanken Grotesk", Inter, system-ui, sans-serif;
     background-color: var(--page-bg);
     color: var(--text-body);
     -webkit-font-smoothing: antialiased;
   }
+
   html {
     @apply font-sans;
   }

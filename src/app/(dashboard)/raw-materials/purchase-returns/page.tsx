@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
@@ -8,6 +8,7 @@ import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { Plus, Search, Eye, RefreshCw, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 interface PurchaseReturn {
   id: string;
@@ -30,27 +31,20 @@ interface PurchaseReturn {
 
 export default function PurchaseReturnsPage() {
   const router = useRouter();
-  const [returns, setReturns] = useState<PurchaseReturn[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const fetchReturns = async () => {
-    setLoading(true);
-    try {
+  const { data: returnsData, isLoading: returnsLoading } = useQuery<PurchaseReturn[]>({
+    queryKey: ["purchase-returns"],
+    queryFn: async () => {
       const res = await fetch("/api/raw-materials/purchase-returns");
       if (!res.ok) throw new Error("Failed to fetch returns");
       const data = await res.json();
-      setReturns(data.returns || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading purchase returns");
-    } finally {
-      setLoading(false);
+      return data.returns || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchReturns();
-  }, []);
+  const returns = returnsData || [];
+  const loading = returnsLoading;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

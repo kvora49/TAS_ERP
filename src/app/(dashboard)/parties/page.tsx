@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Party {
   id: string;
@@ -25,8 +26,7 @@ interface Party {
 
 export default function PartiesPage() {
   const router = useRouter();
-  const [parties, setParties] = useState<Party[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "supplier" | "customer" | "worker">("all");
 
@@ -34,23 +34,18 @@ export default function PartiesPage() {
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchParties = async () => {
-    setLoading(true);
-    try {
+  const { data: partiesData, isLoading: partiesLoading } = useQuery<Party[]>({
+    queryKey: ["parties"],
+    queryFn: async () => {
       const res = await fetch("/api/parties");
       if (!res.ok) throw new Error("Failed to fetch parties");
       const data = await res.json();
-      setParties(data.parties || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading parties list");
-    } finally {
-      setLoading(false);
+      return data.parties || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchParties();
-  }, []);
+  const parties = partiesData || [];
+  const loading = partiesLoading;
 
   const handleOpenDelete = (party: Party) => {
     setDeletingParty(party);
@@ -70,7 +65,7 @@ export default function PartiesPage() {
       }
       toast.success("Party deleted successfully");
       setDeleteOpen(false);
-      fetchParties();
+      queryClient.invalidateQueries({ queryKey: ["parties"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred during deletion");
     } finally {
@@ -233,11 +228,10 @@ export default function PartiesPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                activeTab === tab.id
+              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeTab === tab.id
                   ? "bg-white text-[#0F172A] shadow-sm font-bold"
                   : "text-[#64748B] hover:text-[#0F172A]"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -266,7 +260,7 @@ export default function PartiesPage() {
           total={filteredParties.length}
           page={1}
           perPage={10000}
-          onPageChange={() => {}}
+          onPageChange={() => { }}
           emptyMessage="No parties found in database."
         />
       </div>

@@ -37,6 +37,7 @@ import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface KPIMetric {
   value: number;
@@ -63,28 +64,24 @@ interface DashboardData {
 export default function DashboardPage() {
   const user = useAppStore((state) => state.user);
   const filters = useAppStore((state) => state.filters);
+  const queryClient = useQueryClient();
 
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchDashboardData = async () => {
-    try {
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardData | null>({
+    queryKey: ["dashboard", filters.brandId, filters.dateRange],
+    queryFn: async () => {
       const res = await fetch("/api/dashboard");
       if (!res.ok) throw new Error("Failed to load dashboard data");
       const result = await res.json();
-      setData(result);
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Error loading dashboard metrics");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return result;
+    },
+    enabled: !!user
+  });
+
+  const data = dashboardData || null;
+  const loading = dashboardLoading;
 
   useEffect(() => {
     if (user) {
-      fetchDashboardData();
-
       // Setup Supabase Realtime channel to auto-update metrics on sales/stock changes
       const supabase = createClient();
       const channel = supabase
@@ -98,7 +95,7 @@ export default function DashboardPage() {
             filter: `business_id=eq.${user.businessId}`,
           },
           () => {
-            fetchDashboardData();
+            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
           }
         )
         .subscribe();
@@ -107,7 +104,7 @@ export default function DashboardPage() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user, filters.brandId, filters.dateRange]);
+  }, [user, queryClient]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

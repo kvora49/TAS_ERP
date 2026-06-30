@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge } from "@/components/shared/Badge";
 import { Search, Receipt, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 interface Payment {
   id: string;
@@ -25,27 +26,20 @@ interface Payment {
 }
 
 export default function SupplierPaymentsPage() {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const fetchPayments = async () => {
-    setLoading(true);
-    try {
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery<Payment[]>({
+    queryKey: ["payments", "supplier"],
+    queryFn: async () => {
       const res = await fetch("/api/payments/supplier");
       if (!res.ok) throw new Error("Failed to fetch payments");
       const data = await res.json();
-      setPayments(data.payments || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading payments list");
-    } finally {
-      setLoading(false);
+      return data.payments || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchPayments();
-  }, []);
+  const payments = paymentsData || [];
+  const loading = paymentsLoading;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

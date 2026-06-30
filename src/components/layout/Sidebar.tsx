@@ -19,22 +19,38 @@ import {
   ChevronUp,
   LogOut,
   Users,
+  Truck,
+  ClipboardList,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface NavSubSubItem {
+  name: string;
+  href: string;
+}
+
+interface NavSubItem {
+  name: string;
+  href?: string;
+  subItems?: NavSubSubItem[];
+}
 
 interface NavItem {
   name: string;
   href?: string;
   icon?: React.ComponentType<any>;
-  subItems?: { name: string; href: string }[];
+  subItems?: NavSubItem[];
+  isSectionHeader?: boolean;
 }
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
@@ -43,6 +59,7 @@ export default function Sidebar() {
     "Master Data": false,
     "Raw Materials": false,
     Production: false,
+    "Job Work": false,
     "Sales & Billing": false,
     Reports: false,
     Settings: false,
@@ -63,10 +80,12 @@ export default function Sidebar() {
     if (pathname.startsWith("/raw-materials")) {
       setExpandedMenus((prev) => ({ ...prev, "Raw Materials": true }));
     }
-    if (pathname.startsWith("/production")) {
+    if (pathname.startsWith("/production/job-work")) {
+      setExpandedMenus((prev) => ({ ...prev, Production: true, "Job Work": true }));
+    } else if (pathname.startsWith("/production")) {
       setExpandedMenus((prev) => ({ ...prev, Production: true }));
     }
-    if (pathname.startsWith("/sales")) {
+    if (pathname.startsWith("/sales-billing")) {
       setExpandedMenus((prev) => ({ ...prev, "Sales & Billing": true }));
     }
     if (pathname.startsWith("/reports")) {
@@ -101,7 +120,15 @@ export default function Sidebar() {
     "/master-data/gst-rates",
     "/master-data/banks-upi",
     "/master-data/raw-materials",
+    "/master-data/workers",
+    "/master-data/units",
     "/parties",
+    "/raw-materials/purchases",
+    "/raw-materials/purchase-returns",
+    "/raw-materials/stock",
+    "/production/lots",
+    "/production/job-work/list",
+    "/production/job-work/record-payment",
     "/payments/supplier",
   ];
 
@@ -116,13 +143,19 @@ export default function Sidebar() {
 
     const isWhitelisted =
       IMPLEMENTED_ROUTES.includes(href) ||
-      href.startsWith("/settings") ||
-      href.startsWith("/parties") ||
-      href.startsWith("/raw-materials/purchases") ||
-      href.startsWith("/raw-materials/purchase-returns") ||
-      href.startsWith("/raw-materials/stock") ||
-      href.startsWith("/payments/supplier") ||
-      href.startsWith("/master-data/parties");
+      href === "/settings/general" ||
+      href === "/settings/company-profile" ||
+      href === "/settings/users-roles" ||
+      href === "/settings/financial" ||
+      href === "/settings/inventory" ||
+      href === "/settings/production" ||
+      href === "/settings/notifications" ||
+      href === "/settings/backup-restore" ||
+      href === "/settings/audit-logs" ||
+      href === "/settings/communication" ||
+      href.startsWith("/master-data/workers/") ||
+      href.startsWith("/production/lots/") ||
+      href.startsWith("/production/stage-entries/");
 
     if (!isWhitelisted) {
       e.preventDefault();
@@ -137,6 +170,35 @@ export default function Sidebar() {
     }
 
     setNavigatingTo(href);
+  };
+
+  const handlePrefetch = (href?: string) => {
+    if (!href) return;
+    if (href === "/raw-materials/purchases") {
+      queryClient.prefetchQuery({
+        queryKey: ["purchases"],
+        queryFn: async () => {
+          const res = await fetch("/api/raw-materials/purchases");
+          return (await res.json()).purchases || [];
+        }
+      });
+    } else if (href === "/raw-materials/stock") {
+      queryClient.prefetchQuery({
+        queryKey: ["stock", "summary", ""],
+        queryFn: async () => {
+          const res = await fetch("/api/raw-materials/stock?view=summary&godown_id=");
+          return (await res.json()).stock || [];
+        }
+      });
+    } else if (href === "/parties") {
+      queryClient.prefetchQuery({
+        queryKey: ["parties"],
+        queryFn: async () => {
+          const res = await fetch("/api/parties");
+          return (await res.json()).parties || [];
+        }
+      });
+    }
   };
 
   const navItems: NavItem[] = [
@@ -155,6 +217,8 @@ export default function Sidebar() {
         { name: "Banks & UPI", href: "/master-data/banks-upi" },
         { name: "Raw Materials", href: "/master-data/raw-materials" },
         { name: "Parties", href: "/parties" },
+        { name: "Workers", href: "/master-data/workers" },
+        { name: "Units", href: "/master-data/units" },
       ],
     },
     { name: "Parties", href: "/parties", icon: Users },
@@ -162,19 +226,25 @@ export default function Sidebar() {
       name: "Raw Materials",
       icon: Package,
       subItems: [
-        { name: "Raw Material Purchases", href: "/raw-materials/purchases" },
+        { name: "Purchases", href: "/raw-materials/purchases" },
         { name: "Purchase Returns", href: "/raw-materials/purchase-returns" },
-        { name: "Stock Overview", href: "/raw-materials/stock" },
+        { name: "Stock", href: "/raw-materials/stock" },
       ],
     },
     {
       name: "Production",
       icon: Factory,
       subItems: [
-        { name: "Job Orders", href: "/production/job-orders" },
-        { name: "Production Plan", href: "/production/plan" },
-        { name: "Batches", href: "/production/batches" },
-        { name: "Finished Stock", href: "/finished-stock" },
+        { name: "Production Lots", href: "/production/lots" },
+        { name: "Stage Entries", href: "/production/stage-entries" },
+        {
+          name: "Job Work",
+          subItems: [
+            { name: "Job Work List", href: "/production/job-work/list" },
+            { name: "Job Worker Ledger", href: "/production/job-work/ledger" },
+            { name: "Record Payment", href: "/production/job-work/record-payment" },
+          ]
+        }
       ],
     },
     { name: "Finished Stock", href: "/finished-stock", icon: Boxes },
@@ -182,10 +252,9 @@ export default function Sidebar() {
       name: "Sales & Billing",
       icon: Receipt,
       subItems: [
-        { name: "Quotations", href: "/sales/quotations" },
-        { name: "Sales Orders", href: "/sales/orders" },
-        { name: "Invoices", href: "/sales/invoices" },
-        { name: "Payments", href: "/payments" },
+        { name: "Sales Orders", href: "/sales-billing/orders" },
+        { name: "Invoices", href: "/sales-billing/invoices" },
+        { name: "Customer Ledgers", href: "/sales-billing/ledgers" },
       ],
     },
     { name: "Payments", href: "/payments/supplier", icon: CreditCard },
@@ -194,10 +263,9 @@ export default function Sidebar() {
       name: "Reports",
       icon: BarChart3,
       subItems: [
-        { name: "Production", href: "/reports/production" },
-        { name: "Stock", href: "/reports/stock" },
-        { name: "Sales", href: "/reports/sales" },
-        { name: "Financial", href: "/reports/financial" },
+        { name: "Production Reports", href: "/reports/production" },
+        { name: "Job Work Reports", href: "/reports/job-work" },
+        { name: "Stock Reports", href: "/reports/stock" },
       ],
     },
     {
@@ -252,12 +320,29 @@ export default function Sidebar() {
       {/* Nav List */}
       <nav className="flex-1 py-4 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-sidebar-active scrollbar-track-transparent">
         {navItems.map((item, idx) => {
+          if (item.isSectionHeader) {
+            return (
+              <div
+                key={idx}
+                className="px-5 pt-4 pb-1 text-[10px] font-bold tracking-widest text-[#94A3B8]/50 uppercase"
+              >
+                {item.name}
+              </div>
+            );
+          }
+
           const Icon = item.icon;
           const isExpandable = !!item.subItems;
           const isMenuOpen = expandedMenus[item.name];
+          
           const isItemActive = item.href
             ? pathname === item.href || navigatingTo === item.href
-            : item.subItems?.some((s) => pathname === s.href || navigatingTo === s.href);
+            : item.subItems?.some(
+                (s) =>
+                  pathname === s.href ||
+                  navigatingTo === s.href ||
+                  s.subItems?.some((ss) => pathname === ss.href || navigatingTo === ss.href)
+              );
 
           return (
             <div key={idx} className="space-y-1">
@@ -288,6 +373,7 @@ export default function Sidebar() {
                 <Link
                   href={item.href || "#"}
                   onClick={(e) => handleNavigation(e, item.href)}
+                  onMouseEnter={() => handlePrefetch(item.href)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
                     pathname === item.href || navigatingTo === item.href
@@ -296,7 +382,11 @@ export default function Sidebar() {
                   )}
                 >
                   {Icon && <Icon className="h-[18px] w-[18px]" />}
-                  <span>{item.name}{navigatingTo === item.href ? " (Loading...)" : ""}</span>
+                  <span>
+                    {item.name}
+                    {item.href && (item.href === "/dispatch-soon" || item.href === "/stock-soon") && " (Soon)"}
+                    {navigatingTo === item.href ? " (Loading...)" : ""}
+                  </span>
                 </Link>
               )}
 
@@ -304,14 +394,62 @@ export default function Sidebar() {
               {isExpandable && isMenuOpen && (
                 <div className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}>
                   {item.subItems?.map((sub, sIdx) => {
-                    const isSubActive = pathname === sub.href || navigatingTo === sub.href;
+                    const hasSubSub = !!sub.subItems;
+                    const isSubSubOpen = expandedMenus[sub.name];
+                    const isSubActive = sub.href
+                      ? pathname === sub.href || navigatingTo === sub.href
+                      : sub.subItems?.some((ss) => pathname === ss.href || navigatingTo === ss.href);
+
+                    if (hasSubSub) {
+                      return (
+                        <div key={sIdx} className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleSubMenu(sub.name)}
+                            className={cn(
+                              "w-full flex items-center justify-between py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer text-left",
+                              isSubActive
+                                ? "text-white bg-[#1E1B4B]"
+                                : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
+                            )}
+                          >
+                            <span>{sub.name}</span>
+                            {isSubSubOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          </button>
+
+                          {isSubSubOpen && (
+                            <div className="pl-3 space-y-1 mt-1">
+                              {sub.subItems?.map((subSub, ssIdx) => {
+                                const isSubSubActive = pathname === subSub.href || navigatingTo === subSub.href;
+                                return (
+                                  <Link
+                                    key={ssIdx}
+                                    href={subSub.href}
+                                    onClick={(e) => handleNavigation(e, subSub.href)}
+                                    className={cn(
+                                      "block py-1.5 pl-6 pr-3 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer",
+                                      isSubSubActive
+                                        ? "text-white bg-[#312E81]"
+                                        : "text-[#94A3B8]/80 hover:text-white hover:bg-[#1E1B4B]/40"
+                                    )}
+                                  >
+                                    {subSub.name}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
 
                     if (item.name === "Settings") {
                       return (
                         <Link
                           key={sIdx}
-                          href={sub.href}
+                          href={sub.href || "#"}
                           onClick={(e) => handleNavigation(e, sub.href)}
+                          onMouseEnter={() => handlePrefetch(sub.href)}
                           className={cn(
                             "flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
                             isSubActive
@@ -327,8 +465,9 @@ export default function Sidebar() {
                     return (
                       <Link
                         key={sIdx}
-                        href={sub.href}
+                        href={sub.href || "#"}
                         onClick={(e) => handleNavigation(e, sub.href)}
+                        onMouseEnter={() => handlePrefetch(sub.href)}
                         className={cn(
                           "block py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer",
                           isSubActive
@@ -336,7 +475,8 @@ export default function Sidebar() {
                             : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
                         )}
                       >
-                        {sub.name}{navigatingTo === sub.href ? " (Loading...)" : ""}
+                        {sub.name}
+                        {navigatingTo === sub.href ? " (Loading...)" : ""}
                       </Link>
                     );
                   })}

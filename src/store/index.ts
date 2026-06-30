@@ -4,10 +4,10 @@ interface AppState {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
-  
+
   selectedBusinessId: string | null;
   setSelectedBusinessId: (id: string | null) => void;
-  
+
   user: {
     id: string;
     email: string;
@@ -33,10 +33,10 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  
+
   selectedBusinessId: null,
   setSelectedBusinessId: (id) => set({ selectedBusinessId: id }),
-  
+
   user: null,
   setUser: (user) => set({ user }),
 

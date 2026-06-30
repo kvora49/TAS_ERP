@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from("audit_log")
-      .select("*, users:user_id(full_name, email)")
+      .select("*")
       .eq("business_id", businessId);
 
     // Apply filters
@@ -51,10 +51,30 @@ export async function GET(request: Request) {
       return new Response(error.message, { status: 500 });
     }
 
+    // Fetch unique users in-memory to bypass schema cache relationship constraints
+    let logsWithUsers = logs || [];
+    if (logs && logs.length > 0) {
+      const userIds = Array.from(new Set(logs.map((log: any) => log.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", userIds);
+        
+        if (usersData) {
+          const userMap = new Map(usersData.map((u: any) => [u.id, u]));
+          logsWithUsers = logs.map((log: any) => ({
+            ...log,
+            users: log.user_id ? userMap.get(log.user_id) || null : null,
+          }));
+        }
+      }
+    }
+
     // Format logs as CSV rows
     let csv = "Date & Time,User,Module,Action,Description,IP Address\n";
-    if (logs && logs.length > 0) {
-      logs.forEach((log) => {
+    if (logsWithUsers && logsWithUsers.length > 0) {
+      logsWithUsers.forEach((log) => {
         const date = new Date(log.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
         const userName = log.user_name || log.users?.full_name || "System";
         const moduleVal = log.table_name || "General";

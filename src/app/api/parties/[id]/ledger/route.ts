@@ -14,45 +14,46 @@ export async function GET(
   const { id } = params;
 
   try {
-    // 1. Fetch Party Details
-    const { data: party, error: partyError } = await supabase
-      .from("parties")
-      .select("type, opening_balance, opening_balance_date, created_at")
-      .eq("id", id)
-      .eq("business_id", businessId)
-      .single();
+    // 1. Fetch Party Details, Purchases, Returns, and Payments in Parallel
+    const [partyResult, purchasesResult, returnsResult, paymentsResult] = await Promise.all([
+      supabase
+        .from("parties")
+        .select("type, opening_balance, opening_balance_date, created_at")
+        .eq("id", id)
+        .eq("business_id", businessId)
+        .single(),
+      supabase
+        .from("raw_material_purchases")
+        .select("id, purchase_number, invoice_date, grand_total, status")
+        .eq("supplier_id", id)
+        .eq("business_id", businessId)
+        .neq("status", "cancelled")
+        .is("deleted_at", null),
+      supabase
+        .from("purchase_returns")
+        .select("id, return_number, return_date, grand_total, status")
+        .eq("supplier_id", id)
+        .eq("business_id", businessId)
+        .neq("status", "cancelled")
+        .is("deleted_at", null),
+      supabase
+        .from("purchase_payments")
+        .select("id, payment_date, payment_mode, reference_no, paid_amount, status")
+        .eq("supplier_id", id)
+        .eq("business_id", businessId)
+        .eq("status", "success")
+    ]);
+
+    const { data: party, error: partyError } = partyResult;
+    const { data: purchases, error: purchaseError } = purchasesResult;
+    const { data: returns, error: returnError } = returnsResult;
+    const { data: payments, error: paymentError } = paymentsResult;
 
     if (partyError) {
       return NextResponse.json({ error: partyError.message }, { status: 404 });
     }
 
     const isCustomerOnly = party.type?.includes("customer") && !party.type?.includes("supplier");
-
-    // 2. Fetch Purchases
-    const { data: purchases, error: purchaseError } = await supabase
-      .from("raw_material_purchases")
-      .select("id, purchase_number, invoice_date, grand_total, status")
-      .eq("supplier_id", id)
-      .eq("business_id", businessId)
-      .neq("status", "cancelled")
-      .is("deleted_at", null);
-
-    // 3. Fetch Returns
-    const { data: returns, error: returnError } = await supabase
-      .from("purchase_returns")
-      .select("id, return_number, return_date, grand_total, status")
-      .eq("supplier_id", id)
-      .eq("business_id", businessId)
-      .neq("status", "cancelled")
-      .is("deleted_at", null);
-
-    // 4. Fetch Payments
-    const { data: payments, error: paymentError } = await supabase
-      .from("purchase_payments")
-      .select("id, payment_date, payment_mode, reference_no, paid_amount, status")
-      .eq("supplier_id", id)
-      .eq("business_id", businessId)
-      .eq("status", "success");
 
     // 5. Build Ledger Entries
     const entries: any[] = [];

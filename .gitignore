@@ -43,3 +43,27 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Scratch files / diagnostic scripts
+/call-reload-rpc.js
+/check-event-triggers.js
+/check-grants.js
+/check-schema-permissions.js
+/create-reload-rpc.js
+/execute-db-commands.js
+/extract-request-phase4.js
+/guess-password-pooler.js
+/inspect-schema-phase4.js
+/inspect-workers.js
+/query-data-samples.js
+/read-logs.js
+/reload-schema.js
+/run-migrations-pg.js
+/run-rls-auto-enable.js
+/search-gemini-folder.js
+/search-markdown-full.js
+/search-markdown.js
+/test-workers-http.js
+/test-workers-sql.js
+/test-workers-table.js
+/user_request_phase4.md

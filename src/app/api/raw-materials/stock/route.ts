@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       // Return current stock summary
       let query = supabase
         .from("raw_material_current_stock")
-        .select("*, material_type:raw_material_types(name, category, uom, min_stock_level), godown:godowns(name)")
+        .select("*, material_type:raw_material_types(name, category, unit, reorder_level), godown:godowns(name)")
         .eq("business_id", businessId);
 
       if (godownId) {
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       // Filter and compute details
       let formattedStock = (stock || []).map((s: any) => {
         const current = Number(s.current_stock || 0);
-        const minLevel = Number(s.material_type?.min_stock_level || 0);
+        const minLevel = Number(s.material_type?.reorder_level || 0);
         let stockStatus = "in_stock";
         if (current <= 0) {
           stockStatus = "out_of_stock";

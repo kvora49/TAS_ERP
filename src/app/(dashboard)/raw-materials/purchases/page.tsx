@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Purchase {
   id: string;
@@ -39,9 +40,7 @@ interface Stats {
 
 export default function PurchasesPage() {
   const router = useRouter();
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "unpaid" | "partial" | "paid">("all");
 
@@ -52,29 +51,29 @@ export default function PurchasesPage() {
   const [deletingPurchase, setDeletingPurchase] = useState<Purchase | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const pRes = await fetch("/api/raw-materials/purchases");
-      if (!pRes.ok) throw new Error("Failed to fetch purchases");
-      const pData = await pRes.json();
-      setPurchases(pData.purchases || []);
-
-      const sRes = await fetch("/api/raw-materials/purchases/stats");
-      if (sRes.ok) {
-        const sData = await sRes.json();
-        setStats(sData.stats);
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Error loading purchases");
-    } finally {
-      setLoading(false);
+  const { data: purchasesData, isLoading: purchasesLoading } = useQuery<Purchase[]>({
+    queryKey: ["purchases"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/purchases");
+      if (!res.ok) throw new Error("Failed to fetch purchases");
+      const data = await res.json();
+      return data.purchases || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const { data: statsData, isLoading: statsLoading } = useQuery<Stats | null>({
+    queryKey: ["purchases", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/purchases/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      const data = await res.json();
+      return data.stats || null;
+    }
+  });
+
+  const purchases = purchasesData || [];
+  const stats = statsData || null;
+  const loading = purchasesLoading || statsLoading;
 
   const handleOpenDelete = (purchase: Purchase) => {
     setDeletingPurchase(purchase);
@@ -94,7 +93,8 @@ export default function PurchasesPage() {
       }
       toast.success("Invoice cancelled successfully");
       setDeleteOpen(false);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["purchases", "stats"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred");
     } finally {
@@ -298,11 +298,10 @@ export default function PurchasesPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                activeTab === tab.id
+              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeTab === tab.id
                   ? "bg-white text-[#0F172A] shadow-sm font-bold"
                   : "text-[#64748B] hover:text-[#0F172A]"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -331,7 +330,7 @@ export default function PurchasesPage() {
           total={filteredPurchases.length}
           page={1}
           perPage={10000}
-          onPageChange={() => {}}
+          onPageChange={() => { }}
           emptyMessage="No purchases invoices found."
         />
       </div>
@@ -345,7 +344,10 @@ export default function PurchasesPage() {
             setPaymentPurchase(null);
           }}
           purchase={paymentPurchase}
-          onSuccess={fetchData}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["purchases", "stats"] });
+          }}
         />
       )}
 

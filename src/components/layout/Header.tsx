@@ -28,7 +28,7 @@ export default function Header() {
   const setFilters = useAppStore((state) => state.setFilters);
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
-  
+
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [notificationCount, setNotificationCount] = useState(3); // placeholder
 

@@ -9,23 +9,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Fetch business info
-    const { data: business, error: busError } = await supabase
-      .from("businesses")
-      .select("*")
-      .eq("id", businessId)
-      .single();
+    // 1. Fetch business and settings in parallel
+    const [businessResult, settingsResult] = await Promise.all([
+      supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", businessId)
+        .single(),
+      supabase
+        .from("business_settings")
+        .select("*")
+        .eq("business_id", businessId)
+        .maybeSingle()
+    ]);
+
+    const { data: business, error: busError } = businessResult;
+    let { data: settings, error: setError } = settingsResult;
 
     if (busError) {
       return NextResponse.json({ error: busError.message }, { status: 500 });
     }
-
-    // 2. Fetch or create business settings
-    let { data: settings, error: setError } = await supabase
-      .from("business_settings")
-      .select("*")
-      .eq("business_id", businessId)
-      .maybeSingle();
 
     if (!settings && !setError) {
       // Seed default settings record on-demand

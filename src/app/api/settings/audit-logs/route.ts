@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from("audit_log")
-      .select("*, users:user_id(full_name, email)", { count: "exact" })
+      .select("*", { count: "exact" })
       .eq("business_id", businessId);
 
     // Apply filters
@@ -56,8 +56,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Fetch unique users in-memory to bypass schema cache relationship constraints
+    let logsWithUsers = logs || [];
+    if (logs && logs.length > 0) {
+      const userIds = Array.from(new Set(logs.map((log: any) => log.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", userIds);
+        
+        if (usersData) {
+          const userMap = new Map(usersData.map((u: any) => [u.id, u]));
+          logsWithUsers = logs.map((log: any) => ({
+            ...log,
+            users: log.user_id ? userMap.get(log.user_id) || null : null,
+          }));
+        }
+      }
+    }
+
     return NextResponse.json({
-      logs: logs || [],
+      logs: logsWithUsers,
       count: count || 0,
       page,
       limit,

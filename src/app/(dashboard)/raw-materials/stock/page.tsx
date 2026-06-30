@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
@@ -8,6 +8,7 @@ import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { Search, Plus, Boxes, Layers, TrendingDown, AlertTriangle, ArrowLeftRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import {
   PieChart,
   Pie,
@@ -35,8 +36,8 @@ interface StockSummary {
   material_type?: {
     name: string;
     category: string;
-    uom: string;
-    min_stock_level: number;
+    unit: string;
+    reorder_level: number;
   };
   godown?: {
     name: string;
@@ -67,73 +68,78 @@ interface Stats {
 
 export default function StockOverviewPage() {
   const router = useRouter();
-  const [stockSummary, setStockSummary] = useState<StockSummary[]>([]);
-  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  
-  const [catChartData, setCatChartData] = useState<any[]>([]);
-  const [moveChartData, setMoveChartData] = useState<any[]>([]);
-
-  const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<"summary" | "entries">("summary");
   const [search, setSearch] = useState("");
   const [godownFilter, setGodownFilter] = useState("");
-  const [godowns, setGodowns] = useState<any[]>([]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // 1. Fetch Summary Stock
-      const summaryRes = await fetch(`/api/raw-materials/stock?view=summary&godown_id=${godownFilter}`);
-      if (summaryRes.ok) {
-        const summaryData = await summaryRes.json();
-        setStockSummary(summaryData.stock || []);
-      }
-
-      // 2. Fetch Entries Stock
-      const entriesRes = await fetch(`/api/raw-materials/stock?view=entries&godown_id=${godownFilter}`);
-      if (entriesRes.ok) {
-        const entriesData = await entriesRes.json();
-        setStockEntries(entriesData.entries || []);
-      }
-
-      // 3. Fetch Stats
-      const statsRes = await fetch("/api/raw-materials/stock/stats");
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData.stats);
-      }
-
-      // 4. Fetch Charts
-      const catRes = await fetch("/api/raw-materials/stock/chart/category");
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        setCatChartData(catData.chartData || []);
-      }
-
-      const moveRes = await fetch("/api/raw-materials/stock/chart/movement");
-      if (moveRes.ok) {
-        const moveData = await moveRes.json();
-        setMoveChartData(moveData.chartData || []);
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Error loading stock details");
-    } finally {
-      setLoading(false);
+  const { data: stockSummaryData, isLoading: summaryLoading } = useQuery<StockSummary[]>({
+    queryKey: ["stock", "summary", godownFilter],
+    queryFn: async () => {
+      const res = await fetch(`/api/raw-materials/stock?view=summary&godown_id=${godownFilter}`);
+      if (!res.ok) throw new Error("Failed to fetch stock summary");
+      const data = await res.json();
+      return data.stock || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [godownFilter]);
+  const { data: stockEntriesData, isLoading: entriesLoading } = useQuery<StockEntry[]>({
+    queryKey: ["stock", "entries", godownFilter],
+    queryFn: async () => {
+      const res = await fetch(`/api/raw-materials/stock?view=entries&godown_id=${godownFilter}`);
+      if (!res.ok) throw new Error("Failed to fetch stock entries");
+      const data = await res.json();
+      return data.entries || [];
+    }
+  });
 
-  // Load godowns list once
-  useEffect(() => {
-    fetch("/api/master-data/godowns")
-      .then((res) => res.json())
-      .then((data) => setGodowns(data.godowns || []))
-      .catch((err) => console.error("Error loading godowns", err));
-  }, []);
+  const { data: statsData, isLoading: statsLoading } = useQuery<Stats | null>({
+    queryKey: ["stock", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/stock/stats");
+      if (!res.ok) throw new Error("Failed to fetch stock stats");
+      const data = await res.json();
+      return data.stats || null;
+    }
+  });
+
+  const { data: catChartDataVal, isLoading: catLoading } = useQuery<any[]>({
+    queryKey: ["stock", "chart", "category"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/stock/chart/category");
+      if (!res.ok) throw new Error("Failed to fetch category chart data");
+      const data = await res.json();
+      return data.chartData || [];
+    }
+  });
+
+  const { data: moveChartDataVal, isLoading: moveLoading } = useQuery<any[]>({
+    queryKey: ["stock", "chart", "movement"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/stock/chart/movement");
+      if (!res.ok) throw new Error("Failed to fetch movement chart data");
+      const data = await res.json();
+      return data.chartData || [];
+    }
+  });
+
+  const { data: godownsData, isLoading: godownsLoading } = useQuery<any[]>({
+    queryKey: ["godowns"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/godowns");
+      if (!res.ok) throw new Error("Failed to fetch godowns");
+      const data = await res.json();
+      return data.godowns || [];
+    }
+  });
+
+  const stockSummary = stockSummaryData || [];
+  const stockEntries = stockEntriesData || [];
+  const stats = statsData || null;
+  const catChartData = catChartDataVal || [];
+  const moveChartData = moveChartDataVal || [];
+  const godowns = godownsData || [];
+
+  const loading = summaryLoading || entriesLoading || statsLoading || catLoading || moveLoading || godownsLoading;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -188,7 +194,7 @@ export default function StockOverviewPage() {
       header: "Available Qty",
       render: (row) => (
         <span className="font-bold">
-          {row.current_stock} {row.material_type?.uom || "meter"}
+          {row.current_stock} {row.material_type?.unit || "meter"}
         </span>
       ),
     },
@@ -418,17 +424,15 @@ export default function StockOverviewPage() {
         <div className="flex bg-[#F1F5F9] p-1 rounded-lg w-full md:w-auto">
           <button
             onClick={() => setActiveView("summary")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
-              activeView === "summary" ? "bg-white text-[#0F172A] shadow-sm font-bold" : "text-[#64748B] hover:text-[#0F172A]"
-            }`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeView === "summary" ? "bg-white text-[#0F172A] shadow-sm font-bold" : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
           >
             Running Summary
           </button>
           <button
             onClick={() => setActiveView("entries")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
-              activeView === "entries" ? "bg-white text-[#0F172A] shadow-sm font-bold" : "text-[#64748B] hover:text-[#0F172A]"
-            }`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeView === "entries" ? "bg-white text-[#0F172A] shadow-sm font-bold" : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
           >
             Stock Entries
           </button>
@@ -472,7 +476,7 @@ export default function StockOverviewPage() {
             total={filteredSummary.length}
             page={1}
             perPage={10000}
-            onPageChange={() => {}}
+            onPageChange={() => { }}
             emptyMessage="No inventory items found."
           />
         ) : (
@@ -483,7 +487,7 @@ export default function StockOverviewPage() {
             total={filteredEntries.length}
             page={1}
             perPage={10000}
-            onPageChange={() => {}}
+            onPageChange={() => { }}
             emptyMessage="No stock entry transaction history found."
           />
         )}

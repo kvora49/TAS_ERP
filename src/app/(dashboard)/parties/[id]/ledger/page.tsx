@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 interface LedgerEntry {
   date: string;
@@ -35,34 +36,30 @@ interface Party {
 
 export default function PartyLedgerPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [party, setParty] = useState<Party | null>(null);
-  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchLedgerData = async () => {
-    setLoading(true);
-    try {
-      // Fetch party details
-      const partyRes = await fetch(`/api/parties/${id}`);
-      if (!partyRes.ok) throw new Error("Failed to load party info");
-      const partyData = await partyRes.json();
-      setParty(partyData.party);
-
-      // Fetch ledger entries
-      const ledgerRes = await fetch(`/api/parties/${id}/ledger`);
-      if (!ledgerRes.ok) throw new Error("Failed to load ledger details");
-      const ledgerData = await ledgerRes.json();
-      setLedger(ledgerData.ledger || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching ledger data");
-    } finally {
-      setLoading(false);
+  const { data: partyData, isLoading: partyLoading } = useQuery<Party | null>({
+    queryKey: ["party", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/parties/${id}`);
+      if (!res.ok) throw new Error("Failed to load party info");
+      const data = await res.json();
+      return data.party || null;
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchLedgerData();
-  }, [id]);
+  const { data: ledgerData, isLoading: ledgerLoading } = useQuery<LedgerEntry[]>({
+    queryKey: ["ledger", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/parties/${id}/ledger`);
+      if (!res.ok) throw new Error("Failed to load ledger details");
+      const data = await res.json();
+      return data.ledger || [];
+    }
+  });
+
+  const party = partyData || null;
+  const ledger = ledgerData || [];
+  const loading = partyLoading || ledgerLoading;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

@@ -28,7 +28,7 @@ export async function GET(
 
     const { data: items, error: itemsErr } = await supabase
       .from("raw_material_stock_entry_items")
-      .select("*, material_type:raw_material_types(name, category, uom)")
+      .select("*, material_type:raw_material_types(name, category, unit)")
       .eq("stock_entry_id", id)
       .eq("business_id", businessId);
 

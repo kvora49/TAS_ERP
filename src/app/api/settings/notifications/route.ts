@@ -31,30 +31,36 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Fetch general settings
-    let { data: settings, error: setError } = await supabase
-      .from("business_settings")
-      .select("*")
-      .eq("business_id", businessId)
-      .maybeSingle();
+    // 1. Fetch settings and rules in parallel
+    const [settingsResult, rulesResult] = await Promise.all([
+      supabase
+        .from("business_settings")
+        .select("*")
+        .eq("business_id", businessId)
+        .maybeSingle(),
+      supabase
+        .from("notification_rules")
+        .select("*")
+        .eq("business_id", businessId)
+    ]);
 
-    if (!settings && !setError) {
+    let { data: settings, error: setError } = settingsResult;
+    const { data: rules, error: rulesError } = rulesResult;
+
+    if (setError) {
+      return NextResponse.json({ error: setError.message }, { status: 500 });
+    }
+    if (rulesError) {
+      return NextResponse.json({ error: rulesError.message }, { status: 500 });
+    }
+
+    if (!settings) {
       const { data: newSettings } = await supabase
         .from("business_settings")
         .insert({ business_id: businessId })
         .select()
         .single();
       settings = newSettings;
-    }
-
-    // 2. Fetch notification rules
-    const { data: rules, error: rulesError } = await supabase
-      .from("notification_rules")
-      .select("*")
-      .eq("business_id", businessId);
-
-    if (rulesError) {
-      return NextResponse.json({ error: rulesError.message }, { status: 500 });
     }
 
     // 3. Seed defaults if empty

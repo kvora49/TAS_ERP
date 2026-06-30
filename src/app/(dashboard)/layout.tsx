@@ -104,16 +104,6 @@ export default function DashboardLayout({
 
         {/* Content View */}
         <main className="flex-1 overflow-y-auto bg-[#F1F5F9] px-6 lg:px-8 pt-24 pb-24 md:pb-8 relative">
-          {navigatingTo && (
-            <div className="absolute inset-0 bg-[#F1F5F9]/60 backdrop-blur-[1px] z-50 flex flex-col items-center justify-center select-none pointer-events-none transition-all duration-300">
-              <div className="bg-white/80 dark:bg-[#111827]/85 border border-slate-200/50 dark:border-slate-800/80 px-6 py-4 rounded-xl shadow-xl flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-[#6366F1] animate-spin" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Loading Workspace View...
-                </span>
-              </div>
-            </div>
-          )}
           {children}
         </main>
 
