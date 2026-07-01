@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     // 1. Get status counts
     const { data: lots, error } = await supabase
       .from("production_lots")
-      .select("status, design_id, designs(id, name, code)")
+      .select("status, design_id, designs(id, name, code:design_number)")
       .eq("business_id", businessId)
       .is("deleted_at", null);
 

@@ -21,8 +21,8 @@ export async function GET(
       .select(`
         *,
         brand:brands(id, name),
-        design:designs(id, name, code, image_url),
-        colour:design_colours(id, colour_name, hex_code),
+        design:designs(id, name, code:design_number, images),
+        colour:design_colours(id, colour_name, hex_code:colour_hex),
         size_set:size_sets(id, name, sizes)
       `)
       .eq("id", id)
@@ -61,8 +61,21 @@ export async function GET(
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
 
+    // Extract first image as image_url
+    const imageUrl = lot.design && Array.isArray((lot.design as any).images) && (lot.design as any).images.length > 0
+      ? (lot.design as any).images[0]
+      : null;
+
+    const lotWithImageUrl = {
+      ...lot,
+      design: lot.design ? {
+        ...lot.design,
+        image_url: imageUrl
+      } : null
+    };
+
     return NextResponse.json({
-      lot,
+      lot: lotWithImageUrl,
       sizes: sizeQuantities || [],
       stages: stages || [],
       stageEntries: stageEntries || [],

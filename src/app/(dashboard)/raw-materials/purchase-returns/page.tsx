@@ -9,6 +9,7 @@ import { Plus, Search, Eye, RefreshCw, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 
 interface PurchaseReturn {
   id: string;
@@ -81,7 +82,7 @@ export default function PurchaseReturnsPage() {
       key: "return_date",
       header: "Return Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{row.return_date}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.return_date)}</span>,
     },
     {
       key: "supplier",

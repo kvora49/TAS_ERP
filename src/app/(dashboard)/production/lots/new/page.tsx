@@ -82,7 +82,7 @@ export default function CreateLotPage() {
   const [lotNumber, setLotNumber] = useState("");
   const [lotDate, setLotDate] = useState(new Date().toISOString().substring(0, 10));
   const [colourId, setColourId] = useState("");
-  const [season, setSeason] = useState("Summer 2024");
+  const [season, setSeason] = useState("Summer " + new Date().getFullYear());
   const [buyerOrderRef, setBuyerOrderRef] = useState("");
   const [targetStartDate, setTargetStartDate] = useState(new Date().toISOString().substring(0, 10));
   const [targetDispatchDate, setTargetDispatchDate] = useState("");
@@ -350,6 +350,9 @@ export default function CreateLotPage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to create lot");
 
+      await queryClient.invalidateQueries({ queryKey: ["lots-list"] });
+      await queryClient.invalidateQueries({ queryKey: ["lots-stats"] });
+
       toast.success("Production lot created successfully");
       router.push("/production/lots");
       router.refresh();
@@ -560,10 +563,10 @@ export default function CreateLotPage() {
                   onChange={(e) => setSeason(e.target.value)}
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                 >
-                  <option value="Summer 2024">Summer 2024</option>
-                  <option value="Winter 2024">Winter 2024</option>
-                  <option value="Monsoon 2024">Monsoon 2024</option>
-                  <option value="Spring 2025">Spring 2025</option>
+                  <option value={`Summer ${new Date().getFullYear()}`}>Summer {new Date().getFullYear()}</option>
+                  <option value={`Winter ${new Date().getFullYear()}`}>Winter {new Date().getFullYear()}</option>
+                  <option value={`Monsoon ${new Date().getFullYear()}`}>Monsoon {new Date().getFullYear()}</option>
+                  <option value={`Spring ${new Date().getFullYear() + 1}`}>Spring {new Date().getFullYear() + 1}</option>
                 </select>
               </div>
 
@@ -635,6 +638,7 @@ export default function CreateLotPage() {
                             type="number"
                             min="0"
                             value={sizeQuantities[size] || 0}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const val = parseInt(e.target.value, 10) || 0;
                               setSizeQuantities({
@@ -924,7 +928,7 @@ export default function CreateLotPage() {
         </div>
 
         {/* Right Column: Summaries & Timelines */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
           {/* 1. Lot Summary Right Panel */}
           <LotSummaryPanel
             title="Lot Live Summary"

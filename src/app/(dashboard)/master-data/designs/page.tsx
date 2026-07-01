@@ -115,6 +115,8 @@ export default function DesignsPage() {
   const [deletingDesign, setDeletingDesign] = useState<Design | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [selectedDesignDetails, setSelectedDesignDetails] = useState<Design | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -385,7 +387,10 @@ export default function DesignsPage() {
                     className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group"
                   >
                     {/* Catalog Image Swatch */}
-                    <div className="aspect-[4/3] bg-[#F8FAFC] border-b border-[#E5E7EB] relative flex items-center justify-center overflow-hidden">
+                    <div
+                      onClick={() => setSelectedDesignDetails(design)}
+                      className="aspect-[4/3] bg-[#F8FAFC] border-b border-[#E5E7EB] relative flex items-center justify-center overflow-hidden cursor-pointer"
+                    >
                       {coverImage ? (
                         <img
                           src={coverImage}
@@ -408,7 +413,12 @@ export default function DesignsPage() {
                         <span className="text-[10px] font-bold text-[#6366F1] uppercase tracking-wider">
                           {design.brand?.name || "Apparel Brand"}
                         </span>
-                        <h4 className="font-bold text-[#0F172A] text-sm mt-0.5 truncate">{design.name}</h4>
+                        <button
+                          onClick={() => setSelectedDesignDetails(design)}
+                          className="font-bold text-[#0F172A] hover:text-[#6366F1] text-sm mt-0.5 truncate w-full text-left bg-transparent border-0 p-0 cursor-pointer"
+                        >
+                          {design.name}
+                        </button>
                         
                         <div className="flex items-center gap-2 mt-1 font-mono text-xs">
                           <span className="text-[#334155] font-bold bg-[#F1F5F9] px-1.5 py-0.5 rounded">
@@ -899,6 +909,123 @@ export default function DesignsPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
+
+      {/* View Design Details Modal */}
+      <Dialog open={selectedDesignDetails !== null} onOpenChange={(open) => !open && setSelectedDesignDetails(null)}>
+        <DialogContent className="sm:max-w-lg bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              <Palette className="h-5 w-5 text-[#6366F1]" />
+              Design Specifications
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedDesignDetails && (
+            <div className="space-y-4 pt-3 text-sm text-[#374151]">
+              {/* Image Swatches */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {selectedDesignDetails.images && selectedDesignDetails.images.length > 0 ? (
+                  selectedDesignDetails.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={img}
+                      alt={`Design Swatch ${i + 1}`}
+                      className="w-24 h-24 object-cover rounded-lg border border-[#E5E7EB]"
+                    />
+                  ))
+                ) : (
+                  <div className="w-full h-24 rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] flex items-center justify-center text-xs text-[#94A3B8]">
+                    No images uploaded
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-[#F3F4F6] pt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Design Code</span>
+                  <span className="font-mono text-sm font-bold text-[#6366F1]">{selectedDesignDetails.design_number}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Design Name</span>
+                  <span className="font-semibold">{selectedDesignDetails.name}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Brand</span>
+                  <span className="font-semibold text-xs">{selectedDesignDetails.brand?.name || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Category / Sub-category</span>
+                  <span className="font-semibold text-xs">
+                    {selectedDesignDetails.category || "—"} {selectedDesignDetails.sub_category ? `/ ${selectedDesignDetails.sub_category}` : ""}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Season</span>
+                  <span className="font-semibold text-xs">{selectedDesignDetails.season || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Gender Range</span>
+                  <span className="font-semibold text-xs">{selectedDesignDetails.gender || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Sale Price (₹)</span>
+                  <span className="font-bold text-xs">
+                    ₹{selectedDesignDetails.sale_price?.toLocaleString("en-IN") || "0.00"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">HSN Code</span>
+                  <span className="font-mono text-xs">{selectedDesignDetails.hsn_code || "—"}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Size Set Template</span>
+                  <span className="font-semibold text-xs">
+                    {selectedDesignDetails.size_set?.name || "—"}{" "}
+                    {selectedDesignDetails.size_set?.sizes ? `(${selectedDesignDetails.size_set.sizes.join(", ")})` : ""}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Description</span>
+                  <p className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] whitespace-pre-line">
+                    {selectedDesignDetails.description || "No description provided."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Colours Section */}
+              <div className="border-t border-[#F3F4F6] pt-3">
+                <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-2">Available Colours</span>
+                {selectedDesignDetails.design_colours && selectedDesignDetails.design_colours.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedDesignDetails.design_colours.map((col, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
+                        <span
+                          className="w-4 h-4 rounded-full border border-gray-300 shadow-sm shrink-0"
+                          style={{ backgroundColor: col.colour_hex || "#CCCCCC" }}
+                        />
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold block truncate text-[#334155]">{col.colour_name}</span>
+                          <span className="text-[10px] text-[#64748B] font-mono">{col.colour_hex}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs text-[#94A3B8]">No colours configured.</span>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="pt-2 border-t border-[#F3F4F6]">
+            <button
+              onClick={() => setSelectedDesignDetails(null)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+            >
+              Close
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

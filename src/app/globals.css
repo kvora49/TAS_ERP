@@ -257,6 +257,51 @@
   --att-present-bg: #DCFCE7;        --att-present-text: #15803D;
   --att-absent-bg: #FEE2E2;         --att-absent-text: #DC2626;
   --att-halfday-bg: #FEF3C7;        --att-halfday-text: #D97706;
+
+  /* Challan type badges */
+  --badge-outward-bg: #EEF2FF;      --badge-outward-text: #6366F1;
+  --badge-inward-bg: #F0FDF4;       --badge-inward-text: #15803D;
+
+  /* Challan status badges */
+  --badge-dispatched-bg: #DCFCE7;   --badge-dispatched-text: #15803D;
+  --badge-received-bg: #DCFCE7;     --badge-received-text: #15803D;
+  --badge-intransit-bg: #DBEAFE;    --badge-intransit-text: #1D4ED8;
+  --badge-pending-bg: #FEF3C7;      --badge-pending-text: #D97706;
+
+  /* Transfer status badges */
+  --badge-completed-bg: #DCFCE7;    --badge-completed-text: #15803D;
+
+  /* Adjustment type colors */
+  --adj-damage-icon: #DC2626;       --adj-damage-bg: #FEE2E2;
+  --adj-sample-icon: #D97706;       --adj-sample-bg: #FEF3C7;
+  --adj-scrap-icon: #7C3AED;        --adj-scrap-bg: #EDE9FE;
+  --adj-correction-icon: #15803D;   --adj-correction-bg: #DCFCE7;
+
+  /* Qty change colors in tables */
+  --qty-decrease: #DC2626;   /* negative adjustments */
+  --qty-increase: #15803D;   /* positive adjustments */
+  --value-decrease: #DC2626;
+  --value-increase: #15803D;
+
+  /* Stock status in scanner */
+  --scan-success-bg: #DCFCE7;      --scan-success-text: #15803D;
+  --scan-notfound-bg: #FEE2E2;     --scan-notfound-text: #DC2626;
+
+  /* Colour dot sizes */
+  --colour-dot-sm: 12px;   /* in tables */
+  --colour-dot-md: 16px;   /* in filters/forms */
+  --colour-dot-lg: 20px;   /* in design headers */
+
+  /* PWA bottom nav */
+  --pwa-nav-bg: #FFFFFF;
+  --pwa-nav-active: #6366F1;
+  --pwa-nav-inactive: #94A3B8;
+  --pwa-scan-btn-bg: #6366F1;
+  --pwa-scan-btn-size: 56px;
+
+  /* Scan frame */
+  --scan-frame-border: #6366F1;
+  --scan-overlay-bg: rgba(0,0,0,0.5);
 }
 
 .dark {

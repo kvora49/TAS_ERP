@@ -21,6 +21,8 @@ import {
   Users,
   Truck,
   ClipboardList,
+  QrCode,
+  ShoppingBag,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
@@ -67,6 +69,23 @@ export default function Sidebar() {
 
   const navigatingTo = useAppStore((state) => state.navigatingTo);
   const setNavigatingTo = useAppStore((state) => state.setNavigatingTo);
+
+  const [quickStats, setQuickStats] = useState({ totalDesigns: 56, totalStock: 178450 });
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/finished-stock")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.stats) {
+          setQuickStats({
+            totalDesigns: data.stats.total_designs || 0,
+            totalStock: data.stats.total_stock || 0,
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading sidebar quick stats:", err));
+  }, [user]);
 
   useEffect(() => {
     setNavigatingTo(null);
@@ -127,9 +146,18 @@ export default function Sidebar() {
     "/raw-materials/purchase-returns",
     "/raw-materials/stock",
     "/production/lots",
+    "/production/stage-entries",
     "/production/job-work/list",
     "/production/job-work/record-payment",
     "/payments/supplier",
+    "/finished-stock",
+    "/finished-stock/designs",
+    "/finished-stock/adjustments",
+    "/finished-stock/adjustments/new",
+    "/finished-stock/transfers",
+    "/finished-stock/transfers/new",
+    "/finished-stock/challans",
+    "/finished-stock/challans/new",
   ];
 
   const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href?: string) => {
@@ -155,7 +183,11 @@ export default function Sidebar() {
       href === "/settings/communication" ||
       href.startsWith("/master-data/workers/") ||
       href.startsWith("/production/lots/") ||
-      href.startsWith("/production/stage-entries/");
+      href.startsWith("/production/stage-entries/") ||
+      href.startsWith("/finished-stock/designs/") ||
+      href.startsWith("/finished-stock/adjustments/") ||
+      href.startsWith("/finished-stock/transfers/") ||
+      href.startsWith("/finished-stock/challans/");
 
     if (!isWhitelisted) {
       e.preventDefault();
@@ -247,7 +279,19 @@ export default function Sidebar() {
         }
       ],
     },
-    { name: "Finished Stock", href: "/finished-stock", icon: Boxes },
+    {
+      name: "Finished Stock",
+      icon: Boxes,
+      subItems: [
+        { name: "Overview", href: "/finished-stock" },
+        { name: "Design Stock", href: "/finished-stock/designs" },
+        { name: "Adjustments", href: "/finished-stock/adjustments" },
+        { name: "Transfers", href: "/finished-stock/transfers" },
+        { name: "Challans", href: "/finished-stock/challans" },
+        { name: "Barcode / QR", href: "/finished-stock/barcode-qr" },
+      ],
+    },
+    { name: "Scan (PWA)", href: "/scan", icon: QrCode },
     {
       name: "Sales & Billing",
       icon: Receipt,
@@ -486,6 +530,25 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Quick Stats */}
+      {sidebarOpen && (
+        <div className="bg-white border-t border-[#E5E7EB] p-3 shrink-0">
+          <p className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wide mb-2">
+            Quick Stats
+          </p>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-sm text-[#374151] font-medium">
+              <ShoppingBag className="h-4 w-4 text-[#6366F1]" />
+              <span>{quickStats.totalDesigns} Total Designs</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-[#64748B] font-medium">
+              <Package className="h-4 w-4 text-[#6366F1]" />
+              <span>{quickStats.totalStock.toLocaleString()} Total Stock (Pcs)</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Card */}
       {user && (

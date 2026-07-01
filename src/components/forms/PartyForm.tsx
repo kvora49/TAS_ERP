@@ -263,13 +263,14 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Party Type *</label>
                 <div className="flex items-center gap-4 mt-2">
-                  {["supplier", "customer", "worker"].map((t) => (
+                  {["supplier", "customer"].map((t) => (
                     <label key={t} className="flex items-center gap-2 text-sm font-medium text-[#1E293B] cursor-pointer">
                       <input
-                        type="checkbox"
+                        type="radio"
                         value={t}
-                        {...register("type")}
-                        className="rounded border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4"
+                        checked={watchTypes.includes(t)}
+                        onChange={() => setValue("type", [t])}
+                        className="rounded-full border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4"
                       />
                       <span className="capitalize">{t}</span>
                     </label>
@@ -636,6 +637,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   type="number"
                   placeholder="0.00"
                   {...register("credit_limit")}
+                  onFocus={(e) => e.target.select()}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
                 />
               </div>
@@ -646,6 +648,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   type="number"
                   placeholder="e.g. 50000 for Cr, -5000 for Dr"
                   {...register("opening_balance")}
+                  onFocus={(e) => e.target.select()}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
                 />
                 <p className="text-[10px] text-[#64748B] mt-1">

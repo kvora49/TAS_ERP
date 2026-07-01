@@ -9,6 +9,7 @@ import { Search, Plus, Boxes, Layers, TrendingDown, AlertTriangle, ArrowLeftRigh
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 import {
   PieChart,
   Pie,
@@ -251,7 +252,7 @@ export default function StockOverviewPage() {
       key: "posting_date",
       header: "Posting Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{row.posting_date}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.posting_date)}</span>,
     },
     {
       key: "entry_type",

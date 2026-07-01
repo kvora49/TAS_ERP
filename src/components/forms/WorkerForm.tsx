@@ -424,6 +424,7 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                     type="number"
                     step="0.01"
                     {...register("default_rate")}
+                    onFocus={(e) => e.target.select()}
                     className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                     placeholder="e.g. 12.00"
                   />
@@ -440,6 +441,7 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                 <input
                   type="number"
                   {...register("max_capacity_per_day")}
+                  onFocus={(e) => e.target.select()}
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                   placeholder="Optional"
                 />

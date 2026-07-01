@@ -67,6 +67,8 @@ export default function BanksUpiPage() {
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [selectedAccountDetails, setSelectedAccountDetails] = useState<BankAccount | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -244,7 +246,12 @@ export default function BanksUpiPage() {
       header: "Display / Holder Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <span className="font-bold text-[#0F172A]">{row.name}</span>
+          <button
+            onClick={() => setSelectedAccountDetails(row)}
+            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
+          >
+            {row.name}
+          </button>
           {row.is_default && (
             <Badge variant="primary" className="gap-1 flex items-center text-[9px] py-0">
               <Star size={8} className="fill-current" /> Default
@@ -644,6 +651,95 @@ export default function BanksUpiPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
+
+      {/* View Bank/UPI Details Modal */}
+      <Dialog open={selectedAccountDetails !== null} onOpenChange={(open) => !open && setSelectedAccountDetails(null)}>
+        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              {selectedAccountDetails?.type === "bank" ? (
+                <Building2 className="h-5 w-5 text-[#6366F1]" />
+              ) : (
+                <Smartphone className="h-5 w-5 text-[#6366F1]" />
+              )}
+              {selectedAccountDetails?.type === "bank" ? "Bank Account Details" : "UPI ID Details"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedAccountDetails && (
+            <div className="space-y-4 pt-3 text-sm text-[#374151]">
+              <div className="border-b border-[#F3F4F6] pb-3 flex items-center justify-between">
+                <div>
+                  <h4 className="text-base font-bold text-[#0F172A]">{selectedAccountDetails.name}</h4>
+                  <div className="flex gap-1.5 mt-1 items-center">
+                    {selectedAccountDetails.is_default && (
+                      <Badge variant="primary" className="text-[10px]">Default Account</Badge>
+                    )}
+                    <StatusBadge active={selectedAccountDetails.is_active} />
+                  </div>
+                </div>
+              </div>
+
+              {selectedAccountDetails.type === "bank" ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Bank Name</span>
+                      <span className="font-semibold text-xs text-[#334155]">{selectedAccountDetails.bank_name || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Account Number</span>
+                      <span className="font-mono text-xs font-bold text-[#334155]">{selectedAccountDetails.account_number || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">IFSC Code</span>
+                      <span className="font-mono text-xs font-bold text-[#6366F1]">{selectedAccountDetails.ifsc || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Branch</span>
+                      <span className="font-semibold text-xs text-[#334155]">{selectedAccountDetails.branch || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">UPI ID</span>
+                      <span className="font-mono text-xs font-bold text-[#6366F1]">{selectedAccountDetails.upi_id || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">UPI Provider</span>
+                      <span className="font-semibold text-xs text-[#334155]">{selectedAccountDetails.upi_provider || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#F3F4F6]">
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Sub Label</span>
+                  <span className="text-xs text-[#334155]">{selectedAccountDetails.sub_label || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Opening Balance (₹)</span>
+                  <span className="font-semibold text-xs text-[#334155]">
+                    ₹{Number(selectedAccountDetails.opening_balance || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <button
+              onClick={() => setSelectedAccountDetails(null)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+            >
+              Close
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Badge } from "@/components/shared/Badge";
 import { Search, Receipt, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 
 interface Payment {
   id: string;
@@ -68,7 +69,7 @@ export default function SupplierPaymentsPage() {
       key: "payment_date",
       header: "Payment Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{row.payment_date}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.payment_date)}</span>,
     },
     {
       key: "supplier",

@@ -143,7 +143,7 @@ export default function RecordPaymentPage() {
     } else {
       setPaymentEntries([]);
     }
-  }, [rawEntries]);
+  }, [entriesData?.entries]);
 
   // Toggle selection on a row
   const toggleRow = (index: number) => {

@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       .from("stage_entries")
       .select(`
         *,
-        lot:production_lots(id, lot_number, design:designs(code, name)),
+        lot:production_lots(id, lot_number, design:designs(code:design_number, name)),
         stage:lot_production_stages(id, stage_name),
         worker:workers(id, name, worker_id)
       `)

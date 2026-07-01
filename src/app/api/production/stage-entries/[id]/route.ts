@@ -25,8 +25,8 @@ export async function GET(
           total_quantity,
           completed_quantity,
           brand:brands(id, name),
-          design:designs(id, name, code),
-          colour:design_colours(id, colour_name, hex_code),
+          design:designs(id, name, code:design_number),
+          colour:design_colours(id, colour_name, hex_code:colour_hex),
           size_set:size_sets(id, name, sizes)
         ),
         stage:lot_production_stages(id, stage_name, sequence_no, stage_type),

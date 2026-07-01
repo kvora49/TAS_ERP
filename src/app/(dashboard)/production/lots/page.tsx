@@ -26,6 +26,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import ProgressBar from "@/components/shared/ProgressBar";
+import { formatDate } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -487,11 +488,11 @@ export default function ProductionLotsPage() {
                           {lot.status.replace("_", " ")}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151]">
-                        {lot.target_start_date || "—"}
+                      <td className="py-3.5 px-5 text-[#374151] font-mono text-xs">
+                        {formatDate(lot.target_start_date)}
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151]">
-                        {lot.target_due_date || "—"}
+                      <td className="py-3.5 px-5 text-[#374151] font-mono text-xs">
+                        {formatDate(lot.target_due_date)}
                       </td>
                       <td className="py-3.5 px-5 text-center">
                         <div className="flex items-center justify-center gap-2">

@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt } from "l
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 
 interface LedgerEntry {
   date: string;
@@ -78,7 +79,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
       key: "date",
       header: "Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{row.date}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.date)}</span>,
     },
     {
       key: "particulars",

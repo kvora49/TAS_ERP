@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,8 @@ export default function PartiesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [selectedPartyDetails, setSelectedPartyDetails] = useState<any | null>(null);
 
   const { data: partiesData, isLoading: partiesLoading } = useQuery<Party[]>({
     queryKey: ["parties"],
@@ -101,7 +104,12 @@ export default function PartiesPage() {
       header: "Party / Display Name",
       render: (row) => (
         <div>
-          <span className="font-bold text-[#0F172A] block">{row.name}</span>
+          <button
+            onClick={() => setSelectedPartyDetails(row)}
+            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0 block"
+          >
+            {row.name}
+          </button>
           {row.company_name && <span className="text-xs text-[#64748B]">{row.company_name}</span>}
         </div>
       ),
@@ -275,6 +283,197 @@ export default function PartiesPage() {
         loading={deleteLoading}
         onConfirm={handleConfirmDelete}
       />
+
+      {/* View Party Details Modal */}
+      <Dialog open={selectedPartyDetails !== null} onOpenChange={(open) => !open && setSelectedPartyDetails(null)}>
+        <DialogContent className="sm:max-w-xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              <Users className="h-5 w-5 text-[#6366F1]" />
+              Party Master Profile
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedPartyDetails && (
+            <div className="space-y-4 pt-3 text-sm text-[#374151]">
+              <div className="border-b border-[#F3F4F6] pb-3 flex justify-between items-start">
+                <div>
+                  <h4 className="text-base font-bold text-[#0F172A]">{selectedPartyDetails.name}</h4>
+                  {selectedPartyDetails.company_name && (
+                    <span className="text-xs text-[#64748B] font-semibold">{selectedPartyDetails.company_name}</span>
+                  )}
+                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                    {selectedPartyDetails.type?.map((t: string) => {
+                      let variant: BadgeVariant = "gray";
+                      if (t === "supplier") variant = "primary";
+                      else if (t === "customer") variant = "green";
+                      else if (t === "worker") variant = "orange";
+                      return (
+                        <Badge key={t} variant={variant} className="capitalize text-[9px] py-0">
+                          {t}
+                        </Badge>
+                      );
+                    })}
+                    <StatusBadge active={selectedPartyDetails.status === "active"} />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Party Code</span>
+                  <span className="font-mono text-xs font-bold text-[#6366F1]">{selectedPartyDetails.code || "—"}</span>
+                </div>
+              </div>
+
+              {/* Grid section */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Phone</span>
+                  <span className="font-semibold text-xs text-[#334155]">{selectedPartyDetails.phone || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">WhatsApp</span>
+                  <span className="font-semibold text-xs text-[#334155]">{selectedPartyDetails.whatsapp_number || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Email</span>
+                  <span className="text-xs text-[#334155]">{selectedPartyDetails.email || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Website</span>
+                  <span className="text-xs text-[#6366F1] truncate block">{selectedPartyDetails.website || "—"}</span>
+                </div>
+              </div>
+
+              {/* Tax Credentials */}
+              <div className="border-t border-[#F3F4F6] pt-3">
+                <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-2">Tax Configurations</span>
+                <div className="grid grid-cols-2 gap-3 bg-[#F8FAFC] border border-[#E2E8F0] p-3 rounded-lg">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">GSTIN</span>
+                    <span className="font-mono text-xs font-bold">{selectedPartyDetails.gstin || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">PAN</span>
+                    <span className="font-mono text-xs font-bold">{selectedPartyDetails.pan || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Aadhaar</span>
+                    <span className="font-mono text-xs font-semibold">{selectedPartyDetails.aadhar || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">MSME No.</span>
+                    <span className="font-mono text-xs font-semibold">{selectedPartyDetails.msme_number || "—"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Addresses */}
+              <div className="border-t border-[#F3F4F6] pt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-1">Billing Address</span>
+                  <div className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] min-h-[70px]">
+                    {selectedPartyDetails.billing_address_line1 || selectedPartyDetails.billing_city ? (
+                      <>
+                        {selectedPartyDetails.billing_address_line1 && <p>{selectedPartyDetails.billing_address_line1}</p>}
+                        {selectedPartyDetails.billing_address_line2 && <p>{selectedPartyDetails.billing_address_line2}</p>}
+                        <p>
+                          {selectedPartyDetails.billing_city || ""}
+                          {selectedPartyDetails.billing_state ? `, ${selectedPartyDetails.billing_state}` : ""}
+                          {selectedPartyDetails.billing_pincode ? ` - ${selectedPartyDetails.billing_pincode}` : ""}
+                        </p>
+                      </>
+                    ) : (
+                      "No billing address configured."
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-1">Shipping Address</span>
+                  <div className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] min-h-[70px]">
+                    {selectedPartyDetails.shipping_address_line1 || selectedPartyDetails.shipping_city ? (
+                      <>
+                        {selectedPartyDetails.shipping_address_line1 && <p>{selectedPartyDetails.shipping_address_line1}</p>}
+                        {selectedPartyDetails.shipping_address_line2 && <p>{selectedPartyDetails.shipping_address_line2}</p>}
+                        <p>
+                          {selectedPartyDetails.shipping_city || ""}
+                          {selectedPartyDetails.shipping_state ? `, ${selectedPartyDetails.shipping_state}` : ""}
+                          {selectedPartyDetails.shipping_pincode ? ` - ${selectedPartyDetails.shipping_pincode}` : ""}
+                        </p>
+                      </>
+                    ) : (
+                      "No shipping address configured."
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Defaults */}
+              <div className="border-t border-[#F3F4F6] pt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Payment Terms</span>
+                  <span className="font-semibold text-xs text-[#334155]">{selectedPartyDetails.payment_terms || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Credit Limit</span>
+                  <span className="font-semibold text-xs text-[#334155]">
+                    ₹{Number(selectedPartyDetails.credit_limit || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Opening Balance</span>
+                  <span className="font-semibold text-xs text-[#334155]">
+                    ₹{Number(selectedPartyDetails.opening_balance || 0).toLocaleString("en-IN")}{" "}
+                    {selectedPartyDetails.opening_balance_date ? `as of ${selectedPartyDetails.opening_balance_date}` : ""}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Default Ledger Account</span>
+                  <span className="text-xs text-[#334155]">{selectedPartyDetails.default_purchase_account || "—"}</span>
+                </div>
+              </div>
+
+              {/* Bank accounts list */}
+              {selectedPartyDetails.bank_details && selectedPartyDetails.bank_details.length > 0 && (
+                <div className="border-t border-[#F3F4F6] pt-3">
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-2">Registered Bank Accounts</span>
+                  <div className="space-y-2">
+                    {selectedPartyDetails.bank_details.map((bank: any, bIdx: number) => (
+                      <div key={bIdx} className="bg-[#F8FAFC] border border-[#E2E8F0] p-2.5 rounded-lg text-xs flex justify-between items-center">
+                        <div>
+                          <span className="font-bold text-[#0F172A]">{bank.bank_name}</span>
+                          <p className="text-[#64748B] font-mono text-[10px] mt-0.5">
+                            A/C: {bank.account_number} · IFSC: {bank.ifsc_code} {bank.branch ? `(${bank.branch})` : ""}
+                          </p>
+                        </div>
+                        {bank.is_primary && (
+                          <Badge variant="primary" className="text-[8px] py-0 px-1.5">Primary</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedPartyDetails.remarks && (
+                <div className="border-t border-[#F3F4F6] pt-3">
+                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-1">Remarks</span>
+                  <p className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+                    {selectedPartyDetails.remarks}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-2 border-t border-[#F3F4F6]">
+            <button
+              onClick={() => setSelectedPartyDetails(null)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+            >
+              Close
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

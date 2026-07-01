@@ -23,8 +23,8 @@ export async function GET(request: Request) {
       .select(`
         *,
         brand:brands(id, name),
-        design:designs(id, name, code),
-        colour:design_colours(id, colour_name, hex_code),
+        design:designs(id, name, code:design_number),
+        colour:design_colours(id, colour_name, hex_code:colour_hex),
         size_set:size_sets(id, name, sizes)
       `)
       .eq("business_id", businessId)

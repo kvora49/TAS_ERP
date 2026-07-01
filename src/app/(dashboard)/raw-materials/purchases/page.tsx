@@ -11,6 +11,7 @@ import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, AlertCir
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 
 interface Purchase {
   id: string;
@@ -139,7 +140,7 @@ export default function PurchasesPage() {
       key: "invoice_date",
       header: "Invoice Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{row.invoice_date}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.invoice_date)}</span>,
     },
     {
       key: "supplier",
