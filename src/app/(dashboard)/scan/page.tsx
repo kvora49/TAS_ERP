@@ -37,7 +37,7 @@ export default function PWAScanPlaceholderPage() {
         </div>
         <h2 className="text-xl font-bold text-[#1E293B] mb-2">Garment Label Scanning</h2>
         <p className="text-sm text-[#64748B] mb-6 max-w-md mx-auto leading-relaxed">
-          The progressive web app mobile scanning module is currently being designed and will be deployed in a separate dedicated phase. Once deployed, you can use your device's camera to execute live godown scans.
+          The progressive web app mobile scanning module is currently being designed and will be deployed in a separate dedicated phase. Once deployed, you can use your device&apos;s camera to execute live godown scans.
         </p>
         <div className="inline-flex items-center gap-2 bg-[#FEF3C7] text-[#D97706] text-xs font-semibold px-3 py-1.5 rounded-full">
           <Hourglass className="h-3.5 w-3.5 animate-spin" />
