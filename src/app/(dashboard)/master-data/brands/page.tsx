@@ -826,7 +826,7 @@ export default function BrandsPage() {
                 <div className="flex flex-col gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Invoice Header Tagline (e.g. "Wholesaler of Denim Apparel")
+                      Invoice Header Tagline (e.g. &quot;Wholesaler of Denim Apparel&quot;)
                     </label>
                     <input
                       type="text"

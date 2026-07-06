@@ -391,7 +391,7 @@ export default function CreditNotesPage() {
 
           <div className="space-y-3 pt-2">
             <p className="text-xs text-slate-500 leading-normal">
-              Are you sure you want to delete manual credit note <span className="font-bold text-slate-700">{selectedCN?.cn_number}</span>? This will reduce the customer's available credit balance.
+              Are you sure you want to delete manual credit note <span className="font-bold text-slate-700">{selectedCN?.cn_number}</span>? This will reduce the customer&apos;s available credit balance.
             </p>
           </div>
 

@@ -710,7 +710,7 @@ export default function SaleBillPrintPage() {
 
             <div className="flex justify-between items-end mt-8">
               <div className="text-center w-40 border-t border-slate-900 pt-1 text-[10px]">
-                Receiver's Signature
+                Receiver&apos;s Signature
               </div>
               <div className="text-center w-48 flex flex-col items-center">
                 <span className="text-[9px] font-extrabold uppercase">For {brand?.name || "COMPANY"}</span>
@@ -864,7 +864,7 @@ export default function SaleBillPrintPage() {
             </div>
 
             <div className="flex justify-between items-end mt-12 text-xs">
-              <span className="border-t border-slate-300 w-36 text-center pt-1 text-slate-500">Receiver's Sign</span>
+              <span className="border-t border-slate-300 w-36 text-center pt-1 text-slate-500">Receiver&apos;s Sign</span>
               <div className="text-right flex flex-col items-center">
                 <span className="text-[10px] text-slate-500">For {brand?.name || "Authorized Brand"}</span>
                 <div className="h-8" />
