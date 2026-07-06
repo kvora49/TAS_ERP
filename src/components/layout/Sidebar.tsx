@@ -104,7 +104,7 @@ export default function Sidebar() {
     } else if (pathname.startsWith("/production")) {
       setExpandedMenus((prev) => ({ ...prev, Production: true }));
     }
-    if (pathname.startsWith("/sales-billing")) {
+    if (pathname.startsWith("/sales-billing") || pathname.startsWith("/sales") || pathname.startsWith("/purchases") || pathname.startsWith("/finance")) {
       setExpandedMenus((prev) => ({ ...prev, "Sales & Billing": true }));
     }
     if (pathname.startsWith("/reports")) {
@@ -187,7 +187,10 @@ export default function Sidebar() {
       href.startsWith("/finished-stock/designs/") ||
       href.startsWith("/finished-stock/adjustments/") ||
       href.startsWith("/finished-stock/transfers/") ||
-      href.startsWith("/finished-stock/challans/");
+      href.startsWith("/finished-stock/challans/") ||
+      href.startsWith("/sales") ||
+      href.startsWith("/purchases") ||
+      href.startsWith("/finance");
 
     if (!isWhitelisted) {
       e.preventDefault();
@@ -296,9 +299,13 @@ export default function Sidebar() {
       name: "Sales & Billing",
       icon: Receipt,
       subItems: [
-        { name: "Sales Orders", href: "/sales-billing/orders" },
-        { name: "Invoices", href: "/sales-billing/invoices" },
-        { name: "Customer Ledgers", href: "/sales-billing/ledgers" },
+        { name: "Sales Bills", href: "/sales/bills" },
+        { name: "Purchase Bills", href: "/purchases/bills" },
+        { name: "Orders", href: "/sales/orders" },
+        { name: "Sales Returns", href: "/sales/returns" },
+        { name: "Credit Notes", href: "/sales/credit-notes" },
+        { name: "Debit Notes", href: "/sales/debit-notes" },
+        { name: "Cheques / PDC", href: "/finance/cheques" },
       ],
     },
     { name: "Payments", href: "/payments/supplier", icon: CreditCard },

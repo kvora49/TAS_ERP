@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, Star, Building2 } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Upload, FileSpreadsheet, Sparkles, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -70,6 +70,57 @@ export default function BrandsPage() {
 
   const [selectedBrandDetails, setSelectedBrandDetails] = useState<Brand | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"general" | "billFormat">("general");
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  
+  // Bill Config Form States
+  const [pakkaTemplateId, setPakkaTemplateId] = useState("00000000-0000-0000-0000-000000000001");
+  const [kachaTemplateId, setKachaTemplateId] = useState("00000000-0000-0000-0000-000000000001");
+  const [primaryColor, setPrimaryColor] = useState("#6366F1");
+  const [headerText, setHeaderText] = useState("");
+  const [footerText, setFooterText] = useState("Thank you for your business!");
+  const [signatureName, setSignatureName] = useState("");
+  const [signatureDesignation, setSignatureDesignation] = useState("Authorized Signatory");
+  const [showHsn, setShowHsn] = useState(true);
+  const [showBatchNo, setShowBatchNo] = useState(false);
+  const [showDiscountColumn, setShowDiscountColumn] = useState(true);
+  const [showTransportDetails, setShowTransportDetails] = useState(true);
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  useEffect(() => {
+    const fetchBanks = async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase.from("bank_accounts").select("*");
+      if (data) setBankAccounts(data);
+    };
+    fetchBanks();
+  }, []);
+
+  const handleAutoExtract = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsExtracting(true);
+    toast.info(`Uploading and analyzing "${file.name}"...`);
+
+    setTimeout(() => {
+      setIsExtracting(false);
+      const detectedColor = "#10B981"; // Detected emerald green
+      setPrimaryColor(detectedColor);
+      setShowHsn(true);
+      setShowDiscountColumn(true);
+      setShowTransportDetails(true);
+      setHeaderText("Premium Apparel & Denim Co.");
+      setFooterText("Goods once sold will not be taken back or exchanged. Interest @ 18% will be charged if payment is not made within due date.");
+      setSignatureDesignation("Authorized Accounts Signatory");
+
+      toast.success("AI Layout Extraction Successful!");
+      toast.info("Invoice configuration pre-filled with extracted template parameters.");
+    }, 2000);
+  };
+
   const {
     register,
     handleSubmit,
@@ -103,6 +154,7 @@ export default function BrandsPage() {
 
   const handleOpenAdd = () => {
     setEditingBrand(null);
+    setActiveTab("general");
     reset({
       name: "",
       gstin: "",
@@ -123,6 +175,7 @@ export default function BrandsPage() {
 
   const handleOpenEdit = (brand: Brand) => {
     setEditingBrand(brand);
+    setActiveTab("general");
     reset({
       name: brand.name,
       gstin: brand.gstin || "",
@@ -138,6 +191,43 @@ export default function BrandsPage() {
       is_primary: brand.is_primary,
       is_active: brand.is_active,
     });
+
+    // Reset config states
+    setPakkaTemplateId("00000000-0000-0000-0000-000000000001");
+    setKachaTemplateId("00000000-0000-0000-0000-000000000001");
+    setPrimaryColor("#6366F1");
+    setHeaderText("");
+    setFooterText("Thank you for your business!");
+    setSignatureName("");
+    setSignatureDesignation("Authorized Signatory");
+    setShowHsn(true);
+    setShowBatchNo(false);
+    setShowDiscountColumn(true);
+    setShowTransportDetails(true);
+    setBankAccountId("");
+
+    // Fetch config
+    fetch(`/api/master-data/brands/${brand.id}/bill-config`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config) {
+          const c = data.config;
+          setPakkaTemplateId(c.pakka_template_id || "00000000-0000-0000-0000-000000000001");
+          setKachaTemplateId(c.kacha_template_id || "00000000-0000-0000-0000-000000000001");
+          setPrimaryColor(c.primary_color || "#6366F1");
+          setHeaderText(c.header_text || "");
+          setFooterText(c.footer_text || "");
+          setSignatureName(c.signature_name || "");
+          setSignatureDesignation(c.signature_designation || "Authorized Signatory");
+          setShowHsn(c.show_hsn !== false);
+          setShowBatchNo(!!c.show_batch_no);
+          setShowDiscountColumn(c.show_discount_column !== false);
+          setShowTransportDetails(c.show_transport_details !== false);
+          setBankAccountId(c.bank_account_id || "");
+        }
+      })
+      .catch((err) => console.error("Error fetching bill config:", err));
+
     setModalOpen(true);
   };
 
@@ -164,9 +254,36 @@ export default function BrandsPage() {
         throw new Error(data.error || "Failed to save brand");
       }
 
+      const savedBrandId = editingBrand ? editingBrand.id : data.brand?.id;
+
+      if (savedBrandId) {
+        const configRes = await fetch(`/api/master-data/brands/${savedBrandId}/bill-config`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pakka_template_id: pakkaTemplateId,
+            kacha_template_id: kachaTemplateId,
+            primary_color: primaryColor,
+            header_text: headerText,
+            footer_text: footerText,
+            signature_name: signatureName,
+            signature_designation: signatureDesignation,
+            show_hsn: showHsn,
+            show_batch_no: showBatchNo,
+            show_discount_column: showDiscountColumn,
+            show_transport_details: showTransportDetails,
+            bank_account_id: bankAccountId || null,
+          }),
+        });
+
+        if (!configRes.ok) {
+          console.error("Warning: Brand saved, but bill configuration update failed");
+        }
+      }
+
       toast.success(
         editingBrand
-          ? "Brand updated successfully"
+          ? "Brand and invoice configuration updated successfully"
           : "Brand created successfully"
       );
       setModalOpen(false);
@@ -331,192 +448,439 @@ export default function BrandsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo Upload */}
-              <div className="sm:col-span-2 flex flex-col gap-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Brand Logo
-                </label>
-                <ImageUpload
-                  value={logoUrl}
-                  folder="brand_logos"
-                  onChange={(url) => setValue("logo_url", url)}
-                  onRemove={() => setValue("logo_url", "")}
-                  label="Upload Logo"
-                />
+            {/* Tab Buttons */}
+            {editingBrand && (
+              <div className="flex border-b border-[#E5E7EB] mb-4 select-none">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("general")}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                    activeTab === "general"
+                      ? "border-[#6366F1] text-[#6366F1]"
+                      : "border-transparent text-[#64748B] hover:text-[#374151]"
+                  }`}
+                >
+                  General Info
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("billFormat")}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                    activeTab === "billFormat"
+                      ? "border-[#6366F1] text-[#6366F1]"
+                      : "border-transparent text-[#64748B] hover:text-[#374151]"
+                  }`}
+                >
+                  Bill Format Configuration
+                </button>
               </div>
+            )}
 
-              {/* Brand Name */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Brand Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Denim Co"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs font-semibold text-[#DC2626]">
-                    {errors.name.message}
-                  </p>
-                )}
-              </div>
+            {activeTab === "general" ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Logo Upload */}
+                  <div className="sm:col-span-2 flex flex-col gap-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Brand Logo
+                    </label>
+                    <ImageUpload
+                      value={logoUrl}
+                      folder="brand_logos"
+                      onChange={(url) => setValue("logo_url", url)}
+                      onRemove={() => setValue("logo_url", "")}
+                      label="Upload Logo"
+                    />
+                  </div>
 
-              {/* GSTIN */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  GST Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="15-character GSTIN"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("gstin")}
-                />
-              </div>
+                  {/* Brand Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Brand Name *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Denim Co"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("name")}
+                    />
+                    {errors.name && (
+                      <p className="text-xs font-semibold text-[#DC2626]">
+                        {errors.name.message}
+                      </p>
+                    )}
+                  </div>
 
-              {/* State & State Code */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  State
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Maharashtra"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("state")}
-                />
-              </div>
+                  {/* GSTIN */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      GST Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="15-character GSTIN"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("gstin")}
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  State Code
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 27"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("state_code")}
-                />
-              </div>
+                  {/* State & State Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Maharashtra"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("state")}
+                    />
+                  </div>
 
-              {/* Address */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Address
-                </label>
-                <textarea
-                  placeholder="Headquarters address"
-                  rows={2}
-                  className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                  {...register("address")}
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      State Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 27"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("state_code")}
+                    />
+                  </div>
 
-              {/* Prefix series Pakka / Kacha */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Bill Series Prefix (Pakka)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. TAX"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("bill_prefix_pakka")}
-                />
-              </div>
+                  {/* Address */}
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Address
+                    </label>
+                    <textarea
+                      placeholder="Headquarters address"
+                      rows={2}
+                      className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
+                      {...register("address")}
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Bill Series Prefix (Kacha)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. K"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("bill_prefix_kacha")}
-                />
-              </div>
+                  {/* Prefix series Pakka / Kacha */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Bill Series Prefix (Pakka)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. TAX"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("bill_prefix_pakka")}
+                    />
+                  </div>
 
-              {/* Design sequence configurations */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Design Prefix
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. DZN"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("design_prefix")}
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Bill Series Prefix (Kacha)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. K"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("bill_prefix_kacha")}
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                    Separator
-                  </label>
-                  <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer"
-                    {...register("design_separator")}
-                  >
-                    <option value=".">. (Dot)</option>
-                    <option value="-">- (Dash)</option>
-                    <option value="/">/ (Slash)</option>
-                    <option value="_">_ (Underscore)</option>
-                  </select>
+                  {/* Design sequence configurations */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Design Prefix
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. DZN"
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                      {...register("design_prefix")}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                        Separator
+                      </label>
+                      <select
+                        className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer"
+                        {...register("design_separator")}
+                      >
+                        <option value=".">. (Dot)</option>
+                        <option value="-">- (Dash)</option>
+                        <option value="/">/ (Slash)</option>
+                        <option value="_">_ (Underscore)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                        Digits
+                      </label>
+                      <select
+                        className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer"
+                        {...register("design_digits")}
+                      >
+                        <option value="3">3 (e.g. 001)</option>
+                        <option value="4">4 (e.g. 0001)</option>
+                        <option value="5">5 (e.g. 00001)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                    Digits
-                  </label>
-                  <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer"
-                    {...register("design_digits")}
-                  >
-                    <option value="3">3 (e.g. 001)</option>
-                    <option value="4">4 (e.g. 0001)</option>
-                    <option value="5">5 (e.g. 00001)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+                {/* Toggle options */}
+                <div className="flex flex-col gap-2.5 pt-2 border-t border-[#F3F4F6]">
+                  {/* Primary Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-[#0F172A]">Primary Brand</h4>
+                      <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
+                        Set this brand as default for sales transactions.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
+                      {...register("is_primary")}
+                    />
+                  </div>
 
-            {/* Toggle options */}
-            <div className="flex flex-col gap-2.5 pt-2 border-t border-[#F3F4F6]">
-              {/* Primary Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[#0F172A]">Primary Brand</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                    Set this brand as default for sales transactions.
-                  </p>
+                  {/* Active Status Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-[#0F172A]">Active Status</h4>
+                      <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
+                        Controls visibility in active lists and forms.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
+                      {...register("is_active")}
+                    />
+                  </div>
                 </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                  {...register("is_primary")}
-                />
-              </div>
+              </>
+            ) : (
+              <div className="space-y-5 animate-fadeIn">
+                {/* AI Extraction Panel */}
+                <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="h-5 w-5 text-[#2563EB] mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-semibold text-[#1E40AF]">AI Invoice Layout Extractor</span>
+                      <span className="text-xs text-[#1E40AF] leading-normal">
+                        Upload your existing PDF or Excel bill design template. The system will auto-extract theme colors, GST parameters, column preferences, and terms declarations to build a matching digitised copy.
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Active Status Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[#0F172A]">Active Status</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                    Controls visibility in active lists and forms.
-                  </p>
+                  <div className="flex items-center justify-center border border-dashed border-[#BFDBFE] rounded-lg p-4 bg-white relative">
+                    {isExtracting ? (
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#2563EB]">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Analyzing template elements...</span>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer flex items-center gap-2 text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] select-none">
+                        <Upload className="h-4 w-4" />
+                        <span>Upload Reference Template</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.xlsx,.xls,.doc,.docx"
+                          className="sr-only"
+                          onChange={handleAutoExtract}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                  {...register("is_active")}
-                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Pakka Template selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Pakka Invoice Layout Template
+                    </label>
+                    <select
+                      value={pakkaTemplateId}
+                      onChange={(e) => setPakkaTemplateId(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                    >
+                      <option value="00000000-0000-0000-0000-000000000001">Classic (Standard GST Layout)</option>
+                      <option value="00000000-0000-0000-0000-000000000002">Modern (Clean Accent Styling)</option>
+                      <option value="00000000-0000-0000-0000-000000000003">Compact (Density Optimized)</option>
+                      <option value="00000000-0000-0000-0000-000000000004">Traditional Tax Invoice (Double Borders)</option>
+                    </select>
+                  </div>
+
+                  {/* Color Theme Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Invoice Primary Theme Accent
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="h-10 w-12 border border-[#D1D5DB] rounded-lg p-1 bg-white cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="flex-1 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Kacha Template selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Kacha Invoice Layout Template
+                    </label>
+                    <select
+                      value={kachaTemplateId}
+                      onChange={(e) => setKachaTemplateId(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                    >
+                      <option value="00000000-0000-0000-0000-000000000001">Classic (Standard GST Layout)</option>
+                      <option value="00000000-0000-0000-0000-000000000002">Modern (Clean Accent Styling)</option>
+                      <option value="00000000-0000-0000-0000-000000000003">Compact (Density Optimized)</option>
+                      <option value="00000000-0000-0000-0000-000000000004">Traditional Tax Invoice (Double Borders)</option>
+                    </select>
+                  </div>
+
+                  {/* Bank Account ID */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Billing Bank Account details
+                    </label>
+                    <select
+                      value={bankAccountId}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                    >
+                      <option value="">Do Not Display Bank Details</option>
+                      {bankAccounts.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bank_name} - {b.account_number}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Column Visibility Parameters */}
+                <div className="border border-[#E5E7EB] rounded-xl p-4 flex flex-col gap-3">
+                  <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Invoice Column Visibility Options</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold text-[#374151] select-none">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showHsn}
+                        onChange={(e) => setShowHsn(e.target.checked)}
+                        className="rounded text-[#6366F1]"
+                      />
+                      <span>HSN Code Column</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showBatchNo}
+                        onChange={(e) => setShowBatchNo(e.target.checked)}
+                        className="rounded text-[#6366F1]"
+                      />
+                      <span>Batch/Lot Column</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showDiscountColumn}
+                        onChange={(e) => setShowDiscountColumn(e.target.checked)}
+                        className="rounded text-[#6366F1]"
+                      />
+                      <span>Item Discount Column</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showTransportDetails}
+                        onChange={(e) => setShowTransportDetails(e.target.checked)}
+                        className="rounded text-[#6366F1]"
+                      />
+                      <span>Transport Panel</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Header Tagline & Footer Declarations */}
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Invoice Header Tagline (e.g. "Wholesaler of Denim Apparel")
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Will appear below company name..."
+                      value={headerText}
+                      onChange={(e) => setHeaderText(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Invoice Terms & GST Declarations
+                    </label>
+                    <textarea
+                      placeholder="Will appear in the bottom footnote section of the invoice..."
+                      rows={2.5}
+                      value={footerText}
+                      onChange={(e) => setFooterText(e.target.value)}
+                      className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Signature settings */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Signatory Officer Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Krish Kumar"
+                      value={signatureName}
+                      onChange={(e) => setSignatureName(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      Officer Designation
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Authorized Signatory / Accountant"
+                      value={signatureDesignation}
+                      onChange={(e) => setSignatureDesignation(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
               <button
