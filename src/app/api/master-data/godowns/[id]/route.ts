@@ -1,120 +1,161 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-export async function PUT(
+export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const handlerStart = Date.now();
   const supabase = createClient();
-  const godownId = params.id;
-
-  const authStart = Date.now();
   const businessId = await getSessionBusinessId();
-  const authDuration = Date.now() - authStart;
-
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = params;
+
   try {
-    const body = await request.json();
-    const {
-      name,
-      address,
-      contact_person,
-      phone,
-      is_primary,
-      is_active,
-      updated_at: lastKnownUpdatedAt,
-    } = body;
-
-    if (!name || !lastKnownUpdatedAt) {
-      return NextResponse.json(
-        { error: "Name and last known updated_at timestamp are required" },
-        { status: 400 }
-      );
-    }
-
-    // Reset others if set to primary
-    if (is_primary) {
-      await supabase
-        .from("godowns")
-        .update({ is_primary: false })
-        .eq("business_id", businessId);
-    }
-
-    const dbStart = Date.now();
-    // Optimistic locking update query
-    const { data: updatedGodown, error } = await supabase
+    // 1. Fetch godown details
+    const { data: godown, error: godownError } = await supabase
       .from("godowns")
-      .update({
-        name,
-        address: address || null,
-        contact_person: contact_person || null,
-        phone: phone || null,
-        is_primary: !!is_primary,
-        is_active: is_active !== false,
-      })
-      .eq("id", godownId)
+      .select("*")
+      .eq("id", id)
       .eq("business_id", businessId)
-      .eq("updated_at", lastKnownUpdatedAt) // Optimistic Lock Check!
-      .select();
-    const dbDuration = Date.now() - dbStart;
+      .is("deleted_at", null)
+      .single();
 
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (godownError || !godown) {
+      return NextResponse.json({ error: "Godown not found" }, { status: 404 });
     }
 
-    if (!updatedGodown || updatedGodown.length === 0) {
-      return NextResponse.json(
-        { error: "Conflict: Godown was modified by another transaction. Please reload." },
-        { status: 409 }
-      );
+    // 2. Fetch live stock summary of raw materials in this godown
+    const { data: stockItems, error: stockError } = await supabase
+      .from("raw_material_current_stock")
+      .select(`
+        id,
+        current_stock,
+        stock_value,
+        material_type_id
+      `)
+      .eq("godown_id", id)
+      .eq("business_id", businessId)
+      .gt("current_stock", 0);
+
+    // Resolve material details for current stock
+    let resolvedStock: any[] = [];
+    if (stockItems && stockItems.length > 0) {
+      const materialIds = stockItems.map((item) => item.material_type_id);
+      const { data: rawMaterials } = await supabase
+        .from("raw_material_types")
+        .select("id, name, category, unit")
+        .in("id", materialIds);
+
+      const materialsLookup = (rawMaterials || []).reduce((acc: any, curr) => {
+        acc[curr.id] = curr;
+        return acc;
+      }, {});
+
+      resolvedStock = stockItems.map((item) => ({
+        id: item.id,
+        current_stock: Number(item.current_stock),
+        stock_value: Number(item.stock_value),
+        material_type: materialsLookup[item.material_type_id] || {
+          name: "Unknown Material",
+          category: "Other",
+          unit: "Pieces",
+        },
+      }));
     }
 
-    return NextResponse.json({ godown: updatedGodown[0] });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
-  }
-}
+    // 3. Fetch recent 50 movements from stock_ledger for this godown
+    const { data: movements, error: movementsError } = await supabase
+      .from("stock_ledger")
+      .select(`
+        id,
+        item_type,
+        item_id,
+        transaction_type,
+        quantity_delta,
+        value_delta,
+        created_at
+      `)
+      .eq("godown_id", id)
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const handlerStart = Date.now();
-  const supabase = createClient();
-  const godownId = params.id;
+    // Resolve item names for movements polymorphic references
+    let resolvedMovements: any[] = [];
+    if (movements && movements.length > 0) {
+      const rawMaterialIds = movements
+        .filter((m) => m.item_type === "raw_material")
+        .map((m) => m.item_id);
 
-  const authStart = Date.now();
-  const businessId = await getSessionBusinessId();
-  const authDuration = Date.now() - authStart;
+      const finishedGoodIds = movements
+        .filter((m) => m.item_type === "finished_good")
+        .map((m) => m.item_id);
 
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+      // Query raw material details
+      let materialsLookup: any = {};
+      if (rawMaterialIds.length > 0) {
+        const { data: rawMaterials } = await supabase
+          .from("raw_material_types")
+          .select("id, name, unit")
+          .in("id", rawMaterialIds);
+        materialsLookup = (rawMaterials || []).reduce((acc: any, curr) => {
+          acc[curr.id] = curr;
+          return acc;
+        }, {});
+      }
 
-  try {
-    const dbStart = Date.now();
-    // Soft delete: update deleted_at
-    const { error } = await supabase
-      .from("godowns")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", godownId)
-      .eq("business_id", businessId);
-    const dbDuration = Date.now() - dbStart;
+      // Query finished goods (designs) details
+      let designsLookup: any = {};
+      if (finishedGoodIds.length > 0) {
+        const { data: designs } = await supabase
+          .from("designs")
+          .select("id, name, code")
+          .in("id", finishedGoodIds);
+        designsLookup = (designs || []).reduce((acc: any, curr) => {
+          acc[curr.id] = curr;
+          return acc;
+        }, {});
+      }
 
+      resolvedMovements = movements.map((m) => {
+        let itemName = "Unknown Item";
+        let unit = "pcs";
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        if (m.item_type === "raw_material") {
+          const mat = materialsLookup[m.item_id];
+          if (mat) {
+            itemName = mat.name;
+            unit = mat.unit || "Meters";
+          }
+        } else if (m.item_type === "finished_good") {
+          const des = designsLookup[m.item_id];
+          if (des) {
+            itemName = des.code ? `${des.code} - ${des.name}` : des.name;
+          }
+        }
+
+        return {
+          id: m.id,
+          item_type: m.item_type,
+          transaction_type: m.transaction_type,
+          quantity_delta: Number(m.quantity_delta),
+          value_delta: Number(m.value_delta),
+          created_at: m.created_at,
+          itemName,
+          unit,
+        };
+      });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      godown,
+      stock: resolvedStock,
+      movements: resolvedMovements,
+    });
+
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

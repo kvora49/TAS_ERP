@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -420,11 +421,9 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                   <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                     Default Piece Rate (₹)
                   </label>
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.01"
                     {...register("default_rate")}
-                    onFocus={(e) => e.target.select()}
                     className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                     placeholder="e.g. 12.00"
                   />
@@ -438,10 +437,8 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                   Max Capacity Per Day (Pcs)
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   {...register("max_capacity_per_day")}
-                  onFocus={(e) => e.target.select()}
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                   placeholder="Optional"
                 />

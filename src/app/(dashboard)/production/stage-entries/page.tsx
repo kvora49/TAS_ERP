@@ -52,9 +52,9 @@ export default function StageEntriesListPage() {
 
   // Fetch all stage entries from API
   const { data, isLoading, error } = useQuery<{ entries: StageEntry[] }>({
-    queryKey: ["stage-entries"],
+    queryKey: ["stage-entries", search],
     queryFn: async () => {
-      const res = await fetch("/api/production/stage-entries");
+      const res = await fetch(`/api/production/stage-entries?search=${encodeURIComponent(search)}`);
       if (!res.ok) throw new Error("Failed to fetch stage entries");
       return res.json();
     },
@@ -205,7 +205,11 @@ export default function StageEntriesListPage() {
               </thead>
               <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
                 {paginatedEntries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-[#F8FAFC] transition-colors">
+                  <tr
+                    key={entry.id}
+                    onClick={() => router.push(`/production/stage-entries/${entry.id}`)}
+                    className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                  >
                     <td className="py-3.5 px-5 font-bold text-[#0F172A]">
                       {entry.entry_number}
                     </td>
@@ -217,7 +221,10 @@ export default function StageEntriesListPage() {
                       })}
                     </td>
                     <td className="py-3.5 px-5 font-medium text-[#4F46E5] hover:underline">
-                      <Link href={`/production/lots/${entry.lot?.id}`}>
+                      <Link
+                        href={`/production/lots/${entry.lot?.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {entry.lot?.lot_number || "N/A"}
                       </Link>
                     </td>
@@ -253,10 +260,11 @@ export default function StageEntriesListPage() {
                         minimumFractionDigits: 2,
                       })}
                     </td>
-                    <td className="py-3.5 px-5 text-center">
+                    <td className="py-3.5 px-5 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center">
                         <Link
                           href={`/production/stage-entries/${entry.id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors"
                           title="View Detail"
                         >

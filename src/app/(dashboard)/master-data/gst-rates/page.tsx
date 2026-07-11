@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -47,6 +48,7 @@ interface GstRate {
 }
 
 export default function GstRatesPage() {
+  const router = useRouter();
   const [gstRates, setGstRates] = useState<GstRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -257,14 +259,20 @@ export default function GstRatesPage() {
       render: (row) => (
         <div className="flex items-center gap-2 select-none">
           <button
-            onClick={() => handleOpenEdit(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenEdit(row);
+            }}
             className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
             title="Edit GST Rate"
           >
             <Pencil size={15} />
           </button>
           <button
-            onClick={() => handleOpenDelete(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenDelete(row);
+            }}
             className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
             title="Delete GST Rate"
           >
@@ -301,6 +309,7 @@ export default function GstRatesPage() {
         page={1}
         perPage={10}
         onPageChange={() => {}}
+        onRowClick={(row) => router.push(`/master-data/gst-rates/${row.id}`)}
         emptyMessage="No GST rate configurations found. Click 'Add GST Rate' to create one."
       />
 

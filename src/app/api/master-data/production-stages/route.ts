@@ -9,13 +9,35 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  let templateId = searchParams.get("template_id");
+
   try {
+    if (!templateId) {
+      const { data: defaultTemp } = await supabase
+        .from("production_templates")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("is_default", true)
+        .is("deleted_at", null)
+        .limit(1)
+        .single();
+      if (defaultTemp) {
+        templateId = defaultTemp.id;
+      }
+    }
+
+    if (!templateId) {
+      return NextResponse.json({ error: "No production templates found" }, { status: 404 });
+    }
+
     const { data: stages, error } = await supabase
       .from("production_stages")
       .select("*")
       .eq("business_id", businessId)
+      .eq("template_id", templateId)
       .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
+      .order("order_index", { ascending: true });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -41,6 +63,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { name, description, icon, color, custom_fields, is_active } = body;
+    let { template_id } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -49,29 +72,51 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get max sort_order to append this stage at the end
+    // Resolve template_id if not supplied
+    if (!template_id) {
+      const { data: defaultTemp } = await supabase
+        .from("production_templates")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("is_default", true)
+        .is("deleted_at", null)
+        .limit(1)
+        .single();
+      if (defaultTemp) {
+        template_id = defaultTemp.id;
+      }
+    }
+
+    if (!template_id) {
+      return NextResponse.json({ error: "No production template specified or found" }, { status: 400 });
+    }
+
+    // Get max order_index in this template to append this stage at the end
     const { data: maxOrderData } = await supabase
       .from("production_stages")
-      .select("sort_order")
+      .select("order_index")
       .eq("business_id", businessId)
+      .eq("template_id", template_id)
       .is("deleted_at", null)
-      .order("sort_order", { ascending: false })
+      .order("order_index", { ascending: false })
       .limit(1);
 
-    const nextSortOrder =
+    const nextOrderIndex =
       maxOrderData && maxOrderData.length > 0
-        ? maxOrderData[0].sort_order + 1
+        ? (maxOrderData[0].order_index || 0) + 1
         : 1;
 
     const { data: stage, error } = await supabase
       .from("production_stages")
       .insert({
         business_id: businessId,
+        template_id,
         name,
         description: description || null,
         icon: icon || null,
         color: color || null,
-        sort_order: nextSortOrder,
+        order_index: nextOrderIndex,
+        sort_order: nextOrderIndex, // sync sort_order too
         custom_fields: custom_fields || [],
         is_active: is_active !== false,
       })
@@ -115,7 +160,10 @@ export async function PUT(request: Request) {
     const promises = stages.map((s: any) =>
       supabase
         .from("production_stages")
-        .update({ sort_order: s.sort_order })
+        .update({ 
+          sort_order: s.sort_order,
+          order_index: s.sort_order
+        })
         .eq("id", s.id)
         .eq("business_id", businessId)
     );

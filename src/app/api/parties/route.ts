@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,company_name.ilike.%${search}%,phone.ilike.%${search}%,code.ilike.%${search}%`);
+      query = query.or(`name.ilike.%${search}%,company_name.ilike.%${search}%,phone.ilike.%${search}%,code.ilike.%${search}%,billing_city.ilike.%${search}%,billing_state.ilike.%${search}%`);
     }
 
     const { data: parties, error } = await query.order("name", { ascending: true });
@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       default_godown_id,
       remarks,
       status,
+      contact_numbers,
       bank_details, // array of bank details
     } = body;
 
@@ -106,8 +107,8 @@ export async function POST(request: Request) {
         company_name: company_name || null,
         email: email || null,
         website: website || null,
-        gstin: gstin || null,
-        pan: pan || null,
+        gstin: gstin && gstin.trim() ? gstin.trim() : "URP",
+        pan: pan && pan.trim() ? pan.trim() : "N/A",
         aadhar: aadhar || null,
         msme_number: msme_number || null,
         tan: tan || null,
@@ -131,6 +132,7 @@ export async function POST(request: Request) {
         default_godown_id: default_godown_id || null,
         remarks: remarks || null,
         status: status || 'active',
+        contact_numbers: contact_numbers || [],
       })
       .select()
       .single();

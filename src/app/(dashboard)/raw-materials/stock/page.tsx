@@ -300,7 +300,7 @@ export default function StockOverviewPage() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Stock Overview"
+        title="Purchase Stock"
         subtitle="Monitor current godown levels, check low stock alerts, and track stock transfers."
         actionLabel="Add Stock Entry"
         onAction={() => router.push("/raw-materials/stock/new")}

@@ -204,6 +204,7 @@ export default function PurchasesPage() {
           <div className="flex items-center gap-1.5">
             <Link
               href={`/raw-materials/purchases/${row.id}`}
+              onClick={(e) => e.stopPropagation()}
               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
               title="View Invoice"
             >
@@ -211,7 +212,8 @@ export default function PurchasesPage() {
             </Link>
             {!isPaid && (
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setPaymentPurchase(row);
                   setPaymentModalOpen(true);
                 }}
@@ -222,7 +224,10 @@ export default function PurchasesPage() {
               </button>
             )}
             <button
-              onClick={() => handleOpenDelete(row)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenDelete(row);
+              }}
               className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
               title="Cancel Invoice"
             >
@@ -332,6 +337,7 @@ export default function PurchasesPage() {
           page={1}
           perPage={10000}
           onPageChange={() => { }}
+          onRowClick={(row) => router.push(`/raw-materials/purchases/${row.id}`)}
           emptyMessage="No purchases invoices found."
         />
       </div>

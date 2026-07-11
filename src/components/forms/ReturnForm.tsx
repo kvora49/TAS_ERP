@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,6 +23,15 @@ const returnItemSchema = z.object({
   rate: z.coerce.number().min(0.01),
   discount_percent: z.coerce.number(),
   taxable_value: z.coerce.number(),
+  item_type: z.enum(["fabric", "accessory"]).default("fabric"),
+  rolls: z.array(z.object({
+    id: z.string(),
+    roll_number: z.string(),
+    shade: z.string(),
+    meters: z.number(),
+    remaining_meters: z.number(),
+    selected: z.boolean().default(false),
+  })).optional().default([]),
 });
 
 const returnSchema = z.object({
@@ -29,7 +39,7 @@ const returnSchema = z.object({
   supplier_id: z.string().min(1, "Supplier is required"),
   return_date: z.string().min(1, "Return Date is required"),
   return_type: z.string(),
-  reason: z.string().optional(),
+  reason: z.string().min(1, "Reason for Return is required"),
   godown_id: z.string().min(1, "Godown is required for inventory return"),
   challan_no: z.string().optional(),
   remarks: z.string().optional(),
@@ -76,7 +86,7 @@ export function ReturnForm() {
     remarks: "",
     generate_debit_note: true,
     attachments: [],
-    status: "pending",
+    status: "completed",
     items: [],
   };
 
@@ -148,7 +158,7 @@ export function ReturnForm() {
             setValue("supplier_id", p.supplier_id);
 
             // Populate items with returned_qty default 0
-            const returnItems = p.items.map((it: any) => ({
+            const returnItems = (data.items || []).map((it: any) => ({
               purchase_item_id: it.id,
               material_type_id: it.material_type_id,
               material_name: it.material_type?.name || "Material",
@@ -159,6 +169,15 @@ export function ReturnForm() {
               rate: it.rate,
               discount_percent: it.discount_percent || 0,
               taxable_value: 0,
+              item_type: it.item_type || "fabric",
+              rolls: (it.rolls || []).map((r: any) => ({
+                id: r.id,
+                roll_number: r.roll_number,
+                shade: r.shade,
+                meters: Number(r.meters),
+                remaining_meters: Number(r.remaining_meters),
+                selected: false,
+              })),
             }));
             replace(returnItems);
           }
@@ -175,7 +194,35 @@ export function ReturnForm() {
     }
   }, [watchPurchaseId, setValue, replace]);
 
-  // Recalculate item taxable value when returned quantity changes
+  // Toggle roll selection
+  const handleRollToggle = (itemIndex: number, rollIndex: number) => {
+    const currentItems = watch("items") || [];
+    const item = currentItems[itemIndex];
+    if (!item || !item.rolls) return;
+
+    const updatedRolls = [...item.rolls];
+    const isSelected = !updatedRolls[rollIndex].selected;
+    updatedRolls[rollIndex] = {
+      ...updatedRolls[rollIndex],
+      selected: isSelected,
+    };
+
+    // Calculate sum of meters for selected rolls
+    const returnedQty = updatedRolls
+      .filter((r) => r.selected)
+      .reduce((sum, r) => sum + Number(r.remaining_meters || 0), 0);
+
+    setValue(`items.${itemIndex}.rolls`, updatedRolls);
+    setValue(`items.${itemIndex}.returned_qty`, returnedQty);
+
+    // Calculate taxable value
+    const rate = Number(item.rate || 0);
+    const disc = Number(item.discount_percent || 0);
+    const taxable = returnedQty * rate * (1 - disc / 100);
+    setValue(`items.${itemIndex}.taxable_value`, Number(taxable.toFixed(2)));
+  };
+
+  // Recalculate item taxable value when returned quantity changes (for accessories)
   const handleQtyChange = (index: number, qtyVal: string) => {
     const qty = Number(qtyVal || 0);
     const maxQty = Number(watchItems[index]?.invoice_qty || 0);
@@ -191,6 +238,7 @@ export function ReturnForm() {
     const disc = Number(watchItems[index]?.discount_percent || 0);
     const taxable = qty * rate * (1 - disc / 100);
 
+    setValue(`items.${index}.returned_qty`, qty);
     setValue(`items.${index}.taxable_value`, Number(taxable.toFixed(2)));
   };
 
@@ -371,53 +419,86 @@ export function ReturnForm() {
                 Select a purchase invoice to load materials list.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-[#E2E8F0] text-[#64748B] font-bold">
-                      <th className="pb-2">Material Type</th>
-                      <th className="pb-2 w-[80px]">HSN</th>
-                      <th className="pb-2 w-[100px] text-right">Invoice Qty</th>
-                      <th className="pb-2 w-[110px] text-right">Returned Qty *</th>
-                      <th className="pb-2 w-[100px] text-right">Rate (₹)</th>
-                      <th className="pb-2 w-[80px] text-right">Disc (%)</th>
-                      <th className="pb-2 w-[110px] text-right">Return Value (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fields.map((field, index) => (
-                      <tr key={field.id} className="border-b border-[#F1F5F9] last:border-0 align-middle">
-                        <td className="py-3 font-bold text-[#0F172A]">
-                          {watchItems[index]?.material_name}
-                        </td>
-                        <td className="py-3 font-mono text-[10px]">{watchItems[index]?.hsn_sac || "—"}</td>
-                        <td className="py-3 text-right font-medium text-slate-500">
-                          {watchItems[index]?.invoice_qty} {watchItems[index]?.unit}
-                        </td>
-                        <td className="py-3 text-right">
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <input
-                              type="number"
+              <div className="space-y-6">
+                {fields.map((field, index) => {
+                  const item = watchItems[index];
+                  const isFabric = (item?.item_type || "fabric") === "fabric";
+
+                  return (
+                    <div key={field.id} className="p-4 bg-white rounded-xl border border-[#E2E8F0] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+                        <div>
+                          <span className="text-xs font-bold text-[#6366F1] bg-[#EEF2FF] px-2.5 py-1 rounded-md">
+                            {item?.material_name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold ml-2">
+                            Unit: {item?.unit} | Rate: ₹{Number(item?.rate).toFixed(2)} | Disc: {item?.discount_percent}%
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-slate-500">Invoice Qty: {item?.invoice_qty}</span>
+                        </div>
+                      </div>
+
+                      {isFabric ? (
+                        <div className="space-y-3">
+                          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Select Rolls to Return
+                          </div>
+                          {(item.rolls || []).length === 0 ? (
+                            <p className="text-xs text-rose-500 font-medium italic">No rolls found for this fabric item.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {(item.rolls || []).map((roll: any, rollIndex: number) => (
+                                <label
+                                  key={roll.id}
+                                  className={`flex items-center gap-3 p-2.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                                    roll.selected
+                                      ? "bg-rose-50/50 border-rose-200 text-rose-900"
+                                      : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!roll.selected}
+                                    onChange={() => handleRollToggle(index, rollIndex)}
+                                    className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-4 w-4"
+                                  />
+                                  <div className="flex-1">
+                                    <span className="font-bold">Roll {roll.roll_number}</span>
+                                    <span className="text-[10px] text-slate-400 font-semibold block">
+                                      Shade: {roll.shade} | Remaining: {roll.remaining_meters} / {roll.meters} meters
+                                    </span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-4">
+                          <div className="w-1/3">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Returned Qty</label>
+                            <NumericInput
                               step="0.01"
                               placeholder="0"
-                              {...register(`items.${index}.returned_qty` as const)}
-                              onChange={(e) => handleQtyChange(index, e.target.value)}
-                              className="w-20 px-2 py-1 border border-[#CBD5E1] rounded text-right font-bold text-[#0F172A]"
+                              value={item?.returned_qty || ""}
+                              onChange={(e) => {
+                                handleQtyChange(index, e.target.value);
+                              }}
+                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1]"
                             />
-                            <span className="text-[10px] font-semibold text-slate-400">{watchItems[index]?.unit}</span>
                           </div>
-                        </td>
-                        <td className="py-3 text-right font-mono font-semibold">
-                          ₹{Number(watchItems[index]?.rate).toFixed(2)}
-                        </td>
-                        <td className="py-3 text-right font-mono">{watchItems[index]?.discount_percent}%</td>
-                        <td className="py-3 text-right font-mono font-extrabold text-[#0F172A]">
-                          ₹{Number(watchItems[index]?.taxable_value || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      )}
+
+                      {/* Display taxable value for return */}
+                      <div className="flex justify-end pt-2 border-t border-[#F1F5F9] text-xs font-semibold text-slate-700">
+                        <span>Return Value: ₹{Number(item?.taxable_value || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -503,13 +584,20 @@ export function ReturnForm() {
           {/* Reasons / Remarks */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reason for Return</label>
-              <input
-                type="text"
-                placeholder="e.g. Thread color discrepancy"
+              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reason for Return *</label>
+              <select
                 {...register("reason")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-xs"
-              />
+                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+              >
+                <option value="">Select Reason</option>
+                <option value="Damaged Material">Damaged/Defective Material</option>
+                <option value="Quality Issues">Quality/Specification Mismatch</option>
+                <option value="Excess Quantity Sent">Excess Quantity Sent</option>
+                <option value="Wrong Item/Color Sent">Wrong Item/Color Sent</option>
+                <option value="Late Delivery Rejected">Late Delivery Rejected</option>
+                <option value="Other">Other (Specify in Remarks)</option>
+              </select>
+              {errors.reason && <p className="text-[10px] text-red-500 mt-1">{errors.reason.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#64748B] mb-1.5">General Remarks</label>

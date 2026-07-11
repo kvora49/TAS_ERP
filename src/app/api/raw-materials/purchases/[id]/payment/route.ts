@@ -21,6 +21,7 @@ export async function POST(
       reference_no,
       paid_amount,
       bank_account_id,
+      upi_id,
       remarks,
     } = body;
 
@@ -47,6 +48,13 @@ export async function POST(
       return NextResponse.json({ error: purchaseError.message }, { status: 404 });
     }
 
+    // Map payment_mode to payment_method constraint
+    const payment_method = 
+      payment_mode === "upi" ? "upi" :
+      payment_mode === "cash" ? "cash" :
+      payment_mode === "cheque" ? "cheque" :
+      "bank_transfer";
+
     // 2. Insert payment row
     const { data: payment, error: paymentError } = await supabase
       .from("purchase_payments")
@@ -56,9 +64,11 @@ export async function POST(
         supplier_id: purchase.supplier_id,
         payment_date,
         payment_mode,
+        payment_method,
         reference_no: reference_no || null,
         paid_amount: Number(paid_amount),
         bank_account_id: bank_account_id || null,
+        upi_id: upi_id || null,
         remarks: remarks || null,
         status: "success",
       })

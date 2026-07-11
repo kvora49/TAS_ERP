@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -19,6 +20,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
+import { useFileUpload } from "@/hooks/useFileUpload";
 
 interface Lot {
   id: string;
@@ -70,6 +72,10 @@ export default function NewStageEntryPage() {
   const [workerId, setWorkerId] = useState("");
   const [noOfWorkers, setNoOfWorkers] = useState(1);
   const [remarks, setRemarks] = useState("");
+  
+  // Photo attachments state and hook
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const { upload, uploading } = useFileUpload("stage-entries");
 
   // Custom fields
   const [threadColour, setThreadColour] = useState("White");
@@ -95,7 +101,7 @@ export default function NewStageEntryPage() {
     },
   });
 
-  // 3. Fetch Selected Lot Details (stages, sizes, prev entries)
+  // 3. Fetch Selected Lot Details (stages, sizes, prev entries, stage workers)
   const { data: lotDetailData, isLoading: loadingLotDetail } = useQuery({
     queryKey: ["lot-detail", selectedLotId],
     queryFn: async () => {
@@ -112,6 +118,7 @@ export default function NewStageEntryPage() {
   const activeLot = lotDetailData?.lot || null;
   const lotStages: LotStage[] = lotDetailData?.stages || [];
   const stageEntries = lotDetailData?.stageEntries || [];
+  const stageWorkers = lotDetailData?.stageWorkers || [];
 
   // Filter out stages to only show pending or in_progress stages
   const activeStages = lotStages.filter((s) => s.status !== "completed");
@@ -119,7 +126,7 @@ export default function NewStageEntryPage() {
   // Selected lot stage info
   const selectedLotStage = lotStages.find((s) => s.id === stageId);
 
-  // Sync Job Work Type and prefilled Qty In when stage changes
+  // Sync Job Work Type and prefilled Qty In, and pre-fill worker when stage changes
   useEffect(() => {
     if (selectedLotStage && activeLot) {
       setJobWorkType(selectedLotStage.stage_name);
@@ -140,8 +147,20 @@ export default function NewStageEntryPage() {
         setQtyIn(activeLot.total_quantity || 0);
         setQtyOut(activeLot.total_quantity || 0);
       }
+
+      // Pre-fill worker from lot_stage_workers if assigned
+      const assignedStageWorkers = stageWorkers
+        .filter((sw: any) => sw.lot_stage_id === stageId)
+        .map((sw: any) => sw.worker)
+        .filter(Boolean);
+
+      if (assignedStageWorkers.length > 0 && assignedStageWorkers[0]) {
+        setWorkerId(assignedStageWorkers[0].id);
+      } else {
+        setWorkerId("");
+      }
     }
-  }, [stageId, selectedLotStage, activeLot, lotStages, stageEntries]);
+  }, [stageId, selectedLotStage, activeLot, lotStages, stageEntries, stageWorkers]);
 
   // Sync worker default rate when worker changes
   useEffect(() => {
@@ -165,6 +184,20 @@ export default function NewStageEntryPage() {
   const totalJobWorkAmount = qtyOut * jobWorkRate;
   const totalLaborCost = totalJobWorkAmount;
 
+  // Determine assigned workers for option list sorting and highlighting
+  const assignedStageWorkers = stageWorkers
+    .filter((sw: any) => sw.lot_stage_id === stageId)
+    .map((sw: any) => sw.worker)
+    .filter(Boolean);
+
+  const assignedWorkerIds = new Set(assignedStageWorkers.map((w: any) => w.id));
+
+  // Sort workers so that assigned ones are at the top
+  const sortedWorkers = [
+    ...workers.filter((w) => assignedWorkerIds.has(w.id)),
+    ...workers.filter((w) => !assignedWorkerIds.has(w.id)),
+  ];
+
   const handleSaveEntry = async () => {
     if (!selectedLotId || !stageId || !entryDate || qtyOut <= 0) {
       toast.error("Please fill in all required fields and complete quantity details");
@@ -187,6 +220,7 @@ export default function NewStageEntryPage() {
         worker_id: workerId || null,
         no_of_workers: noOfWorkers,
         remarks,
+        attachments,
         custom_field_values: {
           thread_colour: threadColour,
           machine_used: machineUsed,
@@ -269,7 +303,7 @@ export default function NewStageEntryPage() {
               if (selectedLotId) router.push(`/production/lots/${selectedLotId}`);
               else router.push("/production/lots");
             }}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] transition-colors cursor-pointer"
+            className="w-9 h-9 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] transition-colors cursor-pointer animate-fadeIn"
           >
             <ArrowLeft size={16} />
           </button>
@@ -419,8 +453,7 @@ export default function NewStageEntryPage() {
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                   Qty In (From Prev) <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   value={qtyIn}
                   onChange={(e) => setQtyIn(parseInt(e.target.value, 10) || 0)}
                   disabled={!!stageId} // read only if stage calculated it
@@ -432,8 +465,7 @@ export default function NewStageEntryPage() {
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                   Qty Out (Processed) <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   min="0"
                   value={qtyOut}
                   onChange={(e) => setQtyOut(parseInt(e.target.value, 10) || 0)}
@@ -443,8 +475,7 @@ export default function NewStageEntryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Wastage Qty</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="0"
                   value={wastageQty}
                   onChange={(e) => setWastageQty(parseInt(e.target.value, 10) || 0)}
@@ -464,8 +495,7 @@ export default function NewStageEntryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Qty Balance</label>
-                <input
-                  type="number"
+                <NumericInput
                   value={qtyBalance}
                   disabled
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-gray-50 px-3 text-sm font-semibold text-[#475569]"
@@ -503,8 +533,7 @@ export default function NewStageEntryPage() {
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#64748B] font-semibold">₹</span>
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.01"
                     value={jobWorkRate}
                     onChange={(e) => setJobWorkRate(parseFloat(e.target.value) || 0)}
@@ -562,11 +591,18 @@ export default function NewStageEntryPage() {
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
                 >
                   <option value="">Select Worker</option>
-                  {workers.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.worker_id} - {w.name} ({w.type.replace("_", " ")})
-                    </option>
-                  ))}
+                  {sortedWorkers.map((w) => {
+                    const isAssigned = assignedWorkerIds.has(w.id);
+                    return (
+                      <option
+                        key={w.id}
+                        value={w.id}
+                        className={isAssigned ? "font-bold text-[#6366F1]" : ""}
+                      >
+                        {isAssigned ? "⭐ " : ""}{w.worker_id} - {w.name} ({w.type.replace("_", " ")}){isAssigned ? " [Assigned]" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -586,8 +622,7 @@ export default function NewStageEntryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">No. of Workers</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="1"
                   value={noOfWorkers}
                   onChange={(e) => setNoOfWorkers(parseInt(e.target.value, 10) || 1)}
@@ -665,19 +700,59 @@ export default function NewStageEntryPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Attachments</label>
-                <div className="flex flex-col items-center justify-center border border-dashed border-[#D1D5DB] rounded-lg p-5 bg-[#F9FAFB] hover:border-[#6366F1] transition-colors">
-                  <span className="text-[10px] font-bold text-[#475569] text-center mb-1">
-                    Drag files here to upload
-                  </span>
-                  <span className="text-[9px] text-[#94A3B8] text-center mb-3">
-                    JPG, PNG, PDF (Max. 5MB)
-                  </span>
-                  <label className="bg-white border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-bold text-[9px] px-3 py-1.5 rounded transition-all cursor-pointer">
-                    Browse Files
-                    <input type="file" className="hidden" />
-                  </label>
+                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Attachments / Finished Goods Photos</label>
+                <div className="flex flex-col items-center justify-center border border-dashed border-[#D1D5DB] rounded-lg p-5 bg-[#F9FAFB] hover:border-[#6366F1] transition-colors relative min-h-[140px]">
+                  {uploading ? (
+                    <span className="text-xs text-slate-500 font-semibold">Uploading photo...</span>
+                  ) : (
+                    <>
+                      <span className="text-[10px] font-bold text-[#475569] text-center mb-1">
+                        Upload finished goods photos
+                      </span>
+                      <span className="text-[9px] text-[#94A3B8] text-center mb-3">
+                        JPG, PNG, PDF (Max. 5MB)
+                      </span>
+                      <label className="bg-white border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-bold text-[9px] px-3 py-1.5 rounded transition-all cursor-pointer">
+                        Browse Files
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const url = await upload(file);
+                              if (url) {
+                                setAttachments((prev) => [...prev, url]);
+                                toast.success("File uploaded successfully!");
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
+
+                {attachments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {attachments.map((url, idx) => (
+                      <div key={idx} className="relative group w-16 h-16 border border-slate-200 rounded overflow-hidden bg-slate-50 flex items-center justify-center">
+                        {url.endsWith(".pdf") ? (
+                          <span className="text-[10px] font-bold text-red-500">PDF</span>
+                        ) : (
+                          <img src={url} alt={`upload-${idx}`} className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

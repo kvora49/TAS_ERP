@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       supplier_id,
+      godown_id,
       invoice_no,
       invoice_date,
       delivery_date,
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
 
     if (!supplier_id) {
       return NextResponse.json({ error: "Supplier is required" }, { status: 400 });
+    }
+    if (!godown_id) {
+      return NextResponse.json({ error: "Godown is required" }, { status: 400 });
     }
     if (!invoice_no) {
       return NextResponse.json({ error: "Invoice Number is required" }, { status: 400 });
@@ -120,6 +124,7 @@ export async function POST(request: Request) {
         business_id: businessId,
         purchase_number: purchaseNumber,
         supplier_id,
+        godown_id,
         invoice_no,
         invoice_date,
         delivery_date: delivery_date || null,
@@ -167,14 +172,75 @@ export async function POST(request: Request) {
       amount: Number(item.amount),
     }));
 
-    const { error: itemsError } = await supabase
+    const { data: insertedItems, error: itemsError } = await supabase
       .from("raw_material_purchase_items")
-      .insert(itemsToInsert);
+      .insert(itemsToInsert)
+      .select();
 
-    if (itemsError) {
+    if (itemsError || !insertedItems) {
       // Clean up parent record if items failed to insert
       await supabase.from("raw_material_purchases").delete().eq("id", purchase.id);
-      return NextResponse.json({ error: "Failed to create purchase items: " + itemsError.message }, { status: 500 });
+      return NextResponse.json({ error: "Failed to create purchase items: " + (itemsError?.message || "No data returned") }, { status: 500 });
+    }
+
+    // Insert purchase rolls for fabric items
+    const rollsToInsert: any[] = [];
+    insertedItems.forEach((insertedItem, idx) => {
+      const inputItem = items[idx];
+      if (inputItem && inputItem.item_type === "fabric" && inputItem.rolls && inputItem.rolls.length > 0) {
+        inputItem.rolls.forEach((roll: any) => {
+          rollsToInsert.push({
+            business_id: businessId,
+            purchase_item_id: insertedItem.id,
+            roll_number: roll.roll_number,
+            meters: Number(roll.meters),
+            shade: roll.shade,
+            comment: roll.comment || null,
+            width: roll.width ? Number(roll.width) : null,
+            weight_unit: roll.weight_unit || null,
+            weight_value: roll.weight_value ? Number(roll.weight_value) : null,
+            remaining_meters: Number(roll.meters),
+          });
+        });
+      }
+    });
+
+    if (rollsToInsert.length > 0) {
+      const { error: rollsError } = await supabase
+        .from("purchase_rolls")
+        .insert(rollsToInsert);
+
+      if (rollsError) {
+        // Clean up parent record if rolls failed to insert
+        await supabase.from("raw_material_purchases").delete().eq("id", purchase.id);
+        return NextResponse.json({ error: "Failed to create purchase rolls: " + rollsError.message }, { status: 500 });
+      }
+    }
+
+    // Insert stock ledger entries for each purchase item
+    const { data: { user } } = await supabase.auth.getUser();
+    const ledgerEntries = items.map((item: any) => ({
+      business_id: businessId,
+      item_type: 'raw_material',
+      item_id: item.material_type_id,
+      godown_id: godown_id,
+      transaction_type: 'purchase',
+      quantity_delta: Number(item.quantity),
+      value_delta: Number(item.taxable_value),
+      reference_table: 'raw_material_purchases',
+      reference_id: purchase.id,
+      created_by: user?.id || null,
+    }));
+
+    const { error: ledgerError } = await supabase
+      .from("stock_ledger")
+      .insert(ledgerEntries);
+
+    if (ledgerError) {
+      // Clean up previous inserts if ledger failed
+      await supabase.from("raw_material_purchase_items").delete().eq("purchase_id", purchase.id);
+      await supabase.from("raw_material_purchases").delete().eq("id", purchase.id);
+      return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
     }
 
     return NextResponse.json({ purchase });

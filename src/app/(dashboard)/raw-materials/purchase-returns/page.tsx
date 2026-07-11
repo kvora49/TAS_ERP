@@ -153,6 +153,7 @@ export default function PurchaseReturnsPage() {
         <div className="flex items-center justify-center">
           <Link
             href={`/raw-materials/purchase-returns/${row.id}`}
+            onClick={(e) => e.stopPropagation()}
             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
             title="View Details"
           >
@@ -201,6 +202,7 @@ export default function PurchaseReturnsPage() {
           page={1}
           perPage={10000}
           onPageChange={() => {}}
+          onRowClick={(row) => router.push(`/raw-materials/purchase-returns/${row.id}`)}
           emptyMessage="No purchase returns found."
         />
       </div>

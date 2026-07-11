@@ -126,8 +126,14 @@ export async function POST(request: Request) {
       po_date,
       total_quantity,
       allow_rework,
-      sizes,  // array of { size, quantity }
-      stages, // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory }
+      garment_type_id,
+      design_type,
+      lot_name,
+      allocated_rolls, // array of { purchase_roll_id, allocated_meters }
+      specifications,  // object of { additional_details, design_reference_text, design_reference_photos, custom_qa }
+      spec_sheet,      // object of { template_id, spec_values }
+      sizes,  // array of { size, quantity, colour_id }
+      stages, // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, worker_ids }
     } = body;
 
     if (!lot_number || !brand_id || !design_id || !lot_date || !total_quantity) {
@@ -166,6 +172,9 @@ export async function POST(request: Request) {
         customer_ref: customer_ref || null,
         po_date: po_date || null,
         created_by: userId,
+        garment_type_id: garment_type_id || null,
+        design_type: design_type || null,
+        lot_name: lot_name || null,
       })
       .select("*")
       .single();
@@ -181,6 +190,7 @@ export async function POST(request: Request) {
         lot_id: lot.id,
         size: s.size,
         quantity: parseInt(s.quantity, 10) || 0,
+        colour_id: s.colour_id || null,
       }));
 
       const { error: sizesError } = await supabase
@@ -188,8 +198,6 @@ export async function POST(request: Request) {
         .insert(sizesToInsert);
 
       if (sizesError) {
-        // Rollback lot or just return error (Supabase doesn't do auto rollback on separate queries unless in RPC)
-        // Since it's a critical error, return bad request
         return NextResponse.json({ error: `Lot created, but sizes failed: ${sizesError.message}` }, { status: 400 });
       }
     }
@@ -207,26 +215,44 @@ export async function POST(request: Request) {
         status: "pending",
       }));
 
-      const { error: stagesError } = await supabase
+      const { data: dbStages, error: stagesError } = await supabase
         .from("lot_production_stages")
-        .insert(stagesToInsert);
+        .insert(stagesToInsert)
+        .select();
 
-      if (stagesError) {
-        return NextResponse.json({ error: `Lot created, but stages failed: ${stagesError.message}` }, { status: 400 });
+      if (stagesError || !dbStages) {
+        return NextResponse.json({ error: `Lot created, but stages failed: ${stagesError?.message || "No data returned"}` }, { status: 400 });
+      }
+
+      // Insert assigned workers into lot_stage_workers join table
+      const workersToInsert: any[] = [];
+      dbStages.forEach((dbStage) => {
+        const inputStage = stages.find((s: any) => s.stage_id === dbStage.stage_id);
+        if (inputStage && Array.isArray(inputStage.worker_ids) && inputStage.worker_ids.length > 0) {
+          inputStage.worker_ids.forEach((workerId: string) => {
+            workersToInsert.push({
+              business_id: businessId,
+              lot_stage_id: dbStage.id,
+              worker_id: workerId,
+            });
+          });
+        }
+      });
+
+      if (workersToInsert.length > 0) {
+        const { error: workersError } = await supabase
+          .from("lot_stage_workers")
+          .insert(workersToInsert);
+        if (workersError) {
+          return NextResponse.json({ error: `Lot created, but stage workers assignment failed: ${workersError.message}` }, { status: 400 });
+        }
       }
 
       // Automatically set current_stage_id of lot to the first stage
       const firstStage = stages.find((s: any) => s.sequence_no === 1);
       if (firstStage) {
-        // Find the newly inserted stage row to get its id
-        const { data: dbStages } = await supabase
-          .from("lot_production_stages")
-          .select("id")
-          .eq("lot_id", lot.id)
-          .eq("sequence_no", 1)
-          .single();
-
-        if (dbStages) {
+        const dbFirstStage = dbStages.find((s: any) => s.sequence_no === 1);
+        if (dbFirstStage) {
           await supabase
             .from("production_lots")
             .update({
@@ -235,16 +261,74 @@ export async function POST(request: Request) {
             })
             .eq("id", lot.id);
             
-          // Update the first stage status to in_progress
           await supabase
             .from("lot_production_stages")
             .update({
               status: "in_progress",
               started_at: new Date().toISOString(),
             })
-            .eq("id", dbStages.id);
+            .eq("id", dbFirstStage.id);
         }
       }
+    }
+
+    // 4. Insert lot rolls allocation
+    if (allocated_rolls && allocated_rolls.length > 0) {
+      const lotRollsToInsert = allocated_rolls.map((r: any) => ({
+        business_id: businessId,
+        lot_id: lot.id,
+        purchase_roll_id: r.purchase_roll_id,
+        allocated_meters: Number(r.allocated_meters),
+      }));
+
+      const { error: lrError } = await supabase
+        .from("lot_rolls")
+        .insert(lotRollsToInsert);
+
+      if (lrError) {
+        return NextResponse.json({ error: `Lot created, but roll allocation mapping failed: ${lrError.message}` }, { status: 400 });
+      }
+
+      // Link temporary stock ledger entries to this lot
+      const rollIds = allocated_rolls.map((r: any) => r.purchase_roll_id);
+      await supabase
+        .from("stock_ledger")
+        .update({
+          reference_table: "production_lots",
+          reference_id: lot.id,
+        })
+        .eq("business_id", businessId)
+        .eq("transaction_type", "production_lot_allocation")
+        .in("reference_id", rollIds)
+        .eq("reference_table", "purchase_rolls");
+    }
+
+    // 5. Insert lot specifications
+    if (specifications) {
+      const { additional_details, design_reference_text, design_reference_photos, custom_qa } = specifications;
+      await supabase
+        .from("lot_specifications")
+        .insert({
+          business_id: businessId,
+          lot_id: lot.id,
+          additional_details: additional_details || null,
+          design_reference_text: design_reference_text || null,
+          design_reference_photos: design_reference_photos || [],
+          custom_qa: custom_qa || [],
+        });
+    }
+
+    // 6. Insert lot spec sheet
+    if (spec_sheet && spec_sheet.template_id) {
+      const { template_id, spec_values } = spec_sheet;
+      await supabase
+        .from("lot_spec_sheet")
+        .insert({
+          business_id: businessId,
+          lot_id: lot.id,
+          template_id,
+          spec_values: spec_values || {},
+        });
     }
 
     // Log audit trail

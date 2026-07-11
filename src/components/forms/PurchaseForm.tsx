@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Loader2, Search, Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -68,6 +76,16 @@ function numberToWords(num: number): string {
   return result ? result + " Only" : "Zero Rupees Only";
 }
 
+const purchaseRollSchema = z.object({
+  roll_number: z.string().min(1, "Roll number is required"),
+  meters: z.coerce.number().min(0.01, "Meters must be greater than 0"),
+  shade: z.string().min(1, "Shade is required"),
+  comment: z.string().optional(),
+  width: z.coerce.number().optional().nullable(),
+  weight_unit: z.string().optional().nullable(),
+  weight_value: z.coerce.number().optional().nullable(),
+});
+
 const purchaseItemSchema = z.object({
   material_type_id: z.string().min(1, "Material Type is required"),
   hsn_sac: z.string().optional(),
@@ -79,10 +97,13 @@ const purchaseItemSchema = z.object({
   gst_percent: z.coerce.number().min(0).max(100),
   gst_amount: z.coerce.number(),
   amount: z.coerce.number(),
+  item_type: z.enum(["fabric", "accessory"]).default("fabric"),
+  rolls: z.array(purchaseRollSchema).optional().default([]),
 });
 
 const purchaseSchema = z.object({
   supplier_id: z.string().min(1, "Supplier is required"),
+  godown_id: z.string().min(1, "Godown is required"),
   invoice_no: z.string().min(1, "Invoice Number is required"),
   invoice_date: z.string().min(1, "Invoice Date is required"),
   delivery_date: z.string().optional(),
@@ -106,6 +127,7 @@ interface Supplier {
   id: string;
   name: string;
   company_name: string | null;
+  default_godown_id?: string | null;
 }
 
 interface MaterialType {
@@ -114,6 +136,246 @@ interface MaterialType {
   unit: string;
   hsn_code: string | null;
   gst_percent: number;
+}
+
+interface MaterialTypeComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  materialTypes: MaterialType[];
+  disabled?: boolean;
+  onAddNew: () => void;
+  placeholder?: string;
+}
+
+function MaterialTypeCombobox({
+  value,
+  onChange,
+  materialTypes,
+  disabled = false,
+  onAddNew,
+  placeholder = "Select Material Type",
+}: MaterialTypeComboboxProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedType = materialTypes.find((m) => m.id === value);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const filtered = materialTypes.filter((m) =>
+    m.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+      >
+        <span className="truncate">{selectedType ? selectedType.name : placeholder}</span>
+        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
+          {/* Search box */}
+          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
+            <Search size={14} className="text-[#94A3B8] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+
+          {/* Options list */}
+          <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+                No matching materials
+              </div>
+            ) : (
+              filtered.map((m) => {
+                const isSelected = m.id === value;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(m.id);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    }`}
+                  >
+                    <span className="truncate">{m.name}</span>
+                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Add New Option */}
+          <button
+            type="button"
+            onClick={() => {
+              onAddNew();
+              setIsOpen(false);
+              setSearch("");
+            }}
+            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+          >
+            <Plus size={14} /> Add New Material Type
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SupplierComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  suppliers: Supplier[];
+  disabled?: boolean;
+  onAddNew: () => void;
+  placeholder?: string;
+}
+
+function SupplierCombobox({
+  value,
+  onChange,
+  suppliers,
+  disabled = false,
+  onAddNew,
+  placeholder = "Select Supplier",
+}: SupplierComboboxProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedSupplier = suppliers.find((s) => s.id === value);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const getLabel = (s: Supplier) => {
+    return s.company_name ? `${s.company_name} (${s.name})` : s.name;
+  };
+
+  const filtered = suppliers.filter((s) => {
+    const label = getLabel(s);
+    return label.toLowerCase().includes(search.toLowerCase());
+  });
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+      >
+        <span className="truncate">{selectedSupplier ? getLabel(selectedSupplier) : placeholder}</span>
+        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
+          {/* Search box */}
+          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
+            <Search size={14} className="text-[#94A3B8] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search supplier..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+
+          {/* Options list */}
+          <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+                No matching suppliers
+              </div>
+            ) : (
+              filtered.map((s) => {
+                const isSelected = s.id === value;
+                const label = getLabel(s);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(s.id);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    }`}
+                  >
+                    <span className="truncate">{label}</span>
+                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Add New Option */}
+          <button
+            type="button"
+            onClick={() => {
+              onAddNew();
+              setIsOpen(false);
+              setSearch("");
+            }}
+            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+          >
+            <Plus size={14} /> Add New Supplier
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface PurchaseFormProps {
@@ -125,10 +387,82 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
+  const [godowns, setGodowns] = useState<any[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [loadingGodowns, setLoadingGodowns] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { upload, uploading } = useFileUpload("purchases");
+
+  // Inline Material Type creation state
+  const [newTypeModalOpen, setNewTypeModalOpen] = useState(false);
+  const [newTypeItemIndex, setNewTypeItemIndex] = useState<number | null>(null);
+  const [creatingType, setCreatingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+  const [newTypeCategory, setNewTypeCategory] = useState("Fabric");
+  const [newTypeUnit, setNewTypeUnit] = useState("meter");
+  const [newTypeReorderLevel, setNewTypeReorderLevel] = useState("0");
+  const [newTypeDescription, setNewTypeDescription] = useState("");
+
+  // Inline Supplier creation state
+  const [newSupplierModalOpen, setNewSupplierModalOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierCompany, setNewSupplierCompany] = useState("");
+  const [newSupplierPhone, setNewSupplierPhone] = useState("");
+  const [newSupplierGstin, setNewSupplierGstin] = useState("");
+  const [newSupplierPan, setNewSupplierPan] = useState("");
+  const [savingNewSupplier, setSavingNewSupplier] = useState(false);
+
+  const handleCreateSupplier = async () => {
+    if (!newSupplierName.trim()) {
+      toast.error("Supplier Name is required");
+      return;
+    }
+    setSavingNewSupplier(true);
+    try {
+      const codeRes = await fetch("/api/parties/code/next?type=supplier");
+      const codeData = await codeRes.json();
+      const code = codeData.code || `SUP-${Date.now().toString().slice(-6)}`;
+
+      const res = await fetch("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newSupplierName,
+          company_name: newSupplierCompany,
+          phone: newSupplierPhone,
+          gstin: newSupplierGstin,
+          pan: newSupplierPan,
+          type: ["supplier"],
+          code,
+          contact_numbers: newSupplierPhone ? [{ label: "Main", number: newSupplierPhone, is_primary: true }] : [],
+          status: "active",
+        }),
+      });
+
+      if (!res.ok) {
+        const errorResult = await res.json();
+        throw new Error(errorResult.error || "Failed to create supplier");
+      }
+
+      const { party } = await res.json();
+      toast.success("Supplier created successfully");
+      
+      setSuppliers((prev) => [...prev, party]);
+      setValue("supplier_id", party.id);
+      
+      setNewSupplierName("");
+      setNewSupplierCompany("");
+      setNewSupplierPhone("");
+      setNewSupplierGstin("");
+      setNewSupplierPan("");
+      setNewSupplierModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong");
+    } finally {
+      setSavingNewSupplier(false);
+    }
+  };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -139,6 +473,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
   const defaultValues: PurchaseFormValues = {
     supplier_id: "",
+    godown_id: "",
     invoice_no: "",
     invoice_date: new Date().toISOString().split("T")[0],
     delivery_date: "",
@@ -165,6 +500,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         gst_percent: 18,
         gst_amount: 0,
         amount: 0,
+        item_type: "fabric",
+        rolls: [],
       },
     ],
   };
@@ -228,6 +565,25 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
     fetchSuppliers();
     fetchMaterials();
+
+    async function fetchInventorySettings() {
+      setLoadingGodowns(true);
+      try {
+        const res = await fetch("/api/settings/inventory");
+        if (res.ok) {
+          const data = await res.json();
+          setGodowns(data.godowns || []);
+          if (!id && !initialData?.godown_id && data.settings?.default_godown_id) {
+            setValue("godown_id", data.settings.default_godown_id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load inventory settings:", err);
+      } finally {
+        setLoadingGodowns(false);
+      }
+    }
+    fetchInventorySettings();
   }, []);
 
   // Compute Due Date automatically based on Invoice Date + Payment Terms days
@@ -262,6 +618,60 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     }
   };
 
+  const handleCreateMaterialType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTypeName.trim()) {
+      toast.error("Material name is required");
+      return;
+    }
+
+    setCreatingType(true);
+    try {
+      const res = await fetch("/api/raw-materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTypeName.trim(),
+          description: newTypeDescription.trim(),
+          category: newTypeCategory,
+          unit: newTypeUnit,
+          reorder_level: Number(newTypeReorderLevel || 0),
+          is_active: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to create material type");
+      }
+
+      const { materialType } = await res.json();
+      toast.success("Material type created successfully");
+
+      // Append to the list of material types in state
+      setMaterialTypes((prev) => [...prev, materialType]);
+
+      // If we know which line item triggered this modal, auto-populate it!
+      if (newTypeItemIndex !== null) {
+        setValue(`items.${newTypeItemIndex}.material_type_id`, materialType.id);
+        handleMaterialChange(newTypeItemIndex, materialType.id);
+      }
+
+      // Reset fields and close modal
+      setNewTypeName("");
+      setNewTypeDescription("");
+      setNewTypeCategory("Fabric");
+      setNewTypeUnit("meter");
+      setNewTypeReorderLevel("0");
+      setNewTypeModalOpen(false);
+      setNewTypeItemIndex(null);
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setCreatingType(false);
+    }
+  };
+
   // Recalculate specific item figures
   const recalcItem = (index: number) => {
     const qty = Number(watchItems[index]?.quantity || 0);
@@ -276,6 +686,46 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     setValue(`items.${index}.taxable_value`, Number(taxableValue.toFixed(2)));
     setValue(`items.${index}.gst_amount`, Number(gstAmount.toFixed(2)));
     setValue(`items.${index}.amount`, Number(amount.toFixed(2)));
+  };
+
+  const addRoll = (itemIndex: number) => {
+    const currentRolls = watch(`items.${itemIndex}.rolls`) || [];
+    const nextNumber = currentRolls.length + 1;
+    const nextRollNo = `R-${nextNumber}`;
+    const newRoll = {
+      roll_number: nextRollNo,
+      meters: 0,
+      shade: "",
+      comment: "",
+      width: undefined,
+      weight_unit: "gsm",
+      weight_value: undefined,
+    };
+    setValue(`items.${itemIndex}.rolls`, [...currentRolls, newRoll]);
+  };
+
+  const removeRoll = (itemIndex: number, rollIndex: number) => {
+    const currentRolls = watch(`items.${itemIndex}.rolls`) || [];
+    const newRolls = currentRolls.filter((_, i) => i !== rollIndex);
+    setValue(`items.${itemIndex}.rolls`, newRolls);
+    
+    // Recalculate total meters (quantity)
+    const sumMeters = newRolls.reduce((sum, r) => sum + Number(r.meters || 0), 0);
+    setValue(`items.${itemIndex}.quantity`, sumMeters);
+    recalcItem(itemIndex);
+  };
+
+  const handleRollMetersChange = (itemIndex: number, rollIndex: number, meters: number) => {
+    setValue(`items.${itemIndex}.rolls.${rollIndex}.meters`, meters);
+    
+    // Recalculate total meters (quantity)
+    const currentRolls = watch(`items.${itemIndex}.rolls`) || [];
+    const sumMeters = currentRolls.reduce((sum, r, idx) => {
+      const val = idx === rollIndex ? meters : Number(r.meters || 0);
+      return sum + val;
+    }, 0);
+    setValue(`items.${itemIndex}.quantity`, sumMeters);
+    recalcItem(itemIndex);
   };
 
   // Trigger recalc for all items when GST Type changes
@@ -388,19 +838,39 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier *</label>
-                <select
+                <input type="hidden" {...register("supplier_id")} />
+                <SupplierCombobox
+                  value={watch("supplier_id")}
+                  onChange={(val) => {
+                    setValue("supplier_id", val, { shouldValidate: true });
+                    const selectedSup = suppliers.find((s) => s.id === val);
+                    if (selectedSup?.default_godown_id) {
+                      setValue("godown_id", selectedSup.default_godown_id);
+                    }
+                  }}
+                  suppliers={suppliers}
                   disabled={loadingSuppliers}
-                  {...register("supplier_id")}
+                  onAddNew={() => setNewSupplierModalOpen(true)}
+                  placeholder="Select Supplier"
+                />
+                {errors.supplier_id && <p className="text-[10px] text-red-500 mt-1">{errors.supplier_id.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Destination Godown *</label>
+                <select
+                  disabled={loadingGodowns}
+                  {...register("godown_id")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
                 >
-                  <option value="">Select Supplier</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} {s.company_name ? `(${s.company_name})` : ""}
+                  <option value="">Select Godown</option>
+                  {godowns.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
                     </option>
                   ))}
                 </select>
-                {errors.supplier_id && <p className="text-[10px] text-red-500 mt-1">{errors.supplier_id.message}</p>}
+                {errors.godown_id && <p className="text-[10px] text-red-500 mt-1">{errors.godown_id.message}</p>}
               </div>
 
               <div>
@@ -470,7 +940,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </h2>
               <button
                 type="button"
-                onClick={() => append({ material_type_id: "", hsn_sac: "", unit: "meter", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0 })}
+                onClick={() => append({ material_type_id: "", hsn_sac: "", unit: "meter", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [] })}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg flex items-center gap-1"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Material Row
@@ -498,23 +968,63 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                     </div>
 
                     <div className="space-y-3">
+                      {/* Item Type Toggle */}
+                      <input type="hidden" {...register(`items.${index}.item_type` as const)} />
+                      <div className="flex items-center gap-2 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-100 w-fit">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue(`items.${index}.item_type`, "fabric");
+                            setValue(`items.${index}.quantity`, 0);
+                            recalcItem(index);
+                          }}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                            (watchItems[index]?.item_type || "fabric") === "fabric"
+                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
+                              : "text-[#64748B] hover:text-[#0F172A]"
+                          }`}
+                        >
+                          Fabric (Roll-wise)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue(`items.${index}.item_type`, "accessory");
+                            setValue(`items.${index}.quantity`, 1);
+                            setValue(`items.${index}.rolls`, []); // clear rolls
+                            recalcItem(index);
+                          }}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                            watchItems[index]?.item_type === "accessory"
+                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
+                              : "text-[#64748B] hover:text-[#0F172A]"
+                          }`}
+                        >
+                          Accessory
+                        </button>
+                      </div>
+
                       {/* Row 1 */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                         <div className="md:col-span-4">
                           <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
-                          <select
-                            disabled={loadingMaterials}
+                          <input
+                            type="hidden"
                             {...register(`items.${index}.material_type_id` as const)}
-                            onChange={(e) => handleMaterialChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
-                          >
-                            <option value="">Select Material</option>
-                            {materialTypes.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name}
-                              </option>
-                            ))}
-                          </select>
+                          />
+                          <MaterialTypeCombobox
+                            value={watchItems[index]?.material_type_id || ""}
+                            onChange={(val) => {
+                              setValue(`items.${index}.material_type_id`, val);
+                              handleMaterialChange(index, val);
+                            }}
+                            materialTypes={materialTypes}
+                            disabled={loadingMaterials}
+                            onAddNew={() => {
+                              setNewTypeItemIndex(index);
+                              setNewTypeModalOpen(true);
+                            }}
+                          />
                           {errors.items?.[index]?.material_type_id && (
                             <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
                           )}
@@ -541,25 +1051,32 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                         </div>
 
                         <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Qty *</label>
-                          <input
-                            type="number"
+                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">
+                            {(watchItems[index]?.item_type || "fabric") === "fabric" ? "Total Meters" : "Qty *"}
+                          </label>
+                          <NumericInput
                             step="0.01"
                             placeholder="0"
+                            disabled={(watchItems[index]?.item_type || "fabric") === "fabric"}
                             {...register(`items.${index}.quantity` as const)}
-                            onChange={() => recalcItem(index)}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            onChange={(e) => {
+                              register(`items.${index}.quantity` as const).onChange(e);
+                              recalcItem(index);
+                            }}
+                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all disabled:bg-slate-50 disabled:text-slate-700"
                           />
                         </div>
 
                         <div className="md:col-span-2">
                           <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
-                          <input
-                            type="number"
+                          <NumericInput
                             step="0.01"
                             placeholder="0.00"
                             {...register(`items.${index}.rate` as const)}
-                            onChange={() => recalcItem(index)}
+                            onChange={(e) => {
+                              register(`items.${index}.rate` as const).onChange(e);
+                              recalcItem(index);
+                            }}
                             className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
@@ -569,11 +1086,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1.5">
                         <div className={watchGstType === "with_gst" ? "md:col-span-2" : "md:col-span-3"}>
                           <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Disc (%)</label>
-                          <input
-                            type="number"
+                          <NumericInput
                             placeholder="0"
                             {...register(`items.${index}.discount_percent` as const)}
-                            onChange={() => recalcItem(index)}
+                            onChange={(e) => {
+                              register(`items.${index}.discount_percent` as const).onChange(e);
+                              recalcItem(index);
+                            }}
                             className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
@@ -589,10 +1108,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           <>
                             <div className="md:col-span-2">
                               <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST %</label>
-                              <input
-                                type="number"
+                              <NumericInput
                                 {...register(`items.${index}.gst_percent` as const)}
-                                onChange={() => recalcItem(index)}
+                                onChange={(e) => {
+                                  register(`items.${index}.gst_percent` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
                                 className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             </div>
@@ -613,11 +1134,140 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           </div>
                         </div>
                       </div>
+
+                      {/* Rolls Sub-section */}
+                      {((watchItems[index]?.item_type || "fabric") === "fabric") && (
+                        <div className="mt-4 border-t border-[#F1F5F9] pt-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                                Fabric Roll Breakdown
+                              </h4>
+                              <p className="text-[10px] text-[#64748B] font-semibold mt-0.5">
+                                Specify individual rolls. Total quantity is auto-calculated.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => addRoll(index)}
+                              className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 border border-indigo-100 rounded hover:bg-indigo-50 flex items-center gap-1 cursor-pointer transition-all"
+                            >
+                              <Plus size={12} className="text-indigo-600" /> Add Roll
+                            </button>
+                          </div>
+
+                          {(watchItems[index]?.rolls || []).length === 0 ? (
+                            <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs font-semibold text-[#64748B]">
+                              No rolls added yet. Click Add Roll.
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {(watchItems[index]?.rolls || []).map((roll: any, rollIndex: number) => (
+                                <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 items-end">
+                                  {/* Roll Number */}
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Roll No *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs focus:ring-1 focus:ring-[#6366F1]"
+                                      {...register(`items.${index}.rolls.${rollIndex}.roll_number` as const)}
+                                    />
+                                  </div>
+
+                                  {/* Meters */}
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Meters *</label>
+                                    <NumericInput
+                                      step="0.01"
+                                      placeholder="0"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right font-bold"
+                                      value={watchItems[index]?.rolls?.[rollIndex]?.meters || ""}
+                                      onChange={(e) => {
+                                        const meters = Number(e.target.value || 0);
+                                        handleRollMetersChange(index, rollIndex, meters);
+                                      }}
+                                    />
+                                  </div>
+
+                                  {/* Shade */}
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Shade *</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Indigo"
+                                      required
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs"
+                                      {...register(`items.${index}.rolls.${rollIndex}.shade` as const)}
+                                    />
+                                  </div>
+
+                                  {/* Width */}
+                                  <div className="md:col-span-1 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Width</label>
+                                    <NumericInput
+                                      placeholder="inch"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
+                                      {...register(`items.${index}.rolls.${rollIndex}.width` as const)}
+                                    />
+                                  </div>
+
+                                  {/* Weight Unit */}
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Unit</label>
+                                    <select
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs"
+                                      {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
+                                    >
+                                      <option value="gsm">GSM</option>
+                                      <option value="oz">Oz</option>
+                                    </select>
+                                  </div>
+
+                                  {/* Weight Value */}
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Value</label>
+                                    <NumericInput
+                                      placeholder="Value"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
+                                      {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
+                                    />
+                                  </div>
+
+                                  {/* Remove Roll */}
+                                  <div className="md:col-span-1 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeRoll(index, rollIndex)}
+                                      className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded flex items-center justify-center cursor-pointer transition-all border border-transparent hover:border-rose-100"
+                                      title="Remove Roll"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+          {/* Remarks & Notes */}
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
+              Remarks & Notes
+            </h2>
+            <textarea
+              rows={3}
+              placeholder="Internal notes or special instructions..."
+              {...register("notes")}
+              className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs"
+            ></textarea>
           </div>
         </div>
 
@@ -655,8 +1305,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Freight</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="0.00"
                       {...register("freight")}
                       className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
@@ -664,8 +1313,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   </div>
                   <div>
                     <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Loading</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="0.00"
                       {...register("loading_unloading")}
                       className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
@@ -673,8 +1321,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   </div>
                   <div>
                     <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Other</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="0.00"
                       {...register("other_charges")}
                       className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
@@ -729,21 +1376,240 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               }}
             />
           </div>
-
-          {/* Remarks & Notes */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
-              5. Remarks & Notes
-            </h2>
-            <textarea
-              rows={3}
-              placeholder="Internal notes or special instructions..."
-              {...register("notes")}
-              className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs"
-            ></textarea>
-          </div>
         </div>
       </div>
+
+      {/* Inline Material Type Creation Dialog */}
+      <Dialog open={newTypeModalOpen} onOpenChange={setNewTypeModalOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A]">
+              Add New Raw Material Type
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateMaterialType} className="space-y-4 pt-2">
+            {/* Material Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Material Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Cotton Drill Fabric, YKK Zipper"
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                required
+              />
+            </div>
+
+            {/* Category & Unit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  Category *
+                </label>
+                <select
+                  value={newTypeCategory}
+                  onChange={(e) => setNewTypeCategory(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                >
+                  {["Fabric", "Thread", "Button", "Elastic", "Zipper", "Label", "Packaging", "Other"].map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  Unit *
+                </label>
+                <select
+                  value={newTypeUnit}
+                  onChange={(e) => setNewTypeUnit(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                >
+                  {["meter", "kg", "piece", "cone", "yard", "roll", "set"].map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Description
+              </label>
+              <textarea
+                placeholder="Details or quality parameters..."
+                value={newTypeDescription}
+                onChange={(e) => setNewTypeDescription(e.target.value)}
+                rows={2}
+                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none text-[#0F172A]"
+              />
+            </div>
+
+            {/* Reorder Level */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Reorder Alert Level
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={newTypeReorderLevel}
+                onChange={(e) => setNewTypeReorderLevel(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+              />
+            </div>
+
+            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTypeModalOpen(false);
+                  setNewTypeItemIndex(null);
+                }}
+                disabled={creatingType}
+                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creatingType}
+                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
+              >
+                {creatingType ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Material"
+                )}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inline Supplier Creation Dialog */}
+      <Dialog open={newSupplierModalOpen} onOpenChange={setNewSupplierModalOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A]">
+              Add New Supplier Party
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* Display Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Supplier / Owner Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Sundar Pichai"
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                required
+              />
+            </div>
+
+            {/* Company Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Company / Business Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Google Inc"
+                value={newSupplierCompany}
+                onChange={(e) => setNewSupplierCompany(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 9876543210"
+                value={newSupplierPhone}
+                onChange={(e) => setNewSupplierPhone(e.target.value)}
+                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+              />
+            </div>
+
+            {/* GSTIN & PAN */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  GSTIN
+                </label>
+                <input
+                  type="text"
+                  placeholder="Defaults to URP"
+                  value={newSupplierGstin}
+                  onChange={(e) => setNewSupplierGstin(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] uppercase"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  PAN Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="Defaults to N/A"
+                  value={newSupplierPan}
+                  onChange={(e) => setNewSupplierPan(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] uppercase"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setNewSupplierModalOpen(false)}
+                disabled={savingNewSupplier}
+                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateSupplier}
+                disabled={savingNewSupplier}
+                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
+              >
+                {savingNewSupplier ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Supplier"
+                )}
+              </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

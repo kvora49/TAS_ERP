@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -394,12 +395,14 @@ export function StockEntryForm() {
                         <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
                           Quantity *
                         </label>
-                        <input
-                          type="number"
+                        <NumericInput
                           step="0.01"
                           placeholder="0.00"
                           {...register(`items.${index}.quantity` as const)}
-                          onChange={() => recalcItem(index)}
+                          onChange={(e) => {
+                            register(`items.${index}.quantity` as const).onChange(e);
+                            recalcItem(index);
+                          }}
                           className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold bg-white"
                         />
                         {errors.items?.[index]?.quantity && (
@@ -414,12 +417,14 @@ export function StockEntryForm() {
                         <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
                           Unit Cost (₹) *
                         </label>
-                        <input
-                          type="number"
+                        <NumericInput
                           step="0.01"
                           placeholder="0.00"
                           {...register(`items.${index}.rate` as const)}
-                          onChange={() => recalcItem(index)}
+                          onChange={(e) => {
+                            register(`items.${index}.rate` as const).onChange(e);
+                            recalcItem(index);
+                          }}
                           className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold bg-white"
                         />
                         {errors.items?.[index]?.rate && (

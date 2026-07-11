@@ -1,6 +1,108 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = params;
+
+  try {
+    // 1. Fetch account details
+    const { data: account, error: accountError } = await supabase
+      .from("bank_accounts")
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .single();
+
+    if (accountError || !account) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    // 2. Fetch recent purchase payments referencing this account
+    const { data: purchasePayments } = await supabase
+      .from("purchase_payments")
+      .select(`
+        id,
+        payment_number,
+        payment_date,
+        amount,
+        payment_mode,
+        purchase:raw_material_purchases(
+          invoice_number,
+          supplier:parties(name)
+        )
+      `)
+      .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
+      .eq("business_id", businessId);
+
+    // 3. Fetch recent job work payments referencing this account
+    const { data: jobWorkPayments } = await supabase
+      .from("job_work_payments")
+      .select(`
+        id,
+        payment_number,
+        payment_date,
+        paid_amount,
+        payment_mode,
+        worker:workers(name)
+      `)
+      .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
+      .eq("business_id", businessId);
+
+    // 4. Transform and unify transaction list
+    const transactions: any[] = [];
+
+    purchasePayments?.forEach((p: any) => {
+      transactions.push({
+        id: p.id,
+        type: "outflow",
+        ref_no: p.payment_number,
+        date: p.payment_date,
+        amount: Number(p.amount || 0),
+        mode: p.payment_mode,
+        details: `Purchase Return / Supplier Payment (Invoice: ${p.purchase?.invoice_number || "N/A"})`,
+        partyName: p.purchase?.supplier?.name || "Supplier",
+      });
+    });
+
+    jobWorkPayments?.forEach((jw: any) => {
+      transactions.push({
+        id: jw.id,
+        type: "outflow",
+        ref_no: jw.payment_number,
+        date: jw.payment_date,
+        amount: Number(jw.paid_amount || 0),
+        mode: jw.payment_mode,
+        details: "Job Work Worker Payment",
+        partyName: jw.worker?.name || "Worker",
+      });
+    });
+
+    // Sort by date descending
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return NextResponse.json({
+      account,
+      transactions: transactions.slice(0, 50), // return last 50 transactions
+    });
+
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }

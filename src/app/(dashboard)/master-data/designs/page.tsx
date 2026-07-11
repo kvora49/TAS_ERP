@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTableColumn } from "@/components/tables/DataTable";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -37,12 +38,10 @@ const designSchema = z.object({
   category: z.string().optional(),
   sub_category: z.string().optional(),
   season: z.string().optional(),
-  gender: z.string().optional(),
   hsn_code: z.string().optional(),
   description: z.string().optional(),
   images: z.array(z.string()),
   size_set_id: z.string().optional(),
-  sale_price: z.string().optional(),
   is_active: z.boolean(),
 });
 
@@ -202,12 +201,10 @@ export default function DesignsPage() {
       category: "Shirts",
       sub_category: "",
       season: "",
-      gender: "Unisex",
       hsn_code: "",
       description: "",
       images: [],
       size_set_id: sizeSets[0]?.id || "",
-      sale_price: "0",
       is_active: true,
     });
     setIsEditing(true);
@@ -223,12 +220,10 @@ export default function DesignsPage() {
       category: design.category || "Shirts",
       sub_category: design.sub_category || "",
       season: design.season || "",
-      gender: design.gender || "Unisex",
       hsn_code: design.hsn_code || "",
       description: design.description || "",
       images: design.images || [],
       size_set_id: design.size_set_id || "",
-      sale_price: String(design.sale_price || 0),
       is_active: design.is_active,
     });
     setIsEditing(true);
@@ -625,36 +620,7 @@ export default function DesignsPage() {
                   />
                 </div>
 
-                {/* Gender */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                    Target Demographics
-                  </label>
-                  <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
-                    {...register("gender")}
-                  >
-                    {GENDERS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                {/* Sale Price */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                    Target Sale Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                    {...register("sale_price")}
-                  />
-                </div>
 
                 {/* HSN code */}
                 <div className="space-y-1.5">

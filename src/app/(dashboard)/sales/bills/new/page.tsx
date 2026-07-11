@@ -696,6 +696,8 @@ export default function CreateSaleBillPage() {
         return;
       }
       setStep(3);
+    } else if (step === 3) {
+      setStep(4);
     }
   };
 

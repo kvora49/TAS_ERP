@@ -22,6 +22,7 @@ interface DataTableProps<T> {
   emptyIcon?: React.ReactNode;
   onEmptyAction?: () => void;
   emptyActionLabel?: string;
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
@@ -36,6 +37,7 @@ export function DataTable<T>({
   emptyIcon = <Inbox className="h-8 w-8" />,
   onEmptyAction,
   emptyActionLabel,
+  onRowClick,
 }: DataTableProps<T>) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const startIdx = total === 0 ? 0 : (page - 1) * perPage + 1;
@@ -82,7 +84,10 @@ export function DataTable<T>({
               data.map((row, rIdx) => (
                 <tr
                   key={rIdx}
-                  className="h-16 hover:bg-[#F8FAFC] transition-colors border-b border-[#E5E7EB] last:border-b-0"
+                  onClick={() => onRowClick?.(row)}
+                  className={`h-16 hover:bg-[#F8FAFC] transition-colors border-b border-[#E5E7EB] last:border-b-0 ${
+                    onRowClick ? "cursor-pointer" : ""
+                  }`}
                 >
                   {columns.map((col) => (
                     <td

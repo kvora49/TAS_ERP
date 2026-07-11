@@ -14,6 +14,11 @@ import {
   Calendar,
   Layers,
   Shirt,
+  Percent,
+  TrendingUp,
+  DollarSign,
+  Settings,
+  Boxes
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -29,7 +34,21 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Fetch lot detail along with sizes, stages, and stage entries
+  const [activeTab, setActiveTab] = useState("progress");
+  
+  // Costing inputs state
+  const [accessoryCost, setAccessoryCost] = useState(0);
+  const [otherCost, setOtherCost] = useState(0);
+  const [isCostSynced, setIsCostSynced] = useState(false);
+  const [updatingCost, setUpdatingCost] = useState(false);
+
+  // Move to stock modal state
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [targetGodownId, setTargetGodownId] = useState("");
+  const [confirmDesignCode, setConfirmDesignCode] = useState("");
+  const [movingToStock, setMovingToStock] = useState(false);
+
+  // Fetch lot detail along with sizes, stages, stage entries, rolls, specifications, and spec sheet
   const { data, isLoading, error } = useQuery({
     queryKey: ["lot-detail", id],
     queryFn: async () => {
@@ -43,6 +62,26 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const sizes = data?.sizes || [];
   const stages = data?.stages || [];
   const stageEntries = data?.stageEntries || [];
+  const lotRolls = data?.lotRolls || [];
+  const specifications = data?.specifications || null;
+  const specSheet = data?.specSheet || null;
+
+  // Fetch godowns list for Move to Stock target selection
+  const { data: godownsData } = useQuery<{ godowns: any[] }>({
+    queryKey: ["godowns-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/godowns");
+      return res.json();
+    },
+  });
+  const godowns = godownsData?.godowns || [];
+
+  // Initialize or sync local costing states when lot data is loaded
+  if (lot && !isCostSynced) {
+    setAccessoryCost(Number(lot.accessory_cost || 0));
+    setOtherCost(Number(lot.other_cost || 0));
+    setIsCostSynced(true);
+  }
 
   // Complete Lot Mutation
   const completeLotMutation = useMutation({
@@ -55,13 +94,74 @@ export default function LotDetailPage({ params }: LotDetailProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lot-detail", id] });
-      queryClient.invalidateQueries({ queryKey: ["lots-list"] });
       toast.success("Production lot marked as completed successfully");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to complete lot");
     },
   });
+
+  const handleSaveCosts = async () => {
+    setUpdatingCost(true);
+    try {
+      const res = await fetch(`/api/production/lots/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessory_cost: accessoryCost,
+          other_cost: otherCost,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update costing details");
+      }
+
+      toast.success("Costing details updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["lot-detail", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Error updating costing details");
+    } finally {
+      setUpdatingCost(false);
+    }
+  };
+
+  const handleMoveToStock = async () => {
+    if (!targetGodownId) {
+      toast.error("Please select a target godown");
+      return;
+    }
+    if (confirmDesignCode.trim().toLowerCase() !== lot.design?.code?.trim().toLowerCase()) {
+      toast.error(`Design code mismatch. Please type ${lot.design?.code} to confirm.`);
+      return;
+    }
+
+    setMovingToStock(true);
+    try {
+      const res = await fetch(`/api/production/lots/${id}/move-to-stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          design_number: confirmDesignCode,
+          godown_id: targetGodownId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to move lot to finished stock");
+      }
+
+      toast.success("Lot successfully moved to Finished Stock!");
+      setMoveModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["lot-detail", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Error moving lot to stock");
+    } finally {
+      setMovingToStock(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -95,12 +195,9 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const percentage = Math.min(Math.round((completedQty / (totalQty || 1)) * 100), 100);
 
   // Map database stages into StageProgressTracker nodes
-  // Each stage node shows name, status, date (last entry date), and qty
   const trackerStages = stages.map((st: any) => {
-    // Find the latest entry for this stage
     const entries = stageEntries.filter((e: any) => e.lot_stage_id === st.id);
     const lastEntryDate = entries.length > 0 ? entries[0].entry_date : null;
-    // Calculate cumulative qty out for this stage
     const stageQtyOut = entries.reduce((acc: number, curr: any) => acc + (curr.qty_out || 0), 0);
 
     return {
@@ -117,8 +214,22 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const completedStagesCount = stages.filter((st: any) => st.status === "completed").length;
   const inProgressStagesCount = stages.filter((st: any) => st.status === "in_progress").length;
   const pendingStagesCount = stages.filter((st: any) => st.status === "pending").length;
-
   const inProgressQty = totalQty - completedQty;
+
+  // Cost calculations
+  const totalFabricCost = lotRolls.reduce((acc: number, curr: any) => {
+    const rate = Number(curr.purchase_roll?.item?.rate || 0);
+    return acc + (Number(curr.allocated_meters || 0) * rate);
+  }, 0);
+
+  const totalLaborCost = stageEntries.reduce((acc: number, curr: any) => {
+    const rate = Number(curr.job_work_rate || 0);
+    const qty = Number(curr.qty_out || 0);
+    return acc + (qty * rate);
+  }, 0);
+
+  const totalLotCost = totalFabricCost + totalLaborCost + Number(lot.accessory_cost || 0) + Number(lot.other_cost || 0);
+  const perPieceCost = totalQty > 0 ? (totalLotCost / totalQty) : 0;
 
   const rightPanelItems = [
     { label: "Total Quantity", value: totalQty.toLocaleString("en-IN") },
@@ -138,14 +249,11 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         </span>
       ),
     },
-    {
-      label: "Pending Quantity",
-      value: <span className="text-[#94A3B8]">0 (0%)</span>,
-    },
     { label: "Total Stages", value: totalStagesCount },
     { label: "Completed Stages", value: completedStagesCount },
     { label: "In Progress Stages", value: inProgressStagesCount },
     { label: "Pending Stages", value: pendingStagesCount },
+    { label: "Unit Costing Est.", value: <span className="font-mono font-bold text-slate-800">{formatCurrency(perPieceCost)} / pc</span> },
   ];
 
   return (
@@ -185,17 +293,26 @@ export default function LotDetailPage({ params }: LotDetailProps) {
             Edit Lot
           </Link>
           {lot.status !== "completed" && (
-            <button
-              onClick={() => {
-                if (confirm("Are you sure you want to mark this lot as complete? This will finalize production quantities.")) {
-                  completeLotMutation.mutate();
-                }
-              }}
-              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
-            >
-              <CheckCircle2 size={16} />
-              Mark Lot Complete
-            </button>
+            <>
+              <button
+                onClick={() => setMoveModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10"
+              >
+                <Boxes size={16} />
+                Move to Stock
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("Are you sure you want to mark this lot as complete? This will finalize production quantities.")) {
+                    completeLotMutation.mutate();
+                  }
+                }}
+                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
+              >
+                <CheckCircle2 size={16} />
+                Mark Lot Complete
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -203,7 +320,6 @@ export default function LotDetailPage({ params }: LotDetailProps) {
       {/* LOT HEADER CARD */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 items-stretch">
-          {/* Col 1: Lot No. and Status */}
           <div className="lg:col-span-2 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-[#F3F4F6] pb-4 lg:pb-0 pr-4">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-2xl font-black text-[#0F172A] font-mono leading-none">
@@ -225,12 +341,14 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                 {lot.status.replace("_", " ")}
               </span>
             </div>
+            {lot.lot_name && (
+              <p className="text-sm font-bold text-slate-700 mt-1">{lot.lot_name}</p>
+            )}
             <p className="text-xs text-[#64748B] mt-2 font-medium">
               Registered Date: {lot.lot_date}
             </p>
           </div>
 
-          {/* Cols 2-6: Info grid */}
           <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 py-2">
             <div>
               <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Brand</span>
@@ -279,7 +397,6 @@ export default function LotDetailPage({ params }: LotDetailProps) {
             </div>
           </div>
 
-          {/* Col 7: Design Image */}
           <div className="lg:col-span-1 flex items-center justify-center shrink-0 border-t lg:border-t-0 lg:border-l border-[#F3F4F6] pt-4 lg:pt-0 lg:pl-4">
             {lot.design?.image_url ? (
               <img
@@ -299,121 +416,406 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         </div>
       </div>
 
-      {/* STAGE PROGRESS TRACKER */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Layers className="h-4.5 w-4.5 text-[#6366F1]" />
-          Production Stages Progress
-        </h3>
-        <StageProgressTracker stages={trackerStages} />
+      {/* TABS SELECTOR */}
+      <div className="flex border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab("progress")}
+          className={`px-5 py-2.5 font-bold text-xs uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "progress"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Progress & Logs
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("costing")}
+          className={`px-5 py-2.5 font-bold text-xs uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "costing"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Lot Costing & Valuation
+        </button>
       </div>
 
-      {/* MAIN CONTENT AREA */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Col: Stage Entries */}
-        <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3 mb-4">
-              <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
-                Stage Entries Logs
-              </h3>
-              <button
-                type="button"
-                onClick={() => router.push(`/production/stage-entries/new?lot_id=${lot.id}`)}
-                disabled={lot.status === "completed"}
-                className="bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-              >
-                <Plus size={14} />
-                Add Stage Entry
-              </button>
-            </div>
+      {/* ========================================================
+          TAB 1: PROGRESS & LOGS
+          ======================================================== */}
+      {activeTab === "progress" && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* STAGE PROGRESS TRACKER */}
+          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Layers className="h-4.5 w-4.5 text-[#6366F1]" />
+              Production Stages Progress
+            </h3>
+            <StageProgressTracker stages={trackerStages} />
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="py-2.5 px-3">#</th>
-                    <th className="py-2.5 px-3">Stage</th>
-                    <th className="py-2.5 px-3">Entry Date</th>
-                    <th className="py-2.5 px-3 text-right">Qty In</th>
-                    <th className="py-2.5 px-3 text-right">Qty Out</th>
-                    <th className="py-2.5 px-3 text-right">Wastage</th>
-                    <th className="py-2.5 px-3 text-right">Rate</th>
-                    <th className="py-2.5 px-3">Worker</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-center w-16">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E7EB] text-sm">
-                  {stageEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-6 text-center text-[#64748B]">
-                        No stage entries logged yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    stageEntries.map((entry: any, idx: number) => {
-                      const wastagePercent = entry.qty_in > 0 ? ((entry.wastage_qty || 0) / entry.qty_in * 100).toFixed(1) : "0.0";
-                      return (
-                        <tr key={entry.id} className="hover:bg-[#F9FAFB]">
-                          <td className="py-3 px-3 text-[#64748B] font-medium">{idx + 1}</td>
-                          <td className="py-3 px-3 font-semibold text-[#374151]">
-                            {entry.stage?.stage_name || "—"}
-                          </td>
-                          <td className="py-3 px-3">{entry.entry_date}</td>
-                          <td className="py-3 px-3 text-right font-medium">{entry.qty_in}</td>
-                          <td className="py-3 px-3 text-right font-semibold text-[#374151]">
-                            {entry.qty_out || "—"}
-                          </td>
-                          <td className="py-3 px-3 text-right text-[#D97706] font-medium">
-                            {entry.wastage_qty > 0 ? `${entry.wastage_qty} (${wastagePercent}%)` : "0"}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono text-xs">
-                            ₹{(entry.job_work_rate || 0).toFixed(2)}
-                          </td>
-                          <td className="py-3 px-3 font-medium">
-                            {entry.worker?.name || "—"}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                entry.status === "completed"
-                                  ? "bg-[#DCFCE7] text-[#15803D]"
-                                  : entry.status === "in_progress"
-                                  ? "bg-[#DBEAFE] text-[#1D4ED8]"
-                                  : "bg-[#F1F5F9] text-[#64748B]"
-                              }`}
-                            >
-                              {entry.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <Link
-                              href={`/production/stage-entries/${entry.id}`}
-                              className="w-7 h-7 border border-[#E5E7EB] rounded flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors"
-                              title="View Details"
-                            >
-                              <Eye size={12} />
-                            </Link>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3 mb-4">
+                  <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
+                    Stage Entries Logs
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/production/stage-entries/new?lot_id=${lot.id}`)}
+                    disabled={lot.status === "completed"}
+                    className="bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                  >
+                    <Plus size={14} />
+                    Add Stage Entry
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                        <th className="py-2.5 px-3">#</th>
+                        <th className="py-2.5 px-3">Stage</th>
+                        <th className="py-2.5 px-3">Entry Date</th>
+                        <th className="py-2.5 px-3 text-right">Qty In</th>
+                        <th className="py-2.5 px-3 text-right">Qty Out</th>
+                        <th className="py-2.5 px-3 text-right">Wastage</th>
+                        <th className="py-2.5 px-3 text-right">Rate</th>
+                        <th className="py-2.5 px-3">Worker</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-center w-16">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E7EB] text-sm">
+                      {stageEntries.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-6 text-center text-[#64748B] text-xs">
+                            No stage entries logged yet.
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ) : (
+                        stageEntries.map((entry: any, idx: number) => {
+                          const wastagePercent = entry.qty_in > 0 ? ((entry.wastage_qty || 0) / entry.qty_in * 100).toFixed(1) : "0.0";
+                          return (
+                            <tr key={entry.id} className="hover:bg-[#F9FAFB] text-xs">
+                              <td className="py-3 px-3 text-[#64748B] font-medium">{idx + 1}</td>
+                              <td className="py-3 px-3 font-semibold text-[#374151]">
+                                {entry.stage?.stage_name || "—"}
+                              </td>
+                              <td className="py-3 px-3">{entry.entry_date}</td>
+                              <td className="py-3 px-3 text-right font-medium">{entry.qty_in}</td>
+                              <td className="py-3 px-3 text-right font-semibold text-[#374151]">
+                                {entry.qty_out || "—"}
+                              </td>
+                              <td className="py-3 px-3 text-right text-[#D97706] font-medium">
+                                {entry.wastage_qty > 0 ? `${entry.wastage_qty} (${wastagePercent}%)` : "0"}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-xs">
+                                ₹{(entry.job_work_rate || 0).toFixed(2)}
+                              </td>
+                              <td className="py-3 px-3 font-medium">
+                                {entry.worker?.name || "—"}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                    entry.status === "completed"
+                                      ? "bg-[#DCFCE7] text-[#15803D]"
+                                      : entry.status === "in_progress"
+                                      ? "bg-[#DBEAFE] text-[#1D4ED8]"
+                                      : "bg-[#F1F5F9] text-[#64748B]"
+                                  }`}
+                                >
+                                  {entry.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <Link
+                                  href={`/production/stage-entries/${entry.id}`}
+                                  className="w-7 h-7 border border-[#E5E7EB] rounded flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors mx-auto"
+                                  title="View Details"
+                                >
+                                  <Eye size={12} />
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <span className="text-xs text-[#64748B] px-1 mt-4 block">
+                Showing {stageEntries.length} entries.
+              </span>
+            </div>
+
+            <div className="lg:col-span-1 space-y-6">
+              <LotSummaryPanel title="Lot Summary" items={rightPanelItems} />
             </div>
           </div>
-          <span className="text-xs text-[#64748B] px-1">
-            Showing {stageEntries.length} entries.
-          </span>
         </div>
+      )}
 
-        {/* Right Col: Lot Summary card */}
-        <div className="lg:col-span-1 space-y-6">
-          <LotSummaryPanel title="Lot Summary" items={rightPanelItems} />
+      {/* ========================================================
+          TAB 2: COSTING & VALUATION
+          ======================================================== */}
+      {activeTab === "costing" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+          {/* Left Cost Detail Cards (Span 2) */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Fabric consumption costing (Option B) */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Shirt className="h-4.5 w-4.5 text-indigo-600" />
+                1. Allocated Fabric Cost
+              </h3>
+              
+              {lotRolls.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">No fabric rolls allocated to this production lot.</div>
+              ) : (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[9px]">
+                        <th className="p-2.5">Roll identifier</th>
+                        <th className="p-2.5 text-center">Allocated (Mtr)</th>
+                        <th className="p-2.5 text-right">Purchase Rate (Mtr)</th>
+                        <th className="p-2.5 text-right">Total Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lotRolls.map((roll: any) => {
+                        const rate = Number(roll.purchase_roll?.item?.rate || 0);
+                        const cost = Number(roll.allocated_meters || 0) * rate;
+                        return (
+                          <tr key={roll.id}>
+                            <td className="p-2.5 font-semibold text-slate-700">
+                              Roll #{roll.purchase_roll?.roll_number} ({roll.purchase_roll?.shade}) - {roll.purchase_roll?.item?.material_type?.name}
+                            </td>
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-700">
+                              {roll.allocated_meters} {roll.purchase_roll?.item?.material_type?.unit || "Mtr"}
+                            </td>
+                            <td className="p-2.5 text-right font-mono text-slate-600">{formatCurrency(rate)}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-800">{formatCurrency(cost)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-50/50 font-bold">
+                        <td className="p-2.5 text-slate-800">Total Fabric Cost</td>
+                        <td className="p-2.5 text-center font-mono">{lotRolls.reduce((a: number, b: any) => a + Number(b.allocated_meters), 0).toFixed(1)} Mtr</td>
+                        <td className="p-2.5"></td>
+                        <td className="p-2.5 text-right font-mono text-indigo-700">{formatCurrency(totalFabricCost)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Labor / Job work costing */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="h-4.5 w-4.5 text-green-600" />
+                2. Production Labor / Job-Work Cost
+              </h3>
+
+              {stageEntries.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">No stage entries logged with labor costs.</div>
+              ) : (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[9px]">
+                        <th className="p-2.5">Stage</th>
+                        <th className="p-2.5">Worker Name</th>
+                        <th className="p-2.5 text-center">Qty Produced</th>
+                        <th className="p-2.5 text-right">Job-Work Rate</th>
+                        <th className="p-2.5 text-right">Subtotal Labor</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stageEntries.map((entry: any) => {
+                        const qty = Number(entry.qty_out || 0);
+                        const rate = Number(entry.job_work_rate || 0);
+                        const cost = qty * rate;
+                        return (
+                          <tr key={entry.id}>
+                            <td className="p-2.5 font-semibold text-slate-700">{entry.stage?.stage_name}</td>
+                            <td className="p-2.5 text-slate-500">{entry.worker?.name || "General"}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-700">{qty} pcs</td>
+                            <td className="p-2.5 text-right font-mono text-slate-600">{formatCurrency(rate)}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-800">{formatCurrency(cost)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-50/50 font-bold">
+                        <td className="p-2.5 text-slate-800" colSpan={2}>Total Labor Cost</td>
+                        <td className="p-2.5 text-center font-mono">{stageEntries.reduce((a: number, b: any) => a + Number(b.qty_out || 0), 0)} pcs</td>
+                        <td className="p-2.5"></td>
+                        <td className="p-2.5 text-right font-mono text-green-700">{formatCurrency(totalLaborCost)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Accessory & other costs editor */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Settings className="h-4.5 w-4.5 text-amber-600" />
+                3. Accessory & Other Custom Costs
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Accessory Costs (INR)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={accessoryCost || ""}
+                    onChange={(e) => setAccessoryCost(parseFloat(e.target.value) || 0)}
+                    placeholder="e.g. Buttons, thread, labels"
+                    className="w-full h-10 rounded-lg border border-slate-200 px-3 text-xs focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Other / Transport Costs (INR)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={otherCost || ""}
+                    onChange={(e) => setOtherCost(parseFloat(e.target.value) || 0)}
+                    placeholder="e.g. Packing, logistics"
+                    className="w-full h-10 rounded-lg border border-slate-200 px-3 text-xs focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveCosts}
+                  disabled={updatingCost}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 h-9 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {updatingCost ? "Saving..." : "Save Custom Costs"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Summary Costing Panel */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-5">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <DollarSign className="h-4.5 w-4.5 text-indigo-600" />
+                Overall Lot Costing
+              </h3>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Fabric Consumption Cost:</span>
+                  <span className="font-semibold text-slate-800 font-mono">{formatCurrency(totalFabricCost)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Total Labor Cost:</span>
+                  <span className="font-semibold text-slate-800 font-mono">{formatCurrency(totalLaborCost)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Accessory Cost:</span>
+                  <span className="font-semibold text-slate-800 font-mono">{formatCurrency(lot.accessory_cost || 0)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Other Costs:</span>
+                  <span className="font-semibold text-slate-800 font-mono">{formatCurrency(lot.other_cost || 0)}</span>
+                </div>
+                
+                <div className="flex justify-between py-3 border-b border-slate-200 text-sm font-black bg-indigo-50/20 px-2 rounded">
+                  <span className="text-indigo-900">Total Lot Cost:</span>
+                  <span className="text-indigo-700 font-mono">{formatCurrency(totalLotCost)}</span>
+                </div>
+
+                <div className="flex justify-between py-3 border-b border-slate-200 text-sm font-black bg-emerald-50/20 px-2 rounded">
+                  <span className="text-emerald-900">Per-Piece Cost:</span>
+                  <span className="text-emerald-700 font-mono">{formatCurrency(perPieceCost)} / pc</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* MOVE TO STOCK DIALOG OVERLAY */}
+      {moveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2">
+              Move Lot to Finished Stock
+            </h3>
+            <p className="text-xs text-slate-500 leading-normal">
+              This action will finalize the production lot and add **{totalQty} pieces** of design **{lot.design?.code}** to the selected finished goods godown.
+            </p>
+            
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase">Target Godown</label>
+                <select
+                  value={targetGodownId}
+                  onChange={(e) => setTargetGodownId(e.target.value)}
+                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">Select Godown</option>
+                  {godowns.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                  Confirm Design Code (Type **{lot.design?.code}**)
+                </label>
+                <input
+                  type="text"
+                  value={confirmDesignCode}
+                  onChange={(e) => setConfirmDesignCode(e.target.value)}
+                  placeholder={lot.design?.code}
+                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setMoveModalOpen(false)}
+                className="h-9 px-4 border border-slate-200 rounded text-xs font-bold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveToStock}
+                disabled={movingToStock}
+                className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold disabled:opacity-50 cursor-pointer"
+              >
+                {movingToStock ? "Moving..." : "Confirm & Move"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOTTOM NOTE BANNER */}
       <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 flex items-start gap-3">

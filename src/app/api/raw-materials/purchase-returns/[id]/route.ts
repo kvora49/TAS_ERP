@@ -97,7 +97,7 @@ export async function PUT(
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    // If status transitioned to 'completed' and godown_id is specified, automatically generate a stock entry
+    // If status transitioned to 'completed' and godown_id is specified, automatically generate a stock entry and write to stock_ledger
     if (status === "completed" && existingReturn.status !== "completed" && existingReturn.godown_id) {
       // Fetch items of the return
       const { data: returnItems } = await supabase
@@ -107,6 +107,35 @@ export async function PUT(
         .eq("business_id", businessId);
 
       if (returnItems && returnItems.length > 0) {
+        // 1. Write negative delta to stock_ledger
+        const { data: { user } } = await supabase.auth.getUser();
+        const ledgerEntries = returnItems.map((item: any) => ({
+          business_id: businessId,
+          item_type: 'raw_material',
+          item_id: item.material_type_id,
+          godown_id: existingReturn.godown_id,
+          transaction_type: 'purchase_return',
+          quantity_delta: -Number(item.returned_qty),
+          value_delta: -Number(item.taxable_value),
+          reference_table: 'purchase_returns',
+          reference_id: id,
+          created_by: user?.id || null,
+        }));
+
+        const { error: ledgerError } = await supabase
+          .from("stock_ledger")
+          .insert(ledgerEntries);
+
+        if (ledgerError) {
+          // Revert purchase return update
+          await supabase
+            .from("purchase_returns")
+            .update({ status: existingReturn.status })
+            .eq("id", id);
+          return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
+        }
+
+        // 2. Generate legacy stock entry
         const { data: stockEntry, error: seError } = await supabase
           .from("raw_material_stock_entries")
           .insert({
@@ -144,14 +173,40 @@ export async function PUT(
       }
     }
 
-    // If status transitioned to 'cancelled' and it was completed, cancel the stock entry
+    // If status transitioned to 'cancelled' and it was completed, cancel the stock entry and reverse stock_ledger
     if (status === "cancelled" && existingReturn.status === "completed") {
+      // 1. Cancel the legacy stock entry
       await supabase
         .from("raw_material_stock_entries")
         .update({ status: "cancelled" })
         .eq("reference_type", "return")
         .eq("reference_id", id)
         .eq("business_id", businessId);
+
+      // 2. Revert entries in stock_ledger (insert positive delta)
+      const { data: returnItems } = await supabase
+        .from("purchase_return_items")
+        .select("*")
+        .eq("return_id", id)
+        .eq("business_id", businessId);
+
+      if (returnItems && returnItems.length > 0 && existingReturn.godown_id) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const ledgerEntries = returnItems.map((item: any) => ({
+          business_id: businessId,
+          item_type: 'raw_material',
+          item_id: item.material_type_id,
+          godown_id: existingReturn.godown_id,
+          transaction_type: 'purchase_return',
+          quantity_delta: Number(item.returned_qty), // Positive delta to restore stock
+          value_delta: Number(item.taxable_value), // Positive delta to restore stock value
+          reference_table: 'purchase_returns',
+          reference_id: id,
+          created_by: user?.id || null,
+        }));
+
+        await supabase.from("stock_ledger").insert(ledgerEntries);
+      }
     }
 
     return NextResponse.json({ return: updatedReturn });

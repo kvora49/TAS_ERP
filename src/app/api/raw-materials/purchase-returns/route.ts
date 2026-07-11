@@ -152,17 +152,133 @@ export async function POST(request: Request) {
       taxable_value: Number(item.taxable_value),
     }));
 
-    const { error: itemsError } = await supabase
+    const { data: insertedItems, error: itemsError } = await supabase
       .from("purchase_return_items")
-      .insert(itemsToInsert);
+      .insert(itemsToInsert)
+      .select();
 
-    if (itemsError) {
+    if (itemsError || !insertedItems) {
       await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
-      return NextResponse.json({ error: "Failed to create return items: " + itemsError.message }, { status: 500 });
+      return NextResponse.json({ error: "Failed to create return items: " + (itemsError?.message || "No data returned") }, { status: 500 });
     }
 
-    // If status is 'completed' and godown_id is specified, automatically generate a stock entry
+    // Insert purchase_return_rolls and update original roll remaining meters
+    if (insertedItems && insertedItems.length > 0) {
+      const returnRollsToInsert: any[] = [];
+      for (let i = 0; i < insertedItems.length; i++) {
+        const insertedItem = insertedItems[i];
+        const inputItem = items[i];
+        if (inputItem && inputItem.item_type === "fabric" && inputItem.rolls && inputItem.rolls.length > 0) {
+          const selectedRolls = inputItem.rolls.filter((r: any) => r.selected);
+          for (const roll of selectedRolls) {
+            returnRollsToInsert.push({
+              business_id: businessId,
+              return_item_id: insertedItem.id,
+              purchase_roll_id: roll.id,
+              returned_meters: Number(roll.remaining_meters),
+            });
+
+            // Update remaining meters on original roll record
+            const { data: origRoll } = await supabase
+              .from("purchase_rolls")
+              .select("remaining_meters")
+              .eq("id", roll.id)
+              .single();
+            
+            if (origRoll) {
+              const newRemaining = Math.max(0, Number(origRoll.remaining_meters || 0) - Number(roll.remaining_meters));
+              await supabase
+                .from("purchase_rolls")
+                .update({ remaining_meters: newRemaining })
+                .eq("id", roll.id);
+            }
+          }
+        }
+      }
+
+      if (returnRollsToInsert.length > 0) {
+        const { error: returnRollsError } = await supabase
+          .from("purchase_return_rolls")
+          .insert(returnRollsToInsert);
+        if (returnRollsError) {
+          await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
+          return NextResponse.json({ error: "Failed to create return rolls: " + returnRollsError.message }, { status: 500 });
+        }
+      }
+    }
+
+    // Generate debit note if requested
+    if (generate_debit_note) {
+      const year = new Date(return_date).getFullYear() || new Date().getFullYear();
+      const { data: lastDn } = await supabase
+        .from("debit_notes")
+        .select("dn_number")
+        .eq("business_id", businessId)
+        .like("dn_number", `DN-${year}-%`)
+        .order("dn_number", { ascending: false })
+        .limit(1);
+
+      let nextDnNum = 1;
+      if (lastDn && lastDn.length > 0 && lastDn[0].dn_number) {
+        const parts = lastDn[0].dn_number.split("-");
+        const lastNum = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastNum)) {
+          nextDnNum = lastNum + 1;
+        }
+      }
+      const dnNumber = `DN-${year}-${String(nextDnNum).padStart(4, "0")}`;
+
+      const { data: dnRecord, error: dnError } = await supabase
+        .from("debit_notes")
+        .insert({
+          business_id: businessId,
+          dn_number: dnNumber,
+          party_id: supplier_id,
+          related_purchase_return_id: pReturn.id,
+          dn_date: return_date,
+          amount: Number(grand_total),
+          reason: reason || null,
+        })
+        .select()
+        .single();
+
+      if (!dnError && dnRecord) {
+        await supabase
+          .from("purchase_returns")
+          .update({ debit_note_id: dnRecord.id })
+          .eq("id", pReturn.id);
+      }
+    }
+
+    // If status is 'completed' and godown_id is specified, automatically generate a stock entry and write to stock_ledger
     if ((status === "completed") && godown_id) {
+      // 1. Write negative delta to stock_ledger
+      const { data: { user } } = await supabase.auth.getUser();
+      const ledgerEntries = items.map((item: any) => ({
+        business_id: businessId,
+        item_type: 'raw_material',
+        item_id: item.material_type_id,
+        godown_id: godown_id,
+        transaction_type: 'purchase_return',
+        quantity_delta: -Number(item.returned_qty),
+        value_delta: -Number(item.taxable_value),
+        reference_table: 'purchase_returns',
+        reference_id: pReturn.id,
+        created_by: user?.id || null,
+      }));
+
+      const { error: ledgerError } = await supabase
+        .from("stock_ledger")
+        .insert(ledgerEntries);
+
+      if (ledgerError) {
+        // Clean up
+        await supabase.from("purchase_return_items").delete().eq("return_id", pReturn.id);
+        await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
+        return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
+      }
+
+      // 2. Generate legacy stock entry for historical data
       const { data: stockEntry, error: seError } = await supabase
         .from("raw_material_stock_entries")
         .insert({

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -42,6 +43,13 @@ const partySchema = z.object({
   default_godown_id: z.string().optional(),
   remarks: z.string().optional(),
   status: z.string(),
+  contact_numbers: z.array(
+    z.object({
+      label: z.string().min(1, "Label is required"),
+      number: z.string().min(1, "Phone number is required"),
+      is_primary: z.boolean(),
+    })
+  ).optional(),
   bank_details: z.array(
     z.object({
       bank_name: z.string().min(1, "Bank name is required"),
@@ -104,6 +112,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     default_godown_id: "",
     remarks: "",
     status: "active",
+    contact_numbers: [],
     bank_details: [],
   };
 
@@ -122,6 +131,11 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "bank_details",
+  });
+
+  const { fields: contactFields, append: appendContact, remove: removeContact } = useFieldArray({
+    control,
+    name: "contact_numbers",
   });
 
   const watchTypes = watch("type") || [];
@@ -188,6 +202,19 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     try {
       const url = id ? `/api/parties/${id}` : "/api/parties";
       const method = id ? "PUT" : "POST";
+
+      // Synchronize phone and whatsapp_number for backward compatibility
+      const primaryContact = values.contact_numbers?.find((c) => c.is_primary) || values.contact_numbers?.[0];
+      const whatsappContact = values.contact_numbers?.find((c) => c.label === "WhatsApp");
+
+      if (primaryContact) {
+        values.phone = primaryContact.number;
+      }
+      if (whatsappContact) {
+        values.whatsapp_number = whatsappContact.number;
+      } else if (primaryContact) {
+        values.whatsapp_number = primaryContact.number;
+      }
 
       const res = await fetch(url, {
         method,
@@ -349,6 +376,102 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   {...register("whatsapp_number")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
                 />
+              </div>
+
+              {/* Repeatable Contacts List */}
+              <div className="border border-[#E2E8F0] rounded-xl p-4 space-y-4 col-span-full mt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">
+                      Contact Numbers
+                    </h3>
+                    <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
+                      Configure multiple telephone numbers with a primary identifier.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => appendContact({ label: "Office", number: "", is_primary: contactFields.length === 0 })}
+                    className="h-8 px-2.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 text-[#6366F1] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Contact
+                  </button>
+                </div>
+
+                {contactFields.length === 0 ? (
+                  <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs font-semibold text-[#64748B]">
+                    No contact numbers added yet. Click Add Contact to specify.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {contactFields.map((field, index) => (
+                      <div key={field.id} className="flex items-end gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100 animate-fadeIn">
+                        {/* Number */}
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[10px] font-bold text-[#475569] uppercase">
+                            Phone Number
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 9876543210"
+                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            {...register(`contact_numbers.${index}.number` as const)}
+                          />
+                        </div>
+
+                        {/* Label */}
+                        <div className="w-28 space-y-1">
+                          <label className="text-[10px] font-bold text-[#475569] uppercase">
+                            Label
+                          </label>
+                          <select
+                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            {...register(`contact_numbers.${index}.label` as const)}
+                          >
+                            <option value="Main">Main</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                            <option value="Office">Office</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Manager">Manager</option>
+                          </select>
+                        </div>
+
+                        {/* Primary Checkbox */}
+                        <div className="flex items-center gap-1.5 pb-2">
+                          <input
+                            type="checkbox"
+                            id={`contact-primary-${field.id}`}
+                            className="h-4 w-4 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
+                            {...register(`contact_numbers.${index}.is_primary` as const)}
+                            onChange={(e) => {
+                              // If checked, uncheck all others
+                              if (e.target.checked) {
+                                contactFields.forEach((_, i) => {
+                                  if (i !== index) {
+                                    setValue(`contact_numbers.${i}.is_primary`, false);
+                                  }
+                                });
+                              }
+                              setValue(`contact_numbers.${index}.is_primary`, e.target.checked);
+                            }}
+                          />
+                          <label htmlFor={`contact-primary-${field.id}`} className="text-[10px] font-bold text-[#475569] uppercase cursor-pointer select-none">
+                            Primary
+                          </label>
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          type="button"
+                          onClick={() => removeContact(index)}
+                          className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-md flex items-center justify-center cursor-pointer transition-all border border-transparent hover:border-rose-100 shrink-0"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -633,22 +756,18 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
 
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Credit Limit (₹)</label>
-                <input
-                  type="number"
+                <NumericInput
                   placeholder="0.00"
                   {...register("credit_limit")}
-                  onFocus={(e) => e.target.select()}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Opening Balance (₹)</label>
-                <input
-                  type="number"
+                <NumericInput
                   placeholder="e.g. 50000 for Cr, -5000 for Dr"
                   {...register("opening_balance")}
-                  onFocus={(e) => e.target.select()}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
                 />
                 <p className="text-[10px] text-[#64748B] mt-1">
@@ -700,6 +819,16 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   <option value="active" className="text-green-600">Active</option>
                   <option value="inactive" className="text-red-600">Inactive</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Remarks / Comments</label>
+                <textarea
+                  placeholder="Additional remarks or notes about the party..."
+                  rows={3}
+                  {...register("remarks")}
+                  className="w-full p-3 border border-[#CBD5E1] rounded-lg text-xs focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] text-[#0F172A]"
+                />
               </div>
             </div>
           </div>

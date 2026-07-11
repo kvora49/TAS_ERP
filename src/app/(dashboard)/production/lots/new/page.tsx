@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/ui/numeric-input";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -20,11 +21,16 @@ import {
   Info,
   RefreshCw,
   CheckCircle,
+  FileText,
+  UserCheck,
+  Search,
+  BookOpen
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
+import { ImageUpload } from "@/components/forms/ImageUpload";
 
 interface Brand {
   id: string;
@@ -67,46 +73,101 @@ interface LotStageInput {
   stage_type: string;
   sequence_no: number;
   is_mandatory: boolean;
+  worker_ids: string[];
 }
 
 export default function CreateLotPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Wizard current state
+  // Wizard Step State
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Form Fields
+  // ==========================================
+  // STEP 1: ROLL ALLOCATION
+  // ==========================================
+  const [rollSearch, setRollSearch] = useState("");
+  const [allocatedRolls, setAllocatedRolls] = useState<Array<{
+    purchase_roll_id: string;
+    roll_number: string;
+    shade: string;
+    material_name: string;
+    supplier_name: string;
+    remaining_meters: number;
+    allocated_meters: number;
+    rate: number;
+  }>>([]);
+  const [allocating, setAllocating] = useState(false);
+
+  // Available Rolls Query
+  const { data: availableRollsData, isLoading: loadingRolls } = useQuery<{ rolls: any[] }>({
+    queryKey: ["available-rolls", rollSearch],
+    queryFn: async () => {
+      const res = await fetch(`/api/production/lots/available-rolls?search=${encodeURIComponent(rollSearch)}`);
+      return res.json();
+    },
+    enabled: currentStep === 1,
+  });
+  const availableRolls = availableRollsData?.rolls || [];
+
+  // ==========================================
+  // STEP 2: BASIC DETAILS
+  // ==========================================
   const [brandId, setBrandId] = useState("");
   const [designId, setDesignId] = useState("");
   const [lotNumber, setLotNumber] = useState("");
   const [lotDate, setLotDate] = useState(new Date().toISOString().substring(0, 10));
-  const [colourId, setColourId] = useState("");
+  const [lotName, setLotName] = useState("");
+  const [garmentTypeId, setGarmentTypeId] = useState("");
+  const [designType, setDesignType] = useState("");
+  const [selectedColours, setSelectedColours] = useState<Array<{ id: string; colour_name: string; colour_hex: string | null }>>([]);
   const [season, setSeason] = useState("Summer " + new Date().getFullYear());
   const [buyerOrderRef, setBuyerOrderRef] = useState("");
-  const [targetStartDate, setTargetStartDate] = useState(new Date().toISOString().substring(0, 10));
-  const [targetDispatchDate, setTargetDispatchDate] = useState("");
-  const [targetDueDate, setTargetDueDate] = useState("");
   const [priority, setPriority] = useState("normal");
   const [productionType, setProductionType] = useState("regular");
-  const [allowRework, setAllowRework] = useState(false);
+  const [targetStartDate, setTargetStartDate] = useState(new Date().toISOString().substring(0, 10));
+  const [targetDispatchDate, setTargetDispatchDate] = useState("");
   const [notes, setNotes] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [customerRef, setCustomerRef] = useState("");
   const [poDate, setPoDate] = useState("");
 
-  // Size Set Quantities
-  const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({});
+  // ==========================================
+  // STEP 3: LOT SPECIFICATIONS
+  // ==========================================
+  const [additionalDetails, setAdditionalDetails] = useState("");
+  const [designReferenceText, setDesignReferenceText] = useState("");
+  const [designReferencePhotos, setDesignReferencePhotos] = useState<string[]>([]);
+  const [customQa, setCustomQa] = useState<Array<{ question: string; answer: string }>>([]);
+
+  // ==========================================
+  // STEP 4: SIZE SET & QUANTITIES
+  // ==========================================
+  const [sizeQuantities, setSizeQuantities] = useState<Record<string, Record<string, number>>>({}); // colour_id -> size -> quantity
   const [availableSizes, setAvailableSizes] = useState<string[]>([]);
   const [selectedSizeSetId, setSelectedSizeSetId] = useState("");
+  const [useSameColours, setUseSameColours] = useState(true);
+  const [averageMeter, setAverageMeter] = useState<number>(0);
+  const [calculatingAvg, setCalculatingAvg] = useState(false);
 
-  // Assigned Stages
+  // ==========================================
+  // STEP 5: ASSIGN STAGES
+  // ==========================================
   const [assignedStages, setAssignedStages] = useState<LotStageInput[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
-  // Submitting
+  // ==========================================
+  // STEP 6: DESIGN SPEC SHEET
+  // ==========================================
+  const [specSheetTemplate, setSpecSheetTemplate] = useState<any | null>(null);
+  const [specSheetValues, setSpecSheetValues] = useState<Record<string, string>>({});
+
+  // Submitting final lot creation
   const [submitting, setSubmitting] = useState(false);
 
-  // 1. Fetch Brands
+  // ==========================================
+  // MASTER QUERIES
+  // ==========================================
   const { data: brandsData } = useQuery<{ brands: Brand[] }>({
     queryKey: ["brands-list"],
     queryFn: async () => {
@@ -115,7 +176,6 @@ export default function CreateLotPage() {
     },
   });
 
-  // 2. Fetch Designs
   const { data: designsData } = useQuery<{ designs: Design[] }>({
     queryKey: ["designs-list"],
     queryFn: async () => {
@@ -124,7 +184,6 @@ export default function CreateLotPage() {
     },
   });
 
-  // 3. Fetch Master Production Stages
   const { data: masterStagesData } = useQuery<{ stages: ProductionStage[] }>({
     queryKey: ["master-stages-list"],
     queryFn: async () => {
@@ -133,7 +192,6 @@ export default function CreateLotPage() {
     },
   });
 
-  // 4. Fetch Size Sets (for templates)
   const { data: sizeSetsData } = useQuery<{ sizeSets: SizeSet[] }>({
     queryKey: ["size-sets-list"],
     queryFn: async () => {
@@ -142,17 +200,48 @@ export default function CreateLotPage() {
     },
   });
 
+  const { data: garmentTypesData } = useQuery<{ garmentTypes: any[] }>({
+    queryKey: ["garment-types-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/garment-types");
+      return res.json();
+    },
+  });
+
+  const { data: templatesData } = useQuery<{ templates: any[] }>({
+    queryKey: ["production-templates-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/production-templates");
+      return res.json();
+    },
+  });
+
+  const { data: workersData } = useQuery<{ parties: any[] }>({
+    queryKey: ["workers-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/parties?type=worker");
+      return res.json();
+    },
+  });
+
+  const { data: settingsData } = useQuery<any>({
+    queryKey: ["business-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/general");
+      const data = await res.json();
+      return data.settings || {};
+    },
+  });
+
   const designs = designsData?.designs || [];
   const brands = brandsData?.brands || [];
   const masterStages = masterStagesData?.stages || [];
   const sizeSets = sizeSetsData?.sizeSets || [];
+  const garmentTypes = garmentTypesData?.garmentTypes || [];
+  const productionTemplates = templatesData?.templates || [];
+  const workers = workersData?.parties || [];
 
-  // Filter designs based on selected brand
-  const filteredDesigns = brandId
-    ? designs.filter((d) => d.brand_id === brandId)
-    : designs;
-
-  // Selected design info
+  const filteredDesigns = brandId ? designs.filter((d) => d.brand_id === brandId) : designs;
   const selectedDesign = designs.find((d) => d.id === designId);
 
   // Auto-generate Lot Number on mount
@@ -179,165 +268,385 @@ export default function CreateLotPage() {
       if (designSizeSet) {
         setAvailableSizes(designSizeSet.sizes || []);
         setSelectedSizeSetId(designSizeSet.id);
+        
+        // Reset sizes quantities
         const initQty: Record<string, number> = {};
         designSizeSet.sizes.forEach((s) => {
           initQty[s] = 0;
         });
-        setSizeQuantities(initQty);
+        setSizeQuantities({
+          "all": initQty,
+        });
       }
 
-      // Prepopulate Brand if design is selected first
       if (selectedDesign.brand_id && !brandId) {
         setBrandId(selectedDesign.brand_id);
       }
 
-      // Reset color selection if design changes
-      setColourId("");
+      // Automatically sync design categories or custom options
+      setSelectedColours([]);
     }
   }, [selectedDesign, brandId]);
 
-  // Load stages when masterStages are fetched
+  // Sync target dispatch date from business settings
+  useEffect(() => {
+    if (lotDate) {
+      const days = settingsData?.default_production_target_days || 90;
+      const targetDate = new Date(lotDate);
+      targetDate.setDate(targetDate.getDate() + days);
+      setTargetDispatchDate(targetDate.toISOString().substring(0, 10));
+    }
+  }, [lotDate, settingsData]);
+
+  // Load spec template when garment type is selected
+  useEffect(() => {
+    const fetchSpecSheetTemplate = async () => {
+      if (!garmentTypeId) {
+        setSpecSheetTemplate(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/master-data/design-spec-templates?garment_type_id=${garmentTypeId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.templates && data.templates.length > 0) {
+            setSpecSheetTemplate(data.templates[0]);
+            const initial: Record<string, string> = {};
+            data.templates[0].fields.forEach((f: any) => {
+              initial[f.name] = "";
+            });
+            setSpecSheetValues(initial);
+          } else {
+            setSpecSheetTemplate(null);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load design spec template:", err);
+      }
+    };
+    fetchSpecSheetTemplate();
+  }, [garmentTypeId]);
+
+  // Default stages from master stages if template is not chosen yet
   useEffect(() => {
     if (masterStages.length > 0 && assignedStages.length === 0) {
-      const initial = masterStages.map((s, idx) => ({
+      const initial = masterStages.slice(0, 5).map((s, idx) => ({
         stage_id: s.id,
         stage_name: s.name,
         stage_type: s.type || "in_house",
         sequence_no: idx + 1,
         is_mandatory: true,
+        worker_ids: [],
       }));
       setAssignedStages(initial);
     }
   }, [masterStages]);
 
-  // Handle stage sequence change
-  const moveStage = (index: number, direction: "up" | "down") => {
-    if (direction === "up" && index === 0) return;
-    if (direction === "down" && index === assignedStages.length - 1) return;
+  // ==========================================
+  // WIZARD EVENT HANDLERS
+  // ==========================================
 
-    const newStages = [...assignedStages];
-    const targetIdx = direction === "up" ? index - 1 : index + 1;
-    const temp = newStages[index];
-    newStages[index] = newStages[targetIdx];
-    newStages[targetIdx] = temp;
+  // Step 1 roll handlers
+  const handleToggleRoll = (roll: any) => {
+    const exists = allocatedRolls.some(r => r.purchase_roll_id === roll.id);
+    if (exists) {
+      setAllocatedRolls(allocatedRolls.filter(r => r.purchase_roll_id !== roll.id));
+    } else {
+      setAllocatedRolls([...allocatedRolls, {
+        purchase_roll_id: roll.id,
+        roll_number: roll.roll_number,
+        shade: roll.shade || "—",
+        material_name: roll.item?.material_type?.name || "Fabric",
+        supplier_name: roll.item?.purchase?.supplier?.name || "—",
+        remaining_meters: Number(roll.remaining_meters),
+        allocated_meters: Number(roll.remaining_meters),
+        rate: Number(roll.item?.rate || 0),
+      }]);
+    }
+  };
 
-    // Recalculate sequence numbers
-    const updated = newStages.map((s, i) => ({
-      ...s,
-      sequence_no: i + 1,
+  const handleRollAllocationChange = (rollId: string, meters: number) => {
+    setAllocatedRolls(allocatedRolls.map(r => {
+      if (r.purchase_roll_id === rollId) {
+        return {
+          ...r,
+          allocated_meters: Math.min(r.remaining_meters, Math.max(0, meters)),
+        };
+      }
+      return r;
     }));
-    setAssignedStages(updated);
   };
 
-  const handleStageRequiredToggle = (index: number) => {
-    const updated = [...assignedStages];
-    updated[index].is_mandatory = !updated[index].is_mandatory;
-    setAssignedStages(updated);
+  // Step 2 colour handlers
+  const handleAddColour = (colourId: string) => {
+    if (!colourId) return;
+    const col = selectedDesign?.design_colours?.find(c => c.id === colourId);
+    if (col && !selectedColours.some(c => c.id === colourId)) {
+      setSelectedColours([...selectedColours, {
+        id: col.id,
+        colour_name: col.colour_name,
+        colour_hex: col.colour_hex,
+      }]);
+      
+      // Initialize size grid for this colour if not same colors
+      if (!useSameColours) {
+        const initQty: Record<string, number> = {};
+        availableSizes.forEach(s => {
+          initQty[s] = 0;
+        });
+        setSizeQuantities(prev => ({
+          ...prev,
+          [col.id]: initQty
+        }));
+      }
+    }
   };
 
-  // Add Custom Stage
-  const handleAddStage = (stageId: string) => {
-    const masterStage = masterStages.find((s) => s.id === stageId);
-    if (!masterStage) return;
+  const handleRemoveColour = (colourId: string) => {
+    setSelectedColours(selectedColours.filter(c => c.id !== colourId));
+    if (!useSameColours) {
+      const copy = { ...sizeQuantities };
+      delete copy[colourId];
+      setSizeQuantities(copy);
+    }
+  };
 
-    // Prevent duplicate stages
-    if (assignedStages.some((s) => s.stage_id === stageId)) {
-      toast.error("Stage already assigned to this lot");
+  // Step 4 Avg meter calculation
+  const fetchHistoricalAvg = async () => {
+    if (!garmentTypeId || !selectedSizeSetId) {
+      toast.error("Please ensure Garment Type and Design are selected");
+      return;
+    }
+    setCalculatingAvg(true);
+    try {
+      const res = await fetch(`/api/production/lots/historical-avg-meters?garment_type_id=${garmentTypeId}&size_set_id=${selectedSizeSetId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAverageMeter(data.avg_meters || 0);
+        toast.success(`Loaded historical average: ${data.avg_meters} meters / pc`);
+      }
+    } catch (err) {
+      toast.error("Failed to load historical average meters");
+    } finally {
+      setCalculatingAvg(false);
+    }
+  };
+
+  const totalAllocatedMeters = allocatedRolls.reduce((acc, curr) => acc + curr.allocated_meters, 0);
+
+  const suggestedPieces = averageMeter > 0 ? Math.floor(totalAllocatedMeters / averageMeter) : 0;
+
+  const handlePrefillSizeQuantities = () => {
+    if (suggestedPieces <= 0) {
+      toast.error("Please configure roll allocation and non-zero average meter consumption");
+      return;
+    }
+    if (availableSizes.length === 0) {
+      toast.error("No size set config available");
       return;
     }
 
-    const newStage = {
-      stage_id: masterStage.id,
-      stage_name: masterStage.name,
-      stage_type: masterStage.type || "in_house",
-      sequence_no: assignedStages.length + 1,
-      is_mandatory: true,
-    };
-
-    setAssignedStages([...assignedStages, newStage]);
-    toast.success(`Added stage: ${masterStage.name}`);
-  };
-
-  // Remove Stage
-  const handleRemoveStage = (index: number) => {
-    const filtered = assignedStages.filter((_, i) => i !== index);
-    const updated = filtered.map((s, i) => ({
-      ...s,
-      sequence_no: i + 1,
-    }));
-    setAssignedStages(updated);
-  };
-
-  // Load Size Template
-  const handleLoadSizeTemplate = (templateId: string) => {
-    const template = sizeSets.find((ss) => ss.id === templateId);
-    if (!template) return;
-
-    setAvailableSizes(template.sizes || []);
-    setSelectedSizeSetId(template.id);
+    const share = Math.floor(suggestedPieces / (availableSizes.length || 1));
     const initQty: Record<string, number> = {};
-    template.sizes.forEach((s) => {
-      initQty[s] = sizeQuantities[s] || 0;
+    availableSizes.forEach((s, idx) => {
+      // Put remainder in the first size
+      initQty[s] = idx === 0 ? share + (suggestedPieces % availableSizes.length) : share;
     });
-    setSizeQuantities(initQty);
-    toast.success(`Loaded size set template: ${template.name}`);
+
+    if (useSameColours) {
+      setSizeQuantities({
+        "all": initQty,
+      });
+    } else {
+      const nextSizes: Record<string, Record<string, number>> = {};
+      selectedColours.forEach((c) => {
+        nextSizes[c.id] = { ...initQty };
+      });
+      setSizeQuantities(nextSizes);
+    }
+    toast.success("Distributed suggested piece count across size categories");
   };
 
-  const handleAddCustomSize = (sizeName: string) => {
-    if (!sizeName.trim()) return;
-    const cleanSize = sizeName.trim().toUpperCase();
-    if (availableSizes.includes(cleanSize)) {
-      toast.error("Size already exists");
-      return;
+  // Step 5 Stage worker handlers
+  const handleAddWorkerToStage = (idx: number, workerId: string) => {
+    if (!workerId) return;
+    const currentList = assignedStages[idx].worker_ids || [];
+    if (!currentList.includes(workerId)) {
+      const copy = [...assignedStages];
+      copy[idx].worker_ids = [...currentList, workerId];
+      setAssignedStages(copy);
     }
-    setAvailableSizes([...availableSizes, cleanSize]);
-    setSizeQuantities({
-      ...sizeQuantities,
-      [cleanSize]: 0,
-    });
   };
 
-  // Quantities calculation
-  const totalQuantity = Object.values(sizeQuantities).reduce((acc, curr) => acc + curr, 0);
+  const handleRemoveWorkerFromStage = (idx: number, workerId: string) => {
+    const copy = [...assignedStages];
+    copy[idx].worker_ids = (copy[idx].worker_ids || []).filter(w => w !== workerId);
+    setAssignedStages(copy);
+  };
 
-  // Submit Lot
-  const handleSubmitLot = async () => {
-    if (!brandId || !designId || !lotNumber || !lotDate || totalQuantity <= 0) {
-      toast.error("Please fill in all required fields and enter size quantities");
+  const handleLoadTemplate = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+
+    try {
+      const res = await fetch(`/api/master-data/production-templates/${templateId}`);
+      if (!res.ok) throw new Error("Failed to load production template");
+      const data = await res.json();
+      
+      const tempStages = (data.template?.stages || []).map((s: any, idx: number) => ({
+        stage_id: s.stage_id,
+        stage_name: s.stage_name || s.name,
+        stage_type: s.stage_type || s.type || "in_house",
+        sequence_no: idx + 1,
+        is_mandatory: s.is_mandatory !== false,
+        worker_ids: [],
+      }));
+      setAssignedStages(tempStages);
+      toast.success("Loaded template stages successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Error loading template");
+    }
+  };
+
+  // Next steps validations
+  const handleStep1Next = async () => {
+    if (allocatedRolls.length === 0) {
+      toast.error("Please allocate at least one roll to proceed");
+      return;
+    }
+    const invalid = allocatedRolls.some(r => r.allocated_meters <= 0 || r.allocated_meters > r.remaining_meters);
+    if (invalid) {
+      toast.error("Please ensure all allocations are positive and do not exceed remaining meters");
       return;
     }
 
+    setAllocating(true);
+    try {
+      const res = await fetch("/api/production/lots/allocate-rolls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allocations: allocatedRolls.map(r => ({
+            purchase_roll_id: r.purchase_roll_id,
+            allocated_meters: r.allocated_meters,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to commit allocations");
+      }
+
+      toast.success("Fabric rolls successfully allocated!");
+      setCurrentStep(2);
+    } catch (err: any) {
+      toast.error(err.message || "Error allocating rolls");
+    } finally {
+      setAllocating(false);
+    }
+  };
+
+  const handleStep2Next = () => {
+    if (!brandId || !designId || !lotNumber || !lotDate || !garmentTypeId || selectedColours.length === 0) {
+      toast.error("Please ensure all required fields are filled and at least one colour is chosen");
+      return;
+    }
+    setCurrentStep(3);
+  };
+
+  const handleStep3Next = () => {
+    setCurrentStep(4);
+  };
+
+  const handleStep4Next = () => {
+    if (totalQuantity <= 0) {
+      toast.error("Please specify size quantities to proceed");
+      return;
+    }
+    setCurrentStep(5);
+  };
+
+  const handleStep5Next = () => {
     if (assignedStages.length === 0) {
-      toast.error("Please assign at least one production stage");
+      toast.error("Please assign at least one stage to the workflow");
       return;
     }
+    setCurrentStep(6);
+  };
 
+  const handleStep6Next = () => {
+    setCurrentStep(7);
+  };
+
+  // Submit final lot payload
+  const handleSubmitLot = async () => {
     setSubmitting(true);
     try {
+      // Map sizes grid for backend insert
+      const sizesToSave: any[] = [];
+      if (useSameColours) {
+        const singleGrid = sizeQuantities["all"] || {};
+        selectedColours.forEach((colour) => {
+          Object.entries(singleGrid).forEach(([size, qty]) => {
+            sizesToSave.push({
+              size,
+              quantity: qty,
+              colour_id: colour.id,
+            });
+          });
+        });
+      } else {
+        selectedColours.forEach((colour) => {
+          const grid = sizeQuantities[colour.id] || {};
+          Object.entries(grid).forEach(([size, qty]) => {
+            sizesToSave.push({
+              size,
+              quantity: qty,
+              colour_id: colour.id,
+            });
+          });
+        });
+      }
+
       const payload = {
         lot_number: lotNumber,
         brand_id: brandId,
         design_id: designId,
-        colour_id: colourId || null,
+        colour_id: selectedColours[0]?.id || null, // Primary colour
         size_set_id: selectedSizeSetId || null,
         lot_date: lotDate,
         season,
         buyer_order_ref: buyerOrderRef || null,
         target_start_date: targetStartDate || null,
         target_dispatch_date: targetDispatchDate || null,
-        target_due_date: targetDueDate || null,
+        target_due_date: targetDispatchDate || null,
         priority,
         production_type: productionType,
-        allow_rework: allowRework,
+        allow_rework: false,
         notes,
         internal_notes: internalNotes || null,
         customer_ref: customerRef || null,
         po_date: poDate || null,
         total_quantity: totalQuantity,
-        sizes: Object.entries(sizeQuantities).map(([size, quantity]) => ({
-          size,
-          quantity,
+        garment_type_id: garmentTypeId,
+        design_type: designType || null,
+        lot_name: lotName || null,
+        allocated_rolls: allocatedRolls.map(r => ({
+          purchase_roll_id: r.purchase_roll_id,
+          allocated_meters: r.allocated_meters,
         })),
+        specifications: {
+          additional_details: additionalDetails,
+          design_reference_text: designReferenceText,
+          design_reference_photos: designReferencePhotos,
+          custom_qa: customQa,
+        },
+        spec_sheet: specSheetTemplate ? {
+          template_id: specSheetTemplate.id,
+          spec_values: specSheetValues,
+        } : null,
+        sizes: sizesToSave,
         stages: assignedStages,
       };
 
@@ -348,40 +657,42 @@ export default function CreateLotPage() {
       });
 
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create lot");
+      if (!res.ok) throw new Error(result.error || "Failed to create production lot");
 
       await queryClient.invalidateQueries({ queryKey: ["lots-list"] });
-      await queryClient.invalidateQueries({ queryKey: ["lots-stats"] });
-
-      toast.success("Production lot created successfully");
+      toast.success("Production lot created successfully!");
       router.push("/production/lots");
-      router.refresh();
     } catch (err: any) {
-      toast.error(err.message || "Failed to create production lot");
+      toast.error(err.message || "Failed to create lot");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Helper to determine step values for wizard header
-  const getWizardStep = () => {
-    if (brandId && designId && lotNumber && lotDate) {
-      if (totalQuantity > 0) {
-        if (assignedStages.length > 0) {
-          return 5; // Ready to Review
-        }
-        return 4; // Stages Pending
-      }
-      return 3; // Sizes Pending
+  // Quantity calculations
+  const getSubtotalQty = () => {
+    if (useSameColours) {
+      const singleGrid = sizeQuantities["all"] || {};
+      const sum = Object.values(singleGrid).reduce((acc, curr) => acc + curr, 0);
+      return sum * (selectedColours.length || 1);
+    } else {
+      let sum = 0;
+      selectedColours.forEach((colour) => {
+        const grid = sizeQuantities[colour.id] || {};
+        sum += Object.values(grid).reduce((acc, curr) => acc + curr, 0);
+      });
+      return sum;
     }
-    return 1; // Basic Details
   };
+  const totalQuantity = getSubtotalQty();
 
   const steps = [
+    "Roll Allocation",
     "Basic Details",
     "Lot Specifications",
     "Size Set & Quantity",
     "Assign Stages",
+    "Design Spec Sheet",
     "Review & Create",
   ];
 
@@ -390,12 +701,8 @@ export default function CreateLotPage() {
     { label: "Lot No.", value: lotNumber || "—" },
     { label: "Brand", value: brands.find((b) => b.id === brandId)?.name || "—" },
     { label: "Design", value: selectedDesign ? `${selectedDesign.code} - ${selectedDesign.name}` : "—" },
-    {
-      label: "Colour",
-      value: selectedDesign?.design_colours?.find((c) => c.id === colourId)?.colour_name || "—",
-      colorHex: selectedDesign?.design_colours?.find((c) => c.id === colourId)?.colour_hex,
-    },
-    { label: "Size Set", value: availableSizes.join(", ") || "—" },
+    { label: "Allocated Fabric", value: `${totalAllocatedMeters.toFixed(1)} Meters` },
+    { label: "Colours Selected", value: selectedColours.map(c => c.colour_name).join(", ") || "—" },
     { label: "Stages Assigned", value: `${assignedStages.length} Stages` },
     {
       label: "Total Quantity",
@@ -407,7 +714,7 @@ export default function CreateLotPage() {
 
   return (
     <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
-      {/* Breadcrumb & Navigation */}
+      {/* Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-xs text-[#64748B] font-semibold uppercase tracking-wider">
         <Link href="/" className="hover:text-[#6366F1] transition-colors">
           Production
@@ -420,7 +727,7 @@ export default function CreateLotPage() {
         <span className="text-[#374151]">Create Lot</span>
       </nav>
 
-      {/* Page Title & Back */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-4">
         <div className="flex items-center gap-3">
           <Link
@@ -434,582 +741,1097 @@ export default function CreateLotPage() {
             <p className="text-xs text-[#64748B]">Set up new production lot routing and specifications</p>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={handleSubmitLot}
-          disabled={submitting || totalQuantity === 0}
-          className="bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white font-semibold text-sm px-5 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
-        >
-          <CheckCircle size={16} />
-          Create Lot
-        </button>
       </div>
 
-      {/* Wizard Step Indicator */}
-      <WizardHeader currentStep={getWizardStep()} steps={steps} />
+      {/* Wizard Header */}
+      <WizardHeader currentStep={currentStep} steps={steps} />
 
-      {/* Grid Layout */}
+      {/* Content Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Forms */}
+        {/* Left Forms Section */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Card 1: Basic Information */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-              <ClipboardList className="h-4.5 w-4.5 text-[#6366F1]" />
-              Basic Information
-            </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Brand <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={brandId}
-                  onChange={(e) => {
-                    setBrandId(e.target.value);
-                    setDesignId("");
-                  }}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                >
-                  <option value="">Select Brand</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* ========================================================
+              STEP 1: ROLL ALLOCATION
+              ======================================================== */}
+          {currentStep === 1 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Boxes className="h-4.5 w-4.5 text-[#6366F1]" />
+                Step 1: Roll Allocation
+              </h3>
 
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Design <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={designId}
-                  onChange={(e) => setDesignId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                  disabled={!brandId}
-                >
-                  <option value="">Select Design</option>
-                  {filteredDesigns.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.code} - {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Lot No. <span className="text-red-500">*</span>
-                </label>
+              <div className="space-y-4">
+                {/* Search field */}
                 <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
                   <input
                     type="text"
-                    value={lotNumber}
-                    onChange={(e) => setLotNumber(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-mono font-bold"
+                    placeholder="Search purchase rolls by Supplier, Roll number, Fabric, Shade..."
+                    value={rollSearch}
+                    onChange={(e) => setRollSearch(e.target.value)}
+                    className="w-full h-10 pl-9 pr-4 rounded-lg border border-[#E5E7EB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                   />
-                  <button
-                    type="button"
-                    onClick={generateLotNumber}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#6366F1] cursor-pointer"
-                    title="Regenerate Lot No."
-                  >
-                    <RefreshCw size={14} />
-                  </button>
+                </div>
+
+                {/* Available search results */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">Available Fabric Rolls</h4>
+                  {loadingRolls ? (
+                    <div className="py-6 text-center text-xs text-slate-400">Loading rolls...</div>
+                  ) : availableRolls.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">No active rolls found matching query.</div>
+                  ) : (
+                    <div className="border border-slate-100 rounded-lg overflow-hidden max-h-48 overflow-y-auto divide-y divide-slate-100">
+                      {availableRolls.map((roll) => {
+                        const isAllocated = allocatedRolls.some(r => r.purchase_roll_id === roll.id);
+                        return (
+                          <div key={roll.id} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50">
+                            <div>
+                              <span className="font-bold text-slate-800 block">Roll #{roll.roll_number} ({roll.item?.material_type?.name})</span>
+                              <span className="text-[10px] text-slate-500">Supplier: {roll.item?.purchase?.supplier?.company_name || roll.item?.purchase?.supplier?.name} • Shade: {roll.shade || "—"}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono font-bold text-slate-700">{roll.remaining_meters} Mtr remaining</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRoll(roll)}
+                                className={`px-2.5 py-1 rounded font-bold transition-all text-[10px] uppercase cursor-pointer ${
+                                  isAllocated
+                                    ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+                                    : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100"
+                                }`}
+                              >
+                                {isAllocated ? "Deallocate" : "Allocate"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Allocated list */}
+                <div className="space-y-2 pt-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">Allocated Fabric Consumption</h4>
+                  {allocatedRolls.length === 0 ? (
+                    <div className="py-8 text-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
+                      No rolls allocated yet. Please search and allocate fabric rolls above.
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                            <th className="p-2.5">Roll details</th>
+                            <th className="p-2.5">Supplier</th>
+                            <th className="p-2.5 text-center">Remaining</th>
+                            <th className="p-2.5 text-center w-24">Allocated (Mtr)</th>
+                            <th className="p-2.5 text-right">Value (INR)</th>
+                            <th className="p-2.5 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {allocatedRolls.map((roll) => (
+                            <tr key={roll.purchase_roll_id}>
+                              <td className="p-2.5 font-semibold text-slate-700">
+                                Roll #{roll.roll_number} ({roll.shade})
+                              </td>
+                              <td className="p-2.5 text-slate-500">{roll.supplier_name}</td>
+                              <td className="p-2.5 text-center font-mono">{roll.remaining_meters} Mtr</td>
+                              <td className="p-2.5 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={roll.allocated_meters}
+                                  onChange={(e) => handleRollAllocationChange(roll.purchase_roll_id, parseFloat(e.target.value) || 0)}
+                                  className="w-20 h-8 text-center border border-slate-200 rounded text-xs"
+                                />
+                              </td>
+                              <td className="p-2.5 text-right font-mono font-semibold">
+                                {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(roll.allocated_meters * roll.rate)}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setAllocatedRolls(allocatedRolls.filter(r => r.purchase_roll_id !== roll.purchase_roll_id))}
+                                  className="text-red-500 hover:text-red-700 font-bold text-[10px]"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Lot Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={lotDate}
-                  onChange={(e) => setLotDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Colour <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={colourId}
-                  onChange={(e) => setColourId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                  disabled={!designId}
+              {/* Navigation */}
+              <div className="flex justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleStep1Next}
+                  disabled={allocating || allocatedRolls.length === 0}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
-                  <option value="">Select Colour</option>
-                  {selectedDesign?.design_colours?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.colour_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Season / Collection
-                </label>
-                <select
-                  value={season}
-                  onChange={(e) => setSeason(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                >
-                  <option value={`Summer ${new Date().getFullYear()}`}>Summer {new Date().getFullYear()}</option>
-                  <option value={`Winter ${new Date().getFullYear()}`}>Winter {new Date().getFullYear()}</option>
-                  <option value={`Monsoon ${new Date().getFullYear()}`}>Monsoon {new Date().getFullYear()}</option>
-                  <option value={`Spring ${new Date().getFullYear() + 1}`}>Spring {new Date().getFullYear() + 1}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Buyer / Order (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Order #ORD-24-1185"
-                  value={buyerOrderRef}
-                  onChange={(e) => setBuyerOrderRef(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Target Dispatch Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={targetDispatchDate}
-                  onChange={(e) => setTargetDispatchDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                />
+                  {allocating ? "Processing Allocations..." : "Next: Basic Details"}
+                  <ChevronRight size={14} />
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Card 2: Size Set & Quantity */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
-              <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
-                <Boxes className="h-4.5 w-4.5 text-[#1D4ED8]" />
-                Size Set & Quantity
+          {/* ========================================================
+              STEP 2: BASIC DETAILS
+              ======================================================== */}
+          {currentStep === 2 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
+                <ClipboardList className="h-4.5 w-4.5 text-[#6366F1]" />
+                Step 2: Basic Information
               </h3>
-              <span className="text-sm font-bold text-[#6366F1]">
-                Total Quantity: {totalQuantity.toLocaleString("en-IN")} Pcs
-              </span>
-            </div>
 
-            {availableSizes.length === 0 ? (
-              <div className="py-6 text-center text-sm text-[#94A3B8]">
-                Select a Design above, or load a size set template below to configure quantities.
-              </div>
-            ) : (
-              <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
-                <table className="w-full text-center border-collapse">
-                  <thead>
-                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
-                      <th className="py-2.5 border-r border-[#E5E7EB]">Size</th>
-                      {availableSizes.map((size) => (
-                        <th key={size} className="py-2.5 border-r border-[#E5E7EB]">
-                          {size}
-                        </th>
-                      ))}
-                      <th className="py-2.5">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="text-sm">
-                      <td className="py-2 px-3 border-r border-[#E5E7EB] font-bold text-[#374151] bg-[#F9FAFB]">
-                        Qty (Pcs)
-                      </td>
-                      {availableSizes.map((size) => (
-                        <td key={size} className="py-2 px-3 border-r border-[#E5E7EB]">
-                          <input
-                            type="number"
-                            min="0"
-                            value={sizeQuantities[size] || 0}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 0;
-                              setSizeQuantities({
-                                ...sizeQuantities,
-                                [size]: val,
-                              });
-                            }}
-                            className="w-20 h-9 text-center border border-[#E5E7EB] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1]"
-                          />
-                        </td>
-                      ))}
-                      <td className="py-2 px-3 font-black text-[#0F172A] bg-[#F9FAFB]">
-                        {totalQuantity}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Brand <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={brandId}
+                    onChange={(e) => {
+                      setBrandId(e.target.value);
+                      setDesignId("");
+                    }}
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  >
+                    <option value="">Select Brand</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Template loader & custom size adder */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#F3F4F6]">
-              <div className="flex items-center gap-3">
-                {/* Template selector */}
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) handleLoadSizeTemplate(e.target.value);
-                  }}
-                  className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Design <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={designId}
+                    onChange={(e) => setDesignId(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                    disabled={!brandId}
+                  >
+                    <option value="">Select Design</option>
+                    {filteredDesigns.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.code} - {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Lot Name <span className="text-[#64748B]">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lotName}
+                    onChange={(e) => setLotName(e.target.value)}
+                    placeholder="e.g. Slim-fit Summer Chinos"
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Lot No. <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={lotNumber}
+                      onChange={(e) => setLotNumber(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-10 text-sm focus:ring-2 focus:ring-[#6366F1] font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={generateLotNumber}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#6366F1] cursor-pointer"
+                      title="Regenerate Lot No."
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Garment Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={garmentTypeId}
+                    onChange={(e) => setGarmentTypeId(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  >
+                    <option value="">Select Garment Type</option>
+                    {garmentTypes.map((gt) => (
+                      <option key={gt.id} value={gt.id}>
+                        {gt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Design Type / Fit-Style
+                  </label>
+                  <input
+                    type="text"
+                    value={designType}
+                    onChange={(e) => setDesignType(e.target.value)}
+                    placeholder="e.g. Regular Fit, Slim Fit"
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Lot Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={lotDate}
+                    onChange={(e) => setLotDate(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Target Dispatch Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={targetDispatchDate}
+                    onChange={(e) => setTargetDispatchDate(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                  />
+                </div>
+
+                {/* Colours multi-select list */}
+                <div className="sm:col-span-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Select Colours <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      onChange={(e) => {
+                        handleAddColour(e.target.value);
+                        e.target.value = "";
+                      }}
+                      className="h-10 text-xs rounded-lg border border-[#E5E7EB] bg-white px-3 focus:ring-2 focus:ring-[#6366F1]"
+                      disabled={!designId}
+                    >
+                      <option value="">+ Add Colour</option>
+                      {selectedDesign?.design_colours?.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.colour_name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {selectedColours.map((c) => (
+                        <div key={c.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-indigo-100 bg-indigo-50/50 text-indigo-700 text-xs font-bold">
+                          {c.colour_hex && (
+                            <span className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: c.colour_hex }} />
+                          )}
+                          {c.colour_name}
+                          <button type="button" onClick={() => handleRemoveColour(c.id)} className="text-indigo-400 hover:text-indigo-600 font-bold ml-1">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
-                  <option value="">Load Size Template</option>
-                  {sizeSets.map((ss) => (
-                    <option key={ss.id} value={ss.id}>
-                      {ss.name} ({ss.sizes.join(", ")})
-                    </option>
-                  ))}
-                </select>
-
-                {/* Custom size input */}
-                <input
-                  type="text"
-                  placeholder="+ Add Custom Size"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddCustomSize(e.currentTarget.value);
-                      e.currentTarget.value = "";
-                    }
-                  }}
-                  className="h-9 w-36 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="sameColours"
-                  className="h-4 w-4 rounded border-[#E5E7EB] text-[#6366F1] focus:ring-[#6366F1]"
-                />
-                <label htmlFor="sameColours" className="text-xs text-[#64748B] font-medium select-none">
-                  Use same for all colours
-                </label>
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStep2Next}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  Next: Specifications
+                  <ChevronRight size={14} />
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Card 3: Assign Production Stages */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
-                  <GitBranch className="h-4.5 w-4.5 text-[#7C3AED]" />
-                  Assign Production Stages
-                </h3>
-                <p className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                  Select and order the stages for this lot&apos;s production workflow
-                </p>
-              </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF2FF] text-[#6366F1]">
-                Total Stages: {assignedStages.length}
-              </span>
-            </div>
+          {/* ========================================================
+              STEP 3: LOT SPECIFICATIONS
+              ======================================================== */}
+          {currentStep === 3 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
+                <BookOpen className="h-4.5 w-4.5 text-[#6366F1]" />
+                Step 3: Lot Specifications
+              </h3>
 
-            {/* Stages workflow table */}
-            <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
-                    <th className="py-2.5 px-4 w-12 text-center">Order</th>
-                    <th className="py-2.5 px-4">Stage Name</th>
-                    <th className="py-2.5 px-4">Stage Type</th>
-                    <th className="py-2.5 px-4 text-center">Required</th>
-                    <th className="py-2.5 px-4 text-center w-24">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E7EB] text-sm">
-                  {assignedStages.map((stage, index) => (
-                    <tr key={stage.stage_id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-2.5 px-4 text-center">
-                        <div className="flex flex-col items-center">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Additional Details
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={additionalDetails}
+                    onChange={(e) => setAdditionalDetails(e.target.value)}
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:ring-2 focus:ring-[#6366F1] resize-none"
+                    placeholder="Enter basic notes about lot design specs..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                    Design Reference Text
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={designReferenceText}
+                    onChange={(e) => setDesignReferenceText(e.target.value)}
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:ring-2 focus:ring-[#6366F1] resize-none"
+                    placeholder="Reference specs, size tolerances, seam detail notes..."
+                  />
+                </div>
+
+                {/* Photo Upload array */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-[#374151] uppercase">
+                    Design Reference Photos
+                  </label>
+                  <div className="flex flex-wrap items-center gap-4">
+                    {designReferencePhotos.map((photo, idx) => (
+                      <ImageUpload
+                        key={idx}
+                        folder="lots"
+                        value={photo}
+                        onChange={(url) => {
+                          const copy = [...designReferencePhotos];
+                          copy[idx] = url;
+                          setDesignReferencePhotos(copy);
+                        }}
+                        onRemove={() => {
+                          setDesignReferencePhotos(designReferencePhotos.filter((_, i) => i !== idx));
+                        }}
+                      />
+                    ))}
+                    {designReferencePhotos.length < 5 && (
+                      <ImageUpload
+                        folder="lots"
+                        value=""
+                        onChange={(url) => {
+                          setDesignReferencePhotos([...designReferencePhotos, url]);
+                        }}
+                        label="+ Add Photo"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Custom Q&A list */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#374151] uppercase">
+                      Custom Q&A Checklist
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCustomQa([...customQa, { question: "", answer: "" }])}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={14} /> Add Q&A Pair
+                    </button>
+                  </div>
+
+                  {customQa.length === 0 ? (
+                    <p className="text-xs text-slate-400">No QA points specified yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {customQa.map((qa, idx) => (
+                        <div key={idx} className="flex gap-3 items-center bg-slate-50/50 border border-slate-100 p-3 rounded-lg">
+                          <input
+                            type="text"
+                            placeholder="Question (e.g. Wash Test Done?)"
+                            value={qa.question}
+                            onChange={(e) => {
+                              const copy = [...customQa];
+                              copy[idx].question = e.target.value;
+                              setCustomQa(copy);
+                            }}
+                            className="flex-1 h-9 rounded border border-slate-200 px-3 text-xs bg-white"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Answer (e.g. Yes - Grade A)"
+                            value={qa.answer}
+                            onChange={(e) => {
+                              const copy = [...customQa];
+                              copy[idx].answer = e.target.value;
+                              setCustomQa(copy);
+                            }}
+                            className="flex-1 h-9 rounded border border-slate-200 px-3 text-xs bg-white"
+                          />
                           <button
                             type="button"
-                            onClick={() => moveStage(index, "up")}
-                            disabled={index === 0}
-                            className="p-0.5 text-[#94A3B8] hover:text-[#6366F1] disabled:opacity-30 cursor-pointer"
+                            onClick={() => setCustomQa(customQa.filter((_, i) => i !== idx))}
+                            className="text-red-500 hover:text-red-700"
                           >
-                            <ChevronUp size={14} />
-                          </button>
-                          <span className="font-mono text-xs font-bold">{stage.sequence_no}</span>
-                          <button
-                            type="button"
-                            onClick={() => moveStage(index, "down")}
-                            disabled={index === assignedStages.length - 1}
-                            className="p-0.5 text-[#94A3B8] hover:text-[#6366F1] disabled:opacity-30 cursor-pointer"
-                          >
-                            <ChevronDown size={14} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
-                      </td>
-                      <td className="py-2.5 px-4 font-semibold text-[#374151]">
-                        {stage.stage_name}
-                      </td>
-                      <td className="py-2.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            stage.stage_type === "job_work"
-                              ? "bg-[#FEF3C7] text-[#D97706]"
-                              : "bg-[#DBEAFE] text-[#1D4ED8]"
-                          }`}
-                        >
-                          {stage.stage_type.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={stage.is_mandatory}
-                          onChange={() => handleStageRequiredToggle(index)}
-                          className="h-4.5 w-4.5 rounded border-[#E5E7EB] text-[#6366F1] focus:ring-[#6366F1]"
-                        />
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStage(index)}
-                          className="p-1.5 rounded border border-[#E5E7EB] text-[#64748B] hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
-                          title="Remove Stage"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Add stage row */}
-            <div className="flex items-center gap-2 pt-2">
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAddStage(e.target.value);
-                    e.target.value = "";
-                  }
-                }}
-                className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
-              >
-                <option value="">+ Add Production Stage</option>
-                {masterStages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.type})
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <input
-                  type="checkbox"
-                  id="reworkCheck"
-                  checked={allowRework}
-                  onChange={(e) => setAllowRework(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#E5E7EB] text-[#6366F1] focus:ring-[#6366F1]"
-                />
-                <label htmlFor="reworkCheck" className="text-xs text-[#64748B] font-semibold flex items-center gap-1 select-none">
-                  Allow rework for this lot
-                  <span title="Allow logging multiple rework cycles for stages">
-                    <Info size={12} className="text-[#94A3B8]" />
-                  </span>
-                </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Card 4: Additional Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-              <Settings className="h-4.5 w-4.5 text-[#16A34A]" />
-              Additional Details & Custom Fields
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Production Type
-                </label>
-                <select
-                  value={productionType}
-                  onChange={(e) => setProductionType(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
-                  <option value="regular">Regular Production</option>
-                  <option value="sample">Sample Production</option>
-                  <option value="rework">Rework Lot</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Priority
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStep3Next}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
-                  <option value="low">🟢 Low Priority</option>
-                  <option value="normal">🟡 Normal Priority</option>
-                  <option value="high">🔴 High Priority</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Customer Ref. No.
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. CUST-PO-12948"
-                  value={customerRef}
-                  onChange={(e) => setCustomerRef(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Purchase Order Date (PO Date)
-                </label>
-                <input
-                  type="date"
-                  value={poDate}
-                  onChange={(e) => setPoDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                />
+                  Next: Size Set & Quantity
+                  <ChevronRight size={14} />
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Remarks / Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] resize-none"
-                  placeholder="Enter notes about lot specifications..."
-                />
+          {/* ========================================================
+              STEP 4: SIZE SET & QUANTITY
+              ======================================================== */}
+          {currentStep === 4 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
+                  <Boxes className="h-4.5 w-4.5 text-[#6366F1]" />
+                  Step 4: Size Set & Quantities
+                </h3>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                  Internal Notes (Not visible on reports)
-                </label>
-                <textarea
-                  rows={3}
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] resize-none"
-                  placeholder="Internal comments for managers..."
-                />
+              <div className="space-y-4">
+                {/* Average meter calculator */}
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-2">
+                    <Info size={14} className="text-indigo-600" />
+                    Auto-estimate Size Quantities from Allocated fabric
+                  </h4>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    You have allocated **{totalAllocatedMeters.toFixed(2)} meters** of fabric. Enter the average fabric requirement per piece to calculate suggested quantity.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 max-w-xs">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Average Meter / Pc</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={averageMeter || ""}
+                        onChange={(e) => setAverageMeter(parseFloat(e.target.value) || 0)}
+                        placeholder="e.g. 1.6"
+                        className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs"
+                      />
+                    </div>
+                    <div className="flex items-end gap-2 h-16 pt-5">
+                      <button
+                        type="button"
+                        onClick={fetchHistoricalAvg}
+                        disabled={calculatingAvg}
+                        className="h-9 px-3 border border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {calculatingAvg ? "Loading..." : "Suggest from History"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrefillSizeQuantities}
+                        disabled={suggestedPieces <= 0}
+                        className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        Prefill Distribute ({suggestedPieces} Pcs)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Same colours toggle */}
+                <div className="flex items-center justify-between bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                  <span className="text-xs font-bold text-slate-700">Multi-Colour Sizing Config</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="useSameColours"
+                      checked={useSameColours}
+                      onChange={(e) => {
+                        setUseSameColours(e.target.checked);
+                        // Reset size quantities when toggling
+                        setSizeQuantities({});
+                      }}
+                      className="h-4.5 w-4.5 rounded border-[#E5E7EB] text-[#6366F1]"
+                    />
+                    <label htmlFor="useSameColours" className="text-xs text-[#64748B] font-semibold select-none cursor-pointer">
+                      Use same size quantities for all colours
+                    </label>
+                  </div>
+                </div>
+
+                {/* Sizing grids */}
+                {availableSizes.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400">Please select design size set template.</div>
+                ) : useSameColours ? (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <h5 className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 uppercase tracking-wide">
+                      Standard Size Quantities (Applies to all selected colours)
+                    </h5>
+                    <table className="w-full text-center border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
+                          <th className="py-2.5 border-r border-slate-200">Size</th>
+                          {availableSizes.map((size) => (
+                            <th key={size} className="py-2.5 border-r border-slate-200">
+                              {size}
+                            </th>
+                          ))}
+                          <th className="py-2.5">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="text-xs">
+                          <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-700 bg-slate-50/50">
+                            Qty (Pcs)
+                          </td>
+                          {availableSizes.map((size) => (
+                            <td key={size} className="py-2.5 px-3 border-r border-slate-200">
+                              <NumericInput
+                                min="0"
+                                value={sizeQuantities["all"]?.[size] || 0}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10) || 0;
+                                  const copy = { ...(sizeQuantities["all"] || {}) };
+                                  copy[size] = val;
+                                  setSizeQuantities({
+                                    ...sizeQuantities,
+                                    "all": copy,
+                                  });
+                                }}
+                                className="w-16 h-8 text-center border border-slate-200 rounded focus:ring-1 focus:ring-[#6366F1]"
+                              />
+                            </td>
+                          ))}
+                          <td className="py-2.5 px-3 font-bold text-slate-800 bg-slate-50/50">
+                            {Object.values(sizeQuantities["all"] || {}).reduce((a, b) => a + b, 0)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedColours.map((colour) => (
+                      <div key={colour.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                        <h5 className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 uppercase tracking-wide flex items-center gap-2">
+                          {colour.colour_hex && (
+                            <span className="w-3.5 h-3.5 rounded-full border border-white" style={{ backgroundColor: colour.colour_hex }} />
+                          )}
+                          Colour: {colour.colour_name}
+                        </h5>
+                        <table className="w-full text-center border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
+                              <th className="py-2.5 border-r border-slate-200">Size</th>
+                              {availableSizes.map((size) => (
+                                <th key={size} className="py-2.5 border-r border-slate-200">
+                                  {size}
+                                </th>
+                              ))}
+                              <th className="py-2.5">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="text-xs">
+                              <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-700 bg-slate-50/50">
+                                Qty (Pcs)
+                              </td>
+                              {availableSizes.map((size) => (
+                                <td key={size} className="py-2.5 px-3 border-r border-slate-200">
+                                  <NumericInput
+                                    min="0"
+                                    value={sizeQuantities[colour.id]?.[size] || 0}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10) || 0;
+                                      const copyGrid = { ...(sizeQuantities[colour.id] || {}) };
+                                      copyGrid[size] = val;
+                                      setSizeQuantities({
+                                        ...sizeQuantities,
+                                        [colour.id]: copyGrid,
+                                      });
+                                    }}
+                                    className="w-16 h-8 text-center border border-slate-200 rounded focus:ring-1 focus:ring-[#6366F1]"
+                                  />
+                                </td>
+                              ))}
+                              <td className="py-2.5 px-3 font-bold text-slate-800 bg-slate-50/50">
+                                {Object.values(sizeQuantities[colour.id] || {}).reduce((a, b) => a + b, 0)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStep4Next}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  Next: Assign Stages
+                  <ChevronRight size={14} />
+                </button>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* ========================================================
+              STEP 5: ASSIGN STAGES
+              ======================================================== */}
+          {currentStep === 5 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
+                  <GitBranch className="h-4.5 w-4.5 text-[#6366F1]" />
+                  Step 5: Assign Production Stages
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                {/* Template selector */}
+                <div className="flex items-center gap-3">
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => handleLoadTemplate(e.target.value)}
+                    className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
+                  >
+                    <option value="">Load Production Template</option>
+                    {productionTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.stages?.length || 0} Stages)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Stages table */}
+                <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
+                        <th className="py-2.5 px-4 w-12 text-center">Order</th>
+                        <th className="py-2.5 px-4">Stage Name</th>
+                        <th className="py-2.5 px-4">Stage Type</th>
+                        <th className="py-2.5 px-4">Assigned Workers (Specialists)</th>
+                        <th className="py-2.5 px-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E7EB] text-xs">
+                      {assignedStages.map((stage, index) => {
+                        // Filter workers that specialize in this stage
+                        const specialists = workers.filter(w => 
+                          (w.stage_specialty && Array.isArray(w.stage_specialty) && 
+                          (w.stage_specialty.includes(stage.stage_id) || w.stage_specialty.includes(stage.stage_name)))
+                        );
+
+                        return (
+                          <tr key={stage.stage_id} className="hover:bg-[#F9FAFB] transition-colors">
+                            <td className="py-2.5 px-4 text-center">
+                              <div className="flex flex-col items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (index === 0) return;
+                                    const copy = [...assignedStages];
+                                    const temp = copy[index];
+                                    copy[index] = copy[index - 1];
+                                    copy[index - 1] = temp;
+                                    setAssignedStages(copy.map((s, i) => ({ ...s, sequence_no: i + 1 })));
+                                  }}
+                                  disabled={index === 0}
+                                  className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-20 cursor-pointer"
+                                >
+                                  <ChevronUp size={12} />
+                                </button>
+                                <span className="font-mono text-xs font-bold">{index + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (index === assignedStages.length - 1) return;
+                                    const copy = [...assignedStages];
+                                    const temp = copy[index];
+                                    copy[index] = copy[index + 1];
+                                    copy[index + 1] = temp;
+                                    setAssignedStages(copy.map((s, i) => ({ ...s, sequence_no: i + 1 })));
+                                  }}
+                                  disabled={index === assignedStages.length - 1}
+                                  className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-20 cursor-pointer"
+                                >
+                                  <ChevronDown size={12} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-4 font-semibold text-[#374151]">
+                              {stage.stage_name}
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                  stage.stage_type === "job_work"
+                                    ? "bg-[#FEF3C7] text-[#D97706]"
+                                    : "bg-[#DBEAFE] text-[#1D4ED8]"
+                                }`}
+                              >
+                                {stage.stage_type.replace("_", " ")}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 space-y-2">
+                              {/* Worker multi-selection dropdown */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <select
+                                  onChange={(e) => {
+                                    handleAddWorkerToStage(index, e.target.value);
+                                    e.target.value = "";
+                                  }}
+                                  className="h-8 text-[11px] rounded border border-slate-200 bg-white px-2 focus:ring-1 focus:ring-[#6366F1]"
+                                >
+                                  <option value="">+ Assign Worker</option>
+                                  {specialists.map((w) => (
+                                    <option key={w.id} value={w.id}>
+                                      {w.name}
+                                    </option>
+                                  ))}
+                                  {/* Fallback to show all workers if no specialists match */}
+                                  {specialists.length === 0 && workers.map((w) => (
+                                    <option key={w.id} value={w.id}>
+                                      {w.name} (General)
+                                    </option>
+                                  ))}
+                                </select>
+
+                                {/* Badges of assigned workers */}
+                                {(stage.worker_ids || []).map((workerId) => {
+                                  const name = workers.find(w => w.id === workerId)?.name || "Worker";
+                                  return (
+                                    <span key={workerId} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold border border-slate-200">
+                                      {name}
+                                      <button type="button" onClick={() => handleRemoveWorkerFromStage(index, workerId)} className="text-slate-400 hover:text-red-500 font-bold font-mono">×</button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setAssignedStages(assignedStages.filter((_, i) => i !== index).map((s, i) => ({ ...s, sequence_no: i + 1 })))}
+                                className="p-1 rounded border border-[#E5E7EB] text-[#64748B] hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                title="Remove Stage"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Add Custom Stage row */}
+                <div className="flex items-center gap-2 pt-2">
+                  <select
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const master = masterStages.find(s => s.id === e.target.value);
+                      if (master) {
+                        setAssignedStages([...assignedStages, {
+                          stage_id: master.id,
+                          stage_name: master.name,
+                          stage_type: master.type || "in_house",
+                          sequence_no: assignedStages.length + 1,
+                          is_mandatory: true,
+                          worker_ids: [],
+                        }]);
+                      }
+                      e.target.value = "";
+                    }}
+                    className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
+                  >
+                    <option value="">+ Add Custom Stage</option>
+                    {masterStages.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(4)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStep5Next}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  Next: Design Spec Sheet
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              STEP 6: DESIGN SPEC SHEET
+              ======================================================== */}
+          {currentStep === 6 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="h-4.5 w-4.5 text-[#6366F1]" />
+                Step 6: Design Spec Sheet
+              </h3>
+
+              {!specSheetTemplate ? (
+                <div className="py-10 text-center space-y-3">
+                  <p className="text-sm text-slate-500 font-medium">No design specification template exists for the selected garment type.</p>
+                  <p className="text-xs text-slate-400">You can safely skip this step and proceed to final review.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Garment Parameters ({specSheetTemplate.garment_types?.name})</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {specSheetTemplate.fields.map((field: any) => (
+                      <div key={field.name} className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">{field.name}</label>
+                        {field.type === "select" ? (
+                          <select
+                            value={specSheetValues[field.name] || ""}
+                            onChange={(e) => setSpecSheetValues({ ...specSheetValues, [field.name]: e.target.value })}
+                            className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                          >
+                            <option value="">Select Option</option>
+                            {(field.options || []).map((opt: string) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type === "number" ? "number" : "text"}
+                            value={specSheetValues[field.name] || ""}
+                            onChange={(e) => setSpecSheetValues({ ...specSheetValues, [field.name]: e.target.value })}
+                            placeholder={`Enter ${field.name}`}
+                            className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(5)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStep6Next}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  Next: Review & Create
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              STEP 7: REVIEW & CREATE
+              ======================================================== */}
+          {currentStep === 7 && (
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-6">
+              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle className="h-4.5 w-4.5 text-[#16A34A]" />
+                Step 7: Review & Finalize
+              </h3>
+
+              <div className="space-y-4 text-xs">
+                {/* Roll Allocation summary */}
+                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">1. Fabric Allocation</h4>
+                  <button type="button" onClick={() => setCurrentStep(1)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                  <div className="text-slate-600 space-y-1">
+                    <p>Total Allocated: **{totalAllocatedMeters.toFixed(2)} Meters** across **{allocatedRolls.length} rolls**</p>
+                    <p className="text-[10px] text-slate-500">Rolls: {allocatedRolls.map(r => `Roll #${r.roll_number}`).join(", ")}</p>
+                  </div>
+                </div>
+
+                {/* Basic Details summary */}
+                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">2. Basic Details</h4>
+                  <button type="button" onClick={() => setCurrentStep(2)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                  <div className="grid grid-cols-2 gap-2 text-slate-600">
+                    <p>Lot Name: **{lotName || "—"}**</p>
+                    <p>Lot Number: **{lotNumber}**</p>
+                    <p>Date: **{lotDate}**</p>
+                    <p>Target Dispatch: **{targetDispatchDate}**</p>
+                    <p>Garment Type: **{garmentTypes.find(gt => gt.id === garmentTypeId)?.name || "—"}**</p>
+                    <p>Colours: **{selectedColours.map(c => c.colour_name).join(", ")}**</p>
+                  </div>
+                </div>
+
+                {/* Specs summary */}
+                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">3. Lot Specifications</h4>
+                  <button type="button" onClick={() => setCurrentStep(3)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                  <div className="text-slate-600 space-y-1">
+                    <p>Specs details: {additionalDetails || "—"}</p>
+                    <p>Design Reference: {designReferenceText || "—"}</p>
+                    <p>QA checklists: {customQa.length} items set</p>
+                  </div>
+                </div>
+
+                {/* Quantities summary */}
+                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">4. Size Quantities</h4>
+                  <button type="button" onClick={() => setCurrentStep(4)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                  <div className="text-slate-600 space-y-1">
+                    <p>Total Production Quantity: **{totalQuantity} pieces**</p>
+                    <p>Size breakdown template: {availableSizes.join(", ")}</p>
+                  </div>
+                </div>
+
+                {/* Workflow stages summary */}
+                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">5. Stages Assigned</h4>
+                  <button type="button" onClick={() => setCurrentStep(5)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                  <div className="text-slate-600">
+                    <div className="space-y-1">
+                      {assignedStages.map((stage, i) => (
+                        <p key={stage.stage_id}>Stage {i+1}: **{stage.stage_name}** • {stage.stage_type.replace("_", " ")} ({stage.worker_ids?.length || 0} assigned workers)</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Design spec sheet summary */}
+                {specSheetTemplate && (
+                  <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
+                    <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">6. Design Spec Sheet</h4>
+                    <button type="button" onClick={() => setCurrentStep(6)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                    <div className="grid grid-cols-2 gap-2 text-slate-600">
+                      {Object.entries(specSheetValues).map(([name, val]) => (
+                        <p key={name}>{name}: **{val || "—"}**</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation */}
+              <div className="flex justify-between pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(6)}
+                  className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <ArrowLeft size={14} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitLot}
+                  disabled={submitting}
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  {submitting ? "Creating Lot..." : "Confirm & Create Lot"}
+                  <CheckCircle size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
 
-        {/* Right Column: Summaries & Timelines */}
+        {/* Right sticky panel summary */}
         <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-          {/* 1. Lot Summary Right Panel */}
           <LotSummaryPanel
             title="Lot Live Summary"
             designImage={selectedDesign?.images?.[0]}
             items={summaryItems}
           />
-
-          {/* 2. Estimated Timeline Card */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="h-4.5 w-4.5 text-[#EA580C]" />
-              Estimated Timeline
-            </h3>
-
-            <div className="space-y-2.5 text-sm text-[#475569]">
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span>Start Date:</span>
-                <span className="font-semibold text-[#0F172A]">{lotDate}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span>Est. Completion:</span>
-                <span className="font-bold text-[#15803D]">
-                  {targetDispatchDate || "Configure targets..."}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span>Priority:</span>
-                <span className="font-semibold capitalize text-[#0F172A]">{priority}</span>
-              </div>
-            </div>
-
-            {/* Est Progress Bar */}
-            <div className="pt-2">
-              <span className="text-xs text-[#64748B] font-semibold block mb-1">New Lot Initialization</span>
-              <div className="h-2 rounded-full w-full bg-[#E5E7EB] overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FCD34D] w-0" />
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Next Steps Card */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h4 className="text-sm font-semibold text-[#0F172A] border-b border-[#F3F4F6] pb-2">
-              Setup Milestones
-            </h4>
-
-            <div className="space-y-3.5 text-xs font-semibold text-[#475569]">
-              <div className="flex items-center gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-[#DCFCE7] text-[#15803D] flex items-center justify-center shrink-0 text-[10px]">
-                  ✓
-                </span>
-                <span className="text-green-700">Configure brands and designs</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${
-                    totalQuantity > 0 ? "bg-[#DCFCE7] text-[#15803D] border-[#15803D]" : "border-gray-300 bg-white"
-                  }`}
-                >
-                  {totalQuantity > 0 ? "✓" : "2"}
-                </span>
-                <span className={totalQuantity > 0 ? "text-green-700" : ""}>
-                  Allocate quantities per size
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${
-                    assignedStages.length > 0
-                      ? "bg-[#DCFCE7] text-[#15803D] border-[#15803D]"
-                      : "border-gray-300 bg-white"
-                  }`}
-                >
-                  {assignedStages.length > 0 ? "✓" : "3"}
-                </span>
-                <span className={assignedStages.length > 0 ? "text-green-700" : ""}>
-                  Assign stage workflow routing
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

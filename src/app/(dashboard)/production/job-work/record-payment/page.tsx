@@ -70,6 +70,58 @@ export default function RecordPaymentPage() {
   const [remarks, setRemarks] = useState("");
   const [paidAmount, setPaidAmount] = useState(0);
 
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [upiId, setUpiId] = useState("");
+
+  const { data: accountsData } = useQuery({
+    queryKey: ["banks-upi-list-jobwork"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/banks-upi");
+      return res.json();
+    },
+  });
+
+  const bankAccounts = accountsData?.accounts || [];
+  const bankOptions = bankAccounts.filter((b: any) => b.type === "bank");
+  const upiOptions = bankAccounts.filter((b: any) => b.type === "upi");
+
+  const handleSelectBankAccount = (id: string) => {
+    setBankAccountId(id);
+    const selected = bankOptions.find((b: any) => b.id === id);
+    if (selected) {
+      setBankName(selected.bank_name || selected.name);
+      setAccountName(selected.account_number ? `A/C ...${selected.account_number.slice(-4)}` : selected.name);
+    } else {
+      setBankName("");
+      setAccountName("");
+    }
+  };
+
+  const handleSelectUpiAccount = (id: string) => {
+    setUpiId(id);
+    const selected = upiOptions.find((u: any) => u.id === id);
+    if (selected) {
+      setBankName(selected.name);
+      setAccountName(selected.upi_id || "UPI");
+    } else {
+      setBankName("");
+      setAccountName("");
+    }
+  };
+
+  const handlePaymentModeChange = (mode: string) => {
+    setPaymentMode(mode);
+    setBankAccountId("");
+    setUpiId("");
+    if (mode === "cash") {
+      setBankName("Cash Register");
+      setAccountName("Cash");
+    } else {
+      setBankName("");
+      setAccountName("");
+    }
+  };
+
   // Selected table entries
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntryInput[]>([]);
 
@@ -219,6 +271,8 @@ export default function RecordPaymentPage() {
         paid_amount: paidAmount,
         bank_name: bankName,
         account_name: accountName,
+        bank_account_id: ["bank_transfer", "cheque"].includes(paymentMode) ? (bankAccountId || null) : null,
+        upi_id: paymentMode === "upi" ? (upiId || null) : null,
         remarks,
         entries: selectedRows.map((r) => ({
           stage_entry_id: r.stage_entry_id,
@@ -573,7 +627,7 @@ export default function RecordPaymentPage() {
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Payment Mode</label>
                 <select
                   value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
+                  onChange={(e) => handlePaymentModeChange(e.target.value)}
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
                 >
                   <option value="bank_transfer">Bank Transfer</option>
@@ -606,27 +660,108 @@ export default function RecordPaymentPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Bank Name</label>
-                <input
-                  type="text"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
-                  placeholder="e.g. HDFC Bank"
-                />
-              </div>
+              {["bank_transfer", "cheque"].includes(paymentMode) && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Bank Account *</label>
+                    <select
+                      value={bankAccountId}
+                      onChange={(e) => handleSelectBankAccount(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
+                    >
+                      <option value="">Select Bank Account</option>
+                      {bankOptions.map((b: any) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bank_name || b.name} ({b.account_number ? b.account_number.slice(-4) : "—"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Account Name</label>
-                <input
-                  type="text"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
-                  placeholder="e.g. Current Account"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Bank Name</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={bankName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Account Details</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={accountName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+                </>
+              )}
+
+              {paymentMode === "upi" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">UPI Endpoint *</label>
+                    <select
+                      value={upiId}
+                      onChange={(e) => handleSelectUpiAccount(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
+                    >
+                      <option value="">Select UPI ID</option>
+                      {upiOptions.map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.upi_id || "—"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">UPI Name</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={bankName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">UPI Address</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={accountName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+                </>
+              )}
+
+              {paymentMode === "cash" && (
+                <div className="sm:col-span-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Register</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={bankName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Method</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={accountName}
+                      className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 text-sm focus:outline-none text-[#64748B]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

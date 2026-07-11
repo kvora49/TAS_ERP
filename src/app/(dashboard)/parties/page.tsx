@@ -7,7 +7,7 @@ import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck } from "lucide-react";
+import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -104,12 +104,12 @@ export default function PartiesPage() {
       header: "Party / Display Name",
       render: (row) => (
         <div>
-          <button
-            onClick={() => setSelectedPartyDetails(row)}
-            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0 block"
+          <Link
+            href={`/parties/${row.id}`}
+            className="font-bold text-[#6366F1] hover:underline block text-left"
           >
             {row.name}
-          </button>
+          </Link>
           {row.company_name && <span className="text-xs text-[#64748B]">{row.company_name}</span>}
         </div>
       ),
@@ -156,7 +156,16 @@ export default function PartiesPage() {
       render: (row) => (
         <div className="flex items-center gap-2">
           <Link
+            href={`/parties/${row.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+            title="View Profile / Details"
+          >
+            <User className="h-4 w-4" />
+          </Link>
+          <Link
             href={`/parties/${row.id}/ledger`}
+            onClick={(e) => e.stopPropagation()}
             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
             title="View Ledger"
           >
@@ -164,13 +173,17 @@ export default function PartiesPage() {
           </Link>
           <Link
             href={`/master-data/parties/${row.id}/edit`}
+            onClick={(e) => e.stopPropagation()}
             className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
             title="Edit Party"
           >
             <Pencil className="h-4 w-4" />
           </Link>
           <button
-            onClick={() => handleOpenDelete(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenDelete(row);
+            }}
             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
             title="Delete Party"
           >
@@ -269,6 +282,7 @@ export default function PartiesPage() {
           page={1}
           perPage={10000}
           onPageChange={() => { }}
+          onRowClick={setSelectedPartyDetails}
           emptyMessage="No parties found in database."
         />
       </div>

@@ -57,6 +57,8 @@ export async function POST(request: Request) {
       paid_amount,
       bank_name,
       account_name,
+      bank_account_id,
+      upi_id,
       remarks,
       entries, // Array of { stage_entry_id, amount_to_apply }
     } = body;
@@ -90,6 +92,13 @@ export async function POST(request: Request) {
     }
     const paymentNumber = `${prefix}-${String(nextNum).padStart(4, "0")}`;
 
+    // Map payment_mode to payment_method constraint
+    const payment_method = 
+      payment_mode === "upi" ? "upi" :
+      payment_mode === "cash" ? "cash" :
+      payment_mode === "cheque" ? "cheque" :
+      "bank_transfer";
+
     // 1. Create Job Work Payment
     const { data: payment, error: pError } = await supabase
       .from("job_work_payments")
@@ -99,10 +108,13 @@ export async function POST(request: Request) {
         worker_id,
         payment_date,
         payment_mode,
+        payment_method,
         reference_no: reference_no || null,
         paid_amount: parseFloat(paid_amount),
         bank_name: bank_name || null,
         account_name: account_name || null,
+        bank_account_id: bank_account_id || null,
+        upi_id: upi_id || null,
         remarks: remarks || null,
         status: "success",
         created_by: userId,

@@ -1,6 +1,67 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = params;
+
+  try {
+    // 1. Fetch GST rate details
+    const { data: gstRate, error: rateError } = await supabase
+      .from("gst_rates")
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .single();
+
+    if (rateError || !gstRate) {
+      return NextResponse.json({ error: "GST Rate not found" }, { status: 404 });
+    }
+
+    // 2. Fetch raw materials matching this HSN code
+    const { data: rawMaterials } = await supabase
+      .from("raw_material_types")
+      .select("id, name, category, unit, is_active")
+      .eq("hsn_code", gstRate.hsn_code)
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+
+    // 3. Fetch designs matching this HSN code
+    const { data: designs } = await supabase
+      .from("designs")
+      .select(`
+        id,
+        name,
+        design_number,
+        is_active,
+        brand:brands(name)
+      `)
+      .eq("hsn_code", gstRate.hsn_code)
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+
+    return NextResponse.json({
+      gstRate,
+      rawMaterials: rawMaterials || [],
+      designs: designs || [],
+    });
+
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }

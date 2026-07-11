@@ -17,8 +17,10 @@ import {
   ClipboardList,
   BarChart2,
   Lightbulb,
+  Boxes
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import CardSectionHeader from "@/components/shared/CardSectionHeader";
 import HorizontalTimeline from "@/components/shared/HorizontalTimeline";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
@@ -30,6 +32,13 @@ interface StageEntryDetailProps {
 export default function StageEntryDetailPage({ params }: StageEntryDetailProps) {
   const { id } = params;
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Move to stock modal state
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [targetGodownId, setTargetGodownId] = useState("");
+  const [confirmDesignCode, setConfirmDesignCode] = useState("");
+  const [movingToStock, setMovingToStock] = useState(false);
 
   // Fetch stage entry detail
   const { data, isLoading, error } = useQuery({
@@ -43,6 +52,16 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
   const entry = data?.entry || null;
   const totalStagesCount = data?.totalStagesCount || 0;
+
+  // Fetch godowns list for Move to Stock target selection
+  const { data: godownsData } = useQuery<{ godowns: any[] }>({
+    queryKey: ["godowns-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/godowns");
+      return res.json();
+    },
+  });
+  const godowns = godownsData?.godowns || [];
 
   if (isLoading) {
     return (
@@ -146,8 +165,44 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
     { label: "Balance Payable", value: formatCurrency((entry.total_job_work_amount || 0) - (entry.paid_amount || 0)) },
   ];
 
+  const handleMoveToStock = async () => {
+    if (!targetGodownId) {
+      toast.error("Please select a target godown");
+      return;
+    }
+    if (confirmDesignCode.trim().toLowerCase() !== entry.lot?.design?.code?.trim().toLowerCase()) {
+      toast.error(`Design code mismatch. Please type ${entry.lot?.design?.code} to confirm.`);
+      return;
+    }
+
+    setMovingToStock(true);
+    try {
+      const res = await fetch(`/api/production/lots/${entry.lot_id}/move-to-stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          design_number: confirmDesignCode,
+          godown_id: targetGodownId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to move lot to stock");
+      }
+
+      toast.success("Lot successfully moved to Finished Stock!");
+      setMoveModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["stage-entry-detail", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Error moving to stock");
+    } finally {
+      setMovingToStock(false);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
+    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto animate-fadeIn">
       {/* Breadcrumbs and Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -175,6 +230,15 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
             <ArrowLeft size={16} />
             Back to Lot Detail
           </Link>
+          {entry.lot?.status !== "completed" && (
+            <button
+              onClick={() => setMoveModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10"
+            >
+              <Boxes size={16} />
+              Move Lot to Stock
+            </button>
+          )}
           <button
             onClick={() => window.print()}
             className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
@@ -348,7 +412,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
             </div>
           </div>
 
-          {/* Card 4: Additional Information */}
+          {/* Card 4: Additional Information & Attachments */}
           <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
             <CardSectionHeader variant="info" title="Additional Information" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
@@ -372,8 +436,28 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               </div>
 
               <div>
-                <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider block border-b border-[#F3F4F6] pb-1.5 mb-2">Attachments</span>
-                <span className="text-[#94A3B8] italic block text-xs">No attachments uploaded</span>
+                <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider block border-b border-[#F3F4F6] pb-1.5 mb-2">Finished Goods Photos</span>
+                {entry.attachments && entry.attachments.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {entry.attachments.map((url: string, idx: number) => (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative w-16 h-16 border border-slate-200 rounded overflow-hidden bg-slate-50 flex items-center justify-center hover:ring-1 hover:ring-indigo-500"
+                      >
+                        {url.endsWith(".pdf") ? (
+                          <span className="text-[10px] font-bold text-red-500">PDF</span>
+                        ) : (
+                          <img src={url} alt={`attachment-${idx}`} className="w-full h-full object-cover" />
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[#94A3B8] italic block text-xs">No photos uploaded</span>
+                )}
               </div>
             </div>
           </div>
@@ -408,6 +492,67 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
           </div>
         </div>
       </div>
+
+      {/* MOVE TO STOCK DIALOG OVERLAY */}
+      {moveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2">
+              Move Lot to Finished Stock
+            </h3>
+            <p className="text-xs text-slate-500 leading-normal">
+              This action will finalize the production lot and add the finished pieces of design **{entry.lot?.design?.code}** to the selected finished goods godown.
+            </p>
+            
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase">Target Godown</label>
+                <select
+                  value={targetGodownId}
+                  onChange={(e) => setTargetGodownId(e.target.value)}
+                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">Select Godown</option>
+                  {godowns.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                  Confirm Design Code (Type **{entry.lot?.design?.code}**)
+                </label>
+                <input
+                  type="text"
+                  value={confirmDesignCode}
+                  onChange={(e) => setConfirmDesignCode(e.target.value)}
+                  placeholder={entry.lot?.design?.code}
+                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setMoveModalOpen(false)}
+                className="h-9 px-4 border border-slate-200 rounded text-xs font-bold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveToStock}
+                disabled={movingToStock}
+                className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold disabled:opacity-50 cursor-pointer"
+              >
+                {movingToStock ? "Moving..." : "Confirm & Move"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

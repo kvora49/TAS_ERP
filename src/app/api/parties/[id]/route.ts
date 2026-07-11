@@ -94,6 +94,7 @@ export async function PUT(
       default_godown_id,
       remarks,
       status,
+      contact_numbers,
       bank_details,
     } = body;
 
@@ -115,8 +116,8 @@ export async function PUT(
         company_name: company_name || null,
         email: email || null,
         website: website || null,
-        gstin: gstin || null,
-        pan: pan || null,
+        gstin: gstin && gstin.trim() ? gstin.trim() : "URP",
+        pan: pan && pan.trim() ? pan.trim() : "N/A",
         aadhar: aadhar || null,
         msme_number: msme_number || null,
         tan: tan || null,
@@ -140,6 +141,7 @@ export async function PUT(
         default_godown_id: default_godown_id || null,
         remarks: remarks || null,
         status: status || 'active',
+        contact_numbers: contact_numbers || [],
       })
       .eq("id", id)
       .eq("business_id", businessId)

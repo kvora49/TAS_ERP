@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -55,6 +56,7 @@ interface BankAccount {
 }
 
 export default function BanksUpiPage() {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -306,14 +308,20 @@ export default function BanksUpiPage() {
       render: (row) => (
         <div className="flex items-center gap-2 select-none">
           <button
-            onClick={() => handleOpenEdit(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenEdit(row);
+            }}
             className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Credentials"
           >
             <Pencil size={15} />
           </button>
           <button
-            onClick={() => handleOpenDelete(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenDelete(row);
+            }}
             className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
             title="Delete Credentials"
           >
@@ -345,31 +353,19 @@ export default function BanksUpiPage() {
         <div className="flex gap-1.5 bg-[#E2E8F0]/60 p-1 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("all")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-              activeTab === "all"
-                ? "bg-white text-[#0F172A] shadow-sm"
-                : "text-[#64748B] hover:text-[#0F172A]"
-            }`}
+            className="px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all bg-white text-[#0F172A] shadow-sm"
           >
             All Accounts
           </button>
           <button
             onClick={() => setActiveTab("bank")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-              activeTab === "bank"
-                ? "bg-white text-[#0F172A] shadow-sm"
-                : "text-[#64748B] hover:text-[#0F172A]"
-            }`}
+            className="px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all text-[#64748B] hover:text-[#0F172A]"
           >
             Bank Accounts
           </button>
           <button
             onClick={() => setActiveTab("upi")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-              activeTab === "upi"
-                ? "bg-white text-[#0F172A] shadow-sm"
-                : "text-[#64748B] hover:text-[#0F172A]"
-            }`}
+            className="px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all text-[#64748B] hover:text-[#0F172A]"
           >
             UPI IDs
           </button>
@@ -400,6 +396,7 @@ export default function BanksUpiPage() {
         page={1}
         perPage={10}
         onPageChange={() => {}}
+        onRowClick={(row) => router.push(`/master-data/banks-upi/${row.id}`)}
         emptyMessage="No bank or UPI configurations found for the active tab. Create one above."
       />
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -42,6 +43,7 @@ interface Godown {
 }
 
 export default function GodownsPage() {
+  const router = useRouter();
   const [godowns, setGodowns] = useState<Godown[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -238,14 +240,20 @@ export default function GodownsPage() {
       render: (row) => (
         <div className="flex items-center gap-2 select-none">
           <button
-            onClick={() => handleOpenEdit(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenEdit(row);
+            }}
             className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Godown"
           >
             <Pencil size={15} />
           </button>
           <button
-            onClick={() => handleOpenDelete(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenDelete(row);
+            }}
             className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
             title="Delete Godown"
           >
@@ -282,6 +290,7 @@ export default function GodownsPage() {
         page={1}
         perPage={10}
         onPageChange={() => {}}
+        onRowClick={(row) => router.push(`/master-data/godowns/${row.id}`)}
         emptyMessage="No godowns configured yet. Click Add Godown to create one."
       />
 

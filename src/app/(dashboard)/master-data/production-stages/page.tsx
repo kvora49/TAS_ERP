@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -278,6 +279,24 @@ export default function ProductionStagesPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
+          <Link href="/" className="hover:text-[#0F172A] transition-colors">
+            Dashboard
+          </Link>
+          <span>/</span>
+          <span>Master Data</span>
+          <span>/</span>
+          <span className="text-[#0F172A]">Production Stages</span>
+        </div>
+        <Link
+          href="/master-data/production-stages/templates"
+          className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          Manage Workflow Templates &rarr;
+        </Link>
+      </div>
+
       <PageHeader
         title="Production Stages"
         subtitle="Organize production sequences and configure operation checklists"

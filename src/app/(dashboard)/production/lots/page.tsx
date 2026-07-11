@@ -439,9 +439,17 @@ export default function ProductionLotsPage() {
                   const colourStr = lot.colour?.colour_name || "—";
 
                   return (
-                    <tr key={lot.id} className="hover:bg-[#F9FAFB] transition-colors">
+                    <tr
+                      key={lot.id}
+                      onClick={() => router.push(`/production/lots/${lot.id}`)}
+                      className="hover:bg-[#F9FAFB] transition-colors cursor-pointer"
+                    >
                       <td className="py-3.5 px-5 font-mono text-xs font-bold text-[#6366F1]">
-                        <Link href={`/production/lots/${lot.id}`} className="hover:underline">
+                        <Link
+                          href={`/production/lots/${lot.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline"
+                        >
                           {lot.lot_number}
                         </Link>
                       </td>
@@ -495,9 +503,10 @@ export default function ProductionLotsPage() {
                         {formatDate(lot.target_due_date)}
                       </td>
                       <td className="py-3.5 px-5 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <Link
                             href={`/production/lots/${lot.id}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors"
                             title="View Detail"
                           >
@@ -505,7 +514,10 @@ export default function ProductionLotsPage() {
                           </Link>
 
                           <DropdownMenu>
-                            <DropdownMenuTrigger className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:bg-[#F9FAFB] transition-colors cursor-pointer">
+                            <DropdownMenuTrigger
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:bg-[#F9FAFB] transition-colors cursor-pointer"
+                            >
                               <MoreVertical size={16} />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-[150px]">

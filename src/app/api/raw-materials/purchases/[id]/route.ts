@@ -27,12 +27,21 @@ export async function GET(
       return NextResponse.json({ error: purchaseError.message }, { status: 404 });
     }
 
-    // 2. Fetch Line Items
+    // 2. Fetch Line Items with Rolls
     const { data: items, error: itemsError } = await supabase
       .from("raw_material_purchase_items")
-      .select("*, material_type:raw_material_types(name, category)")
+      .select("*, material_type:raw_material_types(name, category), rolls:purchase_rolls(*)")
       .eq("purchase_id", id)
       .eq("business_id", businessId);
+
+    if (itemsError) {
+      return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    const itemsWithRolls = items?.map((item: any) => ({
+      ...item,
+      item_type: (item.rolls && item.rolls.length > 0) ? "fabric" : "accessory",
+    })) || [];
 
     // 3. Fetch Payments Made against this Invoice
     const { data: payments } = await supabase
@@ -43,11 +52,9 @@ export async function GET(
       .eq("status", "success");
 
     return NextResponse.json({
-      purchase: {
-        ...purchase,
-        items: items || [],
-        payments: payments || [],
-      },
+      purchase,
+      items: itemsWithRolls,
+      payments,
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -167,15 +174,51 @@ export async function PUT(
       amount: Number(item.amount),
     }));
 
-    const { error: itemsError } = await supabase
+    const { data: insertedItems, error: itemsError } = await supabase
       .from("raw_material_purchase_items")
-      .insert(itemsToInsert);
+      .insert(itemsToInsert)
+      .select();
 
-    if (itemsError) {
+    if (itemsError || !insertedItems) {
       return NextResponse.json({
         purchase,
-        warning: "Purchase updated, but items could not be saved: " + itemsError.message,
+        warning: "Purchase updated, but items could not be saved: " + (itemsError?.message || "No data returned"),
       });
+    }
+
+    // Insert purchase rolls for fabric items
+    const rollsToInsert: any[] = [];
+    insertedItems.forEach((insertedItem, idx) => {
+      const inputItem = items[idx];
+      if (inputItem && inputItem.item_type === "fabric" && inputItem.rolls && inputItem.rolls.length > 0) {
+        inputItem.rolls.forEach((roll: any) => {
+          rollsToInsert.push({
+            business_id: businessId,
+            purchase_item_id: insertedItem.id,
+            roll_number: roll.roll_number,
+            meters: Number(roll.meters),
+            shade: roll.shade,
+            comment: roll.comment || null,
+            width: roll.width ? Number(roll.width) : null,
+            weight_unit: roll.weight_unit || null,
+            weight_value: roll.weight_value ? Number(roll.weight_value) : null,
+            remaining_meters: Number(roll.meters),
+          });
+        });
+      }
+    });
+
+    if (rollsToInsert.length > 0) {
+      const { error: rollsError } = await supabase
+        .from("purchase_rolls")
+        .insert(rollsToInsert);
+
+      if (rollsError) {
+        return NextResponse.json({
+          purchase,
+          warning: "Purchase updated, but rolls could not be saved: " + rollsError.message,
+        });
+      }
     }
 
     return NextResponse.json({ purchase });

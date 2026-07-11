@@ -74,11 +74,64 @@ export async function GET(
       } : null
     };
 
+    // 5. Fetch Lot Rolls
+    const { data: lotRolls } = await supabase
+      .from("lot_rolls")
+      .select(`
+        *,
+        purchase_roll:purchase_rolls (
+          roll_number,
+          shade,
+          item:raw_material_purchase_items (
+            rate,
+            material_type:raw_material_types (name, unit)
+          )
+        )
+      `)
+      .eq("lot_id", id)
+      .eq("business_id", businessId);
+
+    // 6. Fetch Lot Specifications
+    const { data: specifications } = await supabase
+      .from("lot_specifications")
+      .select("*")
+      .eq("lot_id", id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    // 7. Fetch Lot Spec Sheet
+    const { data: specSheet } = await supabase
+      .from("lot_spec_sheet")
+      .select(`
+        *,
+        template:design_spec_templates (*)
+      `)
+      .eq("lot_id", id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    // 8. Fetch Stage Workers
+    const stageIds = (stages || []).map((s: any) => s.id);
+    const { data: stageWorkers } = stageIds.length > 0
+      ? await supabase
+          .from("lot_stage_workers")
+          .select(`
+            *,
+            worker:workers(id, name, worker_id)
+          `)
+          .in("lot_stage_id", stageIds)
+          .eq("business_id", businessId)
+      : { data: [] };
+
     return NextResponse.json({
       lot: lotWithImageUrl,
       sizes: sizeQuantities || [],
       stages: stages || [],
       stageEntries: stageEntries || [],
+      lotRolls: lotRolls || [],
+      specifications: specifications || null,
+      specSheet: specSheet || null,
+      stageWorkers: stageWorkers || [],
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -122,6 +175,8 @@ export async function PUT(
       allow_rework,
       completed_quantity,
       total_quantity,
+      accessory_cost,
+      other_cost,
       sizes,  // array of { size, quantity }
       stages, // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, description }
     } = body;
@@ -160,6 +215,8 @@ export async function PUT(
         internal_notes: internal_notes || null,
         customer_ref: customer_ref || null,
         po_date: po_date || null,
+        accessory_cost: accessory_cost !== undefined ? Number(accessory_cost) : undefined,
+        other_cost: other_cost !== undefined ? Number(other_cost) : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

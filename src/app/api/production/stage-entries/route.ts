@@ -13,18 +13,34 @@ export async function GET(request: Request) {
   const lotId = searchParams.get("lot_id");
   const workerId = searchParams.get("worker_id");
   const status = searchParams.get("status");
+  const search = searchParams.get("search");
 
   try {
     let query = supabase
       .from("stage_entries")
       .select(`
         *,
-        lot:production_lots(id, lot_number, total_quantity),
+        lot:production_lots(id, lot_number, total_quantity, lot_name),
         stage:lot_production_stages(id, stage_name, sequence_no),
         worker:workers(id, name, worker_id)
       `)
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
+
+    if (search) {
+      const { data: matchedLots } = await supabase
+        .from("production_lots")
+        .select("id")
+        .eq("business_id", businessId)
+        .or(`lot_number.ilike.%${search}%,lot_name.ilike.%${search}%`);
+
+      const matchedLotIds = (matchedLots || []).map((l) => l.id);
+      if (matchedLotIds.length > 0) {
+        query = query.in("lot_id", matchedLotIds);
+      } else {
+        return NextResponse.json({ entries: [] });
+      }
+    }
 
     if (lotId) {
       query = query.eq("lot_id", lotId);
@@ -74,6 +90,7 @@ export async function POST(request: Request) {
       no_of_workers,
       remarks,
       custom_field_values,
+      attachments,
     } = body;
 
     if (!lot_id || !lot_stage_id || !entry_date || qty_in === undefined || qty_out === undefined) {
@@ -149,6 +166,7 @@ export async function POST(request: Request) {
         total_labor_cost: totalLaborCost,
         remarks: remarks || null,
         custom_field_values: custom_field_values || {},
+        attachments: attachments || [],
         status: "completed", // once logged, it is completed
         created_by: userId,
       })

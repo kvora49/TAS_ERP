@@ -132,7 +132,7 @@ export default function Sidebar() {
     "/",
     "/master-data/brands",
     "/master-data/godowns",
-    "/master-data/production-stages",
+    "/master-data/production-stages/templates",
     "/master-data/size-sets",
     "/master-data/designs",
     "/master-data/expense-types",
@@ -141,6 +141,8 @@ export default function Sidebar() {
     "/master-data/raw-materials",
     "/master-data/workers",
     "/master-data/units",
+    "/master-data/garment-types",
+    "/master-data/design-spec-templates",
     "/parties",
     "/raw-materials/purchases",
     "/raw-materials/purchase-returns",
@@ -182,12 +184,14 @@ export default function Sidebar() {
       href === "/settings/audit-logs" ||
       href === "/settings/communication" ||
       href.startsWith("/master-data/workers/") ||
+      href.startsWith("/master-data/production-stages/templates/") ||
       href.startsWith("/production/lots/") ||
       href.startsWith("/production/stage-entries/") ||
       href.startsWith("/finished-stock/designs/") ||
       href.startsWith("/finished-stock/adjustments/") ||
       href.startsWith("/finished-stock/transfers/") ||
       href.startsWith("/finished-stock/challans/") ||
+      href.startsWith("/parties/") ||
       href.startsWith("/sales") ||
       href.startsWith("/purchases") ||
       href.startsWith("/finance");
@@ -244,16 +248,15 @@ export default function Sidebar() {
       subItems: [
         { name: "Brands", href: "/master-data/brands" },
         { name: "Godowns", href: "/master-data/godowns" },
-        { name: "Production Stages", href: "/master-data/production-stages" },
+        { name: "Production Stages", href: "/master-data/production-stages/templates" },
         { name: "Size Sets", href: "/master-data/size-sets" },
         { name: "Designs", href: "/master-data/designs" },
         { name: "Expense Types", href: "/master-data/expense-types" },
         { name: "GST Rates", href: "/master-data/gst-rates" },
         { name: "Banks & UPI", href: "/master-data/banks-upi" },
-        { name: "Raw Materials", href: "/master-data/raw-materials" },
-        { name: "Parties", href: "/parties" },
-        { name: "Workers", href: "/master-data/workers" },
         { name: "Units", href: "/master-data/units" },
+        { name: "Garment Types", href: "/master-data/garment-types" },
+        { name: "Design Spec Templates", href: "/master-data/design-spec-templates" },
       ],
     },
     { name: "Parties", href: "/parties", icon: Users },
@@ -263,7 +266,7 @@ export default function Sidebar() {
       subItems: [
         { name: "Purchases", href: "/raw-materials/purchases" },
         { name: "Purchase Returns", href: "/raw-materials/purchase-returns" },
-        { name: "Stock", href: "/raw-materials/stock" },
+        { name: "Purchase Stock", href: "/raw-materials/stock" },
       ],
     },
     {

@@ -20,6 +20,7 @@ const paymentSchema = z.object({
   reference_no: z.string().optional(),
   paid_amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
   bank_account_id: z.string().optional(),
+  upi_id: z.string().optional(),
   remarks: z.string().optional(),
 });
 
@@ -27,8 +28,11 @@ type PaymentFormValues = z.infer<typeof paymentSchema>;
 
 interface BankAccount {
   id: string;
-  bank_name: string;
-  account_number: string;
+  type: "bank" | "upi";
+  name: string;
+  bank_name?: string;
+  account_number?: string;
+  upi_id?: string;
 }
 
 interface RecordPaymentModalProps {
@@ -65,6 +69,7 @@ export function RecordPaymentModal({
     handleSubmit,
     setValue,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema) as any,
@@ -74,9 +79,12 @@ export function RecordPaymentModal({
       reference_no: "",
       paid_amount: 0,
       bank_account_id: "",
+      upi_id: "",
       remarks: "",
     },
   });
+
+  const paymentMode = watch("payment_mode");
 
   // Pre-fill amount when purchase changes
   useEffect(() => {
@@ -87,6 +95,7 @@ export function RecordPaymentModal({
         reference_no: "",
         paid_amount: Number(outstanding.toFixed(2)),
         bank_account_id: "",
+        upi_id: "",
         remarks: "",
       });
     }
@@ -101,7 +110,7 @@ export function RecordPaymentModal({
           const res = await fetch("/api/master-data/banks-upi");
           if (res.ok) {
             const data = await res.json();
-            setBankAccounts(data.bankAccounts || data.accounts || []);
+            setBankAccounts(data.accounts || []);
           }
         } catch (err) {
           console.error("Failed to load bank accounts");
@@ -113,6 +122,9 @@ export function RecordPaymentModal({
     }
   }, [open]);
 
+  const bankOptions = bankAccounts.filter((b) => b.type === "bank");
+  const upiOptions = bankAccounts.filter((b) => b.type === "upi");
+
   const onSubmit = async (values: PaymentFormValues) => {
     if (!purchase) return;
 
@@ -121,11 +133,17 @@ export function RecordPaymentModal({
       return;
     }
 
+    const payload = {
+      ...values,
+      bank_account_id: ["bank_transfer", "neft", "rtgs", "cheque"].includes(values.payment_mode) ? (values.bank_account_id || null) : null,
+      upi_id: values.payment_mode === "upi" ? (values.upi_id || null) : null,
+    };
+
     try {
       const res = await fetch(`/api/raw-materials/purchases/${purchase.id}/payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
 
       const result = await res.json();
@@ -220,21 +238,41 @@ export function RecordPaymentModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#64748B] mb-1">Bank Account</label>
-            <select
-              disabled={loadingBanks}
-              {...register("bank_account_id")}
-              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
-            >
-              <option value="">Select Bank Account</option>
-              {bankAccounts.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bank_name} ({b.account_number.slice(-4)})
-                </option>
-              ))}
-            </select>
-          </div>
+          {["bank_transfer", "neft", "rtgs", "cheque"].includes(paymentMode) && (
+            <div>
+              <label className="block text-xs font-semibold text-[#64748B] mb-1">Bank Account *</label>
+              <select
+                disabled={loadingBanks}
+                {...register("bank_account_id")}
+                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+              >
+                <option value="">Select Bank Account</option>
+                {bankOptions.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bank_name || b.name} ({b.account_number ? b.account_number.slice(-4) : "—"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {paymentMode === "upi" && (
+            <div>
+              <label className="block text-xs font-semibold text-[#64748B] mb-1">UPI Account *</label>
+              <select
+                disabled={loadingBanks}
+                {...register("upi_id")}
+                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+              >
+                <option value="">Select UPI Endpoint</option>
+                {upiOptions.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.upi_id || "—"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-[#64748B] mb-1">Transaction Ref No.</label>
