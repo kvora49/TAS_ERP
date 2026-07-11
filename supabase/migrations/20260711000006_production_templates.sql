@@ -33,11 +33,14 @@ CREATE INDEX IF NOT EXISTS idx_production_templates_business ON production_templ
 ALTER TABLE production_stages ADD COLUMN IF NOT EXISTS template_id UUID REFERENCES production_templates(id);
 ALTER TABLE production_stages ADD COLUMN IF NOT EXISTS order_index INTEGER;
 
--- Insert default "Standard" template for every existing business
+-- Insert default "Standard" template for every existing business (skip if one already exists)
 INSERT INTO production_templates (business_id, name, description, is_default)
-SELECT id, 'Standard Template', 'Default production template containing migrated stages', true
-FROM businesses
-ON CONFLICT DO NOTHING;
+SELECT b.id, 'Standard Template', 'Default production template containing migrated stages', true
+FROM businesses b
+WHERE NOT EXISTS (
+  SELECT 1 FROM production_templates pt
+  WHERE pt.business_id = b.id AND pt.is_default = true
+);
 
 -- Backfill existing production_stages to point to the newly created standard template
 UPDATE production_stages ps
@@ -48,5 +51,17 @@ WHERE ps.business_id = pt.business_id
   AND pt.is_default = true 
   AND ps.template_id IS NULL;
 
--- Enforce NOT NULL constraint on template_id for data integrity
-ALTER TABLE production_stages ALTER COLUMN template_id SET NOT NULL;
+-- Enforce NOT NULL constraint on template_id (only if column is currently nullable)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'production_stages'
+      AND column_name = 'template_id'
+      AND is_nullable = 'YES'
+  ) THEN
+    ALTER TABLE production_stages ALTER COLUMN template_id SET NOT NULL;
+  END IF;
+END $$;
+
