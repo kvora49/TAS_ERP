@@ -15,7 +15,7 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { design_number, godown_id } = body;
+    const { design_number, godown_id, rolls_usage } = body;
 
     if (!design_number || !godown_id) {
       return NextResponse.json({ error: "Missing design number or godown selection" }, { status: 400 });
@@ -39,6 +39,80 @@ export async function POST(
     // Verify design number matches
     if (design_number.trim().toLowerCase() !== lot.design?.code?.trim().toLowerCase()) {
       return NextResponse.json({ error: `Design number mismatch. Expected: ${lot.design?.code}` }, { status: 400 });
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // 1b. If rolls_usage is provided, reconcile allocations
+    if (rolls_usage && Array.isArray(rolls_usage)) {
+      for (const item of rolls_usage) {
+        const { purchase_roll_id, used_meters } = item;
+
+        // Fetch current lot_rolls entry to get originally allocated
+        const { data: lotRoll, error: lrError } = await supabase
+          .from("lot_rolls")
+          .select("*")
+          .eq("lot_id", id)
+          .eq("purchase_roll_id", purchase_roll_id)
+          .maybeSingle();
+
+        if (lrError || !lotRoll) continue;
+
+        const allocated = Number(lotRoll.allocated_meters || 0);
+        const used = Number(used_meters || 0);
+        const unused = Math.max(0, allocated - used);
+
+        if (unused > 0) {
+          // Fetch purchase roll to get rate and current remaining
+          const { data: roll } = await supabase
+            .from("purchase_rolls")
+            .select(`
+              *,
+              item:raw_material_purchase_items (
+                material_type_id,
+                rate,
+                purchase:raw_material_purchases (godown_id)
+              )
+            `)
+            .eq("id", purchase_roll_id)
+            .single();
+
+          if (roll) {
+            // Update purchase roll remaining meters
+            const newRemaining = Number(roll.remaining_meters || 0) + unused;
+            await supabase
+              .from("purchase_rolls")
+              .update({ remaining_meters: newRemaining })
+              .eq("id", purchase_roll_id);
+
+            // Log positive adjustment to stock_ledger
+            const rate = Number(roll.item?.rate || 0);
+            const valDelta = unused * rate;
+
+            await supabase
+              .from("stock_ledger")
+              .insert({
+                business_id: businessId,
+                item_type: 'raw_material',
+                item_id: roll.item?.material_type_id,
+                godown_id: roll.item?.purchase?.godown_id,
+                transaction_type: 'production_lot_return_unused_fabric',
+                quantity_delta: unused,
+                value_delta: valDelta,
+                reference_table: 'production_lots',
+                reference_id: lot.id,
+                created_by: user?.id || null,
+              });
+          }
+        }
+
+        // Update lot_rolls allocated_meters to match the actual usage (so costing calculation matches actual use!)
+        await supabase
+          .from("lot_rolls")
+          .update({ allocated_meters: used })
+          .eq("lot_id", id)
+          .eq("purchase_roll_id", purchase_roll_id);
+      }
     }
 
     // 2. Fetch Size Quantities grouped by colour
@@ -96,8 +170,6 @@ export async function POST(
       }
       colourGroups[colId].push({ size: sq.size, quantity: sq.quantity });
     });
-
-    const { data: { user } } = await supabase.auth.getUser();
 
     // 5. Insert into finished_stock and write to stock_ledger
     for (const [colId, items] of Object.entries(colourGroups)) {

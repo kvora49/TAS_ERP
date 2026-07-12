@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -47,6 +47,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const [targetGodownId, setTargetGodownId] = useState("");
   const [confirmDesignCode, setConfirmDesignCode] = useState("");
   const [movingToStock, setMovingToStock] = useState(false);
+  const [rollUsages, setRollUsages] = useState<Record<string, number>>({});
 
   // Fetch lot detail along with sizes, stages, stage entries, rolls, specifications, and spec sheet
   const { data, isLoading, error } = useQuery({
@@ -127,6 +128,17 @@ export default function LotDetailPage({ params }: LotDetailProps) {
     }
   };
 
+  // Sync rollUsages when moveModalOpen changes
+  useEffect(() => {
+    if (moveModalOpen && lotRolls.length > 0) {
+      const initialUsages: Record<string, number> = {};
+      lotRolls.forEach((r: any) => {
+        initialUsages[r.purchase_roll_id] = Number(r.allocated_meters || 0);
+      });
+      setRollUsages(initialUsages);
+    }
+  }, [moveModalOpen, lotRolls]);
+
   const handleMoveToStock = async () => {
     if (!targetGodownId) {
       toast.error("Please select a target godown");
@@ -141,6 +153,10 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         body: JSON.stringify({
           design_number: lot.design?.code,
           godown_id: targetGodownId,
+          rolls_usage: Object.entries(rollUsages).map(([rollId, used]) => ({
+            purchase_roll_id: rollId,
+            used_meters: Number(used)
+          }))
         }),
       });
 
@@ -291,26 +307,14 @@ export default function LotDetailPage({ params }: LotDetailProps) {
             Edit Lot
           </Link>
           {lot.status !== "completed" && (
-            <>
-              <button
-                onClick={() => setMoveModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10"
-              >
-                <Boxes size={16} />
-                Move to Stock
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm("Are you sure you want to mark this lot as complete? This will finalize production quantities.")) {
-                    completeLotMutation.mutate();
-                  }
-                }}
-                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
-              >
-                <CheckCircle2 size={16} />
-                Mark Lot Complete
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setMoveModalOpen(true)}
+              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
+            >
+              <Boxes size={16} />
+              Complete Lot & Move to Stock
+            </button>
           )}
         </div>
       </div>
@@ -765,7 +769,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
               This action will finalize the production lot and add <strong className="font-bold text-slate-900">{totalQty} pieces</strong> of design <strong className="font-bold text-slate-900">{lot.design?.code}</strong> to the selected finished goods godown.
             </p>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase">Target Godown</label>
                 <select
@@ -779,6 +783,41 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                   ))}
                 </select>
               </div>
+
+              {lotRolls.length > 0 && (
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                    Actually Consumed Fabric (Meters)
+                  </label>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Enter the actual quantity consumed for each allocated roll. Any remaining balance will be returned to purchase stock.
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {lotRolls.map((r: any) => (
+                      <div key={r.id} className="flex items-center justify-between gap-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <span className="text-[10px] font-semibold text-slate-600 truncate">
+                          Roll #{r.purchase_roll?.roll_number} ({r.purchase_roll?.shade})
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max={r.allocated_meters}
+                            value={rollUsages[r.purchase_roll_id] ?? r.allocated_meters}
+                            onChange={(e) => setRollUsages({
+                              ...rollUsages,
+                              [r.purchase_roll_id]: parseFloat(e.target.value) || 0
+                            })}
+                            className="w-16 h-8 text-right px-1.5 border border-slate-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">/ {r.allocated_meters}m</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

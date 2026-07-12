@@ -43,6 +43,13 @@ const partySchema = z.object({
   default_godown_id: z.string().optional(),
   remarks: z.string().optional(),
   status: z.string(),
+  // Worker fields
+  stage_specialty: z.array(z.string()).optional(),
+  wage_type: z.string().optional().nullable(),
+  wage_rate: z.coerce.number().optional().nullable(),
+  worker_type: z.string().optional().nullable(),
+  preferred_stage_id: z.string().optional().nullable(),
+  working_since: z.string().optional().nullable(),
   contact_numbers: z.array(
     z.object({
       label: z.string().min(1, "Label is required"),
@@ -78,6 +85,10 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const [godowns, setGodowns] = useState<Godown[]>([]);
   const [loadingGodowns, setLoadingGodowns] = useState(false);
   const [sameAsBilling, setSameAsBilling] = useState(false);
+  
+  // Worker-specific stages list
+  const [stages, setStages] = useState<any[]>([]);
+  const [loadingStages, setLoadingStages] = useState(false);
 
   const defaultValues: PartyFormValues = {
     name: "",
@@ -114,12 +125,19 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     status: "active",
     contact_numbers: [],
     bank_details: [],
+    // Worker defaults
+    stage_specialty: [],
+    wage_type: "piece_rate",
+    wage_rate: 0,
+    worker_type: "in_house",
+    preferred_stage_id: "",
+    working_since: new Date().toISOString().split("T")[0],
   };
 
   const sanitizedInitialData = initialData
     ? Object.keys(initialData).reduce((acc: any, key) => {
         if (initialData[key] === null) {
-          acc[key] = (key === "contact_numbers" || key === "bank_details") ? [] : "";
+          acc[key] = (key === "contact_numbers" || key === "bank_details" || key === "stage_specialty") ? [] : "";
         } else {
           acc[key] = initialData[key];
         }
@@ -173,6 +191,25 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
       }
     }
     fetchGodowns();
+  }, []);
+
+  // Fetch production stages for worker options
+  useEffect(() => {
+    async function fetchStages() {
+      setLoadingStages(true);
+      try {
+        const res = await fetch("/api/master-data/production-stages");
+        if (res.ok) {
+          const data = await res.json();
+          setStages(data.stages || []);
+        }
+      } catch (err) {
+        console.error("Failed to load production stages", err);
+      } finally {
+        setLoadingStages(false);
+      }
+    }
+    fetchStages();
   }, []);
 
   // Sync shipping address with billing address when sameAsBilling toggle is ON
@@ -300,19 +337,28 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Party Type *</label>
-                <div className="flex items-center gap-4 mt-2">
-                  {["supplier", "customer"].map((t) => (
-                    <label key={t} className="flex items-center gap-2 text-sm font-medium text-[#1E293B] cursor-pointer">
-                      <input
-                        type="radio"
-                        value={t}
-                        checked={watchTypes.includes(t)}
-                        onChange={() => setValue("type", [t])}
-                        className="rounded-full border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4"
-                      />
-                      <span className="capitalize">{t}</span>
-                    </label>
-                  ))}
+                <div className="flex flex-wrap items-center gap-4 mt-2">
+                  {["supplier", "customer", "worker"].map((t) => {
+                    const isChecked = watchTypes.includes(t);
+                    return (
+                      <label key={t} className="flex items-center gap-2 text-sm font-medium text-[#1E293B] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          value={t}
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setValue("type", [...watchTypes, t]);
+                            } else {
+                              setValue("type", watchTypes.filter((x) => x !== t));
+                            }
+                          }}
+                          className="rounded border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4"
+                        />
+                        <span className="capitalize">{t === "worker" ? "Worker" : t}</span>
+                      </label>
+                    );
+                  })}
                 </div>
                 {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type.message}</p>}
               </div>
@@ -486,6 +532,102 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
             </div>
           </div>
+
+          {/* SECTION 1b: Worker Information (Conditional) */}
+          {watchTypes.includes("worker") && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm animate-fadeIn space-y-4">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-amber-500 pl-2.5">
+                Worker Settings
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Worker Type *</label>
+                  <select
+                    {...register("worker_type")}
+                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                  >
+                    <option value="in_house">In-House (Permanent)</option>
+                    <option value="contractor">Contractor (Job-work worker)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Working Since</label>
+                  <input
+                    type="date"
+                    {...register("working_since")}
+                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Wage Billing Type</label>
+                  <select
+                    {...register("wage_type")}
+                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                  >
+                    <option value="piece_rate">Piece-rate (Job work rate)</option>
+                    <option value="fixed_salary">Fixed monthly salary</option>
+                    <option value="daily_wages">Daily wage</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Base Rate (INR / pc or month)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register("wage_rate")}
+                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Preferred Production Stage</label>
+                  <select
+                    {...register("preferred_stage_id")}
+                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                  >
+                    <option value="">No preference</option>
+                    {stages.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.name} ({st.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Stage Specialties *</label>
+                  <p className="text-[10px] text-slate-500 mb-3 leading-none">Select the stages this worker is qualified to handle.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {stages.map((st) => {
+                      const list = watch("stage_specialty") || [];
+                      const isSpecChecked = list.includes(st.id);
+                      return (
+                        <label key={st.id} className="flex items-center gap-2 text-xs font-medium text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isSpecChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setValue("stage_specialty", [...list, st.id]);
+                              } else {
+                                setValue("stage_specialty", list.filter((x) => x !== st.id));
+                              }
+                            }}
+                            className="rounded border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-3.5 w-3.5"
+                          />
+                          <span className="truncate">{st.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SECTION 2: Billing & Shipping Address */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">

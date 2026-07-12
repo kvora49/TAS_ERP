@@ -96,6 +96,13 @@ export async function PUT(
       status,
       contact_numbers,
       bank_details,
+      // Worker fields
+      stage_specialty,
+      wage_type,
+      wage_rate,
+      worker_type,
+      preferred_stage_id,
+      working_since,
     } = body;
 
     if (!name) {
@@ -142,6 +149,13 @@ export async function PUT(
         remarks: remarks || null,
         status: status || 'active',
         contact_numbers: contact_numbers || [],
+        // Worker fields
+        stage_specialty: stage_specialty || null,
+        wage_type: wage_type || null,
+        wage_rate: wage_rate ? Number(wage_rate) : null,
+        worker_type: worker_type || null,
+        preferred_stage_id: preferred_stage_id || null,
+        working_since: working_since || null,
       })
       .eq("id", id)
       .eq("business_id", businessId)

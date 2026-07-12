@@ -24,7 +24,8 @@ import {
   FileText,
   UserCheck,
   Search,
-  BookOpen
+  BookOpen,
+  X
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -174,6 +175,12 @@ export default function CreateLotPage() {
   const [newDesignColours, setNewDesignColours] = useState<Array<{ name: string; hex: string }>>([
     { name: "Default Colour", hex: "#6366F1" },
   ]);
+  const [newDesignCategory, setNewDesignCategory] = useState("Shirts");
+  const [newDesignSubCategory, setNewDesignSubCategory] = useState("");
+  const [newDesignSeason, setNewDesignSeason] = useState("");
+  const [newDesignHsnCode, setNewDesignHsnCode] = useState("");
+  const [newDesignDescription, setNewDesignDescription] = useState("");
+  const [newDesignImages, setNewDesignImages] = useState<string[]>([]);
   const [newDesignLoading, setNewDesignLoading] = useState(false);
 
   const handleOpenCreateDesignModal = () => {
@@ -181,6 +188,12 @@ export default function CreateLotPage() {
     setNewDesignCode("");
     setNewDesignSizeSet(sizeSetsData?.sizeSets?.[0]?.id || "");
     setNewDesignColours([{ name: "Default Colour", hex: "#6366F1" }]);
+    setNewDesignCategory("Shirts");
+    setNewDesignSubCategory("");
+    setNewDesignSeason("");
+    setNewDesignHsnCode("");
+    setNewDesignDescription("");
+    setNewDesignImages([]);
     setDesignModalOpen(true);
   };
 
@@ -213,6 +226,12 @@ export default function CreateLotPage() {
           name: newDesignName.trim(),
           design_number: newDesignCode.trim() || undefined,
           size_set_id: newDesignSizeSet || undefined,
+          category: newDesignCategory || undefined,
+          sub_category: newDesignSubCategory || undefined,
+          season: newDesignSeason || undefined,
+          hsn_code: newDesignHsnCode || undefined,
+          description: newDesignDescription || undefined,
+          images: newDesignImages,
           colours: newDesignColours
             .filter((c) => c.name.trim())
             .map((c) => ({
@@ -2117,6 +2136,99 @@ export default function CreateLotPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Category</label>
+                <select
+                  value={newDesignCategory}
+                  onChange={(e) => setNewDesignCategory(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] cursor-pointer"
+                >
+                  {["Shirts", "Pants", "Jackets", "Suits", "T-shirts", "Polo", "Undergarments", "Other"].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Sub-Category</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Slim-fit, Crewneck"
+                  value={newDesignSubCategory}
+                  onChange={(e) => setNewDesignSubCategory(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Collection / Season</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Summer 2026, Festive"
+                  value={newDesignSeason}
+                  onChange={(e) => setNewDesignSeason(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">HSN Code</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 6203"
+                  value={newDesignHsnCode}
+                  onChange={(e) => setNewDesignHsnCode(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-mono"
+                />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Style Notes & Description</label>
+                <textarea
+                  placeholder="Describe fits, stitching detailing, target fabric..."
+                  rows={2}
+                  value={newDesignDescription}
+                  onChange={(e) => setNewDesignDescription(e.target.value)}
+                  className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] resize-none"
+                />
+              </div>
+
+              {/* Design Image Gallery */}
+              <div className="sm:col-span-2 space-y-2 border-t border-slate-100 pt-3">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B] block">Design Image Gallery</label>
+                <div className="flex flex-wrap gap-3 items-start pt-1">
+                  {newDesignImages.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="w-[100px] aspect-[4/3] rounded-lg border border-[#E5E7EB] relative overflow-hidden bg-[#F8FAFC] flex items-center justify-center shadow-sm group"
+                    >
+                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setNewDesignImages(newDesignImages.filter((_, i) => i !== idx))}
+                        className="absolute top-1.5 right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center cursor-pointer transition-all shadow-md"
+                        title="Remove image"
+                      >
+                        <X size={10} className="stroke-[3]" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div className="w-[100px] aspect-[4/3] border border-dashed border-[#D1D5DB] rounded-lg bg-[#F8FAFC] flex items-center justify-center p-2 relative">
+                    <ImageUpload
+                      value=""
+                      folder="design_catalogs"
+                      onChange={(url) => {
+                        if (url) {
+                          setNewDesignImages((prev) => [...prev, url]);
+                          toast.success("Main design image uploaded!");
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
