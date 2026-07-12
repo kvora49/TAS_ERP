@@ -336,7 +336,11 @@ export async function POST(request: Request) {
         paid_amount: 0, // initially unpaid
         payment_status: "unpaid",
         status,
-        eway_details: eway_details || null
+        generate_eway_bill: eway_details?.generate_eway_bill || false,
+        eway_transporter: eway_details?.transporter || null,
+        eway_vehicle_no: eway_details?.vehicle_no || null,
+        eway_place_of_supply: eway_details?.place_of_supply || null,
+        eway_valid_till: eway_details?.valid_till || null
       })
       .select()
       .single();

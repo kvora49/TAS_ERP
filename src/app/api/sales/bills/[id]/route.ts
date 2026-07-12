@@ -87,7 +87,20 @@ export async function GET(
       brandConfig = c;
     }
 
-    return NextResponse.json({ bill, profit, brand, brandConfig });
+    const formattedBill = {
+      ...bill,
+      eway_details: bill.generate_eway_bill
+        ? {
+            generate_eway_bill: bill.generate_eway_bill,
+            transporter: bill.eway_transporter,
+            vehicle_no: bill.eway_vehicle_no,
+            place_of_supply: bill.eway_place_of_supply,
+            valid_till: bill.eway_valid_till,
+          }
+        : null
+    };
+
+    return NextResponse.json({ bill: formattedBill, profit, brand, brandConfig });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -255,7 +268,11 @@ export async function PUT(
         round_off: roundOff,
         grand_total: grandTotal,
         status,
-        eway_details: eway_details || null
+        generate_eway_bill: eway_details?.generate_eway_bill || false,
+        eway_transporter: eway_details?.transporter || null,
+        eway_vehicle_no: eway_details?.vehicle_no || null,
+        eway_place_of_supply: eway_details?.place_of_supply || null,
+        eway_valid_till: eway_details?.valid_till || null
       })
       .eq("id", id)
       .eq("business_id", businessId);
