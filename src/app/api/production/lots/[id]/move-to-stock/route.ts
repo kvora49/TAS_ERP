@@ -180,7 +180,7 @@ export async function POST(
         colourTotalQty += item.quantity;
       });
 
-      const actualColourId = colId === "default" ? null : colId;
+      const actualColourId = colId === "default" ? (lot.colour_id || null) : colId;
       const totalVal = colourTotalQty * costPerPiece;
 
       // Insert finished_stock

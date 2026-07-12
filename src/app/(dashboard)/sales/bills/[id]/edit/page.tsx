@@ -224,16 +224,22 @@ export default function EditSaleBillPage() {
 
       const { data: stockRows } = await supabase
         .from("finished_stock")
-        .select("design_id, colour_id, size, total_quantity, cost_per_piece")
+        .select("design_id, colour_id, size_quantities, total_quantity, cost_per_piece")
         .is("deleted_at", null);
 
       if (stockRows) {
         const stocks: Record<string, number> = {};
         const costs: Record<string, number> = {};
         stockRows.forEach((row) => {
-          const key = `${row.design_id}_${row.colour_id || "none"}_${row.size}`;
-          stocks[key] = (stocks[key] || 0) + (row.total_quantity || 0);
-          costs[key] = row.cost_per_piece || 0;
+          const cost = row.cost_per_piece || 0;
+          if (row.size_quantities) {
+            Object.entries(row.size_quantities).forEach(([size, qty]) => {
+              const q = Number(qty || 0);
+              const key = `${row.design_id}_${row.colour_id || "none"}_${size}`;
+              stocks[key] = (stocks[key] || 0) + q;
+              costs[key] = cost;
+            });
+          }
         });
         setStockMap(stocks);
         setCostMap(costs);
