@@ -7,26 +7,10 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Pencil, Trash2, Plus, RefreshCw, Star, Layers } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { toast } from "sonner";
 
-const templateSchema = z.object({
-  name: z.string().min(2, "Template Name must be at least 2 characters"),
-  description: z.string().optional(),
-  is_default: z.boolean(),
-});
 
-type TemplateFormValues = z.infer<typeof templateSchema>;
 
 interface ProductionTemplate {
   id: string;
@@ -43,27 +27,9 @@ export default function ProductionTemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<ProductionTemplate | null>(null);
-
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingTemplate, setDeletingTemplate] = useState<ProductionTemplate | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<TemplateFormValues>({
-    resolver: zodResolver(templateSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      is_default: false,
-    },
-  });
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -84,23 +50,11 @@ export default function ProductionTemplatesPage() {
   }, []);
 
   const handleOpenAdd = () => {
-    setEditingTemplate(null);
-    reset({
-      name: "",
-      description: "",
-      is_default: false,
-    });
-    setModalOpen(true);
+    router.push("/master-data/production-stages/templates/new");
   };
 
   const handleOpenEdit = (template: ProductionTemplate) => {
-    setEditingTemplate(template);
-    reset({
-      name: template.name,
-      description: template.description || "",
-      is_default: template.is_default,
-    });
-    setModalOpen(true);
+    router.push(`/master-data/production-stages/templates/${template.id}`);
   };
 
   const handleOpenDelete = (template: ProductionTemplate) => {
@@ -108,35 +62,7 @@ export default function ProductionTemplatesPage() {
     setDeleteOpen(true);
   };
 
-  const onSubmit = async (data: TemplateFormValues) => {
-    try {
-      const url = editingTemplate
-        ? `/api/master-data/production-templates/${editingTemplate.id}`
-        : "/api/master-data/production-templates";
-      const method = editingTemplate ? "PUT" : "POST";
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const errorResult = await res.json();
-        throw new Error(errorResult.error || "Failed to save template");
-      }
-
-      toast.success(
-        editingTemplate
-          ? "Template updated successfully"
-          : "Template created successfully"
-      );
-      setModalOpen(false);
-      fetchTemplates();
-    } catch (err: any) {
-      toast.error(err.message || "Something went wrong");
-    }
-  };
 
   const handleDeleteConfirm = async () => {
     if (!deletingTemplate) return;
@@ -262,89 +188,6 @@ export default function ProductionTemplatesPage() {
         emptyMessage="No templates configured yet. Click Add Template to create one."
       />
 
-      {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingTemplate ? "Edit Production Template" : "Add Production Template"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            {/* Template Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Template Name *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Winter Wear Template, Basic T-Shirt"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold"
-                {...register("name")}
-              />
-              {errors.name && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Description
-              </label>
-              <textarea
-                placeholder="Brief details about the template usage..."
-                rows={3}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                {...register("description")}
-              />
-            </div>
-
-            {/* Default Status */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F3F4F6]">
-              <div>
-                <h4 className="text-xs font-bold text-[#0F172A]">Set as Default Template</h4>
-                <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                  New lots will auto-populate stages from this template.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                {...register("is_default")}
-              />
-            </div>
-
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Template"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirm */}
       <ConfirmDialog

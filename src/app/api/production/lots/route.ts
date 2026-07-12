@@ -272,7 +272,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Insert lot rolls allocation
+    // 4. Insert lot rolls allocation & deduct remaining meters
     if (allocated_rolls && allocated_rolls.length > 0) {
       const lotRollsToInsert = allocated_rolls.map((r: any) => ({
         business_id: businessId,
@@ -289,18 +289,66 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Lot created, but roll allocation mapping failed: ${lrError.message}` }, { status: 400 });
       }
 
-      // Link temporary stock ledger entries to this lot
-      const rollIds = allocated_rolls.map((r: any) => r.purchase_roll_id);
-      await supabase
-        .from("stock_ledger")
-        .update({
-          reference_table: "production_lots",
-          reference_id: lot.id,
-        })
-        .eq("business_id", businessId)
-        .eq("transaction_type", "production_lot_allocation")
-        .in("reference_id", rollIds)
-        .eq("reference_table", "purchase_rolls");
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Loop over allocations to update database and stock ledger
+      for (const r of allocated_rolls) {
+        const { purchase_roll_id, allocated_meters } = r;
+
+        // Fetch original roll details
+        const { data: roll, error: rollError } = await supabase
+          .from("purchase_rolls")
+          .select(`
+            *,
+            item:raw_material_purchase_items (
+              material_type_id,
+              rate,
+              purchase:raw_material_purchases (godown_id)
+            )
+          `)
+          .eq("id", purchase_roll_id)
+          .eq("business_id", businessId)
+          .single();
+
+        if (rollError || !roll) {
+          throw new Error(`Failed to find roll ${purchase_roll_id}: ${rollError?.message || "Not found"}`);
+        }
+
+        const nextRemaining = Math.max(0, Number(roll.remaining_meters || 0) - Number(allocated_meters));
+
+        // Update purchase roll remaining meters
+        const { error: updateError } = await supabase
+          .from("purchase_rolls")
+          .update({ remaining_meters: nextRemaining })
+          .eq("id", purchase_roll_id);
+
+        if (updateError) {
+          throw new Error(`Failed to update roll ${purchase_roll_id}: ${updateError.message}`);
+        }
+
+        // Write negative stock delta to stock_ledger
+        const rate = Number(roll.item?.rate || 0);
+        const valDelta = Number(allocated_meters) * rate;
+
+        const { error: ledgerError } = await supabase
+          .from("stock_ledger")
+          .insert({
+            business_id: businessId,
+            item_type: 'raw_material',
+            item_id: roll.item?.material_type_id,
+            godown_id: roll.item?.purchase?.godown_id,
+            transaction_type: 'production_lot_allocation',
+            quantity_delta: -Number(allocated_meters),
+            value_delta: -valDelta,
+            reference_table: 'production_lots',
+            reference_id: lot.id,
+            created_by: user?.id || null,
+          });
+
+        if (ledgerError) {
+          throw new Error(`Failed to write stock ledger for roll ${purchase_roll_id}: ${ledgerError.message}`);
+        }
+      }
     }
 
     // 5. Insert lot specifications

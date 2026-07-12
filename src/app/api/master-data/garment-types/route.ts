@@ -11,7 +11,12 @@ export async function GET(request: Request) {
   try {
     const { data: garmentTypes, error } = await supabase
       .from("garment_types")
-      .select("*")
+      .select(`
+        id,
+        name,
+        created_at,
+        specTemplate:design_spec_templates(id, fields)
+      `)
       .eq("business_id", businessId)
       .is("deleted_at", null)
       .order("name", { ascending: true });
@@ -20,7 +25,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ garmentTypes });
+    // Map to simplify specTemplate object in response
+    const resolvedGarmentTypes = (garmentTypes || []).map((gt: any) => ({
+      id: gt.id,
+      name: gt.name,
+      created_at: gt.created_at,
+      specTemplate: gt.specTemplate && gt.specTemplate.length > 0 ? gt.specTemplate[0] : null,
+    }));
+
+    return NextResponse.json({ garmentTypes: resolvedGarmentTypes });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

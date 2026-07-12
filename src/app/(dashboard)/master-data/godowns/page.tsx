@@ -55,8 +55,6 @@ export default function GodownsPage() {
   const [deletingGodown, setDeletingGodown] = useState<Godown | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [selectedGodownDetails, setSelectedGodownDetails] = useState<Godown | null>(null);
-
   const {
     register,
     handleSubmit,
@@ -195,12 +193,9 @@ export default function GodownsPage() {
       header: "Godown Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSelectedGodownDetails(row)}
-            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
-          >
+          <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
             {row.name}
-          </button>
+          </span>
           {row.is_primary && (
             <Badge variant="primary">
               Primary
@@ -431,59 +426,6 @@ export default function GodownsPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
-
-      {/* View Godown Details Modal */}
-      <Dialog open={selectedGodownDetails !== null} onOpenChange={(open) => !open && setSelectedGodownDetails(null)}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <Warehouse className="h-5 w-5 text-[#6366F1]" />
-              Godown Details
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedGodownDetails && (
-            <div className="space-y-4 pt-3 text-sm text-[#374151]">
-              <div className="border-b border-[#F3F4F6] pb-3 flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-bold text-[#0F172A]">{selectedGodownDetails.name}</h4>
-                  <div className="flex gap-1.5 mt-1">
-                    {selectedGodownDetails.is_primary && (
-                      <Badge variant="primary" className="text-[10px]">Primary</Badge>
-                    )}
-                    <StatusBadge active={selectedGodownDetails.is_active} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Address</span>
-                  <span className="font-semibold text-xs text-[#334155]">{selectedGodownDetails.address || "—"}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Contact Person</span>
-                    <span className="font-semibold text-xs text-[#334155]">{selectedGodownDetails.contact_person || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Phone</span>
-                    <span className="font-mono text-xs font-bold">{selectedGodownDetails.phone || "—"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="pt-2">
-            <button
-              onClick={() => setSelectedGodownDetails(null)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

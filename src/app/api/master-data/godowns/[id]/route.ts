@@ -150,12 +150,28 @@ export async function GET(
       });
     }
 
+    // 4. Fetch finished stock in this godown
+    const { data: finishedStockItems } = await supabase
+      .from("finished_stock")
+      .select(`
+        id,
+        total_quantity,
+        cost_per_piece,
+        total_value,
+        size_quantities,
+        design:designs(id, name, code:design_number),
+        colour:design_colours(id, colour_name)
+      `)
+      .eq("godown_id", id)
+      .eq("business_id", businessId)
+      .gt("total_quantity", 0);
+
     return NextResponse.json({
       godown,
       stock: resolvedStock,
       movements: resolvedMovements,
+      finishedStock: finishedStockItems || [],
     });
-
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

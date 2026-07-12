@@ -52,9 +52,30 @@ interface Brand {
   is_active: boolean;
 }
 
+interface LinkedDesign {
+  id: string;
+  name: string;
+  design_number: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface StockItem {
+  id: string;
+  total_quantity: number;
+  cost_per_piece: number;
+  total_value: number;
+  size_quantities: Record<string, number>;
+  godown?: { id: string; name: string };
+  design?: { id: string; name: string; code: string };
+  colour?: { id: string; colour_name: string };
+}
+
 interface BrandDetailResponse {
   brand: Brand;
   lots: Lot[];
+  designs: LinkedDesign[];
+  stock: StockItem[];
 }
 
 export default function BrandDetailPage({ params }: { params: { id: string } }) {
@@ -71,7 +92,9 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
     },
   });
 
-  if (isLoading) {
+  const isDataStale = detailData && detailData.brand.id !== id;
+
+  if (isLoading || isDataStale) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-2">
@@ -98,7 +121,7 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
     );
   }
 
-  const { brand, lots } = detailData;
+  const { brand, lots, designs = [], stock = [] } = detailData;
 
   // Compute rollups
   const totalLots = lots.length;
@@ -234,6 +257,26 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
           Production Lots ({totalLots})
         </button>
         <button
+          onClick={() => setActiveTab("designs")}
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === "designs"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-[#64748B] hover:text-[#0F172A]"
+          }`}
+        >
+          Designs ({designs.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("stock")}
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === "stock"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-[#64748B] hover:text-[#0F172A]"
+          }`}
+        >
+          Finished Stock ({stock.length})
+        </button>
+        <button
           onClick={() => setActiveTab("details")}
           className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
             activeTab === "details"
@@ -246,6 +289,115 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
       </div>
 
       {/* Tab content */}
+      {activeTab === "designs" && (
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-xs font-bold text-[#475569] uppercase tracking-wider">
+                  <th className="py-3 px-5">Design Code</th>
+                  <th className="py-3 px-5">Design Name</th>
+                  <th className="py-3 px-5">Created At</th>
+                  <th className="py-3 px-5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
+                {designs.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-[#64748B]">
+                      No designs configured for this brand yet.
+                    </td>
+                  </tr>
+                ) : (
+                  designs.map((d) => (
+                    <tr
+                      key={d.id}
+                      onClick={() => router.push(`/master-data/designs/${d.id}`)}
+                      className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                    >
+                      <td className="py-3.5 px-5 font-mono text-xs font-bold text-[#6366F1]">
+                        {d.design_number}
+                      </td>
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {d.name}
+                      </td>
+                      <td className="py-3.5 px-5 text-[#64748B] font-mono text-xs">
+                        {formatDate(d.created_at)}
+                      </td>
+                      <td className="py-3.5 px-5 text-center">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            d.is_active
+                              ? "bg-green-100 text-green-850 text-green-700"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {d.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "stock" && (
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-xs font-bold text-[#475569] uppercase tracking-wider">
+                  <th className="py-3 px-5">Design / Style</th>
+                  <th className="py-3 px-5">Colour</th>
+                  <th className="py-3 px-5">Godown</th>
+                  <th className="py-3 px-5 text-right">In Stock Qty</th>
+                  <th className="py-3 px-5 text-right">Cost Per Piece</th>
+                  <th className="py-3 px-5 text-right">Total Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
+                {stock.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[#64748B]">
+                      No finished stock available for this brand&apos;s designs.
+                    </td>
+                  </tr>
+                ) : (
+                  stock.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-[#F8FAFC] transition-colors"
+                    >
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {item.design?.code ? `${item.design.code} - ${item.design.name}` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-xs text-[#475569] font-medium">
+                        {item.colour?.colour_name || "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-xs text-[#475569]">
+                        {item.godown?.name || "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-[#1E293B]">
+                        {item.total_quantity.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono text-xs text-[#475569]">
+                        ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-[#6366F1]">
+                        ₹{item.total_value ? item.total_value.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {activeTab === "lots" && (
         <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">

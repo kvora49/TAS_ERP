@@ -62,8 +62,6 @@ export default function RawMaterialsPage() {
   const [deletingMaterial, setDeletingMaterial] = useState<RawMaterialType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [selectedMaterialDetails, setSelectedMaterialDetails] = useState<RawMaterialType | null>(null);
-
   const {
     register,
     handleSubmit,
@@ -222,12 +220,9 @@ export default function RawMaterialsPage() {
       key: "name",
       header: "Material Name",
       render: (row) => (
-        <button
-          onClick={() => setSelectedMaterialDetails(row)}
-          className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
-        >
+        <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
           {row.name}
-        </button>
+        </span>
       ),
     },
     {
@@ -478,72 +473,6 @@ export default function RawMaterialsPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
-
-      {/* View Raw Material Details Modal */}
-      <Dialog open={selectedMaterialDetails !== null} onOpenChange={(open) => !open && setSelectedMaterialDetails(null)}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <Package className="h-5 w-5 text-[#6366F1]" />
-              Raw Material Details
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedMaterialDetails && (
-            <div className="space-y-4 pt-3 text-sm text-[#374151]">
-              <div className="flex items-center gap-4 border-b border-[#F3F4F6] pb-4">
-                {selectedMaterialDetails.image_url ? (
-                  <img
-                    src={selectedMaterialDetails.image_url}
-                    alt={selectedMaterialDetails.name}
-                    className="w-16 h-16 object-contain rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-1.5"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-lg border border-[#E5E7EB] bg-[#F1F5F9] flex items-center justify-center text-xs font-bold text-[#94A3B8] uppercase">
-                    No Image
-                  </div>
-                )}
-                <div>
-                  <h4 className="text-base font-bold text-[#0F172A]">{selectedMaterialDetails.name}</h4>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5 items-center">
-                    <Badge variant="purple" className="text-[10px] font-bold uppercase tracking-wider">
-                      {selectedMaterialDetails.category || "General"}
-                    </Badge>
-                    <StatusBadge active={selectedMaterialDetails.is_active} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Measurement Unit</span>
-                  <span className="font-semibold text-xs text-[#334155]">{selectedMaterialDetails.unit}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Reorder Alert Level</span>
-                  <span className="font-mono text-xs font-bold text-[#E11D48] flex items-center gap-1">
-                    <AlertTriangle size={12} /> {selectedMaterialDetails.reorder_level} {selectedMaterialDetails.unit}
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Description</span>
-                  <p className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
-                    {selectedMaterialDetails.description || "No description provided."}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="pt-2">
-            <button
-              onClick={() => setSelectedMaterialDetails(null)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

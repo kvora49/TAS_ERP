@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import WizardHeader from "@/components/shared/WizardHeader";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 import { ImageUpload } from "@/components/forms/ImageUpload";
@@ -164,6 +165,79 @@ export default function CreateLotPage() {
 
   // Submitting final lot creation
   const [submitting, setSubmitting] = useState(false);
+
+  // Inline Design Creation states
+  const [designModalOpen, setDesignModalOpen] = useState(false);
+  const [newDesignName, setNewDesignName] = useState("");
+  const [newDesignCode, setNewDesignCode] = useState("");
+  const [newDesignSizeSet, setNewDesignSizeSet] = useState("");
+  const [newDesignColours, setNewDesignColours] = useState<Array<{ name: string; hex: string }>>([
+    { name: "Default Colour", hex: "#6366F1" },
+  ]);
+  const [newDesignLoading, setNewDesignLoading] = useState(false);
+
+  const handleOpenCreateDesignModal = () => {
+    setNewDesignName("");
+    setNewDesignCode("");
+    setNewDesignSizeSet(sizeSetsData?.sizeSets?.[0]?.id || "");
+    setNewDesignColours([{ name: "Default Colour", hex: "#6366F1" }]);
+    setDesignModalOpen(true);
+  };
+
+  const handleAddColourToDraft = () => {
+    setNewDesignColours((prev) => [...prev, { name: "", hex: "#6366F1" }]);
+  };
+
+  const handleRemoveColourFromDraft = (idx: number) => {
+    setNewDesignColours((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateDraftColour = (idx: number, field: "name" | "hex", val: string) => {
+    setNewDesignColours((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, [field]: val } : c))
+    );
+  };
+
+  const handleSaveNewDesign = async () => {
+    if (!newDesignName.trim()) {
+      toast.error("Design Name is required.");
+      return;
+    }
+    setNewDesignLoading(true);
+    try {
+      const res = await fetch("/api/master-data/designs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand_id: brandId,
+          name: newDesignName.trim(),
+          design_number: newDesignCode.trim() || undefined,
+          size_set_id: newDesignSizeSet || undefined,
+          colours: newDesignColours
+            .filter((c) => c.name.trim())
+            .map((c) => ({
+              colour_name: c.name.trim(),
+              colour_hex: c.hex,
+            })),
+        }),
+      });
+
+      if (!res.ok) {
+        const errorResult = await res.json();
+        throw new Error(errorResult.error || "Failed to create design");
+      }
+
+      const result = await res.json();
+      toast.success("Design created successfully!");
+      setDesignId(result.design.id);
+      setDesignModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["designs-list"] });
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong creating design");
+    } finally {
+      setNewDesignLoading(false);
+    }
+  };
 
   // ==========================================
   // MASTER QUERIES
@@ -509,7 +583,7 @@ export default function CreateLotPage() {
   };
 
   // Next steps validations
-  const handleStep1Next = async () => {
+  const handleStep1Next = () => {
     if (allocatedRolls.length === 0) {
       toast.error("Please allocate at least one roll to proceed");
       return;
@@ -519,32 +593,8 @@ export default function CreateLotPage() {
       toast.error("Please ensure all allocations are positive and do not exceed remaining meters");
       return;
     }
-
-    setAllocating(true);
-    try {
-      const res = await fetch("/api/production/lots/allocate-rolls", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          allocations: allocatedRolls.map(r => ({
-            purchase_roll_id: r.purchase_roll_id,
-            allocated_meters: r.allocated_meters,
-          })),
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to commit allocations");
-      }
-
-      toast.success("Fabric rolls successfully allocated!");
-      setCurrentStep(2);
-    } catch (err: any) {
-      toast.error(err.message || "Error allocating rolls");
-    } finally {
-      setAllocating(false);
-    }
+    // Proceed directly without deducting meters from database early
+    setCurrentStep(2);
   };
 
   const handleStep2Next = () => {
@@ -919,9 +969,20 @@ export default function CreateLotPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
-                    Design <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5 select-none">
+                    <label className="block text-xs font-bold text-[#374151] uppercase">
+                      Design <span className="text-red-500">*</span>
+                    </label>
+                    {brandId && (
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateDesignModal}
+                        className="text-xs font-bold text-[#6366F1] hover:text-[#4F46E5] hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        <Plus size={11} /> Add New Design
+                      </button>
+                    )}
+                  </div>
                   <select
                     value={designId}
                     onChange={(e) => setDesignId(e.target.value)}
@@ -1721,83 +1782,257 @@ export default function CreateLotPage() {
               STEP 7: REVIEW & CREATE
               ======================================================== */}
           {currentStep === 7 && (
-            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-6">
-              <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-                <CheckCircle className="h-4.5 w-4.5 text-[#16A34A]" />
-                Step 7: Review & Finalize
-              </h3>
-
-              <div className="space-y-4 text-xs">
-                {/* Roll Allocation summary */}
-                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">1. Fabric Allocation</h4>
-                  <button type="button" onClick={() => setCurrentStep(1)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                  <div className="text-slate-600 space-y-1">
-                    <p>Total Allocated: **{totalAllocatedMeters.toFixed(2)} Meters** across **{allocatedRolls.length} rolls**</p>
-                    <p className="text-[10px] text-slate-500">Rolls: {allocatedRolls.map(r => `Roll #${r.roll_number}`).join(", ")}</p>
-                  </div>
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-[#16A34A]" />
+                    <span>Review & Finalize Production Lot</span>
+                  </h3>
+                  <p className="text-xs text-[#64748B] mt-0.5">Please double-check all lot configuration before sending to production routing.</p>
                 </div>
+              </div>
 
-                {/* Basic Details summary */}
-                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">2. Basic Details</h4>
-                  <button type="button" onClick={() => setCurrentStep(2)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                  <div className="grid grid-cols-2 gap-2 text-slate-600">
-                    <p>Lot Name: **{lotName || "—"}**</p>
-                    <p>Lot Number: **{lotNumber}**</p>
-                    <p>Date: **{lotDate}**</p>
-                    <p>Target Dispatch: **{targetDispatchDate}**</p>
-                    <p>Garment Type: **{garmentTypes.find(gt => gt.id === garmentTypeId)?.name || "—"}**</p>
-                    <p>Colours: **{selectedColours.map(c => c.colour_name).join(", ")}**</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Left Column: Basic Details & Fabric & Specs */}
+                <div className="space-y-6">
+                  {/* Basic Details Summary */}
+                  <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-800">
+                        <FileText size={16} className="text-[#6366F1]" />
+                        <h4 className="font-bold uppercase text-[11px] tracking-wider">Lot General Details</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(2)}
+                        className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Lot No.</span>
+                        <span className="font-bold text-[#0F172A] font-mono">{lotNumber}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Brand</span>
+                        <span className="font-semibold text-slate-700">{brandsData?.brands?.find((b) => b.id === brandId)?.name || "—"}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Lot Name</span>
+                        <span className="font-semibold text-slate-700">{lotName || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Garment Type</span>
+                        <span className="font-semibold text-slate-700">{garmentTypes.find(gt => gt.id === garmentTypeId)?.name || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Design Type</span>
+                        <span className="font-semibold text-slate-700">{designType || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Lot Date</span>
+                        <span className="font-semibold text-slate-700">{lotDate}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Dispatch Target</span>
+                        <span className="font-semibold text-slate-700">{targetDispatchDate}</span>
+                      </div>
+                      <div className="col-span-2 border-t border-slate-100 pt-3">
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-1.5">Colours Selected</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedColours.map((c) => (
+                            <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-100 bg-indigo-50/50 text-indigo-700 font-bold text-[10px]">
+                              {c.colour_hex && (
+                                <span className="w-2.5 h-2.5 rounded-full border border-white" style={{ backgroundColor: c.colour_hex }} />
+                              )}
+                              {c.colour_name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Specs summary */}
-                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">3. Lot Specifications</h4>
-                  <button type="button" onClick={() => setCurrentStep(3)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                  <div className="text-slate-600 space-y-1">
-                    <p>Specs details: {additionalDetails || "—"}</p>
-                    <p>Design Reference: {designReferenceText || "—"}</p>
-                    <p>QA checklists: {customQa.length} items set</p>
+                  {/* Fabric Allocation Summary */}
+                  <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-800">
+                        <Boxes size={16} className="text-[#6366F1]" />
+                        <h4 className="font-bold uppercase text-[11px] tracking-wider">Fabric & Roll Allocation</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(1)}
+                        className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="p-4 text-xs space-y-3">
+                      <div className="flex items-center justify-between bg-indigo-50/50 border border-indigo-100 rounded-xl p-3">
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold text-indigo-500 tracking-wider mb-0.5">Total Fabric Allocated</span>
+                          <span className="text-sm font-black text-indigo-700">{totalAllocatedMeters.toFixed(2)} Meters</span>
+                        </div>
+                        <span className="text-xs font-bold text-indigo-600 bg-white border border-indigo-100 rounded-lg px-2 py-1">
+                          {allocatedRolls.length} Rolls
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-1">Allocated Roll Numbers</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allocatedRolls.map((r) => (
+                            <span key={r.purchase_roll_id} className="px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold font-mono">
+                              Roll #{r.roll_number} ({r.allocated_meters}m)
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Quantities summary */}
-                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">4. Size Quantities</h4>
-                  <button type="button" onClick={() => setCurrentStep(4)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                  <div className="text-slate-600 space-y-1">
-                    <p>Total Production Quantity: **{totalQuantity} pieces**</p>
-                    <p>Size breakdown template: {availableSizes.join(", ")}</p>
-                  </div>
-                </div>
-
-                {/* Workflow stages summary */}
-                <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">5. Stages Assigned</h4>
-                  <button type="button" onClick={() => setCurrentStep(5)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                  <div className="text-slate-600">
-                    <div className="space-y-1">
-                      {assignedStages.map((stage, i) => (
-                        <p key={stage.stage_id}>Stage {i+1}: **{stage.stage_name}** • {stage.stage_type.replace("_", " ")} ({stage.worker_ids?.length || 0} assigned workers)</p>
-                      ))}
+                  {/* Specifications Summary */}
+                  <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-800">
+                        <Settings size={16} className="text-[#6366F1]" />
+                        <h4 className="font-bold uppercase text-[11px] tracking-wider">Lot Specifications</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(3)}
+                        className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="p-4 text-xs space-y-3.5">
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Design Reference Info</span>
+                        <span className="font-medium text-slate-700 leading-relaxed block bg-slate-50 border border-slate-100 p-2 rounded-lg">{designReferenceText || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">Additional Details</span>
+                        <span className="font-medium text-slate-700 leading-relaxed block bg-slate-50 border border-slate-100 p-2 rounded-lg">{additionalDetails || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-1">Custom QA checklist</span>
+                        <span className="font-bold text-slate-600 bg-slate-100 rounded px-2 py-0.5 text-[10px] border border-slate-200">
+                          {customQa.length} items configured
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Design spec sheet summary */}
-                {specSheetTemplate && (
-                  <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2 relative">
-                    <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">6. Design Spec Sheet</h4>
-                    <button type="button" onClick={() => setCurrentStep(6)} className="absolute top-4 right-4 text-xs font-bold text-indigo-600 hover:underline">Edit</button>
-                    <div className="grid grid-cols-2 gap-2 text-slate-600">
-                      {Object.entries(specSheetValues).map(([name, val]) => (
-                        <p key={name}>{name}: **{val || "—"}**</p>
-                      ))}
+                {/* Right Column: Size Quantities & Workflow & Specs */}
+                <div className="space-y-6">
+                  {/* Size Quantities Summary */}
+                  <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-800">
+                        <ClipboardList size={16} className="text-[#6366F1]" />
+                        <h4 className="font-bold uppercase text-[11px] tracking-wider">Production Volume</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(4)}
+                        className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="p-4 text-xs space-y-3">
+                      <div className="flex items-center justify-between bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-0.5">Total Quantity To Produce</span>
+                          <span className="text-sm font-black text-emerald-700">{totalQuantity.toLocaleString("en-IN")} Pieces</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-1.5">Size Breakdown Schema</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {availableSizes.map((sz) => (
+                            <span key={sz} className="px-2.5 py-1 rounded bg-[#F8FAFC] border border-slate-200 text-slate-700 font-bold text-[10px]">
+                              {sz}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Workflow Stages Summary */}
+                  <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-800">
+                        <GitBranch size={16} className="text-[#6366F1]" />
+                        <h4 className="font-bold uppercase text-[11px] tracking-wider">Workflow Routing Stages</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(5)}
+                        className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="p-4 text-xs">
+                      <div className="relative border-l-2 border-indigo-100 pl-4 ml-2.5 space-y-4">
+                        {assignedStages.map((stage, idx) => (
+                          <div key={stage.stage_id} className="relative">
+                            <span className="absolute -left-[23px] top-0.5 w-2.5 h-2.5 rounded-full bg-[#6366F1] border-2 border-white ring-4 ring-indigo-50" />
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <span className="block font-bold text-slate-800">
+                                  {idx + 1}. {stage.stage_name}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  {stage.stage_type === "job_work" ? "Job Work Outsource" : "In-House routing"}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                                {stage.worker_ids?.length || 0} Workers
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Design Spec Sheet Summary */}
+                  {specSheetTemplate && (
+                    <div className="border border-slate-100 rounded-xl bg-slate-50/30 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                        <div className="flex items-center gap-2 text-slate-800">
+                          <Sparkles size={16} className="text-[#6366F1]" />
+                          <h4 className="font-bold uppercase text-[11px] tracking-wider">Garment Spec Parameters</h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(6)}
+                          className="text-[11px] font-bold text-[#6366F1] bg-[#EEF2FF] hover:bg-[#E0E7FF] px-2.5 py-1 rounded-lg transition-all"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <div className="p-4 grid grid-cols-2 gap-3 text-xs bg-slate-50/20">
+                        {Object.entries(specSheetValues).map(([name, val]) => (
+                          <div key={name} className="border border-slate-100 bg-white p-2.5 rounded-lg">
+                            <span className="block text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider mb-0.5">{name}</span>
+                            <span className="font-bold text-[#334155]">{val || "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
               {/* Navigation */}
@@ -1834,6 +2069,139 @@ export default function CreateLotPage() {
           />
         </div>
       </div>
+
+      {/* Inline Create Design Dialog */}
+      <Dialog open={designModalOpen} onOpenChange={setDesignModalOpen}>
+        <DialogContent className="sm:max-w-xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              <BookOpen className="text-[#6366F1]" size={20} />
+              <span>Add New Design Code</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Design Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Slim Fit Denim Jeans"
+                  value={newDesignName}
+                  onChange={(e) => setNewDesignName(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Design Code / Model No.</label>
+                <input
+                  type="text"
+                  placeholder="e.g. DSN-009 (Leave empty for auto-gen)"
+                  value={newDesignCode}
+                  onChange={(e) => setNewDesignCode(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Size Set *</label>
+                <select
+                  value={newDesignSizeSet}
+                  onChange={(e) => setNewDesignSizeSet(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] cursor-pointer"
+                >
+                  {sizeSetsData?.sizeSets?.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.sizes.join(", ")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Colours Config */}
+            <div className="border border-[#E5E7EB] rounded-xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Design Colours</h3>
+                  <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-none">
+                    Configure the shade variations for this design model.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddColourToDraft}
+                  className="h-8 px-2.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={12} /> Add Colour
+                </button>
+              </div>
+
+              {newDesignColours.length === 0 ? (
+                <p className="text-xs text-center py-4 text-[#94A3B8] font-bold">No colours defined yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                  {newDesignColours.map((item, index) => (
+                    <div key={index} className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          placeholder="Colour Name (e.g. Navy Blue)"
+                          value={item.name}
+                          onChange={(e) => handleUpdateDraftColour(index, "name", e.target.value)}
+                          className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={item.hex}
+                          onChange={(e) => handleUpdateDraftColour(index, "hex", e.target.value)}
+                          className="w-9 h-9 rounded-lg border border-[#D1D5DB] cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveColourFromDraft(index)}
+                          className="w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center shrink-0 cursor-pointer"
+                          title="Remove colour"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-[#F1F5F9] flex flex-col sm:flex-row gap-2 justify-end">
+            <button
+              type="button"
+              disabled={newDesignLoading}
+              onClick={handleSaveNewDesign}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all cursor-pointer shadow-md shadow-[#6366F1]/10 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {newDesignLoading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Design"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDesignModalOpen(false)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -54,10 +54,21 @@ interface Godown {
   is_active: boolean;
 }
 
+interface FinishedStockItem {
+  id: string;
+  total_quantity: number;
+  cost_per_piece: number;
+  total_value: number;
+  size_quantities: Record<string, number>;
+  design?: { id: string; name: string; code: string };
+  colour?: { id: string; colour_name: string };
+}
+
 interface GodownDetailResponse {
   godown: Godown;
   stock: StockItem[];
   movements: Movement[];
+  finishedStock: FinishedStockItem[];
 }
 
 export default function GodownDetailPage({ params }: { params: { id: string } }) {
@@ -74,7 +85,9 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
     },
   });
 
-  if (isLoading) {
+  const isDataStale = detailData && detailData.godown.id !== id;
+
+  if (isLoading || isDataStale) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-2">
@@ -101,7 +114,7 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
     );
   }
 
-  const { godown, stock, movements } = detailData;
+  const { godown, stock, movements, finishedStock = [] } = detailData;
 
   // Compute rollups
   const totalStockItems = stock.length;
@@ -256,7 +269,17 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
               : "border-transparent text-[#64748B] hover:text-[#0F172A]"
           }`}
         >
-          Live Inventory ({totalStockItems})
+          Raw Materials Stock ({totalStockItems})
+        </button>
+        <button
+          onClick={() => setActiveTab("finished-stock")}
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === "finished-stock"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-[#64748B] hover:text-[#0F172A]"
+          }`}
+        >
+          Finished Goods Stock ({finishedStock.length})
         </button>
         <button
           onClick={() => setActiveTab("movements")}
@@ -281,6 +304,53 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
       </div>
 
       {/* Tab content */}
+      {activeTab === "finished-stock" && (
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-xs font-bold text-[#475569] uppercase tracking-wider">
+                  <th className="py-3 px-5">Design / Style</th>
+                  <th className="py-3 px-5">Colour</th>
+                  <th className="py-3 px-5 text-right w-44">In Stock Qty</th>
+                  <th className="py-3 px-5 text-right w-44">Cost Per Piece</th>
+                  <th className="py-3 px-5 text-right w-44">Stock Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
+                {finishedStock.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-[#64748B]">
+                      No finished goods stock in this godown yet.
+                    </td>
+                  </tr>
+                ) : (
+                  finishedStock.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#F8FAFC] transition-colors">
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {item.design?.code ? `${item.design.code} - ${item.design.name}` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-xs text-[#475569] font-medium">
+                        {item.colour?.colour_name || "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-[#1E293B]">
+                        {item.total_quantity.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono text-xs text-[#475569]">
+                        ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-[#6366F1]">
+                        ₹{item.total_value ? item.total_value.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {activeTab === "stock" && (
         <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">

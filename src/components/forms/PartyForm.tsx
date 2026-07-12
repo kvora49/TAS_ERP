@@ -116,6 +116,17 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     bank_details: [],
   };
 
+  const sanitizedInitialData = initialData
+    ? Object.keys(initialData).reduce((acc: any, key) => {
+        if (initialData[key] === null) {
+          acc[key] = (key === "contact_numbers" || key === "bank_details") ? [] : "";
+        } else {
+          acc[key] = initialData[key];
+        }
+        return acc;
+      }, {})
+    : null;
+
   const {
     register,
     handleSubmit,
@@ -125,7 +136,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<PartyFormValues>({
     resolver: zodResolver(partySchema) as any,
-    defaultValues: initialData ? { ...defaultValues, ...initialData } : defaultValues,
+    defaultValues: sanitizedInitialData ? { ...defaultValues, ...sanitizedInitialData } : defaultValues,
   });
 
   const { fields, append, remove } = useFieldArray({

@@ -44,9 +44,43 @@ export async function GET(
       .is("deleted_at", null)
       .order("lot_date", { ascending: false });
 
+    // 3. Fetch linked designs
+    const { data: designs } = await supabase
+      .from("designs")
+      .select("id, name, design_number, is_active, created_at")
+      .eq("brand_id", id)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    // 4. Fetch finished stock matching these designs
+    let resolvedStock: any[] = [];
+    if (designs && designs.length > 0) {
+      const designIds = designs.map((d) => d.id);
+      const { data: stockItems } = await supabase
+        .from("finished_stock")
+        .select(`
+          id,
+          total_quantity,
+          cost_per_piece,
+          total_value,
+          size_quantities,
+          godown:godowns(id, name),
+          design:designs(id, name, code:design_number),
+          colour:design_colours(id, colour_name)
+        `)
+        .eq("business_id", businessId)
+        .in("design_id", designIds)
+        .gt("total_quantity", 0);
+
+      resolvedStock = stockItems || [];
+    }
+
     return NextResponse.json({
       brand,
-      lots: lots || []
+      lots: lots || [],
+      designs: designs || [],
+      stock: resolvedStock,
     });
 
   } catch (err: any) {

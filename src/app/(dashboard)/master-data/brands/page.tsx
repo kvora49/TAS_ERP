@@ -70,8 +70,6 @@ export default function BrandsPage() {
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [selectedBrandDetails, setSelectedBrandDetails] = useState<Brand | null>(null);
-
   const [activeTab, setActiveTab] = useState<"general" | "billFormat">("general");
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   
@@ -351,12 +349,9 @@ export default function BrandsPage() {
       header: "Brand Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSelectedBrandDetails(row)}
-            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
-          >
+          <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
             {row.name}
-          </button>
+          </span>
           {row.is_primary && (
             <Badge variant="primary" className="gap-1 flex items-center">
               <Star size={10} className="fill-current" /> Primary
@@ -928,91 +923,6 @@ export default function BrandsPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
-
-      {/* View Brand Details Modal */}
-      <Dialog open={selectedBrandDetails !== null} onOpenChange={(open) => !open && setSelectedBrandDetails(null)}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-[#6366F1]" />
-              Brand Details
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedBrandDetails && (
-            <div className="space-y-4 pt-3 text-sm text-[#374151]">
-              <div className="flex items-center gap-4 border-b border-[#F3F4F6] pb-4">
-                {selectedBrandDetails.logo_url ? (
-                  <img
-                    src={selectedBrandDetails.logo_url}
-                    alt={selectedBrandDetails.name}
-                    className="w-16 h-16 object-contain rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-1.5"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-lg border border-[#E5E7EB] bg-[#F1F5F9] flex items-center justify-center text-xs font-bold text-[#94A3B8] uppercase">
-                    No Logo
-                  </div>
-                )}
-                <div>
-                  <h4 className="text-base font-bold text-[#0F172A]">{selectedBrandDetails.name}</h4>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {selectedBrandDetails.is_primary && (
-                      <Badge variant="primary" className="gap-1 flex items-center text-[10px]">
-                        <Star size={8} className="fill-current" /> Primary
-                      </Badge>
-                    )}
-                    <StatusBadge active={selectedBrandDetails.is_active} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">GSTIN</span>
-                  <span className="font-mono text-xs font-bold">{selectedBrandDetails.gstin || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">State & Code</span>
-                  <span className="font-semibold text-xs text-[#334155]">
-                    {selectedBrandDetails.state || "—"}{" "}
-                    {selectedBrandDetails.state_code ? `(${selectedBrandDetails.state_code})` : ""}
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Address</span>
-                  <span className="font-semibold text-xs text-[#334155]">{selectedBrandDetails.address || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Bill Prefix (Pakka)</span>
-                  <span className="font-mono font-bold text-xs">{selectedBrandDetails.bill_prefix_pakka || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Bill Prefix (Kacha)</span>
-                  <span className="font-mono font-bold text-xs">{selectedBrandDetails.bill_prefix_kacha || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Design Prefix</span>
-                  <span className="font-mono font-bold text-xs">{selectedBrandDetails.design_prefix || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Separator & Digits</span>
-                  <span className="font-mono text-xs font-bold text-[#334155]">
-                    Separator: &quot;{selectedBrandDetails.design_separator}&quot; | Digits: {selectedBrandDetails.design_digits}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="pt-2">
-            <button
-              onClick={() => setSelectedBrandDetails(null)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

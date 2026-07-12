@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, description, is_default } = body;
+    const { name, description, is_default, stages } = body;
 
     if (!name) {
       return NextResponse.json({ error: "Template Name is required" }, { status: 400 });
@@ -65,6 +65,31 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Insert inline stages if provided
+    if (stages && Array.isArray(stages) && stages.length > 0) {
+      const stagesToInsert = stages.map((s: any, idx: number) => ({
+        business_id: businessId,
+        template_id: template.id,
+        name: s.name,
+        description: s.description || null,
+        icon: s.icon || null,
+        color: s.color || "#6366F1",
+        order_index: idx + 1,
+        custom_fields: s.custom_fields || [],
+        is_active: s.is_active !== false,
+      }));
+
+      const { error: stagesError } = await supabase
+        .from("production_stages")
+        .insert(stagesToInsert);
+
+      if (stagesError) {
+        // Rollback template creation to maintain atomicity/consistency
+        await supabase.from("production_templates").delete().eq("id", template.id);
+        return NextResponse.json({ error: stagesError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ template });

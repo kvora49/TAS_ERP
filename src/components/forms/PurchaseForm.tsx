@@ -1208,13 +1208,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                     <NumericInput
                                       placeholder="inch"
                                       className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
-                                      value={watchItems[index]?.rolls?.[rollIndex]?.width ?? ""}
-                                      onChange={(e) => {
-                                        setValue(
-                                          `items.${index}.rolls.${rollIndex}.width` as any,
-                                          e.target.value === "" ? undefined : Number(e.target.value)
-                                        );
-                                      }}
+                                      {...register(`items.${index}.rolls.${rollIndex}.width` as const)}
                                     />
                                   </div>
 
@@ -1234,15 +1228,9 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   <div className="md:col-span-2 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Value</label>
                                     <NumericInput
-                                      placeholder="e.g. 200"
+                                      placeholder="Value"
                                       className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
-                                      value={watchItems[index]?.rolls?.[rollIndex]?.weight_value ?? ""}
-                                      onChange={(e) => {
-                                        setValue(
-                                          `items.${index}.rolls.${rollIndex}.weight_value` as any,
-                                          e.target.value === "" ? undefined : Number(e.target.value)
-                                        );
-                                      }}
+                                      {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
                                     />
                                   </div>
 

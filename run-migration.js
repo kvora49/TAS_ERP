@@ -2,10 +2,10 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const host = 'db.cxekeitxvfkukujselxr.supabase.co';
+const host = 'aws-1-ap-northeast-2.pooler.supabase.com';
 const port = 6543;
-const user = 'postgres';
-const password = 'tas_erp';
+const user = 'postgres.cxekeitxvfkukujselxr';
+const password = 'True_ass_Sniffers@69';
 const database = 'postgres';
 
 async function run() {

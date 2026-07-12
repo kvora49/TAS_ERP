@@ -199,7 +199,9 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
     },
   });
 
-  if (isLoading) {
+  const isDataStale = profileData && profileData.worker && profileData.worker.id !== id;
+
+  if (isLoading || isDataStale) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <span className="text-sm text-[#64748B]">Loading worker profile...</span>

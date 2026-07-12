@@ -132,10 +132,6 @@ export default function LotDetailPage({ params }: LotDetailProps) {
       toast.error("Please select a target godown");
       return;
     }
-    if (confirmDesignCode.trim().toLowerCase() !== lot.design?.code?.trim().toLowerCase()) {
-      toast.error(`Design code mismatch. Please type ${lot.design?.code} to confirm.`);
-      return;
-    }
 
     setMovingToStock(true);
     try {
@@ -143,7 +139,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          design_number: confirmDesignCode,
+          design_number: lot.design?.code,
           godown_id: targetGodownId,
         }),
       });
@@ -163,7 +159,9 @@ export default function LotDetailPage({ params }: LotDetailProps) {
     }
   };
 
-  if (isLoading) {
+  const isDataStale = data && data.lot && data.lot.id !== id;
+
+  if (isLoading || isDataStale) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <span className="text-sm text-[#64748B]">Loading lot details...</span>
@@ -764,7 +762,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
               Move Lot to Finished Stock
             </h3>
             <p className="text-xs text-slate-500 leading-normal">
-              This action will finalize the production lot and add **{totalQty} pieces** of design **{lot.design?.code}** to the selected finished goods godown.
+              This action will finalize the production lot and add <strong className="font-bold text-slate-900">{totalQty} pieces</strong> of design <strong className="font-bold text-slate-900">{lot.design?.code}</strong> to the selected finished goods godown.
             </p>
             
             <div className="space-y-3">
@@ -780,19 +778,6 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase">
-                  Confirm Design Code (Type **{lot.design?.code}**)
-                </label>
-                <input
-                  type="text"
-                  value={confirmDesignCode}
-                  onChange={(e) => setConfirmDesignCode(e.target.value)}
-                  placeholder={lot.design?.code}
-                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
               </div>
             </div>
 

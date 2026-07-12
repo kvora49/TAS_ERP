@@ -143,6 +143,8 @@ export default function PartyDetailPage() {
 
   useEffect(() => {
     async function fetchDetail() {
+      setLoading(true);
+      setData(null);
       try {
         const res = await fetch(`/api/parties/${id}/detail`);
         if (!res.ok) throw new Error("Failed to load party details");

@@ -142,7 +142,6 @@ export default function Sidebar() {
     "/master-data/workers",
     "/master-data/units",
     "/master-data/garment-types",
-    "/master-data/design-spec-templates",
     "/parties",
     "/raw-materials/purchases",
     "/raw-materials/purchase-returns",
@@ -256,7 +255,6 @@ export default function Sidebar() {
         { name: "Banks & UPI", href: "/master-data/banks-upi" },
         { name: "Units", href: "/master-data/units" },
         { name: "Garment Types", href: "/master-data/garment-types" },
-        { name: "Design Spec Templates", href: "/master-data/design-spec-templates" },
       ],
     },
     { name: "Parties", href: "/parties", icon: Users },
@@ -264,6 +262,7 @@ export default function Sidebar() {
       name: "Raw Materials",
       icon: Package,
       subItems: [
+        { name: "Material Types", href: "/master-data/raw-materials" },
         { name: "Purchases", href: "/raw-materials/purchases" },
         { name: "Purchase Returns", href: "/raw-materials/purchase-returns" },
         { name: "Purchase Stock", href: "/raw-materials/stock" },
