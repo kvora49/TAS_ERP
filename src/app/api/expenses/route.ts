@@ -47,7 +47,7 @@ export async function GET(request: Request) {
         vendor_invoice_no,
         notes,
         expense_type:expense_types(id, name),
-        bank_account:bank_accounts(id, account_name)
+        bank_account:bank_accounts!paid_from_account_id(id, account_name:name)
       `)
       .eq("business_id", businessId)
       .order("expense_date", { ascending: false });

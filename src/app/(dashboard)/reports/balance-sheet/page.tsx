@@ -50,7 +50,29 @@ export default function BalanceSheetPage() {
 
         <FinancialYearDateFilters onApply={handleApply} onClear={() => { setFrom(`${currentYear}-04-01`); setTo(new Date().toISOString().split("T")[0]); }} />
 
-        {data && (
+        {isLoading ? (
+          <div className="space-y-4 animate-pulse pt-2">
+            <div className="h-12 bg-slate-100 rounded-xl border border-slate-200" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-6">
+                <div className="h-8 bg-slate-100 rounded-lg w-1/2" />
+                <div className="space-y-4">
+                  <div className="h-6 bg-slate-50 rounded-lg" />
+                  <div className="h-6 bg-slate-55 rounded-lg" />
+                  <div className="h-6 bg-slate-50 rounded-lg" />
+                </div>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-6">
+                <div className="h-8 bg-slate-100 rounded-lg w-1/2" />
+                <div className="space-y-4">
+                  <div className="h-6 bg-slate-50 rounded-lg" />
+                  <div className="h-6 bg-slate-55 rounded-lg" />
+                  <div className="h-6 bg-slate-50 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : data && (
           <div className="space-y-4">
             {/* Balance check */}
             <div className={`rounded-xl p-4 border text-sm font-bold flex items-center gap-2 ${

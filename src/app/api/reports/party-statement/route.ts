@@ -23,9 +23,10 @@ export async function GET(request: Request) {
     const { data: party } = await supabase.from("parties").select("id, name, company_name, type, phone")
       .eq("id", partyId).eq("business_id", businessId).single();
 
-    // Fetch ledger via existing endpoint
+    // Fetch ledger via existing endpoint dynamically derived from request URL
+    const origin = new URL(request.url).origin;
     const ledgerRes = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/parties/${partyId}/ledger?from=${fromDate}&to=${toDate}`,
+      `${origin}/api/parties/${partyId}/ledger?from=${fromDate}&to=${toDate}`,
       { headers: { cookie: request.headers.get("cookie") || "" } }
     );
     const ledgerData = await ledgerRes.json();

@@ -471,13 +471,19 @@ export default function Sidebar() {
           const isExpandable = !!item.subItems;
           const isMenuOpen = expandedMenus[item.name];
           
+          const isPathActive = (href?: string) => {
+            if (!href) return false;
+            if (href === "/") return pathname === "/";
+            return pathname.startsWith(href);
+          };
+
           const isItemActive = item.href
-            ? pathname === item.href || navigatingTo === item.href
+            ? isPathActive(item.href) || navigatingTo === item.href
             : item.subItems?.some(
                 (s) =>
-                  pathname === s.href ||
+                  isPathActive(s.href) ||
                   navigatingTo === s.href ||
-                  s.subItems?.some((ss) => pathname === ss.href || navigatingTo === ss.href)
+                  s.subItems?.some((ss) => isPathActive(ss.href) || navigatingTo === ss.href)
               );
 
           return (
@@ -512,7 +518,7 @@ export default function Sidebar() {
                   onMouseEnter={() => handlePrefetch(item.href)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
-                    pathname === item.href || navigatingTo === item.href
+                    isPathActive(item.href) || navigatingTo === item.href
                       ? "bg-[#312E81] text-white"
                       : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
                   )}
@@ -533,8 +539,8 @@ export default function Sidebar() {
                     const hasSubSub = !!sub.subItems;
                     const isSubSubOpen = expandedMenus[sub.name];
                     const isSubActive = sub.href
-                      ? pathname === sub.href || navigatingTo === sub.href
-                      : sub.subItems?.some((ss) => pathname === ss.href || navigatingTo === ss.href);
+                      ? isPathActive(sub.href) || navigatingTo === sub.href
+                      : sub.subItems?.some((ss) => isPathActive(ss.href) || navigatingTo === ss.href);
 
                     if (hasSubSub) {
                       return (
@@ -556,7 +562,7 @@ export default function Sidebar() {
                           {isSubSubOpen && (
                             <div className="pl-3 space-y-1 mt-1">
                               {sub.subItems?.map((subSub, ssIdx) => {
-                                const isSubSubActive = pathname === subSub.href || navigatingTo === subSub.href;
+                                const isSubSubActive = isPathActive(subSub.href) || navigatingTo === subSub.href;
                                 return (
                                   <Link
                                     key={ssIdx}

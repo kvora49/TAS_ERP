@@ -397,17 +397,17 @@ export default function ExpensesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-4 bg-slate-50 border-t border-slate-100">
-                <Button
-                  variant="outline"
+              <div className="flex items-center justify-end gap-3 px-5 py-4 bg-white border-t border-slate-100">
+                <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="h-9 text-xs font-bold border-gray-300 text-slate-700 hover:bg-white"
+                  className="px-4 h-9 text-xs font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC] transition-all"
                 >
                   Cancel
-                </Button>
+                </button>
                 <AsyncButton
                   onClick={handleSubmit}
-                  className="h-9 text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white"
+                  className="px-4 h-9 text-xs font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/10 flex items-center gap-2 disabled:opacity-50"
                 >
                   Record Expense
                 </AsyncButton>

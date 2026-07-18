@@ -194,14 +194,14 @@ export default function MakePaymentPage() {
             <Button
               variant="outline"
               onClick={() => router.back()}
-              className="flex items-center gap-1.5 text-xs font-bold border-gray-300 text-slate-700 hover:bg-white h-9.5 rounded-lg px-4"
+              className="flex items-center gap-1.5 text-xs font-bold border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC] h-9 rounded-lg px-4"
             >
               <X className="h-4 w-4" />
               Cancel
             </Button>
             <AsyncButton
               onClick={handleSave}
-              className="flex items-center gap-1.5 text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white h-9.5 rounded-lg px-4 shadow-[var(--shadow-sm)]"
+              className="flex items-center gap-1.5 text-xs font-bold bg-[#6366F1] hover:bg-[#4F46E5] text-white h-9 rounded-lg px-4 shadow-md shadow-[#6366F1]/20"
             >
               <Save className="h-4 w-4" />
               Save & Record
@@ -393,31 +393,31 @@ export default function MakePaymentPage() {
 
         {/* Payment Summary card */}
         <div className="flex justify-end pt-4">
-          <div className="bg-slate-900 text-white border border-slate-800 rounded-xl p-5 shadow-lg w-full max-w-sm space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-800 pb-2">
+          <div className="bg-white text-slate-800 border border-gray-200 rounded-xl p-5 shadow-sm w-full max-w-sm space-y-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 border-b border-gray-100 pb-2">
               Payment Outflow Summary
             </h3>
             <div className="space-y-2 text-xs font-semibold">
               <div className="flex justify-between">
-                <span className="text-slate-400">Total Outflow:</span>
-                <span className="text-sm font-extrabold">₹{amountPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-slate-500">Total Outflow:</span>
+                <span className="text-sm font-extrabold text-slate-900">₹{amountPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Allocated to Items:</span>
-                <span className="text-sm font-bold text-green-400">₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-slate-500">Allocated to Items:</span>
+                <span className="text-sm font-bold text-emerald-600">₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">To Advance Outflow:</span>
-                <span className="text-sm font-bold text-blue-400">₹{unallocatedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-slate-500">To Advance Outflow:</span>
+                <span className="text-sm font-bold text-blue-600">₹{unallocatedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="border-t border-slate-800 pt-2 flex justify-between">
-                <span className="text-slate-400">Mode:</span>
-                <span className="uppercase text-[11px] font-bold text-amber-400">{paymentMode.replace(/_/g, " ")}</span>
+              <div className="border-t border-gray-100 pt-2 flex justify-between">
+                <span className="text-slate-500">Mode:</span>
+                <span className="uppercase text-[11px] font-bold text-amber-600">{paymentMode.replace(/_/g, " ")}</span>
               </div>
               {paymentMode !== "cash" && bankAccountId && (
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Source Bank:</span>
-                  <span className="truncate max-w-[180px]">
+                  <span className="text-slate-500">Source Bank:</span>
+                  <span className="truncate max-w-[180px] text-slate-700">
                     {bankAccounts.find((b) => b.id === bankAccountId)?.account_name || "—"}
                   </span>
                 </div>

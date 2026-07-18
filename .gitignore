@@ -67,3 +67,7 @@ yarn-error.log*
 /test-workers-sql.js
 /test-workers-table.js
 /user_request_phase4.md
+
+# Archives and Serena settings
+*.zip
+.serena/

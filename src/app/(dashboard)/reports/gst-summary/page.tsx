@@ -45,7 +45,18 @@ export default function GSTSummaryPage() {
 
         <FinancialYearDateFilters onApply={handleApply} onClear={() => { setFrom(`${currentYear}-04-01`); setTo(new Date().toISOString().split("T")[0]); }} />
 
-        {data && (
+        {isLoading ? (
+          <div className="space-y-4 animate-pulse pt-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4 h-16" />
+              <div className="bg-white border border-gray-200 rounded-xl p-4 h-16" />
+              <div className="bg-white border border-gray-200 rounded-xl p-4 h-16" />
+              <div className="bg-white border border-gray-200 rounded-xl p-4 h-16" />
+              <div className="bg-white border border-gray-200 rounded-xl p-4 h-16" />
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 h-64" />
+          </div>
+        ) : data && (
           <div className="space-y-4">
             {/* GST KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

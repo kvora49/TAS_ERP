@@ -43,8 +43,8 @@ export async function GET(request: Request) {
         income_date,
         amount,
         notes,
-        bank_account:bank_accounts(id, account_name),
-        party:parties(id, name)
+        bank_account:bank_accounts!received_in_account_id(id, account_name:name),
+        party:parties!party_id(id, name)
       `)
       .eq("business_id", businessId)
       .order("income_date", { ascending: false });

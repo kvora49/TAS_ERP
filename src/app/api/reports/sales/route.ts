@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       supabase
         .from("sale_bills")
         .select(`
-          id, bill_number, bill_date, grand_total, gst_amount, outstanding_amount,
+          id, bill_number, bill_date, grand_total, cgst, sgst, igst, paid_amount,
           payment_status, party:parties(id, name, company_name)
         `)
         .eq("business_id", businessId)
@@ -36,7 +36,16 @@ export async function GET(request: Request) {
         .lte("bill_date", to),
     ]);
 
-    const bills = billsResult.data || [];
+    const rawBills = billsResult.data || [];
+    const bills = rawBills.map((b: any) => {
+      const gst = Number(b.cgst || 0) + Number(b.sgst || 0) + Number(b.igst || 0);
+      const outstanding = Number(b.grand_total || 0) - Number(b.paid_amount || 0);
+      return {
+        ...b,
+        gst_amount: gst,
+        outstanding_amount: outstanding,
+      };
+    });
 
     const totalRevenue = bills.reduce((s: number, b: any) => s + Number(b.grand_total), 0);
     const totalGST = bills.reduce((s: number, b: any) => s + Number(b.gst_amount || 0), 0);

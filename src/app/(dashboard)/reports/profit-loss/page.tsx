@@ -44,7 +44,23 @@ export default function ProfitLossPage() {
 
         <FinancialYearDateFilters onApply={handleApply} onClear={() => { setFrom(`${currentYear}-04-01`); setTo(new Date().toISOString().split("T")[0]); }} />
 
-        {data && (
+        {isLoading ? (
+          <div className="space-y-4 animate-pulse pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-5 h-20" />
+              <div className="bg-white border border-gray-200 rounded-xl p-5 h-20" />
+              <div className="bg-white border border-gray-200 rounded-xl p-5 h-20" />
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+              <div className="h-6 bg-slate-100 rounded-lg w-1/4" />
+              <div className="space-y-3">
+                <div className="h-5 bg-slate-50 rounded" />
+                <div className="h-5 bg-slate-50 rounded" />
+                <div className="h-5 bg-slate-50 rounded" />
+              </div>
+            </div>
+          </div>
+        ) : data && (
           <div className="space-y-4">
             {/* Summary KPI Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
