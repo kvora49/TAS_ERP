@@ -1203,7 +1203,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   </div>
 
                                   {/* Width */}
-                                  <div className="md:col-span-1 space-y-1">
+                                  <div className="md:col-span-2 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Width</label>
                                     <NumericInput
                                       placeholder="inch"
@@ -1213,7 +1213,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   </div>
 
                                   {/* Weight Unit */}
-                                  <div className="md:col-span-2 space-y-1">
+                                  <div className="md:col-span-1.5 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Unit</label>
                                     <select
                                       className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs"
@@ -1225,7 +1225,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   </div>
 
                                   {/* Weight Value */}
-                                  <div className="md:col-span-2 space-y-1">
+                                  <div className="md:col-span-1.5 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Value</label>
                                     <NumericInput
                                       placeholder="Value"
@@ -1358,10 +1358,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 const currentUrls = watch("attachments") || [];
                 const newUrls = [...currentUrls];
                 for (const file of files) {
-                  const url = await upload(file);
-                  if (url) {
+                  const result = await upload(file);
+                  if (result.success) {
                     newFiles.push(file);
-                    newUrls.push(url);
+                    newUrls.push(result.url);
+                  } else {
+                    toast.error(result.error);
                   }
                 }
                 setSelectedFiles(newFiles);

@@ -77,10 +77,9 @@ export default function NewAdjustmentPage() {
   // Load masters on mount
   useEffect(() => {
     // 1. Fetch godowns
-    fetch("/api/raw-materials/stock?view=summary") // reuse stock endpoint to get active godowns or fetch /api/master-data/godowns
+    fetch("/api/master-data/godowns")
       .then((res) => res.json())
       .then((data) => {
-        // Fallback godowns
         if (data.godowns) {
           setGodowns(data.godowns);
         } else {

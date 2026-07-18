@@ -25,27 +25,31 @@ export function createClient() {
   );
 }
 
-const businessIdCache = new Map<string, string>();
+import { headers } from "next/headers";
 
 export async function getSessionBusinessId(): Promise<string | null> {
+  // 1. Try to read the forwarded business ID from headers (middleware)
+  try {
+    const headerBusinessId = headers().get("x-business-id");
+    if (headerBusinessId) {
+      return headerBusinessId;
+    }
+  } catch (error) {
+    // headers() may throw when called from static generation or non-request contexts
+  }
+
+  // 2. Fallback to resolving from session cookie and database
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) return null;
 
-  let businessId = businessIdCache.get(user.id);
-  if (!businessId) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("business_id")
-      .eq("id", user.id)
-      .is("deleted_at", null)
-      .single();
-    if (profile?.business_id) {
-      const bId: string = profile.business_id;
-      businessIdCache.set(user.id, bId);
-      businessId = bId;
-    }
-  }
-  return businessId || null;
+  const { data: profile } = await supabase
+    .from("users")
+    .select("business_id")
+    .eq("id", user.id)
+    .is("deleted_at", null)
+    .single();
+    
+  return profile?.business_id || null;
 }

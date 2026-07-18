@@ -1559,7 +1559,7 @@ export default function CreateLotPage() {
                         <th className="py-2.5 px-4 w-12 text-center">Order</th>
                         <th className="py-2.5 px-4">Stage Name</th>
                         <th className="py-2.5 px-4">Stage Type</th>
-                        <th className="py-2.5 px-4">Assigned Workers (Specialists)</th>
+                        <th className="py-2.5 px-4 min-w-[280px]">Assigned Workers (Specialists)</th>
                         <th className="py-2.5 px-4 text-center">Actions</th>
                       </tr>
                     </thead>
@@ -1622,7 +1622,7 @@ export default function CreateLotPage() {
                                 {stage.stage_type.replace("_", " ")}
                               </span>
                             </td>
-                            <td className="py-2.5 px-4 space-y-2">
+                            <td className="py-2.5 px-4 space-y-2 min-w-[280px]">
                               {/* Worker multi-selection dropdown */}
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <select
@@ -1630,7 +1630,7 @@ export default function CreateLotPage() {
                                     handleAddWorkerToStage(index, e.target.value);
                                     e.target.value = "";
                                   }}
-                                  className="h-8 text-[11px] rounded border border-slate-200 bg-white px-2 focus:ring-1 focus:ring-[#6366F1]"
+                                  className="h-8 text-[11px] rounded border border-slate-200 bg-white px-2 focus:ring-1 focus:ring-[#6366F1] w-40 min-w-[130px] shrink-0"
                                 >
                                   <option value="">+ Assign Worker</option>
                                   {specialists.map((w) => (
@@ -2086,6 +2086,24 @@ export default function CreateLotPage() {
             designImage={selectedDesign?.images?.[0]}
             items={summaryItems}
           />
+
+          {/* Lot Production Remarks card */}
+          <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b border-[#F3F4F6] pb-2 text-slate-800">
+              <FileText size={15} className="text-[#6366F1]" />
+              <h4 className="font-bold uppercase text-[10px] tracking-wider">Lot Production Remarks</h4>
+            </div>
+            <div className="space-y-1.5 text-xs">
+              <label className="block text-[9px] uppercase font-bold text-[#64748B] tracking-wider">Remarks / Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add production instructions or lot remarks..."
+                rows={4}
+                className="w-full p-2.5 bg-white border border-[#E5E7EB] rounded-lg text-xs focus:ring-1 focus:ring-[#6366F1] outline-none resize-none font-medium"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

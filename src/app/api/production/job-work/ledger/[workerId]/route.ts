@@ -27,23 +27,35 @@ export async function GET(
     }
 
     // 2. Fetch all stage entries completed by this worker
-    const { data: stageEntries } = await supabase
+    const { data: rawStageEntries, error: entriesError } = await supabase
       .from("stage_entries")
-      .select(`
-        id,
-        entry_date,
-        entry_number,
-        qty_out,
-        job_work_rate,
-        total_job_work_amount,
-        payment_status,
-        lot_id,
-        lot:production_lots(lot_number),
-        stage:lot_production_stages(stage_name)
-      `)
+      .select("*")
       .eq("worker_id", workerId)
       .eq("business_id", businessId)
       .order("entry_date", { ascending: true });
+
+    let stageEntries: any[] = [];
+    if (!entriesError && rawStageEntries && rawStageEntries.length > 0) {
+      const lotIds = rawStageEntries.map((e) => e.lot_id).filter(Boolean);
+      const stageIds = rawStageEntries.map((e) => e.lot_stage_id).filter(Boolean);
+
+      const { data: lotsList } = lotIds.length > 0
+        ? await supabase.from("production_lots").select("id, lot_number").in("id", lotIds)
+        : { data: [] };
+
+      const { data: stagesList } = stageIds.length > 0
+        ? await supabase.from("lot_production_stages").select("id, stage_name").in("id", stageIds)
+        : { data: [] };
+
+      const lotsMap = new Map((lotsList || []).map((l) => [l.id, l]));
+      const stagesMap = new Map((stagesList || []).map((s) => [s.id, s]));
+
+      stageEntries = rawStageEntries.map((e) => ({
+        ...e,
+        lot: e.lot_id ? lotsMap.get(e.lot_id) : null,
+        stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
+      }));
+    }
 
     // 3. Fetch all payments recorded for this worker
     const { data: payments } = await supabase

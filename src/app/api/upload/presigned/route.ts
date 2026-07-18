@@ -25,6 +25,43 @@ export async function POST(req: Request) {
       );
     }
 
+    // Server-side validation of folder and contentType
+    const allowedFolders = ["worker-docs", "cheque-images", "attachments"];
+    const allowedTypes: Record<string, string[]> = {
+      "worker-docs": ["application/pdf", "image/jpeg", "image/png"],
+      "cheque-images": ["image/jpeg", "image/png"],
+      "attachments": ["application/pdf", "image/jpeg", "image/png"]
+    };
+
+    if (!allowedFolders.includes(folder)) {
+      return NextResponse.json(
+        { error: "Invalid upload directory" },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedTypes[folder].includes(contentType)) {
+      return NextResponse.json(
+        { error: `File type not allowed for ${folder}` },
+        { status: 400 }
+      );
+    }
+
+    const fileExt = filename.split(".").pop()?.toLowerCase();
+    const safeExtensions: Record<string, string[]> = {
+      "application/pdf": ["pdf"],
+      "image/jpeg": ["jpg", "jpeg"],
+      "image/png": ["png"]
+    };
+
+    const allowedExts = safeExtensions[contentType];
+    if (!allowedExts || !fileExt || !allowedExts.includes(fileExt)) {
+      return NextResponse.json(
+        { error: "File extension does not match content type" },
+        { status: 400 }
+      );
+    }
+
     // 2. Initialize S3 client for Cloudflare R2
     const s3 = new S3Client({
       region: "auto",
@@ -35,7 +72,6 @@ export async function POST(req: Request) {
       },
     });
 
-    const fileExt = filename.split(".").pop();
     const cleanFileName = `${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 9)}.${fileExt}`;

@@ -50,16 +50,46 @@ export async function GET(
       .order("sequence_no", { ascending: true });
 
     // 4. Fetch Stage Entries completed for this lot
-    const { data: stageEntries } = await supabase
+    const { data: rawStageEntries, error: entriesError } = await supabase
       .from("stage_entries")
-      .select(`
-        *,
-        worker:workers(id, name, worker_id),
-        stage:lot_production_stages(id, stage_name)
-      `)
+      .select("*")
       .eq("lot_id", id)
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
+
+    let stageEntries: any[] = [];
+    if (!entriesError && rawStageEntries && rawStageEntries.length > 0) {
+      const workerIds = rawStageEntries.map((e) => e.worker_id).filter(Boolean);
+      const stageIds = rawStageEntries.map((e) => e.lot_stage_id).filter(Boolean);
+
+      const workersMap = new Map();
+      if (workerIds.length > 0) {
+        const { data: workersList } = await supabase
+          .from("workers")
+          .select("id, name, worker_id")
+          .in("id", workerIds);
+        if (workersList) {
+          workersList.forEach((w) => workersMap.set(w.id, w));
+        }
+      }
+
+      const stagesMap = new Map();
+      if (stageIds.length > 0) {
+        const { data: stagesList } = await supabase
+          .from("lot_production_stages")
+          .select("id, stage_name")
+          .in("id", stageIds);
+        if (stagesList) {
+          stagesList.forEach((s) => stagesMap.set(s.id, s));
+        }
+      }
+
+      stageEntries = rawStageEntries.map((e) => ({
+        ...e,
+        worker: e.worker_id ? workersMap.get(e.worker_id) : null,
+        stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
+      }));
+    }
 
     // Extract first image as image_url
     const imageUrl = lot.design && Array.isArray((lot.design as any).images) && (lot.design as any).images.length > 0
@@ -75,21 +105,57 @@ export async function GET(
     };
 
     // 5. Fetch Lot Rolls
-    const { data: lotRolls } = await supabase
+    const { data: rawLotRolls, error: lrError } = await supabase
       .from("lot_rolls")
-      .select(`
-        *,
-        purchase_roll:purchase_rolls (
-          roll_number,
-          shade,
-          item:raw_material_purchase_items (
-            rate,
-            material_type:raw_material_types (name, unit)
-          )
-        )
-      `)
+      .select("*")
       .eq("lot_id", id)
       .eq("business_id", businessId);
+
+    let lotRolls: any[] = [];
+    if (!lrError && rawLotRolls && rawLotRolls.length > 0) {
+      const rollIds = rawLotRolls.map((r) => r.purchase_roll_id).filter(Boolean);
+      if (rollIds.length > 0) {
+        const { data: rolls } = await supabase
+          .from("purchase_rolls")
+          .select("*")
+          .in("id", rollIds);
+
+        const itemIds = rolls?.map((r) => r.purchase_item_id).filter(Boolean) || [];
+        const { data: items } = itemIds.length > 0
+          ? await supabase
+              .from("raw_material_purchase_items")
+              .select("*")
+              .in("id", itemIds)
+          : { data: [] };
+
+        const typeIds = items?.map((i) => i.material_type_id).filter(Boolean) || [];
+        const { data: types } = typeIds.length > 0
+          ? await supabase
+              .from("raw_material_types")
+              .select("id, name, unit")
+              .in("id", typeIds)
+          : { data: [] };
+
+        const typesMap = new Map((types || []).map((t) => [t.id, t]));
+        const itemsMap = new Map(
+          (items || []).map((i) => [
+            i.id,
+            { ...i, material_type: i.material_type_id ? typesMap.get(i.material_type_id) : null },
+          ])
+        );
+        const rollsMap = new Map(
+          (rolls || []).map((r) => [
+            r.id,
+            { ...r, item: r.purchase_item_id ? itemsMap.get(r.purchase_item_id) : null },
+          ])
+        );
+
+        lotRolls = rawLotRolls.map((r) => ({
+          ...r,
+          purchase_roll: r.purchase_roll_id ? rollsMap.get(r.purchase_roll_id) : null,
+        }));
+      }
+    }
 
     // 6. Fetch Lot Specifications
     const { data: specifications } = await supabase
@@ -123,10 +189,28 @@ export async function GET(
           .eq("business_id", businessId)
       : { data: [] };
 
+    // Map stageWorkers into stages
+    const stageWorkersMap = new Map();
+    if (stageWorkers && stageWorkers.length > 0) {
+      stageWorkers.forEach((sw: any) => {
+        if (!stageWorkersMap.has(sw.lot_stage_id)) {
+          stageWorkersMap.set(sw.lot_stage_id, []);
+        }
+        if (sw.worker) {
+          stageWorkersMap.get(sw.lot_stage_id).push(sw.worker);
+        }
+      });
+    }
+
+    const stagesWithWorkers = (stages || []).map((s: any) => ({
+      ...s,
+      workers: stageWorkersMap.get(s.id) || [],
+    }));
+
     return NextResponse.json({
       lot: lotWithImageUrl,
       sizes: sizeQuantities || [],
-      stages: stages || [],
+      stages: stagesWithWorkers || [],
       stageEntries: stageEntries || [],
       lotRolls: lotRolls || [],
       specifications: specifications || null,

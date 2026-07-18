@@ -20,12 +20,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from("stage_entries")
-      .select(`
-        *,
-        lot:production_lots(id, lot_number, design:designs(code:design_number, name)),
-        stage:lot_production_stages(id, stage_name),
-        worker:workers(id, name, worker_id)
-      `)
+      .select("*")
       .eq("business_id", businessId)
       .not("worker_id", "is", null) // only entries with workers
       .order("entry_date", { ascending: false });
@@ -51,13 +46,56 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Fetch related tables separately
+    const lotIds = entries.map((e) => e.lot_id).filter(Boolean);
+    const stageIds = entries.map((e) => e.lot_stage_id).filter(Boolean);
+    const workerIds = entries.map((e) => e.worker_id).filter(Boolean);
+
+    const { data: lotsList } = lotIds.length > 0 ? await supabase
+      .from("production_lots")
+      .select("id, lot_number, design_id")
+      .in("id", lotIds) : { data: [] };
+
+    const { data: stagesList } = stageIds.length > 0 ? await supabase
+      .from("lot_production_stages")
+      .select("id, stage_name")
+      .in("id", stageIds) : { data: [] };
+
+    const { data: workersList } = workerIds.length > 0 ? await supabase
+      .from("workers")
+      .select("id, name, worker_id")
+      .in("id", workerIds) : { data: [] };
+
+    const designIds = lotsList?.map((l) => l.design_id).filter(Boolean) || [];
+    const { data: designsList } = designIds.length > 0 ? await supabase
+      .from("designs")
+      .select("id, name, design_number")
+      .in("id", designIds) : { data: [] };
+
+    // Combine in-memory
+    const designsMap = new Map((designsList || []).map((d) => [d.id, { code: d.design_number, name: d.name }]));
+    const lotsMap = new Map((lotsList || []).map((l) => [l.id, {
+      id: l.id,
+      lot_number: l.lot_number,
+      design: l.design_id ? designsMap.get(l.design_id) : null
+    }]));
+    const stagesMap = new Map((stagesList || []).map((s) => [s.id, s]));
+    const workersMap = new Map((workersList || []).map((w) => [w.id, w]));
+
+    const mappedEntries = entries.map((e) => ({
+      ...e,
+      lot: e.lot_id ? lotsMap.get(e.lot_id) : null,
+      stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
+      worker: e.worker_id ? workersMap.get(e.worker_id) : null,
+    }));
+
     // In-memory filter for stage name and search
-    let filtered = entries || [];
-    if (stageId && stageId !== "all" && entries) {
-      filtered = entries.filter((e: any) => e.stage?.stage_name === stageId);
+    let filtered = mappedEntries;
+    if (stageId && stageId !== "all") {
+      filtered = mappedEntries.filter((e: any) => e.stage?.stage_name === stageId);
     }
 
-    if (search && entries) {
+    if (search) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(
         (e: any) =>

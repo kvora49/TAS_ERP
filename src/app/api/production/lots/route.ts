@@ -16,6 +16,9 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "10", 10);
+  const offset = (page - 1) * limit;
 
   try {
     let query = supabase
@@ -48,7 +51,6 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      // Since design details are nested, we can search lot_number or join designs
       query = query.or(`lot_number.ilike.%${search}%,notes.ilike.%${search}%`);
     }
 
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // If search is active, we can also filter in-memory if the search hits design code or name
+    // Filter in-memory if the search hits design code or name
     let filteredLots = lots || [];
     if (search && lots) {
       const searchLower = search.toLowerCase();
@@ -69,8 +71,11 @@ export async function GET(request: Request) {
       );
     }
 
+    const total = filteredLots.length;
+    const paginatedLots = filteredLots.slice(offset, offset + limit);
+
     // For each lot, load its size quantities
-    const lotIds = filteredLots.map((l) => l.id);
+    const lotIds = paginatedLots.map((l) => l.id);
     let sizeQuantities: any[] = [];
     if (lotIds.length > 0) {
       const { data: sqData } = await supabase
@@ -81,7 +86,7 @@ export async function GET(request: Request) {
       sizeQuantities = sqData || [];
     }
 
-    const lotsWithSizes = filteredLots.map((lot) => {
+    const lotsWithSizes = paginatedLots.map((lot) => {
       const sizes = sizeQuantities.filter((sq) => sq.lot_id === lot.id);
       return {
         ...lot,
@@ -89,7 +94,14 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ lots: lotsWithSizes });
+    return NextResponse.json({
+      data: lotsWithSizes,
+      meta: {
+        page,
+        limit,
+        total
+      }
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -143,6 +155,51 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if lot_number already exists
+    let finalLotNumber = lot_number;
+    let isUnique = false;
+    let increment = 0;
+
+    while (!isUnique && increment < 100) {
+      const { data: check } = await supabase
+        .from("production_lots")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("lot_number", finalLotNumber)
+        .maybeSingle();
+
+      if (!check) {
+        isUnique = true;
+      } else {
+        const now = new Date();
+        const yy = String(now.getFullYear()).substring(2);
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const prefix = `LOT-${yy}-${mm}`;
+
+        const { data: lots } = await supabase
+          .from("production_lots")
+          .select("lot_number")
+          .eq("business_id", businessId)
+          .like("lot_number", `${prefix}-%`);
+
+        let nextNum = 1;
+        if (lots && lots.length > 0) {
+          const nums = lots.map((l) => {
+            if (!l.lot_number) return 0;
+            const numPart = l.lot_number.substring(prefix.length + 1);
+            const parsed = parseInt(numPart, 10);
+            return isNaN(parsed) ? 0 : parsed;
+          });
+          const maxNum = Math.max(...nums, 0);
+          nextNum = maxNum + 1 + increment;
+        } else {
+          nextNum = 1 + increment;
+        }
+        finalLotNumber = `${prefix}-${String(nextNum).padStart(3, "0")}`;
+        increment++;
+      }
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id || null;
 
@@ -151,7 +208,7 @@ export async function POST(request: Request) {
       .from("production_lots")
       .insert({
         business_id: businessId,
-        lot_number,
+        lot_number: finalLotNumber.toLowerCase(),
         brand_id,
         design_id,
         colour_id: colour_id || null,
@@ -181,6 +238,15 @@ export async function POST(request: Request) {
 
     if (lotError) {
       return NextResponse.json({ error: lotError.message }, { status: 400 });
+    }
+
+    // Force update the lot_number to finalLotNumber to override trigger behavior
+    if (lot && lot.lot_number !== finalLotNumber) {
+      await supabase
+        .from("production_lots")
+        .update({ lot_number: finalLotNumber })
+        .eq("id", lot.id);
+      lot.lot_number = finalLotNumber;
     }
 
     // 2. Insert size quantities

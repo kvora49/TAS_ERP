@@ -312,7 +312,7 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
                   designs.map((d) => (
                     <tr
                       key={d.id}
-                      onClick={() => router.push(`/master-data/designs/${d.id}`)}
+                      onClick={() => router.push(`/finished-stock/designs/${d.id}`)}
                       className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                     >
                       <td className="py-3.5 px-5 font-mono text-xs font-bold text-[#6366F1]">
@@ -369,7 +369,8 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
                   stock.map((item) => (
                     <tr
                       key={item.id}
-                      className="hover:bg-[#F8FAFC] transition-colors"
+                      onClick={() => item.design?.id && router.push(`/finished-stock/designs/${item.design.id}`)}
+                      className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                     >
                       <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
                         {item.design?.code ? `${item.design.code} - ${item.design.name}` : "—"}

@@ -18,12 +18,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from("stage_entries")
-      .select(`
-        *,
-        lot:production_lots(id, lot_number, total_quantity, lot_name),
-        stage:lot_production_stages(id, stage_name, sequence_no),
-        worker:workers(id, name, worker_id)
-      `)
+      .select("*")
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
 
@@ -57,7 +52,37 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ entries: entries || [] });
+    let mappedEntries: any[] = [];
+    if (entries && entries.length > 0) {
+      const lotIds = entries.map((e) => e.lot_id).filter(Boolean);
+      const stageIds = entries.map((e) => e.lot_stage_id).filter(Boolean);
+      const workerIds = entries.map((e) => e.worker_id).filter(Boolean);
+
+      const { data: lotsList } = lotIds.length > 0
+        ? await supabase.from("production_lots").select("id, lot_number, total_quantity, lot_name").in("id", lotIds)
+        : { data: [] };
+
+      const { data: stagesList } = stageIds.length > 0
+        ? await supabase.from("lot_production_stages").select("id, stage_name, sequence_no").in("id", stageIds)
+        : { data: [] };
+
+      const { data: workersList } = workerIds.length > 0
+        ? await supabase.from("workers").select("id, name, worker_id").in("id", workerIds)
+        : { data: [] };
+
+      const lotsMap = new Map((lotsList || []).map((l) => [l.id, l]));
+      const stagesMap = new Map((stagesList || []).map((s) => [s.id, s]));
+      const workersMap = new Map((workersList || []).map((w) => [w.id, w]));
+
+      mappedEntries = entries.map((e) => ({
+        ...e,
+        lot: e.lot_id ? lotsMap.get(e.lot_id) : null,
+        stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
+        worker: e.worker_id ? workersMap.get(e.worker_id) : null,
+      }));
+    }
+
+    return NextResponse.json({ entries: mappedEntries });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

@@ -45,10 +45,12 @@ export function ImageUpload({
       return;
     }
 
-    const uploadedUrl = await upload(file);
-    if (uploadedUrl) {
-      onChange(uploadedUrl);
+    const result = await upload(file);
+    if (result.success) {
+      onChange(result.url);
       toast.success("Image uploaded successfully");
+    } else {
+      toast.error(result.error);
     }
   };
 

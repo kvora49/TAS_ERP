@@ -1,16 +1,20 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { API_ENDPOINTS } from "@/lib/constants";
+
+export type UploadResult = 
+  | { success: true; url: string }
+  | { success: false; error: string };
 
 export function useFileUpload(folder: string) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const upload = async (file: File): Promise<string | null> => {
+  const upload = async (file: File): Promise<UploadResult> => {
     setUploading(true);
     setProgress(0);
     try {
       // 1. Get pre-signed URL from API
-      const res = await fetch("/api/upload/presigned", {
+      const res = await fetch(API_ENDPOINTS.UPLOAD_PRESIGNED, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -24,32 +28,43 @@ export function useFileUpload(folder: string) {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to fetch upload session");
+        return { success: false, error: errorData.error || "Failed to fetch upload session" };
       }
 
       const { uploadUrl, publicUrl } = await res.json();
 
-      // 2. Perform direct client-to-R2 upload via PUT
-      // Note: We use standard XMLHttpRequest to track upload progress if needed,
-      // or fetch if basic progress updates are sufficient.
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-        },
-        body: file,
+      // 2. Perform direct client-to-R2 upload via PUT using XMLHttpRequest for true progress tracking
+      return new Promise<UploadResult>((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", file.type);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setProgress(percentComplete);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setProgress(100);
+            resolve({ success: true, url: publicUrl });
+          } else {
+            resolve({ success: false, error: "R2 upload transfer failed" });
+          }
+        };
+
+        xhr.onerror = () => {
+          resolve({ success: false, error: "R2 upload network error" });
+        };
+
+        xhr.send(file);
       });
-
-      if (!uploadRes.ok) {
-        throw new Error("R2 upload transfer failed");
-      }
-
-      setProgress(100);
-      return publicUrl;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("File upload error:", err);
-      toast.error(err.message || "Failed to upload file");
-      return null;
+      const errMsg = err instanceof Error ? err.message : "Failed to upload file";
+      return { success: false, error: errMsg };
     } finally {
       setUploading(false);
     }

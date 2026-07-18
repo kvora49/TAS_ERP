@@ -720,10 +720,12 @@ export default function NewStageEntryPage() {
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const url = await upload(file);
-                              if (url) {
-                                setAttachments((prev) => [...prev, url]);
+                              const result = await upload(file);
+                              if (result.success) {
+                                setAttachments((prev) => [...prev, result.url]);
                                 toast.success("File uploaded successfully!");
+                              } else {
+                                toast.error(result.error);
                               }
                             }
                           }}

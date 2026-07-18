@@ -23,6 +23,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import ProgressBar from "@/components/shared/ProgressBar";
@@ -80,55 +81,56 @@ export default function ProductionLotsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   // Queries
-  const { data: brandsData } = useQuery<{ brands: Brand[] }>({
-    queryKey: ["brands-list"],
-    queryFn: async () => {
-      const res = await fetch("/api/master-data/brands");
-      return res.json();
-    },
+  // React Query: Fetch dependencies
+  const { data: brandsData } = useERPQuery(["brands-list"], async () => {
+    const res = await fetch("/api/master-data/brands");
+    if (!res.ok) throw new Error("Failed to fetch brands");
+    return res.json();
   });
 
-  const { data: designsData } = useQuery<{ designs: Design[] }>({
-    queryKey: ["designs-list"],
-    queryFn: async () => {
-      const res = await fetch("/api/master-data/designs");
-      return res.json();
-    },
+  const { data: designsData } = useERPQuery(["designs-list"], async () => {
+    const res = await fetch("/api/master-data/designs");
+    if (!res.ok) throw new Error("Failed to fetch designs");
+    return res.json();
   });
 
-  const { data: statsData } = useQuery({
-    queryKey: ["lots-stats"],
-    queryFn: async () => {
-      const res = await fetch("/api/production/lots/stats");
-      return res.json();
-    },
+  const { data: statsData } = useERPQuery(["lots-stats"], async () => {
+    const res = await fetch("/api/production/lots/stats");
+    if (!res.ok) throw new Error("Failed to fetch stats");
+    return res.json();
   });
 
-  const { data: lotsData, isLoading } = useQuery<{ lots: Lot[] }>({
-    queryKey: ["lots-list", brandFilter, designFilter, statusFilter, search, startDate, endDate],
-    queryFn: async () => {
+  const lotsQuery = useERPQuery(
+    ["lots-list", brandFilter, designFilter, statusFilter, search, startDate, endDate, currentPage],
+    async () => {
       const bParam = brandFilter !== "all" ? `&brand_id=${brandFilter}` : "";
       const dParam = designFilter !== "all" ? `&design_id=${designFilter}` : "";
       const sParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
       const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
       const sdParam = startDate ? `&startDate=${startDate}` : "";
       const edParam = endDate ? `&endDate=${endDate}` : "";
+      const pgParam = `&page=${currentPage}&limit=${pageSize}`;
 
-      const res = await fetch(`/api/production/lots?${bParam}${dParam}${sParam}${searchParam}${sdParam}${edParam}`);
+      const res = await fetch(`/api/production/lots?${bParam}${dParam}${sParam}${searchParam}${sdParam}${edParam}${pgParam}`);
       if (!res.ok) throw new Error("Failed to fetch lots");
       return res.json();
     },
-  });
+    { skeleton: "table" }
+  );
 
-  const lots = lotsData?.lots || [];
+  const lotsResult = lotsQuery.data;
+  const isLoading = lotsQuery.isPending;
+  const lots = lotsResult?.data || [];
+  const meta = lotsResult?.meta || { page: 1, limit: 10, total: 0 };
+  const startIndex = (meta.page - 1) * meta.limit;
   const stats = statsData?.stats || { total: 0, draft: 0, in_progress: 0, completed: 0, on_hold: 0, cancelled: 0 };
   const percentages = statsData?.percentages || { in_progress: "0", completed: "0", on_hold: "0", cancelled: "0" };
   const topDesigns = statsData?.topDesigns || [];
   const recentActivity = statsData?.recentActivity || [];
 
   // Update Status Mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+  const updateStatusMutation = useERPMutation(
+    async ({ id, status }: { id: string; status: string }) => {
       const res = await fetch(`/api/production/lots/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -137,20 +139,14 @@ export default function ProductionLotsPage() {
       if (!res.ok) throw new Error("Failed to update lot status");
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lots-list"] });
-      queryClient.invalidateQueries({ queryKey: ["lots-stats"] });
-      toast.success("Lot status updated successfully");
-    },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to update lot");
-    },
-  });
+    {
+      successMessage: "Lot status updated successfully",
+      invalidates: [["lots-list"], ["lots-stats"]],
+    }
+  );
 
   // Pagination logic
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedLots = lots.slice(startIndex, startIndex + pageSize);
-  const totalPages = Math.ceil(lots.length / pageSize) || 1;
+  const totalPages = Math.ceil(meta.total / pageSize) || 1;
 
   // Clear filters
   const handleClearFilters = () => {
@@ -303,7 +299,7 @@ export default function ProductionLotsPage() {
             className="h-10 w-[160px] rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
           >
             <option value="all">All Brands</option>
-            {brandsData?.brands?.map((b) => (
+            {brandsData?.brands?.map((b: Brand) => (
               <option key={b.id} value={b.id}>
                 {b.name}
               </option>
@@ -320,7 +316,7 @@ export default function ProductionLotsPage() {
             className="h-10 w-[160px] rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
           >
             <option value="all">All Designs</option>
-            {designsData?.designs?.map((d) => (
+            {designsData?.designs?.map((d: Design) => (
               <option key={d.id} value={d.id}>
                 {d.code} - {d.name}
               </option>
@@ -423,18 +419,20 @@ export default function ProductionLotsPage() {
             <tbody className="divide-y divide-[#E5E7EB] text-sm">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-[#64748B]">
-                    Loading lots...
+                  <td colSpan={11} className="p-0">
+                    {lotsQuery.Skeleton || (
+                      <div className="py-8 text-center text-[#64748B]">Loading lots...</div>
+                    )}
                   </td>
                 </tr>
-              ) : paginatedLots.length === 0 ? (
+              ) : lots.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="py-8 text-center text-[#64748B]">
                     No lots found.
                   </td>
                 </tr>
               ) : (
-                paginatedLots.map((lot) => {
+                lots.map((lot: Lot) => {
                   const sizesStr = lot.size_set?.sizes ? lot.size_set.sizes.join(", ") : "—";
                   const colourStr = lot.colour?.colour_name || "—";
 

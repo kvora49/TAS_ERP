@@ -104,7 +104,7 @@ export default function PartiesPage() {
         <div>
           <Link
             href={`/parties/${row.id}`}
-            className="font-bold text-[#6366F1] hover:underline block text-left"
+            className="font-bold text-[#6366F1] block text-left"
           >
             {row.name}
           </Link>

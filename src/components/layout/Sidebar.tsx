@@ -29,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLogout } from "@/hooks/useLogout";
 
 interface NavSubSubItem {
   name: string;
@@ -63,6 +64,8 @@ export default function Sidebar() {
     Production: false,
     "Job Work": false,
     "Sales & Billing": false,
+    "Payments & Finance": false,
+    Payments: false,
     Reports: false,
     Settings: false,
   });
@@ -107,8 +110,26 @@ export default function Sidebar() {
     if (pathname.startsWith("/sales-billing") || pathname.startsWith("/sales") || pathname.startsWith("/purchases") || pathname.startsWith("/finance")) {
       setExpandedMenus((prev) => ({ ...prev, "Sales & Billing": true }));
     }
-    if (pathname.startsWith("/reports")) {
-      setExpandedMenus((prev) => ({ ...prev, Reports: true }));
+    if (
+      pathname.startsWith("/payments") ||
+      pathname.startsWith("/expenses") ||
+      pathname.startsWith("/misc-income") ||
+      pathname.startsWith("/salary") ||
+      pathname.startsWith("/reminders") ||
+      pathname.startsWith("/reports/balance-sheet") ||
+      pathname.startsWith("/reports/profit-loss") ||
+      pathname.startsWith("/reports/gst-summary") ||
+      pathname.startsWith("/reports/cash-flow") ||
+      pathname.startsWith("/reports/stock-valuation") ||
+      pathname.startsWith("/reports/party-statement")
+    ) {
+      setExpandedMenus((prev) => ({ ...prev, "Payments & Finance": true }));
+      if (pathname.startsWith("/payments/")) {
+        setExpandedMenus((prev) => ({ ...prev, Payments: true }));
+      }
+      if (pathname.startsWith("/reports/")) {
+        setExpandedMenus((prev) => ({ ...prev, Reports: true }));
+      }
     }
   }, [pathname, setNavigatingTo]);
 
@@ -119,14 +140,7 @@ export default function Sidebar() {
     }));
   };
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    setUser(null);
-    toast.success("Logged out successfully");
-    router.push("/login");
-    router.refresh();
-  };
+  const { logout: handleLogout } = useLogout();
 
   const IMPLEMENTED_ROUTES = [
     "/",
@@ -172,12 +186,14 @@ export default function Sidebar() {
 
     const isWhitelisted =
       IMPLEMENTED_ROUTES.includes(href) ||
+      href.startsWith("/production/job-work/ledger") ||
       href === "/settings/general" ||
       href === "/settings/company-profile" ||
       href === "/settings/users-roles" ||
       href === "/settings/financial" ||
       href === "/settings/inventory" ||
       href === "/settings/production" ||
+      href === "/settings/integrations" ||
       href === "/settings/notifications" ||
       href === "/settings/backup-restore" ||
       href === "/settings/audit-logs" ||
@@ -190,10 +206,16 @@ export default function Sidebar() {
       href.startsWith("/finished-stock/adjustments/") ||
       href.startsWith("/finished-stock/transfers/") ||
       href.startsWith("/finished-stock/challans/") ||
-      href.startsWith("/parties/") ||
+      href.startsWith("/parties") ||
       href.startsWith("/sales") ||
       href.startsWith("/purchases") ||
-      href.startsWith("/finance");
+      href.startsWith("/finance") ||
+      href.startsWith("/payments") ||
+      href.startsWith("/expenses") ||
+      href.startsWith("/misc-income") ||
+      href.startsWith("/salary") ||
+      href.startsWith("/reports") ||
+      href.startsWith("/reminders");
 
     if (!isWhitelisted) {
       e.preventDefault();
@@ -234,6 +256,46 @@ export default function Sidebar() {
         queryFn: async () => {
           const res = await fetch("/api/parties");
           return (await res.json()).parties || [];
+        }
+      });
+    } else if (href === "/finance/cheques") {
+      queryClient.prefetchQuery({
+        queryKey: ["cheques", "received", "", "", 1],
+        queryFn: async () => {
+          const res = await fetch("/api/finance/cheques?direction=received&page=1&limit=10");
+          return res.json();
+        }
+      });
+    } else if (href === "/production/lots") {
+      queryClient.prefetchQuery({
+        queryKey: ["lots-list", "all", "all", "all", "", "", "", 1],
+        queryFn: async () => {
+          const res = await fetch("/api/production/lots?page=1&limit=10");
+          return res.json();
+        }
+      });
+    } else if (href === "/master-data/brands") {
+      queryClient.prefetchQuery({
+        queryKey: ["brands-list"],
+        queryFn: async () => {
+          const res = await fetch("/api/master-data/brands");
+          return res.json();
+        }
+      });
+    } else if (href === "/master-data/designs") {
+      queryClient.prefetchQuery({
+        queryKey: ["designs-list"],
+        queryFn: async () => {
+          const res = await fetch("/api/master-data/designs");
+          return res.json();
+        }
+      });
+    } else if (href === "/sales/bills") {
+      queryClient.prefetchQuery({
+        queryKey: ["sales-bills", 1],
+        queryFn: async () => {
+          const res = await fetch("/api/sales/bills?page=1&limit=10");
+          return res.json();
         }
       });
     }
@@ -310,15 +372,36 @@ export default function Sidebar() {
         { name: "Cheques / PDC", href: "/finance/cheques" },
       ],
     },
-    { name: "Payments", href: "/payments/supplier", icon: CreditCard },
-    { name: "Expenses", href: "/expenses", icon: Wallet },
     {
-      name: "Reports",
-      icon: BarChart3,
+      name: "Payments & Finance",
+      icon: Wallet,
       subItems: [
-        { name: "Production Reports", href: "/reports/production" },
-        { name: "Job Work Reports", href: "/reports/job-work" },
-        { name: "Stock Reports", href: "/reports/stock" },
+        { name: "Party Ledger", href: "/parties" },
+        {
+          name: "Payments",
+          subItems: [
+            { name: "Receive Payment", href: "/payments/receive" },
+            { name: "Make Payment", href: "/payments/make" },
+            { name: "Advance Payments", href: "/payments/advances" },
+            { name: "Direct Payment Linking", href: "/payments/direct-link" },
+          ],
+        },
+        { name: "Write-offs", href: "/payments/write-offs" },
+        { name: "Expenses", href: "/expenses" },
+        { name: "Misc Income", href: "/misc-income" },
+        { name: "Salary", href: "/salary" },
+        {
+          name: "Reports",
+          subItems: [
+            { name: "Balance Sheet", href: "/reports/balance-sheet" },
+            { name: "Profit & Loss", href: "/reports/profit-loss" },
+            { name: "GST Summary", href: "/reports/gst-summary" },
+            { name: "Cash Flow", href: "/reports/cash-flow" },
+            { name: "Stock Valuation", href: "/reports/stock-valuation" },
+            { name: "Party Statement", href: "/reports/party-statement" },
+          ],
+        },
+        { name: "Reminders & WhatsApp", href: "/reminders" },
       ],
     },
     {
@@ -479,6 +562,7 @@ export default function Sidebar() {
                                     key={ssIdx}
                                     href={subSub.href}
                                     onClick={(e) => handleNavigation(e, subSub.href)}
+                                    onMouseEnter={() => handlePrefetch(subSub.href)}
                                     className={cn(
                                       "block py-1.5 pl-6 pr-3 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer",
                                       isSubSubActive

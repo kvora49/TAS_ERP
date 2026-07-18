@@ -130,7 +130,7 @@ export default function PurchasesPage() {
       render: (row) => (
         <Link
           href={`/raw-materials/purchases/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1] hover:underline"
+          className="font-mono font-bold text-xs text-[#6366F1]"
         >
           {row.purchase_number}
         </Link>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { UpdatePurchaseBillSchema } from "@/lib/schemas/purchases";
 
 export async function GET(
   request: Request,
@@ -55,7 +56,11 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    const { invoice_no, invoice_date, grand_total, paid_amount } = body;
+    const parsed = UpdatePurchaseBillSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+    const { invoice_no, invoice_date, grand_total, paid_amount } = parsed.data;
 
     // Fetch existing bill first
     const { data: existingBill, error: fetchErr } = await supabase

@@ -202,7 +202,7 @@ export default function GstRatesPage() {
       key: "hsn_code",
       header: "HSN Code",
       render: (row) => (
-        <span className="font-bold font-mono text-sm text-[#6366F1] hover:underline cursor-pointer">
+        <span className="font-bold font-mono text-sm text-[#6366F1] cursor-pointer">
           {row.hsn_code}
         </span>
       ),

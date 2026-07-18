@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 
 interface MaterialType {
+  id: string;
   name: string;
   category: string;
   unit: string;
@@ -326,7 +327,11 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
                   </tr>
                 ) : (
                   finishedStock.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <tr
+                      key={item.id}
+                      onClick={() => item.design?.id && router.push(`/finished-stock/designs/${item.design.id}`)}
+                      className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                    >
                       <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
                         {item.design?.code ? `${item.design.code} - ${item.design.name}` : "—"}
                       </td>
@@ -375,7 +380,8 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
                   stock.map((item) => (
                     <tr
                       key={item.id}
-                      className="hover:bg-[#F8FAFC] transition-colors"
+                      onClick={() => item.material_type?.id && router.push(`/master-data/raw-materials/${item.material_type.id}`)}
+                      className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                     >
                       <td className="py-3.5 px-5 font-bold text-[#0F172A]">
                         {item.material_type.name}

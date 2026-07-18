@@ -22,21 +22,16 @@ import { toast } from "sonner";
 // Zod schemas
 const garmentTypeSchema = z.object({
   name: z.string().min(2, "Garment Type name must be at least 2 characters"),
+  fields: z.array(
+    z.object({
+      name: z.string().min(1, "Field Name is required"),
+      type: z.enum(["text", "textarea", "dropdown", "photo"]),
+      options: z.string().optional(),
+    })
+  ),
 });
 
 type GarmentTypeFormValues = z.infer<typeof garmentTypeSchema>;
-
-const specFieldSchema = z.object({
-  name: z.string().min(1, "Field Name is required"),
-  type: z.enum(["text", "textarea", "dropdown", "photo"]),
-  options: z.string().optional(),
-});
-
-const specTemplateSchema = z.object({
-  fields: z.array(specFieldSchema),
-});
-
-type SpecTemplateFormValues = z.infer<typeof specTemplateSchema>;
 
 interface SpecField {
   name: string;
@@ -61,55 +56,38 @@ export default function GarmentTypesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  // Garment Type Modal
+  // Centralized Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<GarmentType | null>(null);
-
-  // Spec Template Modal
-  const [specModalOpen, setSpecModalOpen] = useState(false);
-  const [selectedTypeForSpec, setSelectedTypeForSpec] = useState<GarmentType | null>(null);
-  const [specLoading, setSpecLoading] = useState(false);
 
   // Delete Garment Type Modal
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingType, setDeletingType] = useState<GarmentType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Garment Type Form Hook
+  // Unified Form Hook
   const {
-    register: registerType,
-    handleSubmit: handleSubmitType,
-    setValue: setValueType,
-    reset: resetType,
-    formState: { errors: errorsType, isSubmitting: isSubmittingType },
+    register,
+    handleSubmit,
+    setValue,
+    control,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
   } = useForm<GarmentTypeFormValues>({
     resolver: zodResolver(garmentTypeSchema),
     defaultValues: {
       name: "",
-    },
-  });
-
-  // Spec Template Form Hook
-  const {
-    register: registerSpec,
-    handleSubmit: handleSubmitSpec,
-    control: controlSpec,
-    reset: resetSpec,
-    watch: watchSpec,
-    formState: { errors: errorsSpec, isSubmitting: isSubmittingSpec },
-  } = useForm<SpecTemplateFormValues>({
-    resolver: zodResolver(specTemplateSchema),
-    defaultValues: {
       fields: [],
     },
   });
 
-  const { fields: specFields, append: appendSpecField, remove: removeSpecField } = useFieldArray({
-    control: controlSpec,
+  const { fields, append, remove } = useFieldArray({
+    control,
     name: "fields",
   });
 
-  const watchFieldsList = watchSpec("fields") || [];
+  const watchFieldsList = watch("fields") || [];
 
   const fetchGarmentTypes = async () => {
     setLoading(true);
@@ -131,16 +109,22 @@ export default function GarmentTypesPage() {
 
   const handleOpenAdd = () => {
     setEditingType(null);
-    resetType({
+    reset({
       name: "",
+      fields: [{ name: "Size / Dimensions", type: "text", options: "" }],
     });
     setModalOpen(true);
   };
 
   const handleOpenEdit = (type: GarmentType) => {
     setEditingType(type);
-    resetType({
+    reset({
       name: type.name,
+      fields: type.specTemplate?.fields?.map((f) => ({
+        name: f.name,
+        type: f.type,
+        options: f.options || "",
+      })) || [{ name: "Size / Dimensions", type: "text", options: "" }],
     });
     setModalOpen(true);
   };
@@ -148,26 +132,6 @@ export default function GarmentTypesPage() {
   const handleOpenDelete = (type: GarmentType) => {
     setDeletingType(type);
     setDeleteOpen(true);
-  };
-
-  const handleOpenSpecModal = (type: GarmentType) => {
-    setSelectedTypeForSpec(type);
-    const existingSpec = type.specTemplate;
-
-    if (existingSpec && existingSpec.fields && existingSpec.fields.length > 0) {
-      resetSpec({
-        fields: existingSpec.fields.map((f) => ({
-          name: f.name,
-          type: f.type,
-          options: f.options || "",
-        })),
-      });
-    } else {
-      resetSpec({
-        fields: [{ name: "", type: "text", options: "" }],
-      });
-    }
-    setSpecModalOpen(true);
   };
 
   const onSubmitType = async (data: GarmentTypeFormValues) => {
@@ -180,12 +144,38 @@ export default function GarmentTypesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ name: data.name }),
       });
 
       if (!res.ok) {
         const errorResult = await res.json();
         throw new Error(errorResult.error || "Failed to save garment type");
+      }
+
+      const typeRes = await res.json();
+      const savedGarmentTypeId = editingType ? editingType.id : typeRes.garmentType?.id;
+
+      if (savedGarmentTypeId) {
+        // Save/Update the Spec Template
+        const existingSpec = editingType?.specTemplate;
+        const specUrl = existingSpec
+          ? `/api/master-data/design-spec-templates/${existingSpec.id}`
+          : "/api/master-data/design-spec-templates";
+        const specMethod = existingSpec ? "PUT" : "POST";
+
+        const specPayload = existingSpec
+          ? { fields: data.fields }
+          : { garment_type_id: savedGarmentTypeId, fields: data.fields };
+
+        const specRes = await fetch(specUrl, {
+          method: specMethod,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(specPayload),
+        });
+
+        if (!specRes.ok) {
+          console.error("Warning: Garment type saved, but spec template configuration failed.");
+        }
       }
 
       toast.success(
@@ -197,42 +187,6 @@ export default function GarmentTypesPage() {
       fetchGarmentTypes();
     } catch (err: any) {
       toast.error(err.message || "Something went wrong");
-    }
-  };
-
-  const onSubmitSpec = async (data: SpecTemplateFormValues) => {
-    if (!selectedTypeForSpec) return;
-    setSpecLoading(true);
-
-    try {
-      const existingSpec = selectedTypeForSpec.specTemplate;
-      const url = existingSpec
-        ? `/api/master-data/design-spec-templates/${existingSpec.id}`
-        : "/api/master-data/design-spec-templates";
-      const method = existingSpec ? "PUT" : "POST";
-
-      const payload = existingSpec
-        ? { fields: data.fields }
-        : { garment_type_id: selectedTypeForSpec.id, fields: data.fields };
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorResult = await res.json();
-        throw new Error(errorResult.error || "Failed to save design spec template");
-      }
-
-      toast.success("Design spec template configured successfully!");
-      setSpecModalOpen(false);
-      fetchGarmentTypes();
-    } catch (err: any) {
-      toast.error(err.message || "Something went wrong saving spec template");
-    } finally {
-      setSpecLoading(false);
     }
   };
 
@@ -281,36 +235,18 @@ export default function GarmentTypesPage() {
         const spec = row.specTemplate;
         if (spec && spec.fields && spec.fields.length > 0) {
           return (
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
-              <div className="flex flex-wrap gap-1 max-w-[280px] sm:max-w-xs md:max-w-sm">
-                {spec.fields.map((f, idx) => (
-                  <Badge key={idx} variant="purple" className="text-[10px] font-bold">
-                    {f.name} ({f.type})
-                  </Badge>
-                ))}
-              </div>
-              <button
-                onClick={() => handleOpenSpecModal(row)}
-                className="text-xs font-bold text-[#6366F1] hover:text-[#4F46E5] hover:underline cursor-pointer flex items-center gap-1 shrink-0 bg-transparent border-0 p-0 ml-1.5"
-                title="Edit spec template fields"
-              >
-                <Pencil size={11} /> Edit Fields
-              </button>
+            <div className="flex flex-wrap gap-1 max-w-[280px] sm:max-w-xs md:max-w-sm py-1">
+              {spec.fields.map((f, idx) => (
+                <Badge key={idx} variant="purple" className="text-[10px] font-bold">
+                  {f.name} ({f.type})
+                </Badge>
+              ))}
             </div>
           );
         }
 
         return (
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#94A3B8] font-bold italic">No fields defined</span>
-            <button
-              onClick={() => handleOpenSpecModal(row)}
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0 bg-transparent border-0 p-0"
-              title="Configure spec template fields"
-            >
-              <Plus size={11} /> Configure Fields
-            </button>
-          </div>
+          <span className="text-xs text-[#94A3B8] font-bold italic">No fields defined</span>
         );
       },
     },
@@ -388,16 +324,17 @@ export default function GarmentTypesPage() {
         emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
       />
 
-      {/* Add/Edit Garment Type Modal */}
+      {/* Unified Add/Edit Garment Type & Fields Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+        <DialogContent className="sm:max-w-2xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingType ? "Edit Garment Type" : "Add Garment Type"}
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              <ClipboardList className="text-[#6366F1]" size={20} />
+              <span>{editingType ? "Edit Garment Type" : "Add Garment Type"}</span>
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmitType(onSubmitType)} className="space-y-4 pt-2">
+          <form onSubmit={handleSubmit(onSubmitType)} className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
                 Garment Type Name *
@@ -406,54 +343,15 @@ export default function GarmentTypesPage() {
                 type="text"
                 placeholder="e.g. Jeans, Jacket, T-Shirt"
                 className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold"
-                {...registerType("name")}
+                {...register("name")}
               />
-              {errorsType.name && (
+              {errors.name && (
                 <p className="text-xs font-semibold text-[#DC2626]">
-                  {errorsType.name.message}
+                  {errors.name.message}
                 </p>
               )}
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmittingType}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingType}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
-              >
-                {isSubmittingType ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Garment Type"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Configure Spec Template Modal */}
-      <Dialog open={specModalOpen} onOpenChange={setSpecModalOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <ClipboardList className="text-[#6366F1]" size={20} />
-              <span>Configure Specifications: {selectedTypeForSpec?.name}</span>
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmitSpec(onSubmitSpec)} className="space-y-4 pt-2">
             <div className="border border-[#E5E7EB] rounded-xl p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -466,20 +364,20 @@ export default function GarmentTypesPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => appendSpecField({ name: "", type: "text", options: "" })}
+                  onClick={() => append({ name: "", type: "text", options: "" })}
                   className="h-8 px-3 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                 >
                   <Plus size={12} /> Add Field
                 </button>
               </div>
 
-              {specFields.length === 0 ? (
+              {fields.length === 0 ? (
                 <p className="text-xs text-center py-6 text-[#94A3B8] font-bold">
                   No spec fields added yet. Click &quot;Add Field&quot; to begin.
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {specFields.map((item, index) => (
+                  {fields.map((item, index) => (
                     <div
                       key={item.id}
                       className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200"
@@ -490,11 +388,11 @@ export default function GarmentTypesPage() {
                           type="text"
                           placeholder="Field Name (e.g. Chest, Length, Fabric Composition)"
                           className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...registerSpec(`fields.${index}.name` as const)}
+                          {...register(`fields.${index}.name` as const)}
                         />
-                        {errorsSpec.fields?.[index]?.name && (
+                        {errors.fields?.[index]?.name && (
                           <p className="text-[10px] text-red-500 font-bold">
-                            {errorsSpec.fields[index]?.name?.message}
+                            {errors.fields[index]?.name?.message}
                           </p>
                         )}
                       </div>
@@ -503,7 +401,7 @@ export default function GarmentTypesPage() {
                       <div className="w-full sm:w-36">
                         <select
                           className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...registerSpec(`fields.${index}.type` as const)}
+                          {...register(`fields.${index}.type` as const)}
                         >
                           <option value="text">Short Text</option>
                           <option value="textarea">Paragraph Description</option>
@@ -519,7 +417,7 @@ export default function GarmentTypesPage() {
                             type="text"
                             placeholder="Options (comma separated)"
                             className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                            {...registerSpec(`fields.${index}.options` as const)}
+                            {...register(`fields.${index}.options` as const)}
                           />
                         </div>
                       )}
@@ -527,7 +425,7 @@ export default function GarmentTypesPage() {
                       {/* Remove Field button */}
                       <button
                         type="button"
-                        onClick={() => removeSpecField(index)}
+                        onClick={() => remove(index)}
                         className="w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center shrink-0 ml-auto cursor-pointer"
                         title="Remove field"
                       >
@@ -542,24 +440,24 @@ export default function GarmentTypesPage() {
             <DialogFooter className="pt-4 border-t border-[#F1F5F9] flex flex-col sm:flex-row gap-2 justify-end">
               <button
                 type="submit"
-                disabled={specLoading || isSubmittingSpec}
+                disabled={isSubmitting}
                 className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all cursor-pointer shadow-md shadow-[#6366F1]/10 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                {(specLoading || isSubmittingSpec) ? (
+                {isSubmitting ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
                     Saving...
                   </>
                 ) : (
-                  "Save Specifications"
+                  "Save Garment Type"
                 )}
               </button>
               <button
                 type="button"
-                onClick={() => setSpecModalOpen(false)}
+                onClick={() => setModalOpen(false)}
                 className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
               >
-                Close
+                Cancel
               </button>
             </DialogFooter>
           </form>

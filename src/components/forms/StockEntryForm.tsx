@@ -513,10 +513,12 @@ export function StockEntryForm() {
                 const currentUrls = watch("attachments") || [];
                 const newUrls = [...currentUrls];
                 for (const file of files) {
-                  const url = await upload(file);
-                  if (url) {
+                  const result = await upload(file);
+                  if (result.success) {
                     newFiles.push(file);
-                    newUrls.push(url);
+                    newUrls.push(result.url);
+                  } else {
+                    toast.error(result.error);
                   }
                 }
                 setSelectedFiles(newFiles);

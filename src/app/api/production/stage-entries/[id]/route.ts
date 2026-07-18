@@ -15,30 +15,74 @@ export async function GET(
   const { id } = params;
 
   try {
-    const { data: entry, error } = await supabase
+    const { data: rawEntry, error } = await supabase
       .from("stage_entries")
-      .select(`
-        *,
-        lot:production_lots(
-          id,
-          lot_number,
-          total_quantity,
-          completed_quantity,
-          brand:brands(id, name),
-          design:designs(id, name, code:design_number),
-          colour:design_colours(id, colour_name, hex_code:colour_hex),
-          size_set:size_sets(id, name, sizes)
-        ),
-        stage:lot_production_stages(id, stage_name, sequence_no, stage_type),
-        worker:workers(id, name, worker_id)
-      `)
+      .select("*")
       .eq("id", id)
       .eq("business_id", businessId)
       .single();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+    if (error || !rawEntry) {
+      return NextResponse.json({ error: error?.message || "Entry not found" }, { status: 404 });
     }
+
+    // Fetch related tables
+    const { data: lot } = await supabase
+      .from("production_lots")
+      .select("*")
+      .eq("id", rawEntry.lot_id)
+      .single();
+
+    const { data: stage } = await supabase
+      .from("lot_production_stages")
+      .select("id, stage_name, sequence_no, stage_type")
+      .eq("id", rawEntry.lot_stage_id)
+      .single();
+
+    const { data: worker } = rawEntry.worker_id
+      ? await supabase.from("workers").select("id, name, worker_id").eq("id", rawEntry.worker_id).single()
+      : { data: null };
+
+    // Fetch design details for lot
+    let brand = null;
+    let design = null;
+    let colour = null;
+    let sizeSet = null;
+
+    if (lot) {
+      if (lot.brand_id) {
+        const { data: b } = await supabase.from("brands").select("id, name").eq("id", lot.brand_id).maybeSingle();
+        brand = b;
+      }
+      if (lot.design_id) {
+        const { data: d } = await supabase.from("designs").select("id, name, design_number").eq("id", lot.design_id).maybeSingle();
+        design = d ? { id: d.id, name: d.name, code: d.design_number } : null;
+      }
+      if (lot.colour_id) {
+        const { data: c } = await supabase.from("design_colours").select("id, colour_name, colour_hex").eq("id", lot.colour_id).maybeSingle();
+        colour = c ? { id: c.id, colour_name: c.colour_name, hex_code: c.colour_hex } : null;
+      }
+      if (lot.size_set_id) {
+        const { data: s } = await supabase.from("size_sets").select("id, name, sizes").eq("id", lot.size_set_id).maybeSingle();
+        sizeSet = s;
+      }
+    }
+
+    const entry = {
+      ...rawEntry,
+      lot: lot ? {
+        id: lot.id,
+        lot_number: lot.lot_number,
+        total_quantity: lot.total_quantity,
+        completed_quantity: lot.completed_quantity,
+        brand,
+        design,
+        colour,
+        size_set: sizeSet
+      } : null,
+      stage,
+      worker
+    };
 
     // Load total stages count for context
     const { data: stages } = await supabase

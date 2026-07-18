@@ -3,9 +3,19 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type WizardStep = string | { title: string; description?: string };
+
 interface WizardHeaderProps {
   currentStep: number; // 1-indexed
-  steps: string[];
+  steps: WizardStep[];
+}
+
+function getStepLabel(step: WizardStep): string {
+  return typeof step === "string" ? step : step.title;
+}
+
+function getStepDescription(step: WizardStep): string | undefined {
+  return typeof step === "string" ? undefined : step.description;
 }
 
 export default function WizardHeader({ currentStep, steps }: WizardHeaderProps) {
@@ -32,30 +42,36 @@ export default function WizardHeader({ currentStep, steps }: WizardHeaderProps) 
           const stepNum = idx + 1;
           const isActive = stepNum === currentStep;
           const isDone = stepNum < currentStep;
-          const isPending = stepNum > currentStep;
+          const label = getStepLabel(step);
+          const description = getStepDescription(step);
 
           return (
             <div key={idx} className="flex flex-col items-center flex-1 relative">
               <div
                 className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-200",
-                  isActive && "bg-[#6366F1] text-white ring-4 ring-[#EEF2FF]",
-                  isDone && "bg-[#15803D] text-white",
-                  isPending && "bg-[#E5E7EB] text-[#94A3B8]"
+                  "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all duration-200",
+                  isDone
+                    ? "bg-[#15803D] border-[#15803D] text-white"
+                    : isActive
+                    ? "bg-[#6366F1] border-[#6366F1] text-white"
+                    : "bg-white border-[#D1D5DB] text-[#64748B]"
                 )}
               >
-                {isDone ? <Check className="h-5 w-5" /> : <span>{stepNum}</span>}
+                {isDone ? <Check className="h-4 w-4" /> : stepNum}
               </div>
               <span
                 className={cn(
-                  "text-xs mt-2 text-center transition-colors duration-200 select-none",
-                  isActive && "font-semibold text-[#6366F1]",
-                  isDone && "font-medium text-[#15803D]",
-                  isPending && "text-[#94A3B8]"
+                  "text-[10px] font-bold mt-2 text-center uppercase tracking-wider",
+                  isActive ? "text-[#6366F1]" : isDone ? "text-[#15803D]" : "text-[#94A3B8]"
                 )}
               >
-                {step}
+                {label}
               </span>
+              {description && (
+                <span className="text-[9px] text-[#94A3B8] font-medium text-center max-w-[80px] leading-tight">
+                  {description}
+                </span>
+              )}
             </div>
           );
         })}

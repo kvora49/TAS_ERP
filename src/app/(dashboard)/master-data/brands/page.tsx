@@ -20,6 +20,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useFileUpload } from "@/hooks/useFileUpload";
 
 const brandSchema = z.object({
   name: z.string().min(2, "Brand Name must be at least 2 characters"),
@@ -87,6 +89,10 @@ export default function BrandsPage() {
   const [showTransportDetails, setShowTransportDetails] = useState(true);
   const [bankAccountId, setBankAccountId] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
+  const [uploadedReferenceFileUrl, setUploadedReferenceFileUrl] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<"digitized" | "uploaded">("digitized");
+
+  const { upload: uploadTemplate } = useFileUpload("bill_templates");
 
   useEffect(() => {
     const fetchBanks = async () => {
@@ -98,27 +104,97 @@ export default function BrandsPage() {
     fetchBanks();
   }, []);
 
-  const handleAutoExtract = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAutoExtract = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsExtracting(true);
     toast.info(`Uploading and analyzing "${file.name}"...`);
 
-    setTimeout(() => {
-      setIsExtracting(false);
-      const detectedColor = "#10B981"; // Detected emerald green
-      setPrimaryColor(detectedColor);
-      setShowHsn(true);
-      setShowDiscountColumn(true);
-      setShowTransportDetails(true);
-      setHeaderText("Premium Apparel & Denim Co.");
-      setFooterText("Goods once sold will not be taken back or exchanged. Interest @ 18% will be charged if payment is not made within due date.");
-      setSignatureDesignation("Authorized Accounts Signatory");
+    // Upload template to storage!
+    const uploadRes = await uploadTemplate(file);
+    if (uploadRes.success) {
+      setUploadedReferenceFileUrl(uploadRes.url);
+      setPreviewMode("uploaded");
+    } else {
+      console.error("Storage upload failed:", uploadRes.error);
+    }
 
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = (event.target?.result as string) || "";
+      const textLower = text.toLowerCase();
+      const fileNameLower = file.name.toLowerCase();
+
+      // Heuristics based on content text and file name
+      const hasHsn = textLower.includes("hsn") || textLower.includes("sac") || fileNameLower.includes("hsn") || fileNameLower.includes("gst");
+      const hasDiscount = textLower.includes("discount") || textLower.includes("disc") || fileNameLower.includes("disc") || fileNameLower.includes("promo");
+      const hasBatch = textLower.includes("batch") || textLower.includes("lot") || fileNameLower.includes("batch") || fileNameLower.includes("lot");
+      const hasTransport = textLower.includes("transport") || textLower.includes("vehicle") || textLower.includes("lr no") || fileNameLower.includes("transport") || fileNameLower.includes("delivery");
+
+      // Extract theme colors
+      const hexMatch = text.match(/#[0-9A-Fa-f]{6}/g);
+      let detectedColor = "#6366F1";
+      if (hexMatch && hexMatch.length > 0) {
+        detectedColor = hexMatch[0];
+      } else {
+        if (textLower.includes("red") || fileNameLower.includes("red")) detectedColor = "#EF4444";
+        else if (textLower.includes("green") || fileNameLower.includes("green")) detectedColor = "#10B981";
+        else if (textLower.includes("blue") || fileNameLower.includes("blue")) detectedColor = "#3B82F6";
+        else if (textLower.includes("orange") || fileNameLower.includes("orange")) detectedColor = "#F97316";
+        else if (textLower.includes("purple") || fileNameLower.includes("purple")) detectedColor = "#8B5CF6";
+      }
+
+      // Extract Company/Header taglines
+      let detectedHeader = "Premium Apparel & Denim Co.";
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length > 0) {
+        const firstLine = lines[0];
+        if (firstLine.length > 2 && firstLine.length < 60) {
+          detectedHeader = firstLine;
+        }
+      }
+
+      // Extract terms
+      let detectedFooter = "Goods once sold will not be taken back or exchanged. Interest @ 18% will be charged if payment is not made within due date.";
+      const termsIndex = lines.findIndex(l => l.toLowerCase().includes("terms") || l.toLowerCase().includes("condition"));
+      if (termsIndex !== -1 && termsIndex < lines.length - 1) {
+        const slicedTerms = lines.slice(termsIndex, termsIndex + 3).join(" ");
+        if (slicedTerms.length > 10 && slicedTerms.length < 300) {
+          detectedFooter = slicedTerms;
+        }
+      }
+
+      // Configure states
+      setPrimaryColor(detectedColor);
+      setShowHsn(hasHsn);
+      setShowDiscountColumn(hasDiscount);
+      setShowBatchNo(hasBatch);
+      setShowTransportDetails(hasTransport);
+      setHeaderText(detectedHeader);
+      setFooterText(detectedFooter);
+      setSignatureDesignation("Authorized Signatory");
+
+      // Match template layouts roughly
+      if (textLower.includes("compact") || fileNameLower.includes("compact")) {
+        setPakkaTemplateId("00000000-0000-0000-0000-000000000003"); // Compact
+      } else if (textLower.includes("modern") || fileNameLower.includes("modern")) {
+        setPakkaTemplateId("00000000-0000-0000-0000-000000000002"); // Modern
+      } else if (textLower.includes("traditional") || fileNameLower.includes("traditional") || textLower.includes("double")) {
+        setPakkaTemplateId("00000000-0000-0000-0000-000000000004"); // Traditional
+      } else {
+        setPakkaTemplateId("00000000-0000-0000-0000-000000000001"); // Classic
+      }
+
+      setIsExtracting(false);
       toast.success("AI Layout Extraction Successful!");
-      toast.info("Invoice configuration pre-filled with extracted template parameters.");
-    }, 2000);
+      toast.info(`Configured: Color theme: ${detectedColor}, Columns: ${hasHsn ? 'HSN, ' : ''}${hasDiscount ? 'Discount, ' : ''}${hasBatch ? 'Batch, ' : ''}${hasTransport ? 'Transport' : ''}`);
+    };
+    reader.onerror = () => {
+      setIsExtracting(false);
+      toast.error("Failed to read template file.");
+    };
+    reader.readAsText(file);
   };
 
   const {
@@ -170,6 +246,20 @@ export default function BrandsPage() {
       is_primary: false,
       is_active: true,
     });
+    setPakkaTemplateId("00000000-0000-0000-0000-000000000001");
+    setKachaTemplateId("00000000-0000-0000-0000-000000000001");
+    setPrimaryColor("#6366F1");
+    setHeaderText("");
+    setFooterText("Thank you for your business!");
+    setSignatureName("");
+    setSignatureDesignation("Authorized Signatory");
+    setShowHsn(true);
+    setShowBatchNo(false);
+    setShowDiscountColumn(true);
+    setShowTransportDetails(true);
+    setBankAccountId("");
+    setUploadedReferenceFileUrl(null);
+    setPreviewMode("digitized");
     setModalOpen(true);
   };
 
@@ -224,6 +314,8 @@ export default function BrandsPage() {
           setShowDiscountColumn(c.show_discount_column !== false);
           setShowTransportDetails(c.show_transport_details !== false);
           setBankAccountId(c.bank_account_id || "");
+          setUploadedReferenceFileUrl(c.uploaded_reference_file_url || null);
+          setPreviewMode(c.uploaded_reference_file_url ? "uploaded" : "digitized");
         }
       })
       .catch((err) => console.error("Error fetching bill config:", err));
@@ -273,6 +365,7 @@ export default function BrandsPage() {
             show_discount_column: showDiscountColumn,
             show_transport_details: showTransportDetails,
             bank_account_id: bankAccountId || null,
+            uploaded_reference_file_url: uploadedReferenceFileUrl || null,
           }),
         });
 
@@ -349,7 +442,7 @@ export default function BrandsPage() {
       header: "Brand Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
+          <span className="font-bold text-[#6366F1] cursor-pointer">
             {row.name}
           </span>
           {row.is_primary && (
@@ -453,32 +546,30 @@ export default function BrandsPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
             {/* Tab Buttons */}
-            {editingBrand && (
-              <div className="flex border-b border-[#E5E7EB] mb-4 select-none">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("general")}
-                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                    activeTab === "general"
-                      ? "border-[#6366F1] text-[#6366F1]"
-                      : "border-transparent text-[#64748B] hover:text-[#374151]"
-                  }`}
-                >
-                  General Info
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("billFormat")}
-                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                    activeTab === "billFormat"
-                      ? "border-[#6366F1] text-[#6366F1]"
-                      : "border-transparent text-[#64748B] hover:text-[#374151]"
-                  }`}
-                >
-                  Bill Format Configuration
-                </button>
-              </div>
-            )}
+            <div className="flex border-b border-[#E5E7EB] mb-4 select-none">
+              <button
+                type="button"
+                onClick={() => setActiveTab("general")}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === "general"
+                    ? "border-[#6366F1] text-[#6366F1]"
+                    : "border-transparent text-[#64748B] hover:text-[#374151]"
+                }`}
+              >
+                General Info
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("billFormat")}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === "billFormat"
+                    ? "border-[#6366F1] text-[#6366F1]"
+                    : "border-transparent text-[#64748B] hover:text-[#374151]"
+                }`}
+              >
+                Bill Format Configuration
+              </button>
+            </div>
 
             {activeTab === "general" ? (
               <>
@@ -882,6 +973,196 @@ export default function BrandsPage() {
                       className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Live Invoice Preview */}
+                <div className="border border-[#CBD5E1] rounded-xl p-4 bg-slate-50 mt-6">
+                  <div className="flex items-center justify-between mb-3 select-none">
+                    <h4 className="text-xs font-bold text-[#475569] uppercase tracking-wider">
+                      Live Invoice Layout Preview {previewMode === "digitized" && `(${
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "Modern Layout" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "Compact Layout" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "Traditional Layout" :
+                        "Classic Layout"
+                      })`}
+                    </h4>
+                    {uploadedReferenceFileUrl && (
+                      <div className="flex bg-[#E2E8F0] p-0.5 rounded-lg text-[9px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("digitized")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                            previewMode === "digitized" ? "bg-white text-[#6366F1] shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"
+                          )}
+                        >
+                          Digitised Layout
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("uploaded")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                            previewMode === "uploaded" ? "bg-white text-[#6366F1] shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"
+                          )}
+                        >
+                          Uploaded Template
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {previewMode === "uploaded" && uploadedReferenceFileUrl ? (
+                    <div className="bg-white border border-[#E2E8F0] rounded-lg p-2 flex justify-center items-center min-h-[250px]">
+                      {uploadedReferenceFileUrl.toLowerCase().endsWith(".pdf") ? (
+                        <iframe 
+                          src={uploadedReferenceFileUrl} 
+                          className="w-full h-[400px] rounded border bg-white"
+                          title="Reference Template PDF" 
+                        />
+                      ) : (
+                        <div className="w-full text-center space-y-2">
+                          <img 
+                            src={uploadedReferenceFileUrl} 
+                            alt="Reference Template" 
+                            className="max-h-[400px] w-auto object-contain mx-auto rounded border" 
+                          />
+                          <a 
+                            href={uploadedReferenceFileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6366F1] hover:underline"
+                          >
+                            Open template in new tab
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div 
+                      className={cn(
+                        "bg-white border font-sans transition-all duration-350 select-none",
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "rounded-xl shadow-md border-t-8 border-[#E2E8F0] p-5 space-y-4" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "rounded p-2.5 space-y-2 text-[9px] border-slate-350 leading-tight" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "border-double border-4 border-slate-900 p-4 space-y-3" :
+                        "rounded-lg shadow-sm p-4 space-y-3 border-[#E2E8F0] text-[10px]"
+                      )}
+                      style={
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002"
+                          ? { borderTopColor: primaryColor }
+                          : undefined
+                      }
+                    >
+                      {/* Header */}
+                      <div className={cn(
+                        "flex justify-between items-start border-b pb-2",
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "flex-row-reverse pb-3 border-slate-100" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "pb-1.5 border-slate-200" :
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "pb-2 border-double border-b-4 border-slate-900" :
+                        "border-slate-200"
+                      )}>
+                        <div>
+                          {logoUrl ? (
+                            <img src={logoUrl} alt="Logo" className={cn("object-contain mb-1", pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "h-5" : "h-6")} />
+                          ) : (
+                            <div className="h-6 w-12 bg-slate-100 rounded border flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase">Logo</div>
+                          )}
+                          <h5 className="font-bold text-sm tracking-tight" style={{ color: primaryColor }}>{watch("name") || "BRAND NAME"}</h5>
+                          <p className="text-slate-500 text-[8px] font-medium italic">{headerText || 'Tagline / Header tagline goes here...'}</p>
+                        </div>
+                        <div className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "text-left" : "text-right"}>
+                          <span 
+                            className={cn(
+                              "text-[8px] font-bold uppercase px-1.5 py-0.5 text-white",
+                              pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "rounded-full px-2" : "rounded"
+                            )} 
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            Tax Invoice
+                          </span>
+                          <p className="font-mono mt-1 text-[8px] text-slate-500">No: {editingBrand ? (editingBrand.bill_prefix_pakka || "TAX") : (watch("bill_prefix_pakka") || "TAX")}-2026-0001</p>
+                          <p className="font-mono text-[8px] text-slate-500">Date: {new Date().toLocaleDateString("en-IN")}</p>
+                        </div>
+                      </div>
+
+                      {/* Parties info */}
+                      <div className="grid grid-cols-2 gap-4 text-[8px]">
+                        <div>
+                          <span className="font-bold text-slate-400 uppercase block tracking-wider">Billed To (Customer)</span>
+                          <p className="font-bold text-slate-700">Acme Clothing Distributors</p>
+                          <p className="text-slate-500">128 Denim Street, Textile Zone, Mumbai</p>
+                          <p className="font-mono text-slate-500">GSTIN: 27AAAAA1111A1Z1</p>
+                        </div>
+                        <div className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "text-left pl-4 border-l" : "text-right"}>
+                          <span className="font-bold text-slate-400 uppercase block tracking-wider">Supplier (Our Brand)</span>
+                          <p className="font-bold text-slate-700">{watch("name") || "Brand Ltd."}</p>
+                          <p className="text-slate-500">{watch("address") || "Registered Office Address"}</p>
+                          <p className="font-mono text-slate-500">GSTIN: {watch("gstin") || "—"}</p>
+                        </div>
+                      </div>
+
+                      {/* Items table */}
+                      <div className={cn(
+                        "border rounded overflow-hidden",
+                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "border-double border-2 border-slate-900" : ""
+                      )}>
+                        <table className="w-full border-collapse text-[8px]">
+                          <thead>
+                            <tr 
+                              className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "" : "text-white"} 
+                              style={
+                                pakkaTemplateId === "00000000-0000-0000-0000-000000000002"
+                                  ? { backgroundColor: `${primaryColor}15`, color: primaryColor }
+                                  : { backgroundColor: primaryColor }
+                              }
+                            >
+                              <th className="p-1 text-left">Item Description</th>
+                              {showHsn && <th className="p-1 text-center">HSN/SAC</th>}
+                              {showBatchNo && <th className="p-1 text-center">Batch/Lot</th>}
+                              <th className="p-1 text-right">Qty</th>
+                              <th className="p-1 text-right">Rate</th>
+                              {showDiscountColumn && <th className="p-1 text-right">Disc %</th>}
+                              <th className="p-1 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y text-slate-700">
+                            <tr>
+                              <td className="p-1 font-semibold">Premium Denim Jeans - Blue / L</td>
+                              {showHsn && <td className="p-1 text-center font-mono text-[7px]">62034200</td>}
+                              {showBatchNo && <td className="p-1 text-center font-mono text-[7px]">LOT0024</td>}
+                              <td className="p-1 text-right font-mono">100 Pcs</td>
+                              <td className="p-1 text-right font-mono">₹450.00</td>
+                              {showDiscountColumn && <td className="p-1 text-right font-mono">5.0%</td>}
+                              <td className="p-1 text-right font-mono font-bold">₹42,750.00</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Bottom notes and signatures */}
+                      <div className="flex justify-between items-end pt-2 border-t text-[8px]">
+                        <div className="max-w-[60%] space-y-1">
+                          <span className="font-bold text-slate-400 uppercase tracking-wider block">Terms & Conditions</span>
+                          <p className="text-slate-500 leading-normal italic text-[7px]">{footerText || "Terms and conditions are listed here..."}</p>
+                          {bankAccountId && (
+                            <div className="mt-1 p-1 bg-slate-50 rounded border border-slate-200">
+                              <span className="font-bold text-[7px] text-slate-600 block">Bank Settlement details:</span>
+                              <span className="text-[7px] text-slate-500 font-mono">
+                                {bankAccounts.find(b => b.id === bankAccountId)?.bank_name || "Active Bank"} - A/C: {bankAccounts.find(b => b.id === bankAccountId)?.account_number || "xxxx"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right space-y-4">
+                          <p className="font-bold text-slate-600">For {watch("name") || "BRAND NAME"}</p>
+                          <div>
+                            <p className="font-bold text-slate-800">{signatureName || "Officer Name"}</p>
+                            <p className="text-slate-500 text-[7px] uppercase tracking-wider">{signatureDesignation || "Designation"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

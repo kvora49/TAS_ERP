@@ -246,7 +246,7 @@ export default function ExpenseTypesPage() {
           />
           <button
             onClick={() => setSelectedExpenseTypeDetails(row)}
-            className="font-bold text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
+            className="font-bold text-[#6366F1] cursor-pointer text-left bg-transparent border-0 p-0"
           >
             {row.name}
           </button>

@@ -72,7 +72,7 @@ export default function PurchaseReturnsPage() {
       render: (row) => (
         <Link
           href={`/raw-materials/purchase-returns/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1] hover:underline"
+          className="font-mono font-bold text-xs text-[#6366F1]"
         >
           {row.return_number}
         </Link>
@@ -102,7 +102,7 @@ export default function PurchaseReturnsPage() {
         <div>
           <Link
             href={`/raw-materials/purchases/${row.purchase_id}`}
-            className="font-mono text-xs font-bold text-[#475569] hover:underline block"
+            className="font-mono text-xs font-bold text-[#475569] block"
           >
             {row.purchase?.purchase_number || "—"}
           </Link>

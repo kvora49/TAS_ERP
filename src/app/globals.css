@@ -302,7 +302,36 @@
   /* Scan frame */
   --scan-frame-border: #6366F1;
   --scan-overlay-bg: rgba(0,0,0,0.5);
+
+  /* Ledger entry type badges (extends Phase 3 set) */
+  --badge-advance-bg: #DBEAFE;     --badge-advance-text: #1D4ED8;
+  --badge-writeoff-bg: #F1F5F9;    --badge-writeoff-text: #64748B;
+
+  /* Financial report trend indicators */
+  --trend-up-color: #15803D;
+  --trend-down-color: #DC2626;
+  --trend-neutral-color: #64748B;
+
+  /* Balance sheet section colors */
+  --bs-assets-color: #15803D;
+  --bs-liabilities-color: #DC2626;
+  --bs-equity-color: #1D4ED8;
+
+  /* GST status badges */
+  --gst-filed-bg: #DCFCE7;    --gst-filed-text: #15803D;
+  --gst-pending-bg: #FEF3C7;  --gst-pending-text: #D97706;
+  --gst-upcoming-bg: #F1F5F9; --gst-upcoming-text: #64748B;
+
+  /* Key Ratio benchmark indicator */
+  --ratio-good-bg: #DCFCE7;   --ratio-good-text: #15803D;
+  --ratio-warn-bg: #FEF3C7;   --ratio-warn-text: #D97706;
+  --ratio-poor-bg: #FEE2E2;   --ratio-poor-text: #DC2626;
+
+  /* Allocation table row states */
+  --alloc-fulfilled-color: #15803D;  /* balance after allocation = 0 */
+  --alloc-partial-color: #DC2626;    /* balance remains */
 }
+
 
 .dark {
   --background: oklch(0.145 0 0);

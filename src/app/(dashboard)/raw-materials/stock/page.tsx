@@ -478,6 +478,7 @@ export default function StockOverviewPage() {
             page={1}
             perPage={10000}
             onPageChange={() => { }}
+            onRowClick={(row) => router.push(`/master-data/raw-materials/${row.material_type_id}`)}
             emptyMessage="No inventory items found."
           />
         ) : (
@@ -489,6 +490,7 @@ export default function StockOverviewPage() {
             page={1}
             perPage={10000}
             onPageChange={() => { }}
+            onRowClick={(row) => router.push(`/raw-materials/stock/${row.id}`)}
             emptyMessage="No stock entry transaction history found."
           />
         )}

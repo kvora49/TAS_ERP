@@ -69,7 +69,7 @@ export default function DashboardPage() {
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardData | null>({
     queryKey: ["dashboard", filters.brandId, filters.dateRange],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch(`/api/dashboard?brandId=${filters.brandId}&dateRange=${filters.dateRange}`);
       if (!res.ok) throw new Error("Failed to load dashboard data");
       const result = await res.json();
       return result;
@@ -233,7 +233,17 @@ export default function DashboardPage() {
 
         {/* KPI 3: This Month Sales */}
         <KPICard
-          title="This Month Sales"
+          title={
+            filters.dateRange === "today"
+              ? "Today's Sales"
+              : filters.dateRange === "this_week"
+              ? "This Week Sales"
+              : filters.dateRange === "last_month"
+              ? "Last Month Sales"
+              : filters.dateRange === "this_year"
+              ? "This Year Sales"
+              : "This Month Sales"
+          }
           value={formatCurrency(kpis.thisMonthSales.value)}
           change={kpis.thisMonthSales.change}
           positive={kpis.thisMonthSales.positive}
@@ -542,7 +552,7 @@ export default function DashboardPage() {
             icon={Plus}
             iconColorClass="text-[#6366F1]"
             iconBgClass="bg-[#EEF2FF]"
-            href="/sales/new"
+            href="/sales/bills/new"
           />
           <QuickActionCard
             label="Add Purchase"
@@ -550,7 +560,7 @@ export default function DashboardPage() {
             icon={ShoppingCart}
             iconColorClass="text-[#16A34A]"
             iconBgClass="bg-[#F0FDF4]"
-            href="/raw-materials/new"
+            href="/raw-materials/purchases/new"
           />
           <QuickActionCard
             label="Create Lot"
@@ -558,7 +568,7 @@ export default function DashboardPage() {
             icon={Factory}
             iconColorClass="text-[#EA580C]"
             iconBgClass="bg-[#FFF7ED]"
-            href="/production/new"
+            href="/production/lots/new"
           />
           <QuickActionCard
             label="Add Payment"
@@ -566,7 +576,7 @@ export default function DashboardPage() {
             icon={CreditCard}
             iconColorClass="text-[#D97706]"
             iconBgClass="bg-[#FFFBEB]"
-            href="/payments/new"
+            href="/production/job-work/record-payment"
           />
           <QuickActionCard
             label="Add Expense"
@@ -582,7 +592,7 @@ export default function DashboardPage() {
             icon={BarChart3}
             iconColorClass="text-[#7C3AED]"
             iconBgClass="bg-[#F5F3FF]"
-            href="/reports"
+            href="/reports/production"
           />
         </div>
       </div>
@@ -671,8 +681,10 @@ function QuickActionCard({
   href,
 }: QuickActionProps) {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    toast.info("This feature is coming soon!");
+    if (href === "/expenses/new") {
+      e.preventDefault();
+      toast.info("Expenses recording features are coming soon!");
+    }
   };
 
   return (

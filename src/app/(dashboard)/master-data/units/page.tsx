@@ -199,7 +199,7 @@ export default function UnitsPage() {
       render: (row) => (
         <button
           onClick={() => setSelectedUnitDetails(row)}
-          className="font-bold text-sm text-[#6366F1] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
+          className="font-bold text-sm text-[#6366F1] cursor-pointer text-left bg-transparent border-0 p-0"
         >
           {row.name}
         </button>
@@ -297,7 +297,7 @@ export default function UnitsPage() {
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>
               {editingUnit ? "Edit Unit of Measurement" : "Add Unit of Measurement"}
@@ -399,7 +399,7 @@ export default function UnitsPage() {
 
       {/* View Details Modal */}
       <Dialog open={!!selectedUnitDetails} onOpenChange={(open) => !open && setSelectedUnitDetails(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>Unit Details</DialogTitle>
           </DialogHeader>

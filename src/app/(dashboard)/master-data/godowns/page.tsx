@@ -193,7 +193,7 @@ export default function GodownsPage() {
       header: "Godown Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
+          <span className="font-bold text-[#6366F1] cursor-pointer">
             {row.name}
           </span>
           {row.is_primary && (

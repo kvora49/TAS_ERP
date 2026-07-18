@@ -442,6 +442,17 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         >
           Lot Costing & Valuation
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("details")}
+          className={`px-5 py-2.5 font-bold text-xs uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "details"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Lot Specifications & Routing
+        </button>
       </div>
 
       {/* ========================================================
@@ -753,6 +764,135 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                   <span className="text-emerald-700 font-mono">{formatCurrency(perPieceCost)} / pc</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          TAB 3: LOT SPECIFICATIONS & ROUTING
+          ======================================================== */}
+      {activeTab === "details" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
+          {/* Left Column: General Specifications */}
+          <div className="space-y-6">
+            {/* General Specs Card */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Info className="h-4.5 w-4.5 text-indigo-600" />
+                General Lot Specifications
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
+                <div>
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">Design Reference Info</span>
+                  <span className="text-slate-700">{specifications?.design_reference_text || "—"}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">Additional Details</span>
+                  <span className="text-slate-700">{specifications?.additional_details || "—"}</span>
+                </div>
+                <div className="col-span-2 border-t border-slate-100 pt-3">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1.5">Custom Production Remarks</span>
+                  <span className="text-slate-700 block bg-slate-50 p-2.5 rounded border border-slate-150 font-medium whitespace-pre-wrap">{lot?.notes || "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* QA Checklist Card */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
+                Custom QA Checklist
+              </h3>
+              {(!specifications?.custom_qa || specifications.custom_qa.length === 0) ? (
+                <p className="text-xs text-slate-400 italic">No custom QA checklist items configured for this lot.</p>
+              ) : (
+                <ul className="space-y-2 text-xs font-semibold text-slate-700">
+                  {specifications.custom_qa.map((item: any, idx: number) => (
+                    <li key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg p-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-200 border border-slate-350 flex items-center justify-center text-[10px] text-slate-600 font-bold shrink-0">{idx + 1}</span>
+                      <span>{item.name || item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Fabric & Rolls Allocation */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Boxes className="h-4.5 w-4.5 text-indigo-600" />
+                Allocated Fabrics & Rolls
+              </h3>
+              {lotRolls.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No fabric rolls allocated to this production lot.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {lotRolls.map((roll: any) => (
+                    <div key={roll.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200/60 font-semibold text-slate-700 space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[#6366F1] tracking-wider font-mono">Roll #{roll.purchase_roll?.roll_number}</span>
+                      <p className="text-[11px] font-black">{roll.purchase_roll?.item?.material_type?.name}</p>
+                      <div className="flex justify-between text-[10px] text-slate-500 pt-1">
+                        <span>Shade: {roll.purchase_roll?.shade || "—"}</span>
+                        <span>Qty: {roll.allocated_meters} {roll.purchase_roll?.item?.material_type?.unit || "Mtr"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Workflow Routing & Specs Sheet */}
+          <div className="space-y-6">
+            {/* Garment Spec Sheet Parameters */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Settings className="h-4.5 w-4.5 text-indigo-600" />
+                Garment Design Spec Template Parameters
+              </h3>
+              {(!specSheet || Object.keys(specSheet.fields || {}).length === 0) ? (
+                <p className="text-xs text-slate-400 italic">No garment design specification parameters configured.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 text-xs font-semibold">
+                  {Object.entries(specSheet.fields || {}).map(([key, val]: [string, any]) => (
+                    <div key={key} className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 space-y-0.5">
+                      <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider font-mono">{key}</span>
+                      <span className="text-slate-700">{String(val || "—")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Workflow Stages Routing */}
+            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="h-4.5 w-4.5 text-indigo-600" />
+                Workflow Stages & Assigned Workers
+              </h3>
+              {stages.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No workflow routing stages configured.</p>
+              ) : (
+                <div className="space-y-2">
+                  {stages.map((stage: any, idx: number) => (
+                    <div key={stage.id} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-slate-800">
+                          <span className="w-5 h-5 rounded-full bg-slate-200 border border-slate-350 flex items-center justify-center text-[10px] text-slate-600 font-mono font-bold shrink-0">{idx + 1}</span>
+                          <span>{stage.stage_name}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-semibold">Type: {stage.stage_type.replace("_", " ")}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-[#6366F1] bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1">
+                          {stage.workers?.map((w: any) => w.name).join(", ") || "No Worker Assigned"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -77,55 +77,38 @@ export async function PUT(
       return NextResponse.json({ error: "Cheque not found" }, { status: 404 });
     }
 
-    const updates: any = {};
-    if (status !== undefined) updates.status = status;
-    if (received_account_id !== undefined) updates.received_account_id = received_account_id || null;
-    if (remarks !== undefined) updates.remarks = remarks || null;
+    // Call the postgres function via RPC
+    const { error: updateErr } = await supabase
+      .rpc("process_cheque_status_update", {
+        p_cheque_id: id,
+        p_business_id: businessId,
+        p_new_status: status !== undefined ? status : existing.status,
+        p_received_account_id: received_account_id !== undefined ? (received_account_id || null) : existing.received_account_id,
+        p_remarks: remarks !== undefined ? (remarks || null) : existing.remarks,
+        p_deposited_date: deposited_date || null,
+        p_cleared_date: cleared_date || null,
+        p_bounce_reason: bounce_reason || null,
+        p_bounce_charges: bounce_charges ? Number(bounce_charges) : null
+      });
 
-    // Dates & Bounces
-    if (status === "deposited") {
-      updates.deposited_date = deposited_date || new Date().toISOString().split("T")[0];
-    } else if (status === "cleared") {
-      updates.cleared_date = cleared_date || new Date().toISOString().split("T")[0];
-      
-      // Dynamic clearing ledger logic: if received cheque clears, optionally increase bank balance
-      const accountId = received_account_id || existing.received_account_id;
-      if (accountId && existing.direction === "received" && existing.status !== "cleared") {
-        // Fetch current balance
-        const { data: acc } = await supabase
-          .from("bank_accounts")
-          .select("current_balance")
-          .eq("id", accountId)
-          .maybeSingle();
-        if (acc) {
-          const newBal = Number(acc.current_balance || 0) + Number(existing.amount);
-          await supabase
-            .from("bank_accounts")
-            .update({ current_balance: newBal })
-            .eq("id", accountId);
-        }
-      }
-    } else if (status === "bounced") {
-      updates.bounce_reason = bounce_reason || null;
-      updates.bounce_charges = bounce_charges ? Number(bounce_charges) : 0;
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    updates.updated_at = new Date().toISOString();
-
-    const { data: updatedCheque, error: updateErr } = await supabase
+    // Query the updated cheque with relationships
+    const { data: updatedCheque, error: selectErr } = await supabase
       .from("cheques")
-      .update(updates)
-      .eq("id", id)
-      .eq("business_id", businessId)
       .select(`
         *,
         party:parties(*),
         received_account:bank_accounts(*)
       `)
+      .eq("id", id)
+      .eq("business_id", businessId)
       .single();
 
-    if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    if (selectErr) {
+      return NextResponse.json({ error: selectErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ cheque: updatedCheque });
@@ -150,14 +133,17 @@ export async function DELETE(
   const { id } = params;
 
   try {
-    const { error } = await supabase
-      .from("cheques")
-      .delete()
-      .eq("id", id)
-      .eq("business_id", businessId);
+    const { data: success, error } = await supabase
+      .rpc("delete_cheque", {
+        p_cheque_id: id,
+        p_business_id: businessId
+      });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!success) {
+      return NextResponse.json({ error: "Cheque not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });

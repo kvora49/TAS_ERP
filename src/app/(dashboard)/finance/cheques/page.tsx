@@ -42,16 +42,15 @@ interface Cheque {
   received_account?: BankAccount;
 }
 
-export default function ChequesPage() {
-  const [cheques, setCheques] = useState<Cheque[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 
+export default function ChequesPage() {
   // Tabs & filters
   const [activeTab, setActiveTab] = useState<"received" | "issued">("received");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
   // Modals
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -73,7 +72,6 @@ export default function ChequesPage() {
   const [amount, setAmount] = useState<number | "">("");
   const [receivedAccountId, setReceivedAccountId] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [saving, setSaving] = useState(false);
 
   // Form states: Deposit
   const [depositDate, setDepositDate] = useState(new Date().toISOString().split("T")[0]);
@@ -82,42 +80,109 @@ export default function ChequesPage() {
   const [bounceReason, setBounceReason] = useState("");
   const [bounceCharges, setBounceCharges] = useState<number | "">("");
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.append("direction", activeTab);
-      if (statusFilter) params.append("status", statusFilter);
-      if (search) params.append("search", search);
+  // React Query: Fetch dependencies
+  const { data: partiesData } = useERPQuery(["parties"], async () => {
+    const res = await fetch("/api/parties");
+    if (!res.ok) throw new Error("Failed to load parties");
+    return (await res.json()).parties || [];
+  });
 
-      const [chequesRes, partiesRes, banksRes] = await Promise.all([
-        fetch(`/api/finance/cheques?${params.toString()}`),
-        fetch("/api/parties"),
-        fetch("/api/master-data/banks-upi"),
-      ]);
+  const { data: banksData } = useERPQuery(["banks-upi"], async () => {
+    const res = await fetch("/api/master-data/banks-upi");
+    if (!res.ok) throw new Error("Failed to load bank accounts");
+    return (await res.json()).accounts || [];
+  });
 
-      if (!chequesRes.ok || !partiesRes.ok || !banksRes.ok) {
-        throw new Error("Failed to load cheques dependencies");
+  const parties: Party[] = partiesData || [];
+  const bankAccounts: BankAccount[] = banksData || [];
+
+  // React Query: Fetch Cheques
+  const chequesParams = new URLSearchParams();
+  chequesParams.append("direction", activeTab);
+  chequesParams.append("page", page.toString());
+  chequesParams.append("limit", limit.toString());
+  if (statusFilter) chequesParams.append("status", statusFilter);
+  if (search) chequesParams.append("search", search);
+
+  const chequesQuery = useERPQuery(
+    ["cheques", activeTab, statusFilter, search, page],
+    async () => {
+      const res = await fetch(`/api/finance/cheques?${chequesParams.toString()}`);
+      if (!res.ok) throw new Error("Failed to load cheques");
+      return await res.json();
+    },
+    { skeleton: "table" }
+  );
+
+  const cheques: Cheque[] = chequesQuery.data?.data || [];
+  const meta = chequesQuery.data?.meta || { page: 1, limit: 10, total: 0 };
+  const stats = chequesQuery.data?.stats || { pendingValue: 0, clearedValue: 0, bouncedValue: 0 };
+
+  const pendingValue = stats.pendingValue;
+  const clearedValue = stats.clearedValue;
+  const bouncedValue = stats.bouncedValue;
+
+  // React Query: Mutations
+  const createMutation = useERPMutation(
+    async (newCheque: any) => {
+      const res = await fetch("/api/finance/cheques", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCheque),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to save cheque");
       }
-
-      setCheques((await chequesRes.json()).cheques || []);
-      setParties((await partiesRes.json()).parties || []);
-      setBankAccounts((await banksRes.json()).accounts || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching cheques");
-    } finally {
-      setLoading(false);
+      return await res.json();
+    },
+    {
+      successMessage: "Cheque recorded successfully!",
+      invalidates: [["cheques"]],
+      onSuccess: () => setIsAddOpen(false),
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab, statusFilter, search]);
+  const updateMutation = useERPMutation(
+    async ({ id, data }: { id: string; data: any }) => {
+      const res = await fetch(`/api/finance/cheques/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update cheque");
+      }
+      return await res.json();
+    },
+    {
+      successMessage: "Cheque updated successfully",
+      invalidates: [["cheques"]],
+      onSuccess: () => {
+        setIsDepositOpen(false);
+        setIsBounceOpen(false);
+      },
+    }
+  );
 
-  // Aggregate stats
-  const pendingValue = cheques.filter((c) => c.status === "pending" || c.status === "deposited").reduce((sum, c) => sum + Number(c.amount), 0);
-  const clearedValue = cheques.filter((c) => c.status === "cleared").reduce((sum, c) => sum + Number(c.amount), 0);
-  const bouncedValue = cheques.filter((c) => c.status === "bounced").reduce((sum, c) => sum + Number(c.amount), 0);
+  const deleteMutation = useERPMutation(
+    async (id: string) => {
+      const res = await fetch(`/api/finance/cheques/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete cheque");
+      }
+      return await res.json();
+    },
+    {
+      successMessage: "Cheque record deleted",
+      invalidates: [["cheques"]],
+      onSuccess: () => setIsDeleteOpen(false),
+    }
+  );
 
   const handleOpenAdd = () => {
     setChequeNumber("");
@@ -152,38 +217,18 @@ export default function ChequesPage() {
       return;
     }
 
-    setSaving(true);
-    try {
-      const res = await fetch("/api/finance/cheques", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cheque_number: chequeNumber,
-          direction,
-          party_id: partyId || null,
-          bank_name: bankName,
-          account_no: accountNo,
-          cheque_date: chequeDate,
-          due_date: dueDate || null,
-          amount: Number(amount),
-          received_account_id: receivedAccountId || null,
-          remarks,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save cheque");
-      }
-
-      toast.success("Cheque recorded successfully!");
-      setIsAddOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    createMutation.mutate({
+      cheque_number: chequeNumber,
+      direction,
+      party_id: partyId || null,
+      bank_name: bankName,
+      account_no: accountNo,
+      cheque_date: chequeDate,
+      due_date: dueDate || null,
+      amount: Number(amount),
+      received_account_id: receivedAccountId || null,
+      remarks,
+    });
   };
 
   const handleOpenDeposit = (c: Cheque) => {
@@ -201,35 +246,17 @@ export default function ChequesPage() {
       return;
     }
 
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/finance/cheques/${selectedCheque.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "deposited",
-          received_account_id: receivedAccountId,
-          deposited_date: depositDate,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to deposit cheque");
-      }
-
-      toast.success("Cheque marked as Deposited");
-      setIsDepositOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    updateMutation.mutate({
+      id: selectedCheque.id,
+      data: {
+        status: "deposited",
+        received_account_id: receivedAccountId,
+        deposited_date: depositDate,
+      },
+    });
   };
 
   const handleClearCheque = async (c: Cheque) => {
-    // If it's a received cheque and hasn't been deposited yet, we require depositing it first to satisfy received_account_id
     if (c.direction === "received" && !c.received_account_id) {
       handleOpenDeposit(c);
       return;
@@ -238,25 +265,10 @@ export default function ChequesPage() {
     const confirmClear = window.confirm(`Mark Cheque #${c.cheque_number} as Cleared? This will reconcile financial balances.`);
     if (!confirmClear) return;
 
-    try {
-      const res = await fetch(`/api/finance/cheques/${c.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "cleared",
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to clear cheque");
-      }
-
-      toast.success("Cheque Cleared successfully!");
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    updateMutation.mutate({
+      id: c.id,
+      data: { status: "cleared" },
+    });
   };
 
   const handleOpenBounce = (c: Cheque) => {
@@ -270,56 +282,24 @@ export default function ChequesPage() {
     e.preventDefault();
     if (!selectedCheque) return;
 
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/finance/cheques/${selectedCheque.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "bounced",
-          bounce_reason: bounceReason,
-          bounce_charges: Number(bounceCharges || 0),
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to bounce cheque");
-      }
-
-      toast.error("Cheque marked as Bounced!");
-      setIsBounceOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    updateMutation.mutate({
+      id: selectedCheque.id,
+      data: {
+        status: "bounced",
+        bounce_reason: bounceReason,
+        bounce_charges: Number(bounceCharges || 0),
+      },
+    });
   };
 
   const handleCancelCheque = async (c: Cheque) => {
     const confirmCancel = window.confirm(`Mark Cheque #${c.cheque_number} as Cancelled?`);
     if (!confirmCancel) return;
 
-    try {
-      const res = await fetch(`/api/finance/cheques/${c.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "cancelled",
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to cancel cheque");
-      }
-
-      toast.info("Cheque Cancelled");
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    updateMutation.mutate({
+      id: c.id,
+      data: { status: "cancelled" },
+    });
   };
 
   const handleOpenDelete = (c: Cheque) => {
@@ -329,27 +309,10 @@ export default function ChequesPage() {
 
   const handleDeleteCheque = async () => {
     if (!selectedCheque) return;
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/finance/cheques/${selectedCheque.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete cheque");
-      }
-
-      toast.success("Cheque record deleted");
-      setIsDeleteOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    deleteMutation.mutate(selectedCheque.id);
   };
+
+  const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -467,11 +430,8 @@ export default function ChequesPage() {
 
       {/* Cheques Table */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 gap-2">
-            <Loader2 className="h-7 w-7 text-[#6366F1] animate-spin" />
-            <span className="text-xs text-slate-500 font-semibold">Loading cheques book...</span>
-          </div>
+        {chequesQuery.isPending ? (
+          chequesQuery.Skeleton
         ) : cheques.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-2">
             <Landmark className="h-8 w-8 text-slate-300" />
@@ -583,6 +543,32 @@ export default function ChequesPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {/* Pagination Controls */}
+        {meta.total > meta.limit && (
+          <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-[#E5E7EB] text-xs font-semibold text-slate-500">
+            <span>
+              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, meta.total)} of {meta.total} records
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page * limit >= meta.total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         )}
       </div>

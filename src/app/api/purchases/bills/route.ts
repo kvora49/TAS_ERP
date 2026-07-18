@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { CreatePurchaseBillSchema } from "@/lib/schemas/purchases";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -74,18 +75,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount = 0 } = body;
-
-    // Validate inputs
-    if (!supplier_id) {
-      return NextResponse.json({ error: "Supplier is required" }, { status: 400 });
+    const parsed = CreatePurchaseBillSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
-    if (!invoice_date) {
-      return NextResponse.json({ error: "Invoice date is required" }, { status: 400 });
-    }
-    if (grand_total === undefined || grand_total === null || Number(grand_total) < 0) {
-      return NextResponse.json({ error: "Grand total must be a positive number" }, { status: 400 });
-    }
+    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount } = parsed.data;
 
     // Auto-generate Bill Number (Format: PB-YYYY-XXXX)
     const year = new Date(invoice_date).getFullYear();

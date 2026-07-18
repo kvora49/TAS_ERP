@@ -27,15 +27,14 @@ export async function GET(request: Request) {
 
     let nextNum = 1;
     if (lots && lots.length > 0) {
-      for (const l of lots) {
-        if (!l.lot_number) continue;
+      const nums = lots.map((l) => {
+        if (!l.lot_number) return 0;
         const numPart = l.lot_number.substring(prefix.length + 1);
         const parsed = parseInt(numPart, 10);
-        if (!isNaN(parsed)) {
-          nextNum = parsed + 1;
-          break;
-        }
-      }
+        return isNaN(parsed) ? 0 : parsed;
+      });
+      const maxNum = Math.max(...nums, 0);
+      nextNum = maxNum + 1;
     }
 
     const nextCode = `${prefix}-${String(nextNum).padStart(3, "0")}`;

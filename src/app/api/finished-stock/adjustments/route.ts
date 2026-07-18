@@ -58,26 +58,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "All required fields must be filled" }, { status: 400 });
     }
 
-    // Auto-generate adjustment number (ADJ-YYYY-XXXX)
-    const year = new Date(adjustment_date).getFullYear() || new Date().getFullYear();
-    const { data: lastAdj } = await supabase
-      .from("stock_adjustments")
-      .select("adjustment_number")
-      .eq("business_id", businessId)
-      .like("adjustment_number", `ADJ-${year}-%`)
-      .order("adjustment_number", { ascending: false })
-      .limit(1);
-
-    let nextNum = 1;
-    if (lastAdj && lastAdj.length > 0 && lastAdj[0].adjustment_number) {
-      const parts = lastAdj[0].adjustment_number.split("-");
-      const lastNum = parseInt(parts[parts.length - 1], 10);
-      if (!isNaN(lastNum)) {
-        nextNum = lastNum + 1;
-      }
-    }
-    const adjustmentNumber = `ADJ-${year}-${String(nextNum).padStart(4, "0")}`;
-
     const valueImpact = quantity_change * unit_cost;
 
     // Insert adjustment record
@@ -85,7 +65,7 @@ export async function POST(request: Request) {
       .from("stock_adjustments")
       .insert({
         business_id: businessId,
-        adjustment_number: adjustmentNumber,
+        adjustment_number: "", // assigned atomically by database trigger
         adjustment_type,
         adjustment_date,
         godown_id,

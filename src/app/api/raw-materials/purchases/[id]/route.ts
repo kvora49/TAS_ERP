@@ -27,10 +27,10 @@ export async function GET(
       return NextResponse.json({ error: purchaseError.message }, { status: 404 });
     }
 
-    // 2. Fetch Line Items with Rolls
+    // 2. Fetch Line Items
     const { data: items, error: itemsError } = await supabase
       .from("raw_material_purchase_items")
-      .select("*, material_type:raw_material_types(name, category), rolls:purchase_rolls(*)")
+      .select("*, material_type:raw_material_types(name, category)")
       .eq("purchase_id", id)
       .eq("business_id", businessId);
 
@@ -38,10 +38,34 @@ export async function GET(
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
-    const itemsWithRolls = items?.map((item: any) => ({
-      ...item,
-      item_type: (item.rolls && item.rolls.length > 0) ? "fabric" : "accessory",
-    })) || [];
+    // Fetch Rolls separately in JS
+    const itemIds = items?.map((item) => item.id) || [];
+    const rollsLookup: Record<string, any[]> = {};
+    if (itemIds.length > 0) {
+      const { data: rolls } = await supabase
+        .from("purchase_rolls")
+        .select("*")
+        .in("purchase_item_id", itemIds)
+        .eq("business_id", businessId);
+
+      if (rolls) {
+        rolls.forEach((roll: any) => {
+          if (!rollsLookup[roll.purchase_item_id]) {
+            rollsLookup[roll.purchase_item_id] = [];
+          }
+          rollsLookup[roll.purchase_item_id].push(roll);
+        });
+      }
+    }
+
+    const itemsWithRolls = items?.map((item: any) => {
+      const itemRolls = rollsLookup[item.id] || [];
+      return {
+        ...item,
+        rolls: itemRolls,
+        item_type: itemRolls.length > 0 ? "fabric" : "accessory",
+      };
+    }) || [];
 
     // 3. Fetch Payments Made against this Invoice
     const { data: payments } = await supabase
@@ -52,9 +76,11 @@ export async function GET(
       .eq("status", "success");
 
     return NextResponse.json({
-      purchase,
-      items: itemsWithRolls,
-      payments,
+      purchase: {
+        ...purchase,
+        items: itemsWithRolls,
+        payments: payments || [],
+      }
     });
   } catch (err: any) {
     return NextResponse.json(

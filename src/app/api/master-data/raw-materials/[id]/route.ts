@@ -53,8 +53,8 @@ export async function GET(
         amount,
         purchase:raw_material_purchases(
           id,
-          invoice_number,
-          purchase_date,
+          invoice_no,
+          invoice_date,
           supplier:parties(name)
         )
       `)
@@ -69,8 +69,8 @@ export async function GET(
         rate: Number(item.rate || 0),
         amount: Number(item.amount || 0),
         purchaseId: item.purchase?.id,
-        invoiceNumber: item.purchase?.invoice_number || "N/A",
-        purchaseDate: item.purchase?.purchase_date || null,
+        invoiceNumber: item.purchase?.invoice_no || "N/A",
+        purchaseDate: item.purchase?.invoice_date || null,
         supplierName: item.purchase?.supplier?.name || "Supplier",
       }))
       .filter((p) => p.purchaseDate !== null)

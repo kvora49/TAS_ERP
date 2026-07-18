@@ -85,7 +85,7 @@ export default function NewTransferPage() {
   // Load masters on mount
   useEffect(() => {
     // 1. Fetch godowns
-    fetch("/api/raw-materials/stock?view=summary")
+    fetch("/api/master-data/godowns")
       .then((res) => res.json())
       .then((data) => {
         if (data.godowns) {

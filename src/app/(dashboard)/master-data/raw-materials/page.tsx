@@ -220,7 +220,7 @@ export default function RawMaterialsPage() {
       key: "name",
       header: "Material Name",
       render: (row) => (
-        <span className="font-bold text-[#6366F1] hover:underline cursor-pointer">
+        <span className="font-bold text-[#6366F1] cursor-pointer">
           {row.name}
         </span>
       ),

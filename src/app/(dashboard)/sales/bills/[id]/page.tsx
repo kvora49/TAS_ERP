@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import {
   ArrowLeft,
   Printer,
@@ -37,6 +38,15 @@ interface BillItem {
   tax_percent: number;
   amount: number;
   hsn_sac: string | null;
+  design?: {
+    id: string;
+    design_number: string;
+    name: string;
+  };
+  colour?: {
+    id: string;
+    colour_name: string;
+  };
 }
 
 interface BillCharge {
@@ -95,59 +105,46 @@ export default function SaleBillDetailPage() {
   const router = useRouter();
   const { id } = params;
 
-  const [bill, setBill] = useState<SaleBill | null>(null);
-  const [profit, setProfit] = useState<ProfitData | null>(null);
-  const [brand, setBrand] = useState<any>(null);
-  const [brandConfig, setBrandConfig] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    fetch(`/api/sales/bills/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch bill details");
-        return res.json();
-      })
-      .then((data) => {
-        if (data.bill) setBill(data.bill);
-        if (data.profit) setProfit(data.profit);
-        if (data.brand) setBrand(data.brand);
-        if (data.brandConfig) setBrandConfig(data.brandConfig);
-      })
-      .catch((err) => {
-        console.error("Error loading bill:", err);
-        toast.error("Could not load bill details");
-      })
-      .finally(() => setLoading(false));
-  }, [id]);
+  const { data, isPending: loading } = useERPQuery(
+    ["sales-bill-detail", id as string],
+    async () => {
+      const res = await fetch(`/api/sales/bills/${id}`);
+      if (!res.ok) throw new Error("Failed to fetch bill details");
+      return res.json();
+    },
+    { enabled: !!id }
+  );
 
-  const handleCancelBill = async () => {
+  const bill: SaleBill | null = data?.bill ?? null;
+  const profit: ProfitData | null = data?.profit ?? null;
+  const brand = data?.brand ?? null;
+  const brandConfig = data?.brandConfig ?? null;
+
+  const cancelMutation = useERPMutation(
+    async () => {
+      const res = await fetch(`/api/sales/bills/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to cancel bill");
+      }
+    },
+    {
+      successMessage: "Bill cancelled successfully",
+      invalidates: [["sales-bills"], ["sales-bill-detail", id as string]],
+      onSuccess: () => {
+        router.push("/sales/bills");
+        router.refresh();
+      },
+    }
+  );
+
+  const handleCancelBill = () => {
     if (!window.confirm("Are you sure you want to cancel/soft-delete this bill? Stock adjustments will be reversed.")) {
       return;
     }
-
-    setCancelling(true);
-    try {
-      const res = await fetch(`/api/sales/bills/${id}`, {
-        method: "DELETE"
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to cancel bill");
-      }
-
-      toast.success("Bill cancelled successfully");
-      router.push("/sales/bills");
-      router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
-    } finally {
-      setCancelling(false);
-    }
+    cancelMutation.mutate(undefined);
   };
 
   const handleCopyWords = () => {
@@ -156,6 +153,8 @@ export default function SaleBillDetailPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const cancelling = cancelMutation.isPending;
 
   if (loading) {
     return (
@@ -373,8 +372,8 @@ export default function SaleBillDetailPage() {
                         <td className="px-5 py-4 text-xs text-[#64748B] font-semibold">{idx + 1}</td>
                         <td className="px-5 py-4">
                           <div className="flex flex-col">
-                            <span className="font-semibold">{it.design_code} ({it.size})</span>
-                            <span className="text-[10px] text-[#64748B] font-mono">Colour: {it.colour_name}</span>
+                            <span className="font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</span>
+                            <span className="text-[10px] text-[#64748B] font-mono">Colour: {it.colour?.colour_name || it.colour_name || "—"}</span>
                           </div>
                         </td>
                         <td className="px-5 py-4 text-center">{it.quantity} Pcs</td>
@@ -632,7 +631,7 @@ export default function SaleBillDetailPage() {
                       return (
                         <tr key={it.id} className="text-slate-800">
                           <td className="p-2.5 text-slate-500 font-semibold">{idx + 1}</td>
-                          <td className="p-2.5 font-semibold">{it.design_code} ({it.size}) - {it.colour_name}</td>
+                          <td className="p-2.5 font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size}) - {it.colour?.colour_name || it.colour_name || "—"}</td>
                           {showHsnVal && <td className="p-2.5 font-mono">{it.hsn_sac || "—"}</td>}
                           <td className="p-2.5 text-center">{it.quantity} Pcs</td>
                           <td className="p-2.5 text-right">₹{it.rate.toFixed(2)}</td>
@@ -773,7 +772,7 @@ export default function SaleBillDetailPage() {
                       return (
                         <tr key={it.id} className="text-slate-800">
                           <td className="py-1 text-slate-500">{idx + 1}</td>
-                          <td className="py-1 font-semibold">{it.design_code} ({it.size})</td>
+                          <td className="py-1 font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</td>
                           {showHsnVal && <td className="py-1 font-mono">{it.hsn_sac || "—"}</td>}
                           <td className="py-1 text-center">{it.quantity}</td>
                           <td className="py-1 text-right">₹{it.rate}</td>
@@ -872,7 +871,7 @@ export default function SaleBillDetailPage() {
                       return (
                         <tr key={it.id}>
                           <td className="py-2 pr-2">{idx + 1}</td>
-                          <td className="py-2 font-bold">{it.design_code} ({it.size})</td>
+                          <td className="py-2 font-bold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</td>
                           {showHsnVal && <td className="py-2">{it.hsn_sac || "—"}</td>}
                           <td className="py-2 text-center">{it.quantity} Pcs</td>
                           <td className="py-2 text-right">₹{it.rate.toFixed(2)}</td>
@@ -1011,7 +1010,7 @@ export default function SaleBillDetailPage() {
                     return (
                       <tr key={it.id} className="text-slate-800">
                         <td className="p-2 text-slate-500">{idx + 1}</td>
-                        <td className="p-2 font-semibold">{it.design_code} ({it.size}) - {it.colour_name}</td>
+                        <td className="p-2 font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size}) - {it.colour?.colour_name || it.colour_name || "—"}</td>
                         {showHsnVal && <td className="p-2 font-mono">{it.hsn_sac || "—"}</td>}
                         <td className="p-2 text-center">{it.quantity} Pcs</td>
                         <td className="p-2 text-right">₹{it.rate.toFixed(2)}</td>

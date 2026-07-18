@@ -112,10 +112,12 @@ export default function CompanyProfileSettingsPage() {
       return;
     }
 
-    const publicUrl = await upload(file);
-    if (publicUrl) {
-      setLogoUrl(publicUrl);
+    const result = await upload(file);
+    if (result.success) {
+      setLogoUrl(result.url);
       toast.success("Logo uploaded successfully");
+    } else {
+      toast.error(result.error);
     }
   };
 

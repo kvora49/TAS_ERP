@@ -455,7 +455,7 @@ export default function RecordPaymentPage() {
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase font-mono">Rate (Per Pc)</label>
                 <input
                   type="text"
-                  value={selectedWorker ? `₹${selectedWorker.default_rate.toFixed(2)}` : "—"}
+                  value={selectedWorker ? `₹${(selectedWorker.default_rate || 0).toFixed(2)}` : "—"}
                   disabled
                   className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-gray-50 px-3 text-sm text-[#64748B] font-mono"
                 />
@@ -580,8 +580,8 @@ export default function RecordPaymentPage() {
                           <td className="py-2 px-3 font-mono text-xs">{row.entry_number}</td>
                           <td className="py-2 px-3 font-mono text-xs text-[#6366F1] font-bold">{row.lot_number}</td>
                           <td className="py-2 px-3 text-xs font-semibold">{row.stage_name}</td>
-                          <td className="py-2 px-3 text-right">₹{row.total_amount.toFixed(2)}</td>
-                          <td className="py-2 px-3 text-right font-bold text-red-600">₹{row.outstanding.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right">₹{(row.total_amount || 0).toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right font-bold text-red-600">₹{(row.outstanding || 0).toFixed(2)}</td>
                           <td className="py-2 px-3 text-right">
                             <input
                               type="number"

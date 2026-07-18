@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   const search = searchParams.get("search") || "";
   const direction = searchParams.get("direction") || "";
   const status = searchParams.get("status") || "";
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "10", 10);
+  const offset = (page - 1) * limit;
 
   try {
     let query = supabase
@@ -20,7 +23,7 @@ export async function GET(request: Request) {
         *,
         party:parties(*),
         received_account:bank_accounts(*)
-      `)
+      `, { count: "exact" })
       .eq("business_id", businessId);
 
     if (direction) {
@@ -29,26 +32,40 @@ export async function GET(request: Request) {
     if (status) {
       query = query.eq("status", status);
     }
+    if (search.trim()) {
+      query = query.or(`cheque_number.ilike.%${search}%,bank_name.ilike.%${search}%`);
+    }
 
-    const { data: cheques, error } = await query.order("cheque_date", { ascending: false });
+    const { data: cheques, count, error } = await query
+      .order("cheque_date", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Client-side search filtering
-    let filtered = cheques || [];
-    if (search.trim()) {
-      const term = search.toLowerCase();
-      filtered = filtered.filter(
-        (c: any) =>
-          c.cheque_number.toLowerCase().includes(term) ||
-          c.bank_name.toLowerCase().includes(term) ||
-          (c.party?.name && c.party.name.toLowerCase().includes(term))
-      );
-    }
+    // Server-side stats calculation for current direction
+    const { data: statsData } = await supabase
+      .from("cheques")
+      .select("amount, status")
+      .eq("business_id", businessId)
+      .eq("direction", direction);
 
-    return NextResponse.json({ cheques: filtered });
+    const stats = {
+      pendingValue: statsData?.filter((c: any) => c.status === "pending" || c.status === "deposited").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
+      clearedValue: statsData?.filter((c: any) => c.status === "cleared").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
+      bouncedValue: statsData?.filter((c: any) => c.status === "bounced").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
+    };
+
+    return NextResponse.json({
+      data: cheques || [],
+      meta: {
+        page,
+        limit,
+        total: count || 0
+      },
+      stats
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

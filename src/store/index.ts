@@ -25,8 +25,6 @@ interface AppState {
 
   navigatingTo: string | null;
   setNavigatingTo: (path: string | null) => void;
-  isFetchingData: boolean;
-  setIsFetchingData: (fetching: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -49,6 +47,4 @@ export const useAppStore = create<AppState>((set) => ({
 
   navigatingTo: null,
   setNavigatingTo: (navigatingTo) => set({ navigatingTo }),
-  isFetchingData: false,
-  setIsFetchingData: (isFetchingData) => set({ isFetchingData }),
 }));
