@@ -47,6 +47,16 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
             gst_percent: Number(it.gst_percent || 0),
             gst_amount: Number(it.gst_amount || 0),
             amount: Number(it.amount),
+            item_type: it.item_type || (it.rolls?.length > 0 ? "fabric" : "accessory"),
+            rolls: (it.rolls || []).map((r: any) => ({
+              roll_number: r.roll_number,
+              meters: Number(r.meters),
+              shade: r.shade || "",
+              comment: r.comment || "",
+              width: r.width ? Number(r.width) : null,
+              weight_unit: r.weight_unit || "",
+              weight_value: r.weight_value ? Number(r.weight_value) : null,
+            })),
           })),
         };
         setInitialData(mappedData);

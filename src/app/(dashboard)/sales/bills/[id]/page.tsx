@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/shared/Badge";
 import { toast } from "sonner";
 import { numberToWords } from "@/lib/utils/numberToWords";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 interface BillItem {
   id: string;
@@ -106,6 +107,7 @@ export default function SaleBillDetailPage() {
   const { id } = params;
 
   const [copied, setCopied] = useState(false);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
 
   const { data, isPending: loading } = useERPQuery(
     ["sales-bill-detail", id as string],
@@ -141,9 +143,10 @@ export default function SaleBillDetailPage() {
   );
 
   const handleCancelBill = () => {
-    if (!window.confirm("Are you sure you want to cancel/soft-delete this bill? Stock adjustments will be reversed.")) {
-      return;
-    }
+    setIsCancelOpen(true);
+  };
+
+  const handleConfirmCancel = () => {
     cancelMutation.mutate(undefined);
   };
 
@@ -1099,6 +1102,16 @@ export default function SaleBillDetailPage() {
           );
         })()}
       </div>
+
+      <ConfirmDialog
+        open={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        title="Cancel Bill"
+        description="Are you sure you want to cancel/soft-delete this bill? Stock adjustments will be reversed."
+        onConfirm={handleConfirmCancel}
+        confirmText="Yes, Cancel Bill"
+        cancelText="Keep Bill"
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -19,9 +20,12 @@ import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Upload, FileSpreadshe
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { BrandBillConfigPanel, BillConfigValues } from "./_components/BrandBillConfigPanel";
 
 const brandSchema = z.object({
   name: z.string().min(2, "Brand Name must be at least 2 characters"),
@@ -61,8 +65,7 @@ interface Brand {
 
 export default function BrandsPage() {
   const router = useRouter();
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -73,129 +76,48 @@ export default function BrandsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"general" | "billFormat">("general");
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   
-  // Bill Config Form States
-  const [pakkaTemplateId, setPakkaTemplateId] = useState("00000000-0000-0000-0000-000000000001");
-  const [kachaTemplateId, setKachaTemplateId] = useState("00000000-0000-0000-0000-000000000001");
-  const [primaryColor, setPrimaryColor] = useState("#6366F1");
-  const [headerText, setHeaderText] = useState("");
-  const [footerText, setFooterText] = useState("Thank you for your business!");
-  const [signatureName, setSignatureName] = useState("");
-  const [signatureDesignation, setSignatureDesignation] = useState("Authorized Signatory");
-  const [showHsn, setShowHsn] = useState(true);
-  const [showBatchNo, setShowBatchNo] = useState(false);
-  const [showDiscountColumn, setShowDiscountColumn] = useState(true);
-  const [showTransportDetails, setShowTransportDetails] = useState(true);
-  const [bankAccountId, setBankAccountId] = useState("");
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [uploadedReferenceFileUrl, setUploadedReferenceFileUrl] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState<"digitized" | "uploaded">("digitized");
-
-  const { upload: uploadTemplate } = useFileUpload("bill_templates");
-
-  useEffect(() => {
-    const fetchBanks = async () => {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data } = await supabase.from("bank_accounts").select("*");
-      if (data) setBankAccounts(data);
-    };
-    fetchBanks();
-  }, []);
-
-  const handleAutoExtract = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsExtracting(true);
-    toast.info(`Uploading and analyzing "${file.name}"...`);
-
-    // Upload template to storage!
-    const uploadRes = await uploadTemplate(file);
-    if (uploadRes.success) {
-      setUploadedReferenceFileUrl(uploadRes.url);
-      setPreviewMode("uploaded");
-    } else {
-      console.error("Storage upload failed:", uploadRes.error);
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = (event.target?.result as string) || "";
-      const textLower = text.toLowerCase();
-      const fileNameLower = file.name.toLowerCase();
-
-      // Heuristics based on content text and file name
-      const hasHsn = textLower.includes("hsn") || textLower.includes("sac") || fileNameLower.includes("hsn") || fileNameLower.includes("gst");
-      const hasDiscount = textLower.includes("discount") || textLower.includes("disc") || fileNameLower.includes("disc") || fileNameLower.includes("promo");
-      const hasBatch = textLower.includes("batch") || textLower.includes("lot") || fileNameLower.includes("batch") || fileNameLower.includes("lot");
-      const hasTransport = textLower.includes("transport") || textLower.includes("vehicle") || textLower.includes("lr no") || fileNameLower.includes("transport") || fileNameLower.includes("delivery");
-
-      // Extract theme colors
-      const hexMatch = text.match(/#[0-9A-Fa-f]{6}/g);
-      let detectedColor = "#6366F1";
-      if (hexMatch && hexMatch.length > 0) {
-        detectedColor = hexMatch[0];
-      } else {
-        if (textLower.includes("red") || fileNameLower.includes("red")) detectedColor = "#EF4444";
-        else if (textLower.includes("green") || fileNameLower.includes("green")) detectedColor = "#10B981";
-        else if (textLower.includes("blue") || fileNameLower.includes("blue")) detectedColor = "#3B82F6";
-        else if (textLower.includes("orange") || fileNameLower.includes("orange")) detectedColor = "#F97316";
-        else if (textLower.includes("purple") || fileNameLower.includes("purple")) detectedColor = "#8B5CF6";
-      }
-
-      // Extract Company/Header taglines
-      let detectedHeader = "Premium Apparel & Denim Co.";
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length > 0) {
-        const firstLine = lines[0];
-        if (firstLine.length > 2 && firstLine.length < 60) {
-          detectedHeader = firstLine;
-        }
-      }
-
-      // Extract terms
-      let detectedFooter = "Goods once sold will not be taken back or exchanged. Interest @ 18% will be charged if payment is not made within due date.";
-      const termsIndex = lines.findIndex(l => l.toLowerCase().includes("terms") || l.toLowerCase().includes("condition"));
-      if (termsIndex !== -1 && termsIndex < lines.length - 1) {
-        const slicedTerms = lines.slice(termsIndex, termsIndex + 3).join(" ");
-        if (slicedTerms.length > 10 && slicedTerms.length < 300) {
-          detectedFooter = slicedTerms;
-        }
-      }
-
-      // Configure states
-      setPrimaryColor(detectedColor);
-      setShowHsn(hasHsn);
-      setShowDiscountColumn(hasDiscount);
-      setShowBatchNo(hasBatch);
-      setShowTransportDetails(hasTransport);
-      setHeaderText(detectedHeader);
-      setFooterText(detectedFooter);
-      setSignatureDesignation("Authorized Signatory");
-
-      // Match template layouts roughly
-      if (textLower.includes("compact") || fileNameLower.includes("compact")) {
-        setPakkaTemplateId("00000000-0000-0000-0000-000000000003"); // Compact
-      } else if (textLower.includes("modern") || fileNameLower.includes("modern")) {
-        setPakkaTemplateId("00000000-0000-0000-0000-000000000002"); // Modern
-      } else if (textLower.includes("traditional") || fileNameLower.includes("traditional") || textLower.includes("double")) {
-        setPakkaTemplateId("00000000-0000-0000-0000-000000000004"); // Traditional
-      } else {
-        setPakkaTemplateId("00000000-0000-0000-0000-000000000001"); // Classic
-      }
-
-      setIsExtracting(false);
-      toast.success("AI Layout Extraction Successful!");
-      toast.info(`Configured: Color theme: ${detectedColor}, Columns: ${hasHsn ? 'HSN, ' : ''}${hasDiscount ? 'Discount, ' : ''}${hasBatch ? 'Batch, ' : ''}${hasTransport ? 'Transport' : ''}`);
-    };
-    reader.onerror = () => {
-      setIsExtracting(false);
-      toast.error("Failed to read template file.");
-    };
-    reader.readAsText(file);
+  // Bill Config Form State (unified â€” passed to BrandBillConfigPanel)
+  const defaultBillConfig: BillConfigValues = {
+    pakkaTemplateId: "00000000-0000-0000-0000-000000000001",
+    kachaTemplateId: "00000000-0000-0000-0000-000000000001",
+    primaryColor: "#6366F1",
+    headerText: "",
+    footerText: "Thank you for your business!",
+    signatureName: "",
+    signatureDesignation: "Authorized Signatory",
+    showHsn: true,
+    showBatchNo: false,
+    showDiscountColumn: true,
+    showTransportDetails: true,
+    bankAccountId: "",
+    uploadedReferenceFileUrl: null,
   };
+  const [billConfig, setBillConfig] = useState<BillConfigValues>(defaultBillConfig);
+  const updateBillConfig = (updates: Partial<BillConfigValues>) => setBillConfig(prev => ({ ...prev, ...updates }));
+
+  // NOTE: useFileUpload is now inside BrandBillConfigPanel â€” removed from here
+
+  // Fetch Brands via useERPQuery
+  const { data: brandsData, isLoading: loading } = useERPQuery<Brand[]>(["brands-list"], async () => {
+    const res = await fetch("/api/master-data/brands");
+    if (!res.ok) throw new Error("Failed to load brands");
+    const result = await res.json();
+    return result.brands || [];
+  }, { skeleton: "table" });
+
+  const brands = brandsData || [];
+
+  // Fetch Bank Accounts via useERPQuery
+  const { data: bankAccountsData } = useERPQuery<any[]>(["bank-accounts-all"], async () => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { data, error } = await supabase.from("bank_accounts").select("*");
+    if (error) throw error;
+    return data || [];
+  });
+
+  const bankAccounts = bankAccountsData || [];
 
   const {
     register,
@@ -210,23 +132,7 @@ export default function BrandsPage() {
 
   const logoUrl = watch("logo_url");
 
-  const fetchBrands = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/master-data/brands");
-      if (!res.ok) throw new Error("Failed to load brands");
-      const result = await res.json();
-      setBrands(result.brands || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching brands list");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchBrands();
-  }, []);
 
   const handleOpenAdd = () => {
     setEditingBrand(null);
@@ -246,20 +152,7 @@ export default function BrandsPage() {
       is_primary: false,
       is_active: true,
     });
-    setPakkaTemplateId("00000000-0000-0000-0000-000000000001");
-    setKachaTemplateId("00000000-0000-0000-0000-000000000001");
-    setPrimaryColor("#6366F1");
-    setHeaderText("");
-    setFooterText("Thank you for your business!");
-    setSignatureName("");
-    setSignatureDesignation("Authorized Signatory");
-    setShowHsn(true);
-    setShowBatchNo(false);
-    setShowDiscountColumn(true);
-    setShowTransportDetails(true);
-    setBankAccountId("");
-    setUploadedReferenceFileUrl(null);
-    setPreviewMode("digitized");
+    setBillConfig(defaultBillConfig);
     setModalOpen(true);
   };
 
@@ -282,40 +175,29 @@ export default function BrandsPage() {
       is_active: brand.is_active,
     });
 
-    // Reset config states
-    setPakkaTemplateId("00000000-0000-0000-0000-000000000001");
-    setKachaTemplateId("00000000-0000-0000-0000-000000000001");
-    setPrimaryColor("#6366F1");
-    setHeaderText("");
-    setFooterText("Thank you for your business!");
-    setSignatureName("");
-    setSignatureDesignation("Authorized Signatory");
-    setShowHsn(true);
-    setShowBatchNo(false);
-    setShowDiscountColumn(true);
-    setShowTransportDetails(true);
-    setBankAccountId("");
+    // Reset config states then fetch the saved config for this brand
+    setBillConfig(defaultBillConfig);
 
-    // Fetch config
     fetch(`/api/master-data/brands/${brand.id}/bill-config`)
       .then((res) => res.json())
       .then((data) => {
         if (data.config) {
           const c = data.config;
-          setPakkaTemplateId(c.pakka_template_id || "00000000-0000-0000-0000-000000000001");
-          setKachaTemplateId(c.kacha_template_id || "00000000-0000-0000-0000-000000000001");
-          setPrimaryColor(c.primary_color || "#6366F1");
-          setHeaderText(c.header_text || "");
-          setFooterText(c.footer_text || "");
-          setSignatureName(c.signature_name || "");
-          setSignatureDesignation(c.signature_designation || "Authorized Signatory");
-          setShowHsn(c.show_hsn !== false);
-          setShowBatchNo(!!c.show_batch_no);
-          setShowDiscountColumn(c.show_discount_column !== false);
-          setShowTransportDetails(c.show_transport_details !== false);
-          setBankAccountId(c.bank_account_id || "");
-          setUploadedReferenceFileUrl(c.uploaded_reference_file_url || null);
-          setPreviewMode(c.uploaded_reference_file_url ? "uploaded" : "digitized");
+          setBillConfig({
+            pakkaTemplateId: c.pakka_template_id || "00000000-0000-0000-0000-000000000001",
+            kachaTemplateId: c.kacha_template_id || "00000000-0000-0000-0000-000000000001",
+            primaryColor: c.primary_color || "#6366F1",
+            headerText: c.header_text || "",
+            footerText: c.footer_text || "",
+            signatureName: c.signature_name || "",
+            signatureDesignation: c.signature_designation || "Authorized Signatory",
+            showHsn: c.show_hsn !== false,
+            showBatchNo: !!c.show_batch_no,
+            showDiscountColumn: c.show_discount_column !== false,
+            showTransportDetails: c.show_transport_details !== false,
+            bankAccountId: c.bank_account_id || "",
+            uploadedReferenceFileUrl: c.uploaded_reference_file_url || null,
+          });
         }
       })
       .catch((err) => console.error("Error fetching bill config:", err));
@@ -353,20 +235,20 @@ export default function BrandsPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            pakka_template_id: pakkaTemplateId,
-            kacha_template_id: kachaTemplateId,
-            primary_color: primaryColor,
-            header_text: headerText,
-            footer_text: footerText,
-            signature_name: signatureName,
-            signature_designation: signatureDesignation,
-            show_hsn: showHsn,
-            show_batch_no: showBatchNo,
-            show_discount_column: showDiscountColumn,
-            show_transport_details: showTransportDetails,
-            bank_account_id: bankAccountId || null,
-            uploaded_reference_file_url: uploadedReferenceFileUrl || null,
-          }),
+          pakka_template_id: billConfig.pakkaTemplateId,
+          kacha_template_id: billConfig.kachaTemplateId,
+          primary_color: billConfig.primaryColor,
+          header_text: billConfig.headerText,
+          footer_text: billConfig.footerText,
+          signature_name: billConfig.signatureName,
+          signature_designation: billConfig.signatureDesignation,
+          show_hsn: billConfig.showHsn,
+          show_batch_no: billConfig.showBatchNo,
+          show_discount_column: billConfig.showDiscountColumn,
+          show_transport_details: billConfig.showTransportDetails,
+          bank_account_id: billConfig.bankAccountId || null,
+          uploaded_reference_file_url: billConfig.uploadedReferenceFileUrl || null,
+        }),
         });
 
         if (!configRes.ok) {
@@ -380,9 +262,10 @@ export default function BrandsPage() {
           : "Brand created successfully"
       );
       setModalOpen(false);
-      fetchBrands();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
+      queryClient.invalidateQueries({ queryKey: ["brands-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      toast.error(message);
     }
   };
 
@@ -406,9 +289,10 @@ export default function BrandsPage() {
 
       toast.success("Brand deleted successfully");
       setDeleteOpen(false);
-      fetchBrands();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred during deletion");
+      queryClient.invalidateQueries({ queryKey: ["brands-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred during deletion";
+      toast.error(message);
     } finally {
       setDeleteLoading(false);
     }
@@ -426,9 +310,11 @@ export default function BrandsPage() {
       width: "80px",
       render: (row) =>
         row.logo_url ? (
-          <img
+          <Image
             src={row.logo_url}
             alt={row.name}
+            width={40}
+            height={40}
             className="w-10 h-10 object-contain rounded border border-[#E5E7EB] bg-[#F8FAFC] p-1"
           />
         ) : (
@@ -457,7 +343,7 @@ export default function BrandsPage() {
       key: "gstin",
       header: "GST Number",
       render: (row) => (
-        <span className="font-mono text-xs">{row.gstin || "—"}</span>
+        <span className="font-mono text-xs">{row.gstin || "-"}</span>
       ),
     },
     {
@@ -465,7 +351,7 @@ export default function BrandsPage() {
       header: "Address",
       render: (row) => (
         <span className="text-[#64748B] truncate max-w-xs block">
-          {row.address || "—"}
+          {row.address || "-"}
         </span>
       ),
     },
@@ -761,410 +647,16 @@ export default function BrandsPage() {
                 </div>
               </>
             ) : (
-              <div className="space-y-5 animate-fadeIn">
-                {/* AI Extraction Panel */}
-                <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-[#2563EB] mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-semibold text-[#1E40AF]">AI Invoice Layout Extractor</span>
-                      <span className="text-xs text-[#1E40AF] leading-normal">
-                        Upload your existing PDF or Excel bill design template. The system will auto-extract theme colors, GST parameters, column preferences, and terms declarations to build a matching digitised copy.
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-center border border-dashed border-[#BFDBFE] rounded-lg p-4 bg-white relative">
-                    {isExtracting ? (
-                      <div className="flex items-center gap-2 text-xs font-semibold text-[#2563EB]">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Analyzing template elements...</span>
-                      </div>
-                    ) : (
-                      <label className="cursor-pointer flex items-center gap-2 text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] select-none">
-                        <Upload className="h-4 w-4" />
-                        <span>Upload Reference Template</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.xlsx,.xls,.doc,.docx"
-                          className="sr-only"
-                          onChange={handleAutoExtract}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Pakka Template selection */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Pakka Invoice Layout Template
-                    </label>
-                    <select
-                      value={pakkaTemplateId}
-                      onChange={(e) => setPakkaTemplateId(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                    >
-                      <option value="00000000-0000-0000-0000-000000000001">Classic (Standard GST Layout)</option>
-                      <option value="00000000-0000-0000-0000-000000000002">Modern (Clean Accent Styling)</option>
-                      <option value="00000000-0000-0000-0000-000000000003">Compact (Density Optimized)</option>
-                      <option value="00000000-0000-0000-0000-000000000004">Traditional Tax Invoice (Double Borders)</option>
-                    </select>
-                  </div>
-
-                  {/* Color Theme Selector */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Invoice Primary Theme Accent
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="h-10 w-12 border border-[#D1D5DB] rounded-lg p-1 bg-white cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="flex-1 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Kacha Template selection */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Kacha Invoice Layout Template
-                    </label>
-                    <select
-                      value={kachaTemplateId}
-                      onChange={(e) => setKachaTemplateId(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                    >
-                      <option value="00000000-0000-0000-0000-000000000001">Classic (Standard GST Layout)</option>
-                      <option value="00000000-0000-0000-0000-000000000002">Modern (Clean Accent Styling)</option>
-                      <option value="00000000-0000-0000-0000-000000000003">Compact (Density Optimized)</option>
-                      <option value="00000000-0000-0000-0000-000000000004">Traditional Tax Invoice (Double Borders)</option>
-                    </select>
-                  </div>
-
-                  {/* Bank Account ID */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Billing Bank Account details
-                    </label>
-                    <select
-                      value={bankAccountId}
-                      onChange={(e) => setBankAccountId(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                    >
-                      <option value="">Do Not Display Bank Details</option>
-                      {bankAccounts.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.bank_name} - {b.account_number}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Column Visibility Parameters */}
-                <div className="border border-[#E5E7EB] rounded-xl p-4 flex flex-col gap-3">
-                  <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Invoice Column Visibility Options</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold text-[#374151] select-none">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showHsn}
-                        onChange={(e) => setShowHsn(e.target.checked)}
-                        className="rounded text-[#6366F1]"
-                      />
-                      <span>HSN Code Column</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showBatchNo}
-                        onChange={(e) => setShowBatchNo(e.target.checked)}
-                        className="rounded text-[#6366F1]"
-                      />
-                      <span>Batch/Lot Column</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showDiscountColumn}
-                        onChange={(e) => setShowDiscountColumn(e.target.checked)}
-                        className="rounded text-[#6366F1]"
-                      />
-                      <span>Item Discount Column</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showTransportDetails}
-                        onChange={(e) => setShowTransportDetails(e.target.checked)}
-                        className="rounded text-[#6366F1]"
-                      />
-                      <span>Transport Panel</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Header Tagline & Footer Declarations */}
-                <div className="flex flex-col gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Invoice Header Tagline (e.g. &quot;Wholesaler of Denim Apparel&quot;)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Will appear below company name..."
-                      value={headerText}
-                      onChange={(e) => setHeaderText(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Invoice Terms & GST Declarations
-                    </label>
-                    <textarea
-                      placeholder="Will appear in the bottom footnote section of the invoice..."
-                      rows={2.5}
-                      value={footerText}
-                      onChange={(e) => setFooterText(e.target.value)}
-                      className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none resize-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Signature settings */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Signatory Officer Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Krish Kumar"
-                      value={signatureName}
-                      onChange={(e) => setSignatureName(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Officer Designation
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Authorized Signatory / Accountant"
-                      value={signatureDesignation}
-                      onChange={(e) => setSignatureDesignation(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Live Invoice Preview */}
-                <div className="border border-[#CBD5E1] rounded-xl p-4 bg-slate-50 mt-6">
-                  <div className="flex items-center justify-between mb-3 select-none">
-                    <h4 className="text-xs font-bold text-[#475569] uppercase tracking-wider">
-                      Live Invoice Layout Preview {previewMode === "digitized" && `(${
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "Modern Layout" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "Compact Layout" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "Traditional Layout" :
-                        "Classic Layout"
-                      })`}
-                    </h4>
-                    {uploadedReferenceFileUrl && (
-                      <div className="flex bg-[#E2E8F0] p-0.5 rounded-lg text-[9px] font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("digitized")}
-                          className={cn(
-                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
-                            previewMode === "digitized" ? "bg-white text-[#6366F1] shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"
-                          )}
-                        >
-                          Digitised Layout
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("uploaded")}
-                          className={cn(
-                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
-                            previewMode === "uploaded" ? "bg-white text-[#6366F1] shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"
-                          )}
-                        >
-                          Uploaded Template
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {previewMode === "uploaded" && uploadedReferenceFileUrl ? (
-                    <div className="bg-white border border-[#E2E8F0] rounded-lg p-2 flex justify-center items-center min-h-[250px]">
-                      {uploadedReferenceFileUrl.toLowerCase().endsWith(".pdf") ? (
-                        <iframe 
-                          src={uploadedReferenceFileUrl} 
-                          className="w-full h-[400px] rounded border bg-white"
-                          title="Reference Template PDF" 
-                        />
-                      ) : (
-                        <div className="w-full text-center space-y-2">
-                          <img 
-                            src={uploadedReferenceFileUrl} 
-                            alt="Reference Template" 
-                            className="max-h-[400px] w-auto object-contain mx-auto rounded border" 
-                          />
-                          <a 
-                            href={uploadedReferenceFileUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6366F1] hover:underline"
-                          >
-                            Open template in new tab
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div 
-                      className={cn(
-                        "bg-white border font-sans transition-all duration-350 select-none",
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "rounded-xl shadow-md border-t-8 border-[#E2E8F0] p-5 space-y-4" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "rounded p-2.5 space-y-2 text-[9px] border-slate-350 leading-tight" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "border-double border-4 border-slate-900 p-4 space-y-3" :
-                        "rounded-lg shadow-sm p-4 space-y-3 border-[#E2E8F0] text-[10px]"
-                      )}
-                      style={
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002"
-                          ? { borderTopColor: primaryColor }
-                          : undefined
-                      }
-                    >
-                      {/* Header */}
-                      <div className={cn(
-                        "flex justify-between items-start border-b pb-2",
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "flex-row-reverse pb-3 border-slate-100" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "pb-1.5 border-slate-200" :
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "pb-2 border-double border-b-4 border-slate-900" :
-                        "border-slate-200"
-                      )}>
-                        <div>
-                          {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className={cn("object-contain mb-1", pakkaTemplateId === "00000000-0000-0000-0000-000000000003" ? "h-5" : "h-6")} />
-                          ) : (
-                            <div className="h-6 w-12 bg-slate-100 rounded border flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase">Logo</div>
-                          )}
-                          <h5 className="font-bold text-sm tracking-tight" style={{ color: primaryColor }}>{watch("name") || "BRAND NAME"}</h5>
-                          <p className="text-slate-500 text-[8px] font-medium italic">{headerText || 'Tagline / Header tagline goes here...'}</p>
-                        </div>
-                        <div className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "text-left" : "text-right"}>
-                          <span 
-                            className={cn(
-                              "text-[8px] font-bold uppercase px-1.5 py-0.5 text-white",
-                              pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "rounded-full px-2" : "rounded"
-                            )} 
-                            style={{ backgroundColor: primaryColor }}
-                          >
-                            Tax Invoice
-                          </span>
-                          <p className="font-mono mt-1 text-[8px] text-slate-500">No: {editingBrand ? (editingBrand.bill_prefix_pakka || "TAX") : (watch("bill_prefix_pakka") || "TAX")}-2026-0001</p>
-                          <p className="font-mono text-[8px] text-slate-500">Date: {new Date().toLocaleDateString("en-IN")}</p>
-                        </div>
-                      </div>
-
-                      {/* Parties info */}
-                      <div className="grid grid-cols-2 gap-4 text-[8px]">
-                        <div>
-                          <span className="font-bold text-slate-400 uppercase block tracking-wider">Billed To (Customer)</span>
-                          <p className="font-bold text-slate-700">Acme Clothing Distributors</p>
-                          <p className="text-slate-500">128 Denim Street, Textile Zone, Mumbai</p>
-                          <p className="font-mono text-slate-500">GSTIN: 27AAAAA1111A1Z1</p>
-                        </div>
-                        <div className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "text-left pl-4 border-l" : "text-right"}>
-                          <span className="font-bold text-slate-400 uppercase block tracking-wider">Supplier (Our Brand)</span>
-                          <p className="font-bold text-slate-700">{watch("name") || "Brand Ltd."}</p>
-                          <p className="text-slate-500">{watch("address") || "Registered Office Address"}</p>
-                          <p className="font-mono text-slate-500">GSTIN: {watch("gstin") || "—"}</p>
-                        </div>
-                      </div>
-
-                      {/* Items table */}
-                      <div className={cn(
-                        "border rounded overflow-hidden",
-                        pakkaTemplateId === "00000000-0000-0000-0000-000000000004" ? "border-double border-2 border-slate-900" : ""
-                      )}>
-                        <table className="w-full border-collapse text-[8px]">
-                          <thead>
-                            <tr 
-                              className={pakkaTemplateId === "00000000-0000-0000-0000-000000000002" ? "" : "text-white"} 
-                              style={
-                                pakkaTemplateId === "00000000-0000-0000-0000-000000000002"
-                                  ? { backgroundColor: `${primaryColor}15`, color: primaryColor }
-                                  : { backgroundColor: primaryColor }
-                              }
-                            >
-                              <th className="p-1 text-left">Item Description</th>
-                              {showHsn && <th className="p-1 text-center">HSN/SAC</th>}
-                              {showBatchNo && <th className="p-1 text-center">Batch/Lot</th>}
-                              <th className="p-1 text-right">Qty</th>
-                              <th className="p-1 text-right">Rate</th>
-                              {showDiscountColumn && <th className="p-1 text-right">Disc %</th>}
-                              <th className="p-1 text-right">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y text-slate-700">
-                            <tr>
-                              <td className="p-1 font-semibold">Premium Denim Jeans - Blue / L</td>
-                              {showHsn && <td className="p-1 text-center font-mono text-[7px]">62034200</td>}
-                              {showBatchNo && <td className="p-1 text-center font-mono text-[7px]">LOT0024</td>}
-                              <td className="p-1 text-right font-mono">100 Pcs</td>
-                              <td className="p-1 text-right font-mono">₹450.00</td>
-                              {showDiscountColumn && <td className="p-1 text-right font-mono">5.0%</td>}
-                              <td className="p-1 text-right font-mono font-bold">₹42,750.00</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Bottom notes and signatures */}
-                      <div className="flex justify-between items-end pt-2 border-t text-[8px]">
-                        <div className="max-w-[60%] space-y-1">
-                          <span className="font-bold text-slate-400 uppercase tracking-wider block">Terms & Conditions</span>
-                          <p className="text-slate-500 leading-normal italic text-[7px]">{footerText || "Terms and conditions are listed here..."}</p>
-                          {bankAccountId && (
-                            <div className="mt-1 p-1 bg-slate-50 rounded border border-slate-200">
-                              <span className="font-bold text-[7px] text-slate-600 block">Bank Settlement details:</span>
-                              <span className="text-[7px] text-slate-500 font-mono">
-                                {bankAccounts.find(b => b.id === bankAccountId)?.bank_name || "Active Bank"} - A/C: {bankAccounts.find(b => b.id === bankAccountId)?.account_number || "xxxx"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right space-y-4">
-                          <p className="font-bold text-slate-600">For {watch("name") || "BRAND NAME"}</p>
-                          <div>
-                            <p className="font-bold text-slate-800">{signatureName || "Officer Name"}</p>
-                            <p className="text-slate-500 text-[7px] uppercase tracking-wider">{signatureDesignation || "Designation"}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <BrandBillConfigPanel
+                values={billConfig}
+                onChange={updateBillConfig}
+                bankAccounts={bankAccounts}
+                brandName={watch("name")}
+                brandAddress={watch("address")}
+                brandGstin={watch("gstin")}
+                billPrefixPakka={watch("bill_prefix_pakka")}
+                logoUrl={logoUrl}
+              />
             )}
 
             <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">

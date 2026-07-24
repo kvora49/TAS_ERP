@@ -5,75 +5,14 @@ import { useRouter } from "next/navigation";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-const partySchema = z.object({
-  name: z.string().min(2, "Party Name must be at least 2 characters"),
-  type: z.array(z.string()).min(1, "Select at least one Party Type"),
-  code: z.string().min(1, "Party Code is required"),
-  phone: z.string().optional(),
-  whatsapp_number: z.string().optional(),
-  company_name: z.string().optional(),
-  email: z.string().email("Invalid email format").or(z.literal("")),
-  website: z.string().url("Invalid website URL").or(z.literal("")),
-  gstin: z.string().optional(),
-  pan: z.string().optional(),
-  aadhar: z.string().optional(),
-  msme_number: z.string().optional(),
-  tan: z.string().optional(),
-  billing_address_line1: z.string().optional(),
-  billing_address_line2: z.string().optional(),
-  billing_city: z.string().optional(),
-  billing_state: z.string().optional(),
-  billing_pincode: z.string().optional(),
-  shipping_address_line1: z.string().optional(),
-  shipping_address_line2: z.string().optional(),
-  shipping_city: z.string().optional(),
-  shipping_state: z.string().optional(),
-  shipping_pincode: z.string().optional(),
-  payment_terms: z.string(),
-  credit_limit: z.coerce.number().min(0),
-  opening_balance: z.coerce.number(),
-  opening_balance_date: z.string().optional(),
-  currency: z.string(),
-  default_purchase_account: z.string().optional(),
-  default_godown_id: z.string().optional(),
-  remarks: z.string().optional(),
-  status: z.string(),
-  // Worker fields
-  stage_specialty: z.array(z.string()).optional(),
-  wage_type: z.string().optional().nullable(),
-  wage_rate: z.coerce.number().optional().nullable(),
-  worker_type: z.string().optional().nullable(),
-  preferred_stage_id: z.string().optional().nullable(),
-  working_since: z.string().optional().nullable(),
-  contact_numbers: z.array(
-    z.object({
-      label: z.string().min(1, "Label is required"),
-      number: z.string().min(1, "Phone number is required"),
-      is_primary: z.boolean(),
-    })
-  ).optional(),
-  bank_details: z.array(
-    z.object({
-      bank_name: z.string().min(1, "Bank name is required"),
-      account_number: z.string().min(5, "Account number must be at least 5 digits"),
-      ifsc_code: z.string().min(11, "IFSC must be 11 characters"),
-      branch: z.string().optional(),
-      is_primary: z.boolean(),
-    })
-  ).optional(),
-});
-
-type PartyFormValues = z.infer<typeof partySchema>;
-
-interface Godown {
-  id: string;
-  name: string;
-}
+import { partySchema, PartyFormValues, Godown, Stage } from "./PartyForm/party.schema";
+import { WorkerFieldsSection } from "./PartyForm/WorkerFieldsSection";
+import { AddressSection } from "./PartyForm/AddressSection";
+import { ContactSection } from "./PartyForm/ContactSection";
 
 interface PartyFormProps {
   initialData?: any;
@@ -87,7 +26,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const [sameAsBilling, setSameAsBilling] = useState(false);
   
   // Worker-specific stages list
-  const [stages, setStages] = useState<any[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [loadingStages, setLoadingStages] = useState(false);
 
   const defaultValues: PartyFormValues = {
@@ -160,11 +99,6 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "bank_details",
-  });
-
-  const { fields: contactFields, append: appendContact, remove: removeContact } = useFieldArray({
-    control,
-    name: "contact_numbers",
   });
 
   const watchTypes = watch("type") || [];
@@ -276,8 +210,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
       toast.success(id ? "Party updated successfully" : "Party created successfully");
       router.push("/parties");
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save party");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save party";
+      toast.error(message);
     }
   };
 
@@ -329,403 +264,30 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Basic Info & Tax details */}
         <div className="lg:col-span-2 space-y-6">
-          {/* SECTION 1: Basic Information */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-4 border-l-4 border-[#6366F1] pl-2.5">
-              1. Basic Profile
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Party Type *</label>
-                <div className="flex flex-wrap items-center gap-4 mt-2">
-                  {["supplier", "customer", "worker"].map((t) => {
-                    const isChecked = watchTypes.includes(t);
-                    return (
-                      <label key={t} className="flex items-center gap-2 text-sm font-medium text-[#1E293B] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          value={t}
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setValue("type", [...watchTypes, t]);
-                            } else {
-                              setValue("type", watchTypes.filter((x) => x !== t));
-                            }
-                          }}
-                          className="rounded border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4"
-                        />
-                        <span className="capitalize">{t === "worker" ? "Worker" : t}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type.message}</p>}
-              </div>
+          <ContactSection
+            register={register}
+            setValue={setValue}
+            watch={watch}
+            control={control}
+            syncWhatsapp={syncWhatsapp}
+            errors={errors}
+          />
 
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Party Code *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. SUP-0001"
-                  {...register("code")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50 font-mono font-bold text-[#0F172A] focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-                {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code.message}</p>}
-              </div>
+          <WorkerFieldsSection
+            register={register}
+            control={control}
+            setValue={setValue}
+            stages={stages}
+            loadingStages={loadingStages}
+            errors={errors}
+          />
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Display Name / Contact Person *</label>
-                <input
-                  type="text"
-                  placeholder="Enter contact name"
-                  {...register("name")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Company / Business Name</label>
-                <input
-                  type="text"
-                  placeholder="Enter registered business name"
-                  {...register("company_name")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="name@company.com"
-                  {...register("email")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Phone Number</label>
-                <input
-                  type="text"
-                  placeholder="10-digit mobile number"
-                  {...register("phone")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5 flex items-center justify-between">
-                  <span>WhatsApp Number</span>
-                  <button
-                    type="button"
-                    onClick={syncWhatsapp}
-                    className="text-[10px] text-[#6366F1] hover:underline font-bold"
-                  >
-                    Same as Phone
-                  </button>
-                </label>
-                <input
-                  type="text"
-                  placeholder="WhatsApp number"
-                  {...register("whatsapp_number")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                />
-              </div>
-
-              {/* Repeatable Contacts List */}
-              <div className="border border-[#E2E8F0] rounded-xl p-4 space-y-4 col-span-full mt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">
-                      Contact Numbers
-                    </h3>
-                    <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                      Configure multiple telephone numbers with a primary identifier.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => appendContact({ label: "Office", number: "", is_primary: contactFields.length === 0 })}
-                    className="h-8 px-2.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 text-[#6366F1] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus size={14} /> Add Contact
-                  </button>
-                </div>
-
-                {contactFields.length === 0 ? (
-                  <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs font-semibold text-[#64748B]">
-                    No contact numbers added yet. Click Add Contact to specify.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {contactFields.map((field, index) => (
-                      <div key={field.id} className="flex items-end gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100 animate-fadeIn">
-                        {/* Number */}
-                        <div className="flex-1 space-y-1">
-                          <label className="text-[10px] font-bold text-[#475569] uppercase">
-                            Phone Number
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. 9876543210"
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            {...register(`contact_numbers.${index}.number` as const)}
-                          />
-                        </div>
-
-                        {/* Label */}
-                        <div className="w-28 space-y-1">
-                          <label className="text-[10px] font-bold text-[#475569] uppercase">
-                            Label
-                          </label>
-                          <select
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            {...register(`contact_numbers.${index}.label` as const)}
-                          >
-                            <option value="Main">Main</option>
-                            <option value="WhatsApp">WhatsApp</option>
-                            <option value="Office">Office</option>
-                            <option value="Personal">Personal</option>
-                            <option value="Manager">Manager</option>
-                          </select>
-                        </div>
-
-                        {/* Primary Checkbox */}
-                        <div className="flex items-center gap-1.5 pb-2">
-                          <input
-                            type="checkbox"
-                            id={`contact-primary-${field.id}`}
-                            className="h-4 w-4 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                            {...register(`contact_numbers.${index}.is_primary` as const)}
-                            onChange={(e) => {
-                              // If checked, uncheck all others
-                              if (e.target.checked) {
-                                contactFields.forEach((_, i) => {
-                                  if (i !== index) {
-                                    setValue(`contact_numbers.${i}.is_primary`, false);
-                                  }
-                                });
-                              }
-                              setValue(`contact_numbers.${index}.is_primary`, e.target.checked);
-                            }}
-                          />
-                          <label htmlFor={`contact-primary-${field.id}`} className="text-[10px] font-bold text-[#475569] uppercase cursor-pointer select-none">
-                            Primary
-                          </label>
-                        </div>
-
-                        {/* Remove button */}
-                        <button
-                          type="button"
-                          onClick={() => removeContact(index)}
-                          className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-md flex items-center justify-center cursor-pointer transition-all border border-transparent hover:border-rose-100 shrink-0"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 1b: Worker Information (Conditional) */}
-          {watchTypes.includes("worker") && (
-            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm animate-fadeIn space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-amber-500 pl-2.5">
-                Worker Settings
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Worker Type *</label>
-                  <select
-                    {...register("worker_type")}
-                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                  >
-                    <option value="in_house">In-House (Permanent)</option>
-                    <option value="contractor">Contractor (Job-work worker)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Working Since</label>
-                  <input
-                    type="date"
-                    {...register("working_since")}
-                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Wage Billing Type</label>
-                  <select
-                    {...register("wage_type")}
-                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                  >
-                    <option value="piece_rate">Piece-rate (Job work rate)</option>
-                    <option value="fixed_salary">Fixed monthly salary</option>
-                    <option value="daily_wages">Daily wage</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Base Rate (INR / pc or month)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register("wage_rate")}
-                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Preferred Production Stage</label>
-                  <select
-                    {...register("preferred_stage_id")}
-                    className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                  >
-                    <option value="">No preference</option>
-                    {stages.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.name} ({st.type})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="md:col-span-2 border-t border-slate-100 pt-3">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Stage Specialties *</label>
-                  <p className="text-[10px] text-slate-500 mb-3 leading-none">Select the stages this worker is qualified to handle.</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {stages.map((st) => {
-                      const list = watch("stage_specialty") || [];
-                      const isSpecChecked = list.includes(st.id);
-                      return (
-                        <label key={st.id} className="flex items-center gap-2 text-xs font-medium text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={isSpecChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setValue("stage_specialty", [...list, st.id]);
-                              } else {
-                                setValue("stage_specialty", list.filter((x) => x !== st.id));
-                              }
-                            }}
-                            className="rounded border-[#CBD5E1] text-[#6366F1] focus:ring-[#6366F1] h-3.5 w-3.5"
-                          />
-                          <span className="truncate">{st.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 2: Billing & Shipping Address */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-4 border-l-4 border-[#6366F1] pl-2.5">
-              2. Address Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Billing Address */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-[#0F172A]">Billing Address</h3>
-                <input
-                  type="text"
-                  placeholder="Address Line 1"
-                  {...register("billing_address_line1")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="Address Line 2 (Optional)"
-                  {...register("billing_address_line2")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="City"
-                    {...register("billing_city")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    {...register("billing_state")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Pincode"
-                    {...register("billing_pincode")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Shipping Address */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-[#0F172A]">Shipping Address</h3>
-                  <label className="flex items-center gap-1.5 text-xs text-[#64748B] font-semibold cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={sameAsBilling}
-                      onChange={(e) => setSameAsBilling(e.target.checked)}
-                      className="rounded border-[#CBD5E1] text-[#6366F1] h-3.5 w-3.5"
-                    />
-                    Same as Billing
-                  </label>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Address Line 1"
-                  disabled={sameAsBilling}
-                  {...register("shipping_address_line1")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
-                />
-                <input
-                  type="text"
-                  placeholder="Address Line 2"
-                  disabled={sameAsBilling}
-                  {...register("shipping_address_line2")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="City"
-                    disabled={sameAsBilling}
-                    {...register("shipping_city")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    disabled={sameAsBilling}
-                    {...register("shipping_state")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Pincode"
-                    disabled={sameAsBilling}
-                    {...register("shipping_pincode")}
-                    className="col-span-1 w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <AddressSection
+            register={register}
+            watch={watch}
+            sameAsBilling={sameAsBilling}
+            setSameAsBilling={setSameAsBilling}
+          />
 
           {/* SECTION 3: Dynamic Bank Accounts */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
@@ -752,8 +314,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   <div key={field.id} className="p-4 border border-[#E2E8F0] rounded-xl relative bg-slate-50 flex flex-col md:flex-row gap-3 items-end">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-[#64748B] mb-1">Bank Name *</label>
+                        <label htmlFor={`bank-name-${field.id}`} className="block text-[10px] font-bold text-[#64748B] mb-1">Bank Name *</label>
                         <input
+                          id={`bank-name-${field.id}`}
                           type="text"
                           placeholder="e.g. HDFC Bank"
                           {...register(`bank_details.${index}.bank_name` as const)}
@@ -765,8 +328,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-[#64748B] mb-1">Account Number *</label>
+                        <label htmlFor={`account-number-${field.id}`} className="block text-[10px] font-bold text-[#64748B] mb-1">Account Number *</label>
                         <input
+                          id={`account-number-${field.id}`}
                           type="text"
                           placeholder="Enter account no."
                           {...register(`bank_details.${index}.account_number` as const)}
@@ -778,8 +342,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-[#64748B] mb-1">IFSC Code *</label>
+                        <label htmlFor={`ifsc-code-${field.id}`} className="block text-[10px] font-bold text-[#64748B] mb-1">IFSC Code *</label>
                         <input
+                          id={`ifsc-code-${field.id}`}
                           type="text"
                           placeholder="11-digit IFSC"
                           {...register(`bank_details.${index}.ifsc_code` as const)}
@@ -791,8 +356,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-[#64748B] mb-1">Branch Name</label>
+                        <label htmlFor={`branch-name-${field.id}`} className="block text-[10px] font-bold text-[#64748B] mb-1">Branch Name</label>
                         <input
+                          id={`branch-name-${field.id}`}
                           type="text"
                           placeholder="Branch location"
                           {...register(`bank_details.${index}.branch` as const)}
@@ -835,8 +401,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">GSTIN</label>
+                <label htmlFor="gstin" className="block text-xs font-semibold text-[#64748B] mb-1.5">GSTIN</label>
                 <input
+                  id="gstin"
                   type="text"
                   placeholder="15-digit GSTIN"
                   {...register("gstin")}
@@ -845,8 +412,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">PAN Card Number</label>
+                <label htmlFor="pan" className="block text-xs font-semibold text-[#64748B] mb-1.5">PAN Card Number</label>
                 <input
+                  id="pan"
                   type="text"
                   placeholder="10-digit PAN"
                   {...register("pan")}
@@ -855,8 +423,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Aadhar Number</label>
+                <label htmlFor="aadhar" className="block text-xs font-semibold text-[#64748B] mb-1.5">Aadhar Number</label>
                 <input
+                  id="aadhar"
                   type="text"
                   placeholder="12-digit Aadhar"
                   {...register("aadhar")}
@@ -865,8 +434,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">MSME Registration Number</label>
+                <label htmlFor="msme-number" className="block text-xs font-semibold text-[#64748B] mb-1.5">MSME Registration Number</label>
                 <input
+                  id="msme-number"
                   type="text"
                   placeholder="UDYAM-XX-00-0000000"
                   {...register("msme_number")}
@@ -875,8 +445,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">TAN Number</label>
+                <label htmlFor="tan" className="block text-xs font-semibold text-[#64748B] mb-1.5">TAN Number</label>
                 <input
+                  id="tan"
                   type="text"
                   placeholder="10-digit TAN"
                   {...register("tan")}
@@ -893,8 +464,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Payment Terms</label>
+                <label htmlFor="payment-terms" className="block text-xs font-semibold text-[#64748B] mb-1.5">Payment Terms</label>
                 <select
+                  id="payment-terms"
                   {...register("payment_terms")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] bg-white"
                 >
@@ -908,8 +480,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Credit Limit (₹)</label>
+                <label htmlFor="credit-limit" className="block text-xs font-semibold text-[#64748B] mb-1.5">Credit Limit (₹)</label>
                 <NumericInput
+                  id="credit-limit"
                   placeholder="0.00"
                   {...register("credit_limit")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
@@ -917,8 +490,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Opening Balance (₹)</label>
+                <label htmlFor="opening-balance" className="block text-xs font-semibold text-[#64748B] mb-1.5">Opening Balance (₹)</label>
                 <NumericInput
+                  id="opening-balance"
                   placeholder="e.g. 50000 for Cr, -5000 for Dr"
                   {...register("opening_balance")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
@@ -929,8 +503,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Opening Balance Date</label>
+                <label htmlFor="opening-balance-date" className="block text-xs font-semibold text-[#64748B] mb-1.5">Opening Balance Date</label>
                 <input
+                  id="opening-balance-date"
                   type="date"
                   {...register("opening_balance_date")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
@@ -938,8 +513,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Default Godown</label>
+                <label htmlFor="default-godown" className="block text-xs font-semibold text-[#64748B] mb-1.5">Default Godown</label>
                 <select
+                  id="default-godown"
                   disabled={loadingGodowns}
                   {...register("default_godown_id")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
@@ -954,8 +530,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Default Ledger Account</label>
+                <label htmlFor="default-ledger" className="block text-xs font-semibold text-[#64748B] mb-1.5">Default Ledger Account</label>
                 <input
+                  id="default-ledger"
                   type="text"
                   placeholder="e.g. Purchase A/c"
                   {...register("default_purchase_account")}
@@ -964,8 +541,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Status</label>
+                <label htmlFor="status" className="block text-xs font-semibold text-[#64748B] mb-1.5">Status</label>
                 <select
+                  id="status"
                   {...register("status")}
                   className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-bold"
                 >
@@ -975,8 +553,9 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Remarks / Comments</label>
+                <label htmlFor="remarks" className="block text-xs font-semibold text-[#64748B] mb-1.5">Remarks / Comments</label>
                 <textarea
+                  id="remarks"
                   placeholder="Additional remarks or notes about the party..."
                   rows={3}
                   {...register("remarks")}

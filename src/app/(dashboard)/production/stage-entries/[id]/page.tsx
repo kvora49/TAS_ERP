@@ -129,7 +129,14 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
     { label: "Lot No.", value: entry.lot?.lot_number || "—" },
     { label: "Design", value: entry.lot?.design?.code ? `${entry.lot.design.code} - ${entry.lot.design.name}` : "—" },
     { label: "Colour", value: entry.lot?.colour?.colour_name || "—" },
-    { label: "Size Set", value: entry.lot?.size_set?.sizes ? entry.lot.size_set.sizes.join(", ") : "—" },
+    {
+      label: "Size Set",
+      value: entry.lot?.size_set?.name
+        ? `${entry.lot.size_set.name}${Array.isArray(entry.lot.size_set.sizes) ? ` (${entry.lot.size_set.sizes.join(", ")})` : ""}`
+        : Array.isArray(entry.lot?.size_set?.sizes)
+        ? entry.lot.size_set.sizes.join(", ")
+        : "—",
+    },
     { label: "Stage", value: entry.stage?.stage_name || "—" },
     { label: "Stage Sequence", value: `${entry.stage?.sequence_no || 0} of ${totalStagesCount}` },
   ];

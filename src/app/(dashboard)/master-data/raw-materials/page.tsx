@@ -19,6 +19,8 @@ import { Pencil, Trash2, Plus, RefreshCw, AlertTriangle, Package } from "lucide-
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 
 // Form validation schema
@@ -51,8 +53,7 @@ const UNITS = ["Meters", "Kilograms", "Pieces", "Cones", "Yards", "Rolls", "Sets
 
 export default function RawMaterialsPage() {
   const router = useRouter();
-  const [materials, setMaterials] = useState<RawMaterialType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function RawMaterialsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingMaterial, setDeletingMaterial] = useState<RawMaterialType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
   const {
     register,
@@ -84,23 +86,14 @@ export default function RawMaterialsPage() {
 
   const imageUrl = watch("image_url");
 
-  const fetchMaterials = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/raw-materials");
-      if (!res.ok) throw new Error("Failed to load materials");
-      const result = await res.json();
-      setMaterials(result.materialTypes || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching materials list");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: materialsData, isLoading: loading } = useERPQuery<RawMaterialType[]>(["raw-materials-list"], async () => {
+    const res = await fetch("/api/raw-materials");
+    if (!res.ok) throw new Error("Failed to load materials");
+    const result = await res.json();
+    return result.materialTypes || [];
+  }, { skeleton: "table" });
 
-  useEffect(() => {
-    fetchMaterials();
-  }, []);
+  const materials = materialsData || [];
 
   const handleOpenAdd = () => {
     setEditingMaterial(null);
@@ -159,9 +152,10 @@ export default function RawMaterialsPage() {
           : "Raw material created successfully"
       );
       setModalOpen(false);
-      fetchMaterials();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
+      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      toast.error(message);
     }
   };
 
@@ -185,9 +179,10 @@ export default function RawMaterialsPage() {
 
       toast.success("Raw material deleted successfully");
       setDeleteOpen(false);
-      fetchMaterials();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred during deletion");
+      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred during deletion";
+      toast.error(message);
     } finally {
       setDeleteLoading(false);
     }
@@ -202,17 +197,29 @@ export default function RawMaterialsPage() {
     {
       key: "thumbnail",
       header: "Preview",
-      width: "80px",
+      width: "130px",
       render: (row) =>
         row.image_url ? (
-          <img
-            src={row.image_url}
-            alt={row.name}
-            className="w-10 h-10 object-contain rounded border border-[#E5E7EB] bg-[#F8FAFC] p-1"
-          />
+          <div
+            className="relative group w-20 h-20 sm:w-24 sm:h-24 shrink-0 my-1 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomImageUrl(row.image_url);
+            }}
+            title="Click to preview full size"
+          >
+            <img
+              src={row.image_url}
+              alt={row.name}
+              className="w-full h-full object-cover rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-sm group-hover:scale-105 transition-all duration-200"
+            />
+            <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold select-none">
+              <span className="bg-black/70 px-2 py-1 rounded-md shadow-sm">Zoom 🔍</span>
+            </div>
+          </div>
         ) : (
-          <div className="w-10 h-10 rounded border border-[#E5E7EB] bg-[#F1F5F9] flex items-center justify-center text-[10px] font-bold text-[#94A3B8] uppercase">
-            No Image
+          <div className="w-12 h-12 rounded-lg border border-dashed border-[var(--border)] bg-[var(--page-bg)]/40 flex items-center justify-center text-xs font-semibold text-[var(--text-muted)]">
+            —
           </div>
         ),
     },
@@ -473,6 +480,26 @@ export default function RawMaterialsPage() {
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
       />
+
+      {/* Image Preview Lightbox Dialog */}
+      <Dialog open={!!zoomImageUrl} onOpenChange={() => setZoomImageUrl(null)}>
+        <DialogContent className="max-w-2xl bg-[var(--card-bg)] border border-[var(--border)] p-4 sm:p-6 rounded-2xl flex flex-col items-center">
+          <DialogHeader className="w-full text-left border-b border-[var(--border)] pb-3 mb-4">
+            <DialogTitle className="text-base font-bold text-[var(--text-primary)]">
+              Material Image Preview
+            </DialogTitle>
+          </DialogHeader>
+          {zoomImageUrl && (
+            <div className="w-full flex items-center justify-center p-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl overflow-hidden">
+              <img
+                src={zoomImageUrl}
+                alt="Full size material image"
+                className="max-h-[70vh] object-contain rounded-lg shadow-md"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

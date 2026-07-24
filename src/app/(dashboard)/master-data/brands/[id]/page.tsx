@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Pencil,
@@ -154,7 +155,7 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
         <div className="flex items-start gap-4">
           <div className="w-14 h-14 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xl shadow-sm">
             {brand.logo_url ? (
-              <img src={brand.logo_url} alt={brand.name} className="w-full h-full object-contain rounded-2xl" />
+              <Image src={brand.logo_url} alt={brand.name} width={56} height={56} className="w-full h-full object-contain rounded-2xl" />
             ) : (
               brand.name.substring(0, 2).toUpperCase()
             )}

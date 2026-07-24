@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Calendar, FileText, ShoppingCart, ShoppingBag, CheckCircle2, XCircle, ChevronRight, Pencil, Trash2, Loader2, Link as LinkIcon } from "lucide-react";
+import { Plus, Search, Calendar, FileText, ShoppingCart, ShoppingBag, CheckCircle2, XCircle, ChevronRight, Pencil, Trash2, Loader2, Link as LinkIcon, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -233,7 +233,7 @@ export default function SalesOrdersPage() {
             Manage incoming bookings, dispatch pipeline, and sales bill conversions
           </p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2">
+        <Button onClick={() => router.push("/sales/orders/new")} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2 cursor-pointer shadow-sm">
           <Plus size={16} />
           <span>New Order Booking</span>
         </Button>
@@ -397,41 +397,46 @@ export default function SalesOrdersPage() {
                         ) : o.status === "cancelled" ? (
                           <span className="text-slate-400 text-[10px]">Cancelled</span>
                         ) : (
-                          <Button
-                            size="xs"
-                            onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
-                            className="bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] border border-[#BFDBFE] font-bold flex items-center gap-1 self-center"
-                          >
-                            <span>Convert</span>
-                            <ChevronRight size={10} />
-                          </Button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
+                              className="px-2.5 py-1 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] border border-[#BFDBFE] rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                              title="Convert to Sales Bill"
+                            >
+                              <span>Convert</span>
+                              <ChevronRight size={12} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`)}
+                              className="px-2.5 py-1 bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#6366F1] border border-[#C7D2FE] rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                              title="Start Production Lot for this Order"
+                            >
+                              <Layers size={12} />
+                              <span>Start Lot</span>
+                            </button>
+                          </div>
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            disabled={!!o.converted_bill_id}
+                            type="button"
                             onClick={() => handleOpenEdit(o)}
-                            className={`w-8 h-8 border rounded-lg flex items-center justify-center transition-all ${
-                              o.converted_bill_id
-                                ? "border-slate-100 text-slate-300 cursor-not-allowed"
-                                : "border-slate-200 hover:bg-slate-100 text-slate-600 cursor-pointer"
-                            }`}
-                            title="Edit Booking"
+                            className="w-7 h-7 border border-[#E5E7EB] hover:bg-slate-100 text-slate-600 rounded flex items-center justify-center cursor-pointer transition-all"
+                            title="Edit Order"
                           >
-                            <Pencil size={14} />
+                            <Pencil size={13} />
                           </button>
                           <button
-                            disabled={!!o.converted_bill_id}
+                            type="button"
                             onClick={() => handleOpenDelete(o)}
-                            className={`w-8 h-8 border rounded-lg flex items-center justify-center transition-all ${
-                              o.converted_bill_id
-                                ? "border-slate-100 text-slate-300 cursor-not-allowed"
-                                : "border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] cursor-pointer"
-                            }`}
-                            title="Delete Booking"
+                            className="w-7 h-7 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded flex items-center justify-center cursor-pointer transition-all"
+                            title="Delete Order"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

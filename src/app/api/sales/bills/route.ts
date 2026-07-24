@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type") || "pakka";
+  const type = searchParams.get("type") || undefined;
   const partyId = searchParams.get("party_id") || undefined;
   const status = searchParams.get("status") || undefined;
   const search = searchParams.get("search") || undefined;
@@ -54,9 +54,26 @@ export async function POST(request: Request) {
   }
 
   try {
+    const idempotencyKey = request.headers.get("Idempotency-Key") || request.headers.get("idempotency-key");
+    if (idempotencyKey) {
+      const existing = await supabase
+        .from("sales_bills")
+        .select("*")
+        .eq("business_id", businessId)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+
+      if (existing.data) {
+        return NextResponse.json({ data: existing.data });
+      }
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     const body = await request.json();
-    
+    if (idempotencyKey) {
+      body.idempotency_key = idempotencyKey;
+    }
+
     const repo = new SalesBillRepository(supabase);
     const service = new SalesBillService(repo);
 

@@ -21,7 +21,7 @@ export async function GET(
       .select(`
         *,
         brand:brands(id, name),
-        design:designs(id, name, code:design_number, images),
+        design:designs(id, name, code:design_number, images, size_set:size_sets(id, name, sizes)),
         colour:design_colours(id, colour_name, hex_code:colour_hex),
         size_set:size_sets(id, name, sizes)
       `)
@@ -34,10 +34,13 @@ export async function GET(
       return NextResponse.json({ error: lotError.message }, { status: 404 });
     }
 
-    // 2. Fetch Size Quantities
+    // 2. Fetch Size Quantities with colour join
     const { data: sizeQuantities } = await supabase
       .from("lot_size_quantities")
-      .select("*")
+      .select(`
+        *,
+        colour:design_colours(id, colour_name, hex_code:colour_hex)
+      `)
       .eq("lot_id", id)
       .eq("business_id", businessId);
 
@@ -91,13 +94,33 @@ export async function GET(
       }));
     }
 
+    // Extract unique colours from lot and lot_size_quantities
+    const colourMap = new Map();
+    if (lot.colour) colourMap.set(lot.colour.id || "default", lot.colour);
+    (sizeQuantities || []).forEach((sq: any) => {
+      if (sq.colour) colourMap.set(sq.colour.id, sq.colour);
+    });
+    const colours = Array.from(colourMap.values());
+    const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
+
     // Extract first image as image_url
     const imageUrl = lot.design && Array.isArray((lot.design as any).images) && (lot.design as any).images.length > 0
       ? (lot.design as any).images[0]
       : null;
 
+    const { data: fsEntries } = await supabase
+      .from("finished_stock")
+      .select("id")
+      .eq("lot_id", id)
+      .limit(1);
+
+    const isMovedToStock = !!(fsEntries && fsEntries.length > 0);
+
     const lotWithImageUrl = {
       ...lot,
+      size_set: effectiveSizeSet,
+      colours,
+      is_moved_to_stock: isMovedToStock,
       design: lot.design ? {
         ...lot.design,
         image_url: imageUrl

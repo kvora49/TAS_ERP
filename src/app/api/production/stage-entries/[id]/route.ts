@@ -54,16 +54,20 @@ export async function GET(
         const { data: b } = await supabase.from("brands").select("id, name").eq("id", lot.brand_id).maybeSingle();
         brand = b;
       }
+      let effectiveSizeSetId = lot.size_set_id || null;
       if (lot.design_id) {
-        const { data: d } = await supabase.from("designs").select("id, name, design_number").eq("id", lot.design_id).maybeSingle();
+        const { data: d } = await supabase.from("designs").select("id, name, design_number, size_set_id").eq("id", lot.design_id).maybeSingle();
         design = d ? { id: d.id, name: d.name, code: d.design_number } : null;
+        if (!effectiveSizeSetId && d?.size_set_id) {
+          effectiveSizeSetId = d.size_set_id;
+        }
       }
       if (lot.colour_id) {
         const { data: c } = await supabase.from("design_colours").select("id, colour_name, colour_hex").eq("id", lot.colour_id).maybeSingle();
         colour = c ? { id: c.id, colour_name: c.colour_name, hex_code: c.colour_hex } : null;
       }
-      if (lot.size_set_id) {
-        const { data: s } = await supabase.from("size_sets").select("id, name, sizes").eq("id", lot.size_set_id).maybeSingle();
+      if (effectiveSizeSetId) {
+        const { data: s } = await supabase.from("size_sets").select("id, name, sizes").eq("id", effectiveSizeSetId).maybeSingle();
         sizeSet = s;
       }
     }
@@ -152,14 +156,22 @@ export async function PUT(
     const totalJobWorkAmount = qty_out * jRate;
     const totalLaborCost = totalJobWorkAmount;
 
-    let worker_type = null;
-    if (worker_id) {
-      const { data: worker } = await supabase
+    // Safely resolve worker_id to a valid workers.id UUID or null to prevent FK constraint errors
+    let finalWorkerId: string | null = null;
+    let worker_type: string | null = null;
+
+    if (worker_id && typeof worker_id === "string" && worker_id.trim() !== "") {
+      const { data: matchedWorker } = await supabase
         .from("workers")
-        .select("type")
-        .eq("id", worker_id)
-        .single();
-      worker_type = worker?.type || null;
+        .select("id, type")
+        .or(`id.eq.${worker_id},worker_id.eq.${worker_id}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedWorker) {
+        finalWorkerId = matchedWorker.id;
+        worker_type = matchedWorker.type || null;
+      }
     }
 
     const { data: entry, error } = await supabase
@@ -176,7 +188,7 @@ export async function PUT(
         job_work_rate: jRate,
         total_job_work_amount: totalJobWorkAmount,
         payment_type: payment_type || "piece_rate",
-        worker_id: worker_id || null,
+        worker_id: finalWorkerId,
         worker_type,
         no_of_workers: parseInt(no_of_workers, 10) || 1,
         total_labor_cost: totalLaborCost,

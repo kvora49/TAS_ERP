@@ -46,10 +46,14 @@ export async function getSessionBusinessId(): Promise<string | null> {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("business_id")
+    .select("business_id, is_active")
     .eq("id", user.id)
     .is("deleted_at", null)
     .single();
+
+  // Item 30e: Deactivated users are rejected immediately on every request,
+  // without waiting for their JWT to expire naturally.
+  if (!profile || profile.is_active === false) return null;
     
   return profile?.business_id || null;
 }

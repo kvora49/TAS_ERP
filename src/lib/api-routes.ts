@@ -1,0 +1,45 @@
+export const API = {
+  auth: {
+    login: "/api/auth/login",
+    register: "/api/auth/register",
+    logout: "/api/auth/logout",
+  },
+  upload: {
+    presigned: "/api/upload/presigned",
+  },
+  sales: {
+    bills: "/api/sales/bills",
+    orders: "/api/sales/orders",
+    returns: "/api/sales/returns",
+    creditNotes: "/api/sales/credit-notes",
+    debitNotes: "/api/sales/debit-notes",
+  },
+  parties: "/api/parties",
+  workers: "/api/workers",
+  payments: {
+    receive: "/api/payments/receive",
+    make: "/api/payments/make",
+    supplier: "/api/payments/supplier",
+    writeOffs: "/api/payments/write-offs",
+    directLink: "/api/payments/direct-link",
+  },
+  settings: {
+    companyProfile: "/api/settings/company-profile",
+    auditLogs: "/api/settings/audit-logs",
+    notifications: "/api/settings/notifications",
+    production: "/api/settings/production",
+    users: "/api/settings/users",
+    permissions: "/api/settings/permissions",
+    storageInfo: "/api/settings/storage-info",
+    inventory: "/api/settings/inventory",
+    general: "/api/settings/general",
+    financial: "/api/settings/financial",
+    communication: {
+      parties: "/api/settings/communication/parties",
+      templates: "/api/settings/communication/templates",
+      logs: "/api/settings/communication/logs",
+    },
+    backup: "/api/settings/backup",
+    backupHistory: "/api/settings/backup-history",
+  },
+} as const;

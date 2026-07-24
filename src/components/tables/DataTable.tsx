@@ -53,7 +53,7 @@ export function DataTable<T>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-6 align-middle font-semibold"
+                  className="px-4 py-3 align-middle font-semibold whitespace-nowrap"
                   style={{ width: col.width }}
                 >
                   {col.header}
@@ -85,14 +85,14 @@ export function DataTable<T>({
                 <tr
                   key={rIdx}
                   onClick={() => onRowClick?.(row)}
-                  className={`h-16 hover:bg-[#F8FAFC] transition-colors border-b border-[#E5E7EB] last:border-b-0 ${
+                  className={`hover:bg-[var(--page-bg)] transition-colors border-b border-[var(--border)] last:border-b-0 ${
                     onRowClick ? "cursor-pointer" : ""
                   }`}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className="px-6 align-middle font-medium text-[#374151]"
+                      className="px-4 py-3.5 align-middle font-medium text-[#374151]"
                     >
                       {col.render(row)}
                     </td>

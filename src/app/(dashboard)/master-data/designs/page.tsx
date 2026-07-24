@@ -42,6 +42,7 @@ const designSchema = z.object({
   description: z.string().optional(),
   images: z.array(z.string()),
   size_set_id: z.string().optional(),
+  sale_price: z.number().optional(),
   is_active: z.boolean(),
 });
 
@@ -124,7 +125,7 @@ export default function DesignsPage() {
     reset,
     formState: { errors },
   } = useForm<DesignFormValues>({
-    resolver: zodResolver(designSchema),
+    resolver: zodResolver(designSchema) as any,
   });
 
   // Color Subform
@@ -205,6 +206,7 @@ export default function DesignsPage() {
       description: "",
       images: [],
       size_set_id: sizeSets[0]?.id || "",
+      sale_price: undefined,
       is_active: true,
     });
     setIsEditing(true);
@@ -224,6 +226,7 @@ export default function DesignsPage() {
       description: design.description || "",
       images: design.images || [],
       size_set_id: design.size_set_id || "",
+      sale_price: design.sale_price ?? undefined,
       is_active: design.is_active,
     });
     setIsEditing(true);
@@ -621,6 +624,25 @@ export default function DesignsPage() {
                 </div>
 
 
+
+                {/* Wholesale / Sale Price */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                    Sale Price (₹ / Piece)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 750.00"
+                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
+                    {...register("sale_price", { valueAsNumber: true })}
+                  />
+                  {errors.sale_price && (
+                    <p className="text-xs font-semibold text-[#DC2626]">
+                      {errors.sale_price.message}
+                    </p>
+                  )}
+                </div>
 
                 {/* HSN code */}
                 <div className="space-y-1.5">

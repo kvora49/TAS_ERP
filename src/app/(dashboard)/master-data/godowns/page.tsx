@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
@@ -44,8 +46,7 @@ interface Godown {
 
 export default function GodownsPage() {
   const router = useRouter();
-  const [godowns, setGodowns] = useState<Godown[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -64,23 +65,14 @@ export default function GodownsPage() {
     resolver: zodResolver(godownSchema),
   });
 
-  const fetchGodowns = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/master-data/godowns");
-      if (!res.ok) throw new Error("Failed to load godowns");
-      const result = await res.json();
-      setGodowns(result.godowns || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching godowns list");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: godownsData, isLoading: loading } = useERPQuery<Godown[]>(["godowns-list"], async () => {
+    const res = await fetch("/api/master-data/godowns");
+    if (!res.ok) throw new Error("Failed to load godowns");
+    const result = await res.json();
+    return result.godowns || [];
+  }, { skeleton: "table" });
 
-  useEffect(() => {
-    fetchGodowns();
-  }, []);
+  const godowns = godownsData || [];
 
   const handleOpenAdd = () => {
     setEditingGodown(null);
@@ -137,9 +129,10 @@ export default function GodownsPage() {
           : "Godown created successfully"
       );
       setModalOpen(false);
-      fetchGodowns();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
+      queryClient.invalidateQueries({ queryKey: ["godowns-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      toast.error(message);
     }
   };
 
@@ -163,9 +156,10 @@ export default function GodownsPage() {
 
       toast.success("Godown deleted successfully");
       setDeleteOpen(false);
-      fetchGodowns();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred during deletion");
+      queryClient.invalidateQueries({ queryKey: ["godowns-list"] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred during deletion";
+      toast.error(message);
     } finally {
       setDeleteLoading(false);
     }

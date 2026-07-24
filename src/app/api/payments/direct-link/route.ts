@@ -152,7 +152,7 @@ export async function POST(request: Request) {
         p_bank_account_id: bank_account_id || null,
         p_amount: Number(linked_amount), // amount paid matches link amount
         p_remarks: remarks || "",
-        p_allocations: JSON.stringify([]), // advances/unallocated
+        p_allocations: [], // advances/unallocated
         p_created_by: userId,
       });
 

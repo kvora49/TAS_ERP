@@ -11,7 +11,8 @@ import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, Us
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 
 interface Party {
   id: string;
@@ -35,15 +36,12 @@ export default function PartiesPage() {
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const { data: partiesData, isLoading: partiesLoading } = useQuery<Party[]>({
-    queryKey: ["parties"],
-    queryFn: async () => {
-      const res = await fetch("/api/parties");
-      if (!res.ok) throw new Error("Failed to fetch parties");
-      const data = await res.json();
-      return data.parties || [];
-    }
-  });
+  const { data: partiesData, isLoading: partiesLoading } = useERPQuery<Party[]>(["parties"], async () => {
+    const res = await fetch("/api/parties");
+    if (!res.ok) throw new Error("Failed to fetch parties");
+    const data = await res.json();
+    return data.parties || [];
+  }, { skeleton: "table" });
 
   const parties = partiesData || [];
   const loading = partiesLoading;

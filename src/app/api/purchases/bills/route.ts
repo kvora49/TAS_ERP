@@ -75,11 +75,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const parsed = CreatePurchaseBillSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount = 0, godown_id, items } = body;
+
+    if (!supplier_id) {
+      return NextResponse.json({ error: "Supplier is required" }, { status: 400 });
     }
-    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount } = parsed.data;
+    if (!invoice_date) {
+      return NextResponse.json({ error: "Invoice date is required" }, { status: 400 });
+    }
 
     // Auto-generate Bill Number (Format: PB-YYYY-XXXX)
     const year = new Date(invoice_date).getFullYear();
@@ -93,8 +96,8 @@ export async function POST(request: Request) {
     const billNumber = `PB-${year}-${sequence}`;
 
     // Determine payment status
-    const total = Number(grand_total);
-    const paid = Number(paid_amount);
+    const total = Number(grand_total || 0);
+    const paid = Number(paid_amount || 0);
     let paymentStatus = "unpaid";
     if (paid >= total && total > 0) {
       paymentStatus = "paid";
@@ -124,6 +127,26 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Insert finished_stock entries if itemized details provided
+    if (items && Array.isArray(items) && items.length > 0 && godown_id) {
+      for (const item of items) {
+        if (item.design_id && item.total_qty > 0) {
+          await supabase.from("finished_stock").insert({
+            business_id: businessId,
+            design_id: item.design_id,
+            colour_id: item.colour_id || null,
+            godown_id,
+            entry_type: "purchase_inflow",
+            size_quantities: item.size_quantities || {},
+            total_quantity: item.total_qty,
+            cost_per_piece: item.unit_rate || 0,
+            total_value: item.line_amount || 0,
+            created_by: userId,
+          });
+        }
+      }
     }
 
     return NextResponse.json({ bill });

@@ -74,23 +74,44 @@ export async function GET(request: Request) {
     const total = filteredLots.length;
     const paginatedLots = filteredLots.slice(offset, offset + limit);
 
-    // For each lot, load its size quantities
+    // For each lot, load its size quantities and unique colours
     const lotIds = paginatedLots.map((l) => l.id);
     let sizeQuantities: any[] = [];
+    const finishedStockLotIds = new Set<string>();
     if (lotIds.length > 0) {
       const { data: sqData } = await supabase
         .from("lot_size_quantities")
-        .select("*")
+        .select("*, colour:design_colours(id, colour_name, hex_code:colour_hex)")
         .in("lot_id", lotIds)
         .eq("business_id", businessId);
       sizeQuantities = sqData || [];
+
+      const { data: fsData } = await supabase
+        .from("finished_stock")
+        .select("lot_id")
+        .in("lot_id", lotIds)
+        .eq("business_id", businessId);
+      if (fsData) {
+        fsData.forEach((f) => { if (f.lot_id) finishedStockLotIds.add(f.lot_id); });
+      }
     }
 
     const lotsWithSizes = paginatedLots.map((lot) => {
       const sizes = sizeQuantities.filter((sq) => sq.lot_id === lot.id);
+      const colourMap = new Map();
+      if (lot.colour) colourMap.set(lot.colour.id || "default", lot.colour);
+      sizes.forEach((sq: any) => {
+        if (sq.colour) colourMap.set(sq.colour.id, sq.colour);
+      });
+      const colours = Array.from(colourMap.values());
+      const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
+
       return {
         ...lot,
+        size_set: effectiveSizeSet,
+        colours,
         sizes,
+        is_moved_to_stock: finishedStockLotIds.has(lot.id),
       };
     });
 
@@ -203,6 +224,18 @@ export async function POST(request: Request) {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id || null;
 
+    let finalSizeSetId = size_set_id || null;
+    if (!finalSizeSetId && design_id) {
+      const { data: d } = await supabase
+        .from("designs")
+        .select("size_set_id")
+        .eq("id", design_id)
+        .maybeSingle();
+      if (d?.size_set_id) {
+        finalSizeSetId = d.size_set_id;
+      }
+    }
+
     // 1. Create the production lot
     const { data: lot, error: lotError } = await supabase
       .from("production_lots")
@@ -212,7 +245,7 @@ export async function POST(request: Request) {
         brand_id,
         design_id,
         colour_id: colour_id || null,
-        size_set_id: size_set_id || null,
+        size_set_id: finalSizeSetId,
         lot_date,
         season: season || null,
         buyer_order_ref: buyer_order_ref || null,

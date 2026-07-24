@@ -99,6 +99,9 @@ export default function EditLotPage({ params }: EditLotProps) {
   // Assigned stages state
   const [assignedStages, setAssignedStages] = useState<LotStageInput[]>([]);
 
+  // Fabric rolls allocation state
+  const [allocatedRolls, setAllocatedRolls] = useState<any[]>([]);
+
   const [saving, setSaving] = useState(false);
 
   // Queries
@@ -186,6 +189,11 @@ export default function EditLotPage({ params }: EditLotProps) {
           description: s.description || "",
         }))
       );
+
+      // Fabric Rolls
+      if (lotData.lotRolls) {
+        setAllocatedRolls(lotData.lotRolls);
+      }
     }
   }, [lotData]);
 
@@ -385,11 +393,61 @@ export default function EditLotPage({ params }: EditLotProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Form Sections */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Section 1: Lot Info */}
+          {/* Section 1: Fabric Roll Allocation */}
           <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <span className="w-6 h-6 rounded-full bg-[#EEF2FF] text-[#6366F1] font-bold text-xs flex items-center justify-center">
                 1
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">Allocated Fabric Rolls Breakdown</h3>
+                <p className="text-[11px] text-[#64748B]">View roll-wise meters allocated to this lot</p>
+              </div>
+            </div>
+
+            {allocatedRolls.length === 0 ? (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs text-slate-500 font-medium">
+                No roll-wise fabric allocated to this production lot.
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                      <th className="py-2.5 px-3">Roll No</th>
+                      <th className="py-2.5 px-3">Fabric & Supplier</th>
+                      <th className="py-2.5 px-3">Shade</th>
+                      <th className="py-2.5 px-3 text-right">Meters Allocated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold">
+                    {allocatedRolls.map((r: any, idx: number) => (
+                      <tr key={r.id || idx} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-600">
+                          Roll #{r.purchase_roll?.roll_number || r.roll_number || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-800">
+                          {r.purchase_roll?.item?.material_type?.name || r.material_name || "Fabric"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          {r.purchase_roll?.shade || r.shade || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                          {r.allocated_meters} Mtr
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Lot Info */}
+          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="w-6 h-6 rounded-full bg-[#EEF2FF] text-[#6366F1] font-bold text-xs flex items-center justify-center">
+                2
               </span>
               <div>
                 <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">Lot Information</h3>

@@ -130,7 +130,7 @@ export default function PurchasesPage() {
       render: (row) => (
         <Link
           href={`/raw-materials/purchases/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1]"
+          className="font-mono font-bold text-xs text-[#6366F1] whitespace-nowrap"
         >
           {row.purchase_number}
         </Link>
@@ -140,38 +140,39 @@ export default function PurchasesPage() {
       key: "invoice_date",
       header: "Invoice Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.invoice_date)}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatDate(row.invoice_date)}</span>,
     },
     {
       key: "supplier",
       header: "Supplier",
+      width: "220px",
       render: (row) => (
-        <div>
-          <span className="font-bold text-[#0F172A] block">{row.supplier?.name || "—"}</span>
-          {row.supplier?.company_name && <span className="text-xs text-[#64748B]">{row.supplier.company_name}</span>}
+        <div className="min-w-0 pr-2">
+          <span className="font-bold text-[#0F172A] block truncate">{row.supplier?.name || "—"}</span>
+          {row.supplier?.company_name && <span className="text-xs text-[#64748B] block truncate">{row.supplier.company_name}</span>}
         </div>
       ),
     },
     {
       key: "invoice_no",
       header: "Invoice No.",
-      width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold text-[#1E293B]">{row.invoice_no}</span>,
+      width: "160px",
+      render: (row) => <span className="font-mono text-xs font-semibold text-[#1E293B] whitespace-nowrap">{row.invoice_no || "—"}</span>,
     },
     {
       key: "grand_total",
       header: "Grand Total",
-      width: "130px",
-      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A]">{formatCurrency(row.grand_total)}</span>,
+      width: "140px",
+      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A] whitespace-nowrap">{formatCurrency(row.grand_total)}</span>,
     },
     {
       key: "balance",
       header: "Balance Due",
-      width: "130px",
+      width: "140px",
       render: (row) => {
         const bal = Number(row.grand_total) - Number(row.paid_amount || 0);
         return (
-          <span className={`font-mono text-xs font-bold ${bal > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+          <span className={`font-mono text-xs font-bold whitespace-nowrap ${bal > 0 ? "text-amber-700" : "text-emerald-700"}`}>
             {formatCurrency(bal)}
           </span>
         );
@@ -197,11 +198,11 @@ export default function PurchasesPage() {
     {
       key: "actions",
       header: "Actions",
-      width: "140px",
+      width: "120px",
       render: (row) => {
         const isPaid = row.payment_status === "paid";
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <Link
               href={`/raw-materials/purchases/${row.id}`}
               onClick={(e) => e.stopPropagation()}

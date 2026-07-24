@@ -333,7 +333,57 @@
 }
 
 
-.dark {
+.dark,
+[data-theme="dark"] {
+  --page-bg: #0F172A;
+  --card-bg: #1E293B;
+  --border: #334155;
+  --border-light: #1E293B;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #E2E8F0;
+  --text-body: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-faint: #64748B;
+
+  --sidebar-bg: #020617;
+  --sidebar-active: #1E3A5F;
+  --sidebar-hover: #0F172A;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-border: #1E293B;
+
+  --input-bg: #1E293B;
+  --input-border: #334155;
+  --input-focus: #818CF8;
+
+  --badge-green-bg: #14532D;  --badge-green-text: #86EFAC;
+  --badge-red-bg: #450A0A;    --badge-red-text: #FCA5A5;
+  --badge-orange-bg: #431407; --badge-orange-text: #FDBA74;
+  --badge-blue-bg: #1E3A5F;   --badge-blue-text: #93C5FD;
+  --badge-purple-bg: #2E1065; --badge-purple-text: #C4B5FD;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+
+  --settings-card-header-icon-bg: #1E3A5F;
+  --settings-card-header-icon-color: #818CF8;
+  --settings-preview-label: #94A3B8;
+  --settings-preview-value: #E2E8F0;
+  --settings-divider: #334155;
+
+  --toggle-on: #6366F1;
+  --toggle-off: #334155;
+  --toggle-thumb: #F8FAFC;
+
+  --ledger-debit: #E2E8F0;
+  --ledger-credit: #4ADE80;
+  --ledger-balance-dr: #F87171;
+  --ledger-balance-cr: #4ADE80;
+
+  --pwa-nav-bg: #0F172A;
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -349,7 +399,6 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
 }
@@ -369,5 +418,178 @@
 
   html {
     @apply font-sans;
+  }
+}
+
+/* Comprehensive Dark Mode Element Overrides */
+.dark body,
+[data-theme="dark"] body {
+  background-color: var(--page-bg) !important;
+  color: var(--text-body) !important;
+}
+
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6 {
+  color: #F8FAFC !important;
+}
+
+.dark .bg-white,
+[data-theme="dark"] .bg-white {
+  background-color: #1E293B !important;
+  border-color: #334155 !important;
+  color: #F8FAFC !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-[#F8FAFC],
+.dark .bg-[#F1F5F9],
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-[#F8FAFC],
+[data-theme="dark"] .bg-[#F1F5F9] {
+  background-color: #0F172A !important;
+  border-color: #334155 !important;
+}
+
+/* Escaped Tailwind Arbitrary Class Overrides for Dark Mode */
+.dark \.text-\[\#0F172A\],
+.dark \.text-\[\#1E293B\],
+.dark \.text-\[\#374151\],
+.dark \.text-\[\#475569\],
+.dark \.text-slate-900,
+.dark \.text-slate-800,
+.dark \.text-slate-700,
+.dark \.text-gray-900,
+.dark \.text-gray-800,
+.dark \.text-gray-700,
+[data-theme="dark"] \.text-\[\#0F172A\],
+[data-theme="dark"] \.text-\[\#1E293B\],
+[data-theme="dark"] \.text-\[\#374151\],
+[data-theme="dark"] \.text-\[\#475569\],
+[data-theme="dark"] \.text-slate-900,
+[data-theme="dark"] \.text-slate-800,
+[data-theme="dark"] \.text-slate-700,
+[data-theme="dark"] \.text-gray-900,
+[data-theme="dark"] \.text-gray-800,
+[data-theme="dark"] \.text-gray-700 {
+  color: #F8FAFC !important;
+}
+
+.dark \.text-\[\#64748B\],
+.dark \.text-\[\#94A3B8\],
+.dark \.text-slate-600,
+.dark \.text-slate-500,
+.dark \.text-gray-600,
+.dark \.text-gray-500,
+[data-theme="dark"] \.text-\[\#64748B\],
+[data-theme="dark"] \.text-\[\#94A3B8\],
+[data-theme="dark"] \.text-slate-600,
+[data-theme="dark"] \.text-slate-500,
+[data-theme="dark"] \.text-gray-600,
+[data-theme="dark"] \.text-gray-500 {
+  color: #CBD5E1 !important;
+}
+
+.dark \.border-slate-200,
+.dark \.border-slate-100,
+.dark \.border-gray-200,
+.dark \.border-gray-300,
+.dark \.border-\[\#E5E7EB\],
+.dark \.border-\[\#D1D5DB\],
+.dark \.border-\[\#CBD5E1\],
+.dark \.border-\[\#F3F4F6\],
+[data-theme="dark"] \.border-slate-200,
+[data-theme="dark"] \.border-slate-100,
+[data-theme="dark"] \.border-gray-200,
+[data-theme="dark"] \.border-gray-300,
+[data-theme="dark"] \.border-\[\#E5E7EB\],
+[data-theme="dark"] \.border-\[\#D1D5DB\],
+[data-theme="dark"] \.border-\[\#CBD5E1\],
+[data-theme="dark"] \.border-\[\#F3F4F6\] {
+  border-color: #334155 !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea,
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  border-color: #334155 !important;
+}
+
+.dark select option,
+[data-theme="dark"] select option {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+.dark [role="menu"],
+.dark [role="dialog"],
+[data-theme="dark"] [role="menu"],
+[data-theme="dark"] [role="dialog"] {
+  background-color: #1E293B !important;
+  border-color: #334155 !important;
+  color: #F8FAFC !important;
+}
+
+.dark .recharts-text,
+.dark .recharts-cartesian-axis-tick-value,
+[data-theme="dark"] .recharts-text,
+[data-theme="dark"] .recharts-cartesian-axis-tick-value {
+  fill: #94A3B8 !important;
+}
+
+@media print {
+  aside,
+  header,
+  nav,
+  footer,
+  .print-hide,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body,
+  html,
+  main {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .print-modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    z-index: 999999 !important;
+  }
+
+  .print-modal-content {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
   }
 }

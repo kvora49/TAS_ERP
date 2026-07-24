@@ -48,8 +48,9 @@ export async function GET(
       brand: detail.brand,
       brandConfig: detail.brandConfig,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -70,8 +71,9 @@ export async function PUT(
 
     await service.validateAndUpdate(params.id, body, businessId);
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -89,7 +91,8 @@ export async function DELETE(
     const repo = new SalesBillRepository(supabase);
     await repo.delete(params.id, businessId);
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

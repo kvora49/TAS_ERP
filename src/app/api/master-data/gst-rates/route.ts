@@ -57,6 +57,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Item 30d: Uniqueness pre-check — reject duplicate HSN codes before hitting the DB constraint
+    const { data: existingRate } = await supabase
+      .from("gst_rates")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("hsn_code", hsn_code.trim())
+      .maybeSingle();
+
+    if (existingRate) {
+      return NextResponse.json({ error: `A GST rate for HSN code "${hsn_code}" already exists.` }, { status: 409 });
+    }
+
     const { data: gstRate, error } = await supabase
       .from("gst_rates")
       .insert({

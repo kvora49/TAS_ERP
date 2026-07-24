@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { party_id, order_date, expected_delivery, total_amount = 0, notes } = body;
+    const { party_id, order_date, expected_delivery, total_amount = 0, notes, items } = body;
 
     if (!party_id) {
       return NextResponse.json({ error: "Party is required" }, { status: 400 });
@@ -93,6 +93,14 @@ export async function POST(request: Request) {
     const sequence = String((count || 0) + 1).padStart(4, "0");
     const orderNumber = `SO-${year}-${sequence}`;
 
+    let formattedNotes = notes || null;
+    if (items && Array.isArray(items) && items.length > 0) {
+      formattedNotes = JSON.stringify({
+        text: typeof notes === "string" ? notes : "",
+        items,
+      });
+    }
+
     const { data: order, error } = await supabase
       .from("sale_orders")
       .insert({
@@ -103,7 +111,7 @@ export async function POST(request: Request) {
         expected_delivery: expected_delivery || null,
         status: "pending",
         total_amount: Number(total_amount),
-        notes: notes || null,
+        notes: formattedNotes,
         created_by: userId
       })
       .select(`

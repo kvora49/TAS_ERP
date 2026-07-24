@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface AppState {
   sidebarOpen: boolean;
@@ -27,24 +28,36 @@ interface AppState {
   setNavigatingTo: (path: string | null) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  sidebarOpen: true,
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      sidebarOpen: true,
+      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  selectedBusinessId: null,
-  setSelectedBusinessId: (id) => set({ selectedBusinessId: id }),
+      selectedBusinessId: null,
+      setSelectedBusinessId: (id) => set({ selectedBusinessId: id }),
 
-  user: null,
-  setUser: (user) => set({ user }),
+      user: null,
+      setUser: (user) => set({ user }),
 
-  filters: {
-    brandId: "all",
-    dateRange: "this_month",
-  },
-  setFilters: (newFilters) =>
-    set((state) => ({ filters: { ...state.filters, ...newFilters } })),
+      filters: {
+        brandId: "all",
+        dateRange: "this_month",
+      },
+      setFilters: (newFilters) =>
+        set((state) => ({ filters: { ...state.filters, ...newFilters } })),
 
-  navigatingTo: null,
-  setNavigatingTo: (navigatingTo) => set({ navigatingTo }),
-}));
+      navigatingTo: null,
+      setNavigatingTo: (navigatingTo) => set({ navigatingTo }),
+    }),
+    {
+      name: "tas-erp-app-store",
+      partialize: (state) => ({
+        sidebarOpen: state.sidebarOpen,
+        selectedBusinessId: state.selectedBusinessId,
+        filters: state.filters,
+      }),
+    }
+  )
+);

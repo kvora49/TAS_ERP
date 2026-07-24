@@ -64,6 +64,14 @@ export default function ReceivePaymentPage() {
   const customers = initData?.customers || [];
   const bankAccounts = initData?.bankAccounts || [];
 
+  // Auto-select default bank account when loaded
+  useEffect(() => {
+    if (bankAccounts.length > 0 && !bankAccountId) {
+      const def = bankAccounts.find((b: any) => b.is_default) || bankAccounts[0];
+      if (def) setBankAccountId(def.id);
+    }
+  }, [bankAccounts, bankAccountId]);
+
   // Fetch outstanding bills when customer is selected
   const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: OutstandingBill[] }>({
     queryKey: ["outstanding-bills", selectedCustomerId],
@@ -309,11 +317,16 @@ export default function ReceivePaymentPage() {
                     onChange={(e) => setBankAccountId(e.target.value)}
                     className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
                   >
-                    {bankAccounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.account_name} ({acc.bank_name})
-                      </option>
-                    ))}
+                    <option value="">-- Select Deposit Account --</option>
+                    {bankAccounts.map((acc: any) => {
+                      const title = acc.name || acc.account_name || acc.bank_name || "Bank Account";
+                      const details = acc.bank_name && acc.bank_name !== title ? ` (${acc.bank_name})` : acc.account_number ? ` (A/C: ${acc.account_number})` : "";
+                      return (
+                        <option key={acc.id} value={acc.id}>
+                          {title}{details}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}

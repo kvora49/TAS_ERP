@@ -24,7 +24,7 @@ export class SalesBillRepository {
       .order("bill_date", { ascending: false })
       .order("created_at", { ascending: false });
 
-    if (type) {
+    if (type && type !== "all") {
       query = query.eq("bill_type", type);
     }
     if (partyId) {
@@ -170,6 +170,77 @@ export class SalesBillRepository {
         .from("sale_bill_charges")
         .insert(chargesToInsert);
       if (chargesErr) throw chargesErr;
+    }
+
+    // 4. Deduct finished stock and record stock_ledger entries
+    if (items.length > 0) {
+      for (const item of items) {
+        const qty = Number(item.quantity || 0);
+        if (qty <= 0) continue;
+
+        // Fetch fresh finished_stock row to prevent stale overwrites across multiple size items
+        let { data: fsRows } = await this.supabase
+          .from("finished_stock")
+          .select("*")
+          .eq("business_id", billData.business_id)
+          .eq("design_id", item.design_id);
+
+        if (item.colour_id && fsRows && fsRows.length > 0) {
+          const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
+          if (matchCol.length > 0) fsRows = matchCol;
+        }
+
+        if (billData.godown_id && fsRows && fsRows.length > 0) {
+          const matchGodown = fsRows.filter((r) => r.godown_id === billData.godown_id);
+          if (matchGodown.length > 0) fsRows = matchGodown;
+        }
+
+        const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
+        const godownId = existingFs?.godown_id || billData.godown_id;
+
+        if (godownId) {
+          await this.supabase.from("stock_ledger").insert({
+            business_id: billData.business_id,
+            item_type: "finished_good",
+            item_id: item.design_id,
+            godown_id: godownId,
+            transaction_type: "sale_bill_outflow",
+            quantity_delta: -qty,
+            value_delta: -Number(item.amount || 0),
+            reference_table: "sale_bills",
+            reference_id: bill.id,
+            created_by: billData.created_by || null,
+          });
+        }
+
+        if (existingFs) {
+          const currentSizeQty = existingFs.size_quantities || {};
+          const sz = item.size || "all";
+          const currentSzQty = Number(currentSizeQty[sz] || 0);
+          const newSzQty = Math.max(0, currentSzQty - qty);
+          const newTotalQty = Math.max(0, Number(existingFs.total_quantity || 0) - qty);
+          const costPerPiece = Number(
+            existingFs.cost_per_piece ||
+              (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
+          );
+          const newTotalValue = newTotalQty * costPerPiece;
+
+          const updatedSizes = { ...currentSizeQty };
+          if (sz !== "all") {
+            updatedSizes[sz] = newSzQty;
+          }
+
+          await this.supabase
+            .from("finished_stock")
+            .update({
+              size_quantities: updatedSizes,
+              total_quantity: newTotalQty,
+              total_value: newTotalValue,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingFs.id);
+        }
+      }
     }
 
     return bill;

@@ -157,8 +157,8 @@ export function ReturnForm() {
             const p = data.purchase;
             setValue("supplier_id", p.supplier_id);
 
-            // Populate items with returned_qty default 0
-            const returnItems = (data.items || []).map((it: any) => ({
+            const itemsList = data.purchase?.items || data.items || [];
+            const returnItems = itemsList.map((it: any) => ({
               purchase_item_id: it.id,
               material_type_id: it.material_type_id,
               material_name: it.material_type?.name || "Material",
@@ -334,7 +334,7 @@ export function ReturnForm() {
                 <select
                   disabled={loadingPurchases}
                   {...register("purchase_id")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full pl-3 pr-8 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-semibold text-[#0F172A] truncate cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:9px_9px] bg-[right_0.6rem_center] bg-no-repeat"
                 >
                   <option value="">Select Invoice</option>
                   {purchases.map((p) => (
@@ -502,6 +502,35 @@ export function ReturnForm() {
               </div>
             )}
           </div>
+
+          {/* Reasons / Remarks */}
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reason for Return *</label>
+              <select
+                {...register("reason")}
+                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-semibold text-[#0F172A]"
+              >
+                <option value="">Select Reason</option>
+                <option value="Damaged Material">Damaged/Defective Material</option>
+                <option value="Quality Issues">Quality/Specification Mismatch</option>
+                <option value="Excess Quantity Sent">Excess Quantity Sent</option>
+                <option value="Wrong Item/Color Sent">Wrong Item/Color Sent</option>
+                <option value="Late Delivery Rejected">Late Delivery Rejected</option>
+                <option value="Other">Other (Specify in Remarks)</option>
+              </select>
+              {errors.reason && <p className="text-[10px] text-red-500 mt-1">{errors.reason.message}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">General Remarks</label>
+              <textarea
+                rows={3}
+                placeholder="Enter return notes..."
+                {...register("remarks")}
+                className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs font-medium"
+              ></textarea>
+            </div>
+          </div>
         </div>
 
         {/* Right Section: Return Summary, Debit Note, Attachments */}
@@ -581,35 +610,6 @@ export function ReturnForm() {
                 setValue("attachments", newUrls);
               }}
             />
-          </div>
-
-          {/* Reasons / Remarks */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reason for Return *</label>
-              <select
-                {...register("reason")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
-              >
-                <option value="">Select Reason</option>
-                <option value="Damaged Material">Damaged/Defective Material</option>
-                <option value="Quality Issues">Quality/Specification Mismatch</option>
-                <option value="Excess Quantity Sent">Excess Quantity Sent</option>
-                <option value="Wrong Item/Color Sent">Wrong Item/Color Sent</option>
-                <option value="Late Delivery Rejected">Late Delivery Rejected</option>
-                <option value="Other">Other (Specify in Remarks)</option>
-              </select>
-              {errors.reason && <p className="text-[10px] text-red-500 mt-1">{errors.reason.message}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">General Remarks</label>
-              <textarea
-                rows={3}
-                placeholder="Enter return notes..."
-                {...register("remarks")}
-                className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs"
-              ></textarea>
-            </div>
           </div>
         </div>
       </div>

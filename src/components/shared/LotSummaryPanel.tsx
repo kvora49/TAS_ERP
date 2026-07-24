@@ -22,20 +22,27 @@ export default function LotSummaryPanel({
   items,
 }: LotSummaryPanelProps) {
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 sticky top-6 shadow-sm">
+    <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm">
       <h3 className="flex items-center gap-2 text-base font-semibold text-[#0F172A] mb-4">
         <BarChart2 className="h-5 w-5 text-[#6366F1]" />
         <span>{title}</span>
       </h3>
 
       {designImage && (
-        <div className="w-full h-32 rounded-lg bg-[#F1F5F9] mb-4 overflow-hidden border border-[#E5E7EB] flex items-center justify-center">
+        <div className="relative w-full h-64 rounded-xl mb-4 overflow-hidden border border-[#E5E7EB] flex items-center justify-center bg-slate-100 group shadow-xs">
+          {/* Full-bleed ambient color glow matching the image palette */}
+          <img
+            src={designImage}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-90 scale-125 pointer-events-none"
+          />
+          {/* 100% full uncropped sharp image */}
           <img
             src={designImage}
             alt="Design Thumbnail"
-            className="w-full h-full object-cover"
+            className="relative z-10 max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-300 drop-shadow-md"
             onError={(e) => {
-              // Hide broken image link if R2 fails
               e.currentTarget.style.display = "none";
             }}
           />

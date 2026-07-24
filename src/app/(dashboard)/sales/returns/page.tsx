@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Search, Calendar, RefreshCw, Layers, CheckCircle2, DollarSign, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,12 +40,11 @@ interface SalesReturn {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   party?: Party;
-  credit_note?: {
-    cn_number: string;
-  };
+  credit_note?: { cn_number: string } | { cn_number: string }[] | null;
 }
 
 export default function SalesReturnsPage() {
+  const router = useRouter();
   const [returns, setReturns] = useState<SalesReturn[]>([]);
   const [customers, setCustomers] = useState<Party[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -235,7 +236,7 @@ export default function SalesReturnsPage() {
             Process incoming customer product returns, add back stock, and issue credit notes
           </p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white flex items-center gap-2">
+        <Button onClick={() => router.push("/sales/returns/new")} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white flex items-center gap-2 cursor-pointer">
           <Plus size={16} />
           <span>Record Sales Return</span>
         </Button>
@@ -347,7 +348,16 @@ export default function SalesReturnsPage() {
                       </span>
                     </td>
                     <td className="p-4 text-center font-bold text-[#6366F1] font-mono">
-                      {r.credit_note?.cn_number || "—"}
+                      {(() => {
+                        const cn = Array.isArray(r.credit_note) ? r.credit_note[0] : r.credit_note;
+                        return cn?.cn_number ? (
+                          <Link href="/sales/credit-notes" className="hover:underline">
+                            {cn.cn_number}
+                          </Link>
+                        ) : (
+                          "—"
+                        );
+                      })()}
                     </td>
                     <td className="p-4 text-right">
                       <button
@@ -544,7 +554,7 @@ export default function SalesReturnsPage() {
 
           <div className="space-y-3 pt-2">
             <p className="text-xs text-slate-500 leading-normal">
-              Are you sure you want to delete return <span className="font-bold text-slate-700">{selectedReturn?.return_number}</span>? This will also remove the linked credit note <span className="font-bold text-[#6366F1]">{selectedReturn?.credit_note?.cn_number}</span>.
+              Are you sure you want to delete return <span className="font-bold text-slate-700">{selectedReturn?.return_number}</span>? This will also remove the linked credit note <span className="font-bold text-[#6366F1]">{Array.isArray(selectedReturn?.credit_note) ? selectedReturn?.credit_note[0]?.cn_number : selectedReturn?.credit_note?.cn_number}</span>.
             </p>
           </div>
 

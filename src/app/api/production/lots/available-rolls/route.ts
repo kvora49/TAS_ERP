@@ -18,6 +18,7 @@ export async function GET(request: Request) {
         *,
         item:raw_material_purchase_items (
           id,
+          rate,
           material_type:raw_material_types (id, name, category, unit),
           purchase:raw_material_purchases (
             id,

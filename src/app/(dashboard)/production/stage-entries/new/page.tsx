@@ -57,6 +57,7 @@ export default function NewStageEntryPage() {
 
   // Selected Lot ID (prefilled from URL query if present)
   const [selectedLotId, setSelectedLotId] = useState(searchParams.get("lot_id") || "");
+  const [selectedColourId, setSelectedColourId] = useState("");
 
   // Form Fields
   const [stageId, setStageId] = useState(""); // lot_stage_id
@@ -84,10 +85,10 @@ export default function NewStageEntryPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // 1. Fetch In-Progress Production Lots
-  const { data: lotsData } = useQuery<{ lots: Lot[] }>({
+  const { data: lotsData } = useQuery({
     queryKey: ["lots-in-progress"],
     queryFn: async () => {
-      const res = await fetch("/api/production/lots?status=in_progress");
+      const res = await fetch("/api/production/lots?status=in_progress&limit=100");
       return res.json();
     },
   });
@@ -113,12 +114,37 @@ export default function NewStageEntryPage() {
     enabled: !!selectedLotId,
   });
 
-  const lots = lotsData?.lots || [];
+  const lots: Lot[] = lotsData?.data || lotsData?.lots || [];
   const workers = workersData?.workers || [];
   const activeLot = lotDetailData?.lot || null;
   const lotStages: LotStage[] = lotDetailData?.stages || [];
+  const lotSizeQuantities = lotDetailData?.sizes || [];
   const stageEntries = lotDetailData?.stageEntries || [];
   const stageWorkers = lotDetailData?.stageWorkers || [];
+
+  // Build available colours list for this lot
+  const colourMap = new Map();
+  if (activeLot?.colour && activeLot.colour.colour_name) {
+    const key = activeLot.colour.id || activeLot.colour.colour_name;
+    colourMap.set(key, activeLot.colour);
+  }
+  if (Array.isArray(activeLot?.colours)) {
+    activeLot.colours.forEach((c: any) => {
+      if (c && c.colour_name) {
+        const key = c.id || c.colour_name;
+        colourMap.set(key, c);
+      }
+    });
+  }
+  if (Array.isArray(lotSizeQuantities)) {
+    lotSizeQuantities.forEach((sq: any) => {
+      if (sq && sq.colour && sq.colour.colour_name) {
+        const key = sq.colour.id || sq.colour.colour_name;
+        colourMap.set(key, sq.colour);
+      }
+    });
+  }
+  const availableColours = Array.from(colourMap.values());
 
   // Filter out stages to only show pending or in_progress stages
   const activeStages = lotStages.filter((s) => s.status !== "completed");
@@ -155,7 +181,13 @@ export default function NewStageEntryPage() {
         .filter(Boolean);
 
       if (assignedStageWorkers.length > 0 && assignedStageWorkers[0]) {
-        setWorkerId(assignedStageWorkers[0].id);
+        const sw = assignedStageWorkers[0];
+        const matched = workers.find((w) => w.id === sw.id || w.worker_id === sw.worker_id || w.id === sw.worker_id);
+        if (matched) {
+          setWorkerId(matched.id);
+        } else if (sw.id) {
+          setWorkerId(sw.id);
+        }
       } else {
         setWorkerId("");
       }
@@ -209,6 +241,7 @@ export default function NewStageEntryPage() {
       const payload = {
         lot_id: selectedLotId,
         lot_stage_id: stageId,
+        colour_id: selectedColourId || null,
         entry_date: entryDate,
         shift,
         qty_in: qtyIn,
@@ -246,13 +279,24 @@ export default function NewStageEntryPage() {
     }
   };
 
+  // Format all active colours for display
+  const activeColours = activeLot
+    ? (Array.isArray(activeLot.colours) && activeLot.colours.length > 0 ? activeLot.colours : activeLot.colour ? [activeLot.colour] : [])
+    : [];
+  const colourNamesStr = activeColours.map((c: any) => c?.colour_name || "").filter(Boolean).join(", ") || "—";
+  const sizeSetStr = activeLot?.size_set?.name
+    ? `${activeLot.size_set.name}${Array.isArray(activeLot.size_set.sizes) ? ` (${activeLot.size_set.sizes.join(", ")})` : ""}`
+    : Array.isArray(activeLot?.size_set?.sizes)
+    ? activeLot.size_set.sizes.join(", ")
+    : "—";
+
   // Summary items
   const lotSummaryItems = activeLot
     ? [
         { label: "Lot No.", value: activeLot.lot_number },
         { label: "Design", value: activeLot.design?.code ? `${activeLot.design.code} - ${activeLot.design.name}` : "—" },
-        { label: "Colour", value: activeLot.colour?.colour_name || "—" },
-        { label: "Size Set", value: activeLot.size_set?.sizes ? activeLot.size_set.sizes.join(", ") : "—" },
+        { label: "Colour(s)", value: colourNamesStr },
+        { label: "Size Set", value: sizeSetStr },
         { label: "Total Lot Qty", value: `${activeLot.total_quantity?.toLocaleString("en-IN")} Pcs`, isQuantity: true },
         { label: "Completed Qty", value: `${activeLot.completed_quantity?.toLocaleString("en-IN")} Pcs` },
       ]
@@ -339,7 +383,7 @@ export default function NewStageEntryPage() {
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                   Lot Number <span className="text-red-500">*</span>
@@ -349,8 +393,9 @@ export default function NewStageEntryPage() {
                   onChange={(e) => {
                     setSelectedLotId(e.target.value);
                     setStageId("");
+                    setSelectedColourId("");
                   }}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                 >
                   <option value="">Select Lot</option>
                   {lots.map((l) => (
@@ -363,12 +408,51 @@ export default function NewStageEntryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                  Colour Batch
+                </label>
+                <select
+                  value={selectedColourId}
+                  onChange={(e) => {
+                    const colId = e.target.value;
+                    setSelectedColourId(colId);
+                    if (colId) {
+                      const colorQtySum = lotSizeQuantities
+                        .filter((sq: any) => sq.colour_id === colId)
+                        .reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0);
+                      if (colorQtySum > 0) {
+                        setQtyIn(colorQtySum);
+                        setQtyOut(colorQtySum);
+                      }
+                    } else if (activeLot) {
+                      setQtyIn(activeLot.total_quantity || 0);
+                      setQtyOut(activeLot.total_quantity || 0);
+                    }
+                  }}
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-7 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  disabled={!selectedLotId}
+                >
+                  <option value="">All Colours ({activeLot?.total_quantity || 0} Pcs)</option>
+                  {availableColours.map((c: any) => {
+                    const qty = lotSizeQuantities
+                      .filter((sq: any) => sq.colour_id === c.id)
+                      .reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0);
+                    return (
+                      <option key={c.id} value={c.id}>
+                        ● {c.colour_name} ({qty > 0 ? `${qty} Pcs` : "Batch"})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
                   Production Stage <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={stageId}
                   onChange={(e) => setStageId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                   disabled={!selectedLotId}
                 >
                   <option value="">Select Stage</option>
@@ -388,7 +472,7 @@ export default function NewStageEntryPage() {
                   type="date"
                   value={entryDate}
                   onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                 />
               </div>
 
@@ -397,10 +481,11 @@ export default function NewStageEntryPage() {
                 <select
                   value={shift}
                   onChange={(e) => setShift(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-8 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
                 >
-                  <option value="day">Day Shift (9:00 AM - 6:00 PM)</option>
-                  <option value="night">Night Shift (8:00 PM - 5:00 AM)</option>
+                  <option value="day">Day Shift (9 AM - 6 PM)</option>
+                  <option value="night">Night Shift (8 PM - 5 AM)</option>
+                  <option value="general">General Shift</option>
                 </select>
               </div>
             </div>
@@ -417,17 +502,25 @@ export default function NewStageEntryPage() {
                   <span className="font-bold text-[#374151]">{activeLot.design?.code} - {activeLot.design?.name}</span>
                 </div>
                 <div>
-                  <span className="text-[#64748B] block">Colour:</span>
-                  <span className="font-bold text-[#374151] flex items-center gap-1">
-                    {activeLot.colour?.hex_code && (
-                      <span className="w-2.5 h-2.5 rounded-full border border-gray-300" style={{ backgroundColor: activeLot.colour.hex_code }} />
+                  <span className="text-[#64748B] block">Colour(s):</span>
+                  <div className="font-bold text-[#374151] flex flex-wrap items-center gap-1">
+                    {activeColours.length > 0 ? (
+                      activeColours.map((c: any, i: number) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[11px]">
+                          {c.hex_code && (
+                            <span className="w-2 h-2 rounded-full border border-gray-300" style={{ backgroundColor: c.hex_code }} />
+                          )}
+                          {c.colour_name}
+                        </span>
+                      ))
+                    ) : (
+                      "—"
                     )}
-                    {activeLot.colour?.colour_name || "—"}
-                  </span>
+                  </div>
                 </div>
                 <div>
                   <span className="text-[#64748B] block">Size Set:</span>
-                  <span className="font-bold text-[#374151]">{activeLot.size_set?.sizes?.join(", ") || "—"}</span>
+                  <span className="font-bold text-[#374151]">{sizeSetStr}</span>
                 </div>
                 <div>
                   <span className="text-[#64748B] block">Total Lot Qty:</span>
@@ -588,7 +681,7 @@ export default function NewStageEntryPage() {
                 <select
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
+                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-8 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1] truncate"
                 >
                   <option value="">Select Worker</option>
                   {sortedWorkers.map((w) => {
@@ -599,7 +692,7 @@ export default function NewStageEntryPage() {
                         value={w.id}
                         className={isAssigned ? "font-bold text-[#6366F1]" : ""}
                       >
-                        {isAssigned ? "⭐ " : ""}{w.worker_id} - {w.name} ({w.type.replace("_", " ")}){isAssigned ? " [Assigned]" : ""}
+                        {isAssigned ? "⭐ " : ""}{w.name} ({w.worker_id}){isAssigned ? " [Assigned]" : ""}
                       </option>
                     );
                   })}
@@ -677,16 +770,13 @@ export default function NewStageEntryPage() {
                 </label>
                 <div>
                   <label className="block text-[10px] font-bold text-[#64748B] mb-1.5 uppercase">Thread Colour</label>
-                  <select
+                  <input
+                    type="text"
                     value={threadColour}
                     onChange={(e) => setThreadColour(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-xs"
-                  >
-                    <option value="White">White</option>
-                    <option value="Black">Black</option>
-                    <option value="Red">Red</option>
-                    <option value="Blue">Blue</option>
-                  </select>
+                    placeholder="e.g. White, Navy Blue, Contrast Gold"
+                    className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-[#64748B] mb-1.5 uppercase">Machine Used</label>

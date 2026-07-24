@@ -15,6 +15,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface StageEntry {
   id: string;
@@ -47,14 +48,15 @@ interface StageEntry {
 export default function StageEntriesListPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   // Fetch all stage entries from API
   const { data, isLoading, error } = useQuery<{ entries: StageEntry[] }>({
-    queryKey: ["stage-entries", search],
+    queryKey: ["stage-entries", debouncedSearch],
     queryFn: async () => {
-      const res = await fetch(`/api/production/stage-entries?search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/production/stage-entries?search=${encodeURIComponent(debouncedSearch)}`);
       if (!res.ok) throw new Error("Failed to fetch stage entries");
       return res.json();
     },

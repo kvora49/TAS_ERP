@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Search, Calendar, Landmark, Coins, Receipt, ArrowLeftRight, Trash2, Pencil, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +29,7 @@ interface PurchaseBill {
 }
 
 export default function PurchaseBillsPage() {
+  const router = useRouter();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,7 +281,7 @@ export default function PurchaseBillsPage() {
             Track inward shipments, supplier invoices, outstanding dues, and cash outflows
           </p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2">
+        <Button onClick={() => router.push("/purchases/bills/new")} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2 cursor-pointer shadow-sm">
           <Plus size={16} />
           <span>Add Purchase Bill</span>
         </Button>

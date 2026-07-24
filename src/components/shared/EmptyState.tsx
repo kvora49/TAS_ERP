@@ -8,6 +8,7 @@ interface EmptyStateProps {
   actionLabel?: string;
   onAction?: () => void;
   actionIcon?: React.ReactNode;
+  shortcutHint?: string;
 }
 
 export function EmptyState({
@@ -17,6 +18,7 @@ export function EmptyState({
   actionLabel,
   onAction,
   actionIcon = <Plus className="h-4 w-4" />,
+  shortcutHint,
 }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center text-center p-8 lg:p-12 bg-white rounded-xl border border-[#E5E7EB] shadow-[var(--shadow-sm)] min-h-[300px]">
@@ -36,7 +38,12 @@ export function EmptyState({
           className="mt-5 h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-md shadow-[#6366F1]/10"
         >
           {actionIcon}
-          {actionLabel}
+          <span>{actionLabel}</span>
+          {shortcutHint && (
+            <kbd className="ml-1 text-[10px] bg-[#4F46E5] text-white/90 px-1.5 py-0.5 rounded font-mono border border-white/20">
+              {shortcutHint}
+            </kbd>
+          )}
         </button>
       )}
     </div>

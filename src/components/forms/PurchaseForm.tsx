@@ -134,6 +134,7 @@ interface MaterialType {
   id: string;
   name: string;
   unit: string;
+  category?: string | null;
   hsn_code: string | null;
   gst_percent: number;
 }
@@ -501,7 +502,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         gst_amount: 0,
         amount: 0,
         item_type: "fabric",
-        rolls: [],
+        rolls: [
+          {
+            roll_number: "R-1",
+            meters: 0,
+            shade: "",
+            weight_unit: "gsm",
+          },
+        ],
       },
     ],
   };
@@ -611,8 +619,18 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     const selectedMat = materialTypes.find((m) => m.id === matId);
     if (selectedMat) {
       setValue(`items.${index}.hsn_sac`, selectedMat.hsn_code || "");
-      setValue(`items.${index}.unit`, selectedMat.unit || "meter");
-      setValue(`items.${index}.gst_percent`, selectedMat.gst_percent || 18);
+      setValue(`items.${index}.unit`, selectedMat.unit || "Meters");
+      if (selectedMat.gst_percent !== undefined && selectedMat.gst_percent !== null) {
+        setValue(`items.${index}.gst_percent`, Number(selectedMat.gst_percent));
+      }
+      if (selectedMat.category) {
+        const cat = selectedMat.category.toLowerCase();
+        if (cat.includes("fabric")) {
+          setValue(`items.${index}.item_type`, "fabric");
+        } else if (cat.includes("accessory") || cat.includes("accessories") || cat.includes("trim")) {
+          setValue(`items.${index}.item_type`, "accessory");
+        }
+      }
       // Trigger recalc
       recalcItem(index);
     }
@@ -940,7 +958,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </h2>
               <button
                 type="button"
-                onClick={() => append({ material_type_id: "", hsn_sac: "", unit: "meter", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [] })}
+                onClick={() => append({ material_type_id: "", hsn_sac: "", unit: "Meters", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", weight_unit: "gsm" }] })}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg flex items-center gap-1"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Material Row
@@ -1099,8 +1117,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                         <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-4"}>
                           <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Taxable</label>
-                          <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-slate-600 select-none">
-                            ₹{Number(watchItems[index]?.taxable_value || 0).toFixed(2)}
+                          <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-slate-600 select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                            {formatCurrency(Number(watchItems[index]?.taxable_value || 0))}
                           </div>
                         </div>
 
@@ -1114,14 +1132,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   register(`items.${index}.gst_percent` as const).onChange(e);
                                   recalcItem(index);
                                 }}
-                                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
                               />
                             </div>
 
                             <div className="md:col-span-2">
                               <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST Amt</label>
-                              <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-slate-500 select-none">
-                                ₹{Number(watchItems[index]?.gst_amount || 0).toFixed(2)}
+                              <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-slate-500 select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                                {formatCurrency(Number(watchItems[index]?.gst_amount || 0))}
                               </div>
                             </div>
                           </>
@@ -1129,8 +1147,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                         <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-5"}>
                           <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Total (₹)</label>
-                          <div className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-bold text-[#0F172A] select-none">
-                            ₹{Number(watchItems[index]?.amount || 0).toFixed(2)}
+                          <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[#0F172A] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                            {formatCurrency(Number(watchItems[index]?.amount || 0))}
                           </div>
                         </div>
                       </div>
@@ -1165,7 +1183,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               {(watchItems[index]?.rolls || []).map((roll: any, rollIndex: number) => (
                                 <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 items-end">
                                   {/* Roll Number */}
-                                  <div className="md:col-span-2 space-y-1">
+                                  <div className="md:col-span-1 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Roll No *</label>
                                     <input
                                       type="text"
@@ -1181,7 +1199,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                     <NumericInput
                                       step="0.01"
                                       placeholder="0"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right font-bold"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right font-bold min-w-0"
                                       value={watchItems[index]?.rolls?.[rollIndex]?.meters || ""}
                                       onChange={(e) => {
                                         const meters = Number(e.target.value || 0);
@@ -1207,16 +1225,16 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Width</label>
                                     <NumericInput
                                       placeholder="inch"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right min-w-0"
                                       {...register(`items.${index}.rolls.${rollIndex}.width` as const)}
                                     />
                                   </div>
 
                                   {/* Weight Unit */}
-                                  <div className="md:col-span-1.5 space-y-1">
+                                  <div className="md:col-span-2 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Unit</label>
                                     <select
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs"
+                                      className="w-full h-8 pl-2 pr-6 bg-white border border-[#CBD5E1] rounded text-xs font-bold text-[#1E293B] cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.4rem_center] bg-no-repeat uppercase"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
                                     >
                                       <option value="gsm">GSM</option>
@@ -1225,11 +1243,11 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   </div>
 
                                   {/* Weight Value */}
-                                  <div className="md:col-span-1.5 space-y-1">
+                                  <div className="md:col-span-2 space-y-1">
                                     <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Value</label>
                                     <NumericInput
                                       placeholder="Value"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right min-w-0"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
                                     />
                                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { RecordPaymentModal } from "@/components/forms/RecordPaymentModal";
@@ -8,6 +8,18 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ArrowLeft, Loader2, CreditCard, Calendar, Printer, Pencil, Trash2, Download, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+
+interface PurchaseRoll {
+  id: string;
+  roll_number: string;
+  meters: number;
+  shade: string;
+  comment?: string | null;
+  width?: number | null;
+  weight_unit?: string | null;
+  weight_value?: number | null;
+  remaining_meters?: number;
+}
 
 interface PurchaseItem {
   id: string;
@@ -21,6 +33,8 @@ interface PurchaseItem {
   gst_percent: number;
   gst_amount: number;
   amount: number;
+  item_type?: string;
+  rolls?: PurchaseRoll[];
   material_type?: {
     name: string;
     category: string;
@@ -267,36 +281,78 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
                 </thead>
                 <tbody>
                   {purchase.items?.map((item) => (
-                    <tr key={item.id} className="border-b border-[#F1F5F9] last:border-0 align-middle">
-                      <td className="py-3 pr-2">
-                        <span className="font-bold text-[#0F172A]">{item.material_type?.name || "—"}</span>
-                        <span className="text-[10px] text-[#64748B] block uppercase tracking-wider">
-                          {item.material_type?.category || "—"}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-2 font-mono text-[10px]">{item.hsn_sac || "—"}</td>
-                      <td className="py-3 pr-2 text-right font-medium">
-                        {item.quantity} {item.unit}
-                      </td>
-                      <td className="py-3 pr-2 text-right font-mono font-semibold">
-                        {formatCurrency(item.rate)}
-                      </td>
-                      <td className="py-3 pr-2 text-right font-mono">{item.discount_percent}%</td>
-                      <td className="py-3 pr-2 text-right font-mono font-semibold text-slate-700">
-                        {formatCurrency(item.taxable_value)}
-                      </td>
-                      {purchase.gst_type === "with_gst" && (
-                        <>
-                          <td className="py-3 pr-2 text-right font-mono">{item.gst_percent}%</td>
-                          <td className="py-3 pr-2 text-right font-mono font-semibold text-slate-500">
-                            {formatCurrency(item.gst_amount)}
+                    <React.Fragment key={item.id}>
+                      <tr className="border-b border-[#F1F5F9] align-middle">
+                        <td className="py-3 pr-2">
+                          <span className="font-bold text-[#0F172A]">{item.material_type?.name || "—"}</span>
+                          <span className="text-[10px] text-[#64748B] block uppercase tracking-wider">
+                            {item.material_type?.category || "—"}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-2 font-mono text-[10px]">{item.hsn_sac || "—"}</td>
+                        <td className="py-3 pr-2 text-right font-medium">
+                          {item.quantity} {item.unit}
+                        </td>
+                        <td className="py-3 pr-2 text-right font-mono font-semibold">
+                          {formatCurrency(item.rate)}
+                        </td>
+                        <td className="py-3 pr-2 text-right font-mono">{item.discount_percent}%</td>
+                        <td className="py-3 pr-2 text-right font-mono font-semibold text-slate-700">
+                          {formatCurrency(item.taxable_value)}
+                        </td>
+                        {purchase.gst_type === "with_gst" && (
+                          <>
+                            <td className="py-3 pr-2 text-right font-mono">{item.gst_percent}%</td>
+                            <td className="py-3 pr-2 text-right font-mono font-semibold text-slate-500">
+                              {formatCurrency(item.gst_amount)}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-3 text-right font-mono font-extrabold text-[#0F172A]">
+                          {formatCurrency(item.amount)}
+                        </td>
+                      </tr>
+                      {item.rolls && item.rolls.length > 0 && (
+                        <tr className="border-b border-[#E2E8F0] bg-slate-50/70">
+                          <td colSpan={purchase.gst_type === "with_gst" ? 9 : 7} className="px-4 py-2.5">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
+                                  Roll Breakdown ({item.rolls.length} rolls)
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                {item.rolls.map((roll, idx) => (
+                                  <div
+                                    key={roll.id || idx}
+                                    className="bg-white border border-slate-200 rounded-lg p-2 text-[11px] shadow-2xs space-y-0.5"
+                                  >
+                                    <div className="flex items-center justify-between font-bold text-slate-800">
+                                      <span>Roll #{roll.roll_number}</span>
+                                      <span className="text-indigo-600 font-mono">{roll.meters}m</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                      <span>Shade: {roll.shade}</span>
+                                      {roll.width && <span>W: {roll.width}"</span>}
+                                    </div>
+                                    {roll.weight_value && (
+                                      <div className="text-[10px] text-slate-400">
+                                        Weight: {roll.weight_value} {roll.weight_unit || ""}
+                                      </div>
+                                    )}
+                                    {roll.comment && (
+                                      <div className="text-[10px] text-slate-500 italic truncate" title={roll.comment}>
+                                        {roll.comment}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </td>
-                        </>
+                        </tr>
                       )}
-                      <td className="py-3 text-right font-mono font-extrabold text-[#0F172A]">
-                        {formatCurrency(item.amount)}
-                      </td>
-                    </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

@@ -105,11 +105,20 @@ export async function GET(request: Request) {
       // Fetch bank accounts
       const { data: banks } = await supabase
         .from("bank_accounts")
-        .select("id, account_name, bank_name, account_number")
+        .select("id, name, bank_name, account_number, sub_label, type, is_default, is_active")
         .eq("business_id", businessId)
         .is("deleted_at", null);
 
-      return NextResponse.json({ payees, bankAccounts: banks || [] });
+      const formattedBanks = (banks || []).map((b: any) => ({
+        id: b.id,
+        name: b.name || b.bank_name || "Bank Account",
+        account_name: b.name || b.bank_name || "Bank Account",
+        bank_name: b.bank_name || b.sub_label || (b.type ? b.type.toUpperCase() : "Bank"),
+        account_number: b.account_number || "",
+        is_default: !!b.is_default,
+      }));
+
+      return NextResponse.json({ payees, bankAccounts: formattedBanks });
     }
   } catch (err: any) {
     return NextResponse.json(
@@ -161,12 +170,91 @@ export async function POST(request: Request) {
       p_bank_account_id: bank_account_id || null,
       p_amount: Number(amount),
       p_remarks: remarks || "",
-      p_allocations: JSON.stringify(allocations || []),
+      p_allocations: allocations || [],
       p_created_by: userId,
     });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Process bill allocations for outgoing payments
+    if (paymentId && allocations && Array.isArray(allocations) && allocations.length > 0) {
+      let totalAllocated = 0;
+      for (const alloc of allocations) {
+        const billId = alloc.billId || alloc.bill_id;
+        const allocatedAmount = Number(alloc.allocatedAmount || alloc.allocated_amount || alloc.amount || 0);
+        const billType = alloc.billType || alloc.bill_type || "purchase_bill";
+
+        if (billId && allocatedAmount > 0) {
+          totalAllocated += allocatedAmount;
+
+          if (billType === "raw_material_purchase") {
+            const { data: rm } = await supabase
+              .from("raw_material_purchases")
+              .select("grand_total, paid_amount")
+              .eq("id", billId)
+              .maybeSingle();
+
+            if (rm) {
+              const currentPaid = Number(rm.paid_amount || 0);
+              const grandTotal = Number(rm.grand_total || 0);
+              const newPaid = currentPaid + allocatedAmount;
+              const newStatus = newPaid >= grandTotal ? "paid" : "partially_paid";
+
+              await supabase
+                .from("raw_material_purchases")
+                .update({ paid_amount: newPaid, payment_status: newStatus })
+                .eq("id", billId);
+            }
+          } else if (billType === "job_work_entry") {
+            const { data: jw } = await supabase
+              .from("job_work_entries")
+              .select("total_job_work_amount, paid_amount")
+              .eq("id", billId)
+              .maybeSingle();
+
+            if (jw) {
+              const currentPaid = Number(jw.paid_amount || 0);
+              const grandTotal = Number(jw.total_job_work_amount || 0);
+              const newPaid = currentPaid + allocatedAmount;
+              const newStatus = newPaid >= grandTotal ? "paid" : "partially_paid";
+
+              await supabase
+                .from("job_work_entries")
+                .update({ paid_amount: newPaid, status: newStatus })
+                .eq("id", billId);
+            }
+          }
+
+          await supabase
+            .from("payment_allocations")
+            .insert({
+              business_id: businessId,
+              payment_id: paymentId,
+              bill_id: billId,
+              bill_type: billType,
+              amount: allocatedAmount,
+              created_by: userId,
+            });
+        }
+      }
+
+      if (totalAllocated > 0) {
+        const { data: pRec } = await supabase
+          .from("payments")
+          .select("amount")
+          .eq("id", paymentId)
+          .maybeSingle();
+
+        if (pRec) {
+          const newUnallocated = Math.max(0, Number(pRec.amount || 0) - totalAllocated);
+          await supabase
+            .from("payments")
+            .update({ unallocated_amount: newUnallocated })
+            .eq("id", paymentId);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, paymentId });

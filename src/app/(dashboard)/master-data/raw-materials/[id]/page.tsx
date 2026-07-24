@@ -20,9 +20,16 @@ import {
   Package,
   ShoppingBag,
   Percent,
+  Maximize2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Godown {
   id: string;
@@ -66,6 +73,7 @@ interface Material {
   description: string | null;
   category: string | null;
   unit: string;
+  image_url?: string | null;
   reorder_level: number | null;
   hsn_code: string | null;
   gst_percent: number | null;
@@ -95,6 +103,7 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
   const { id } = params;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("stock");
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
 
   const { data: detailData, isLoading, error } = useQuery<RawMaterialDetailResponse>({
     queryKey: ["raw-material-detail", id],
@@ -202,10 +211,23 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
         {/* Subtle decorative background gradient */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
 
-        <div className="flex items-start gap-4">
-          <div className="w-14 h-14 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xl shadow-sm">
-            <Package size={24} />
-          </div>
+        <div className="flex items-center gap-4 sm:gap-5">
+          {material.image_url && (
+            <div
+              className="relative group shrink-0 cursor-pointer"
+              onClick={() => setZoomImageUrl(material.image_url || null)}
+              title="Click for full screen"
+            >
+              <img
+                src={material.image_url}
+                alt={material.name}
+                className="w-44 h-44 sm:w-52 sm:h-52 object-cover rounded-2xl border-2 border-[var(--primary)]/30 bg-[var(--card-bg)] shadow-md group-hover:scale-105 transition-all duration-200"
+              />
+              <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold select-none">
+                <span className="bg-black/70 px-3 py-1.5 rounded-full shadow-md">Zoom 🔍</span>
+              </div>
+            </div>
+          )}
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-black text-[#0F172A] tracking-tight">{material.name}</h1>
@@ -581,6 +603,26 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
           </div>
         </div>
       )}
+
+      {/* Image Preview Lightbox Dialog */}
+      <Dialog open={!!zoomImageUrl} onOpenChange={() => setZoomImageUrl(null)}>
+        <DialogContent className="max-w-2xl bg-[var(--card-bg)] border border-[var(--border)] p-4 sm:p-6 rounded-2xl flex flex-col items-center">
+          <DialogHeader className="w-full text-left border-b border-[var(--border)] pb-3 mb-4">
+            <DialogTitle className="text-base font-bold text-[var(--text-primary)]">
+              {material.name} - Image Preview
+            </DialogTitle>
+          </DialogHeader>
+          {zoomImageUrl && (
+            <div className="w-full flex items-center justify-center p-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl overflow-hidden">
+              <img
+                src={zoomImageUrl}
+                alt={material.name}
+                className="max-h-[70vh] object-contain rounded-lg shadow-md"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -213,14 +214,13 @@ function LoginContent() {
               borderRadius: "20px"
             }}
           >
-            <img
+            <Image
               src="/garment_workspace.png"
               alt="TAS ERP Garment Studio"
-              className="transform group-hover:scale-105 transition-transform duration-500 w-full h-full"
-              style={{
-                objectFit: "cover",
-                objectPosition: "center"
-              }}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="transform group-hover:scale-105 transition-transform duration-500 object-cover object-center"
             />
           </div>
         </div>

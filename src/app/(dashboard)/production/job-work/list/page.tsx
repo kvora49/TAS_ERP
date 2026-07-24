@@ -19,6 +19,7 @@ import {
   Search,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -64,6 +65,7 @@ export default function JobWorkListPage() {
   const [lotFilter, setLotFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -88,13 +90,13 @@ export default function JobWorkListPage() {
   });
 
   const { data: jobWorkData, isLoading } = useQuery({
-    queryKey: ["job-work-list", workerFilter, stageFilter, lotFilter, statusFilter, search, startDate, endDate],
+    queryKey: ["job-work-list", workerFilter, stageFilter, lotFilter, statusFilter, debouncedSearch, startDate, endDate],
     queryFn: async () => {
       const wParam = workerFilter !== "all" ? `&worker_id=${workerFilter}` : "";
       const sParam = stageFilter !== "all" ? `&stage_id=${stageFilter}` : "";
       const lParam = lotFilter !== "all" ? `&lot_id=${lotFilter}` : "";
       const stParam = statusFilter !== "all" ? `&payment_status=${statusFilter}` : "";
-      const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+      const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : "";
       const sdParam = startDate ? `&startDate=${startDate}` : "";
       const edParam = endDate ? `&endDate=${endDate}` : "";
 
@@ -405,7 +407,7 @@ export default function JobWorkListPage() {
                 setPageSize(parseInt(e.target.value, 10));
                 setCurrentPage(1);
               }}
-              className="h-8 rounded border border-[#E5E7EB] bg-white px-2 text-xs focus:ring-1 focus:ring-[#6366F1]"
+              className="h-8 rounded border border-[#E5E7EB] bg-white pl-2.5 pr-7 text-xs font-semibold text-[#1E293B] cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.4rem_center] bg-no-repeat"
             >
               <option value={10}>10 per page</option>
               <option value={25}>25 per page</option>
@@ -418,32 +420,32 @@ export default function JobWorkListPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
-                <th className="py-3 px-4">#</th>
-                <th className="py-3 px-4 cursor-pointer select-none" onClick={() => handleSort("entry_date")}>
+                <th className="py-3 px-4 whitespace-nowrap">#</th>
+                <th className="py-3 px-4 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
                   <div className="flex items-center gap-1">
                     Entry Date
                     <ArrowUpDown size={12} className="text-[#94A3B8]" />
                   </div>
                 </th>
-                <th className="py-3 px-4">Lot No.</th>
-                <th className="py-3 px-4">Stage</th>
-                <th className="py-3 px-4">Worker/Tailor</th>
-                <th className="py-3 px-4 text-right cursor-pointer select-none" onClick={() => handleSort("qty_out")}>
+                <th className="py-3 px-4 w-[160px] whitespace-nowrap">Lot No.</th>
+                <th className="py-3 px-4 whitespace-nowrap">Stage</th>
+                <th className="py-3 px-4 whitespace-nowrap">Worker/Tailor</th>
+                <th className="py-3 px-4 text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("qty_out")}>
                   <div className="flex items-center justify-end gap-1">
                     Qty Out
                     <ArrowUpDown size={12} className="text-[#94A3B8]" />
                   </div>
                 </th>
-                <th className="py-3 px-4 text-right">Rate</th>
-                <th className="py-3 px-4 text-right cursor-pointer select-none" onClick={() => handleSort("total_job_work_amount")}>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Rate</th>
+                <th className="py-3 px-4 text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("total_job_work_amount")}>
                   <div className="flex items-center justify-end gap-1">
                     Total Amount
                     <ArrowUpDown size={12} className="text-[#94A3B8]" />
                   </div>
                 </th>
-                <th className="py-3 px-4 text-center">Payment Status</th>
-                <th className="py-3 px-4 text-right">Outstanding</th>
-                <th className="py-3 px-4 text-center w-24">Actions</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Payment Status</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Outstanding</th>
+                <th className="py-3 px-4 text-center w-24 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E7EB] text-sm">
@@ -464,9 +466,9 @@ export default function JobWorkListPage() {
                   const outstanding = entry.total_job_work_amount - entry.paid_amount;
                   return (
                     <tr key={entry.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3.5 px-4 text-[#64748B] font-medium">{startIndex + index + 1}</td>
-                      <td className="py-3.5 px-4">{entry.entry_date}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-xs text-[#6366F1]">
+                      <td className="py-3.5 px-4 text-[#64748B] font-medium whitespace-nowrap">{startIndex + index + 1}</td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">{entry.entry_date}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-xs text-[#6366F1] whitespace-nowrap">
                         <Link href={`/production/lots/${entry.lot_id}`} className="hover:underline">
                           {entry.lot?.lot_number}
                         </Link>

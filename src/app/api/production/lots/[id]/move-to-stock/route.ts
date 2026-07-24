@@ -36,6 +36,20 @@ export async function POST(
       return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
+    // Check if lot has already been moved to finished stock
+    const { data: existingFs } = await supabase
+      .from("finished_stock")
+      .select("id")
+      .eq("lot_id", id)
+      .limit(1);
+
+    if (existingFs && existingFs.length > 0) {
+      return NextResponse.json(
+        { error: "This production lot has already been moved to finished stock." },
+        { status: 400 }
+      );
+    }
+
     // Verify design number matches
     if (design_number.trim().toLowerCase() !== lot.design?.code?.trim().toLowerCase()) {
       return NextResponse.json({ error: `Design number mismatch. Expected: ${lot.design?.code}` }, { status: 400 });

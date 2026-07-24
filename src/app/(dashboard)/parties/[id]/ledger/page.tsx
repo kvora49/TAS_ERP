@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 import { formatDate } from "@/lib/utils";
 
 interface Allocation {
@@ -43,24 +43,18 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
   const [filterType, setFilterType] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
-  const { data: partyData, isLoading: partyLoading } = useQuery<Party | null>({
-    queryKey: ["party", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/parties/${id}`);
-      if (!res.ok) throw new Error("Failed to load party info");
-      const data = await res.json();
-      return data.party || null;
-    }
-  });
+  const { data: partyData, isLoading: partyLoading } = useERPQuery<Party | null>(["party", id], async () => {
+    const res = await fetch(`/api/parties/${id}`);
+    if (!res.ok) throw new Error("Failed to load party info");
+    const data = await res.json();
+    return data.party || null;
+  }, { skeleton: "card" });
 
-  const { data: ledgerResponse, isLoading: ledgerLoading } = useQuery<{ ledger: LedgerEntry[]; remainingAdvance: number }>({
-    queryKey: ["ledger", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/parties/${id}/ledger`);
-      if (!res.ok) throw new Error("Failed to load ledger details");
-      return res.json();
-    }
-  });
+  const { data: ledgerResponse, isLoading: ledgerLoading } = useERPQuery<{ ledger: LedgerEntry[]; remainingAdvance: number }>(["ledger", id], async () => {
+    const res = await fetch(`/api/parties/${id}/ledger`);
+    if (!res.ok) throw new Error("Failed to load ledger details");
+    return res.json();
+  }, { skeleton: "table" });
 
   const party = partyData || null;
   const ledger = ledgerResponse?.ledger || [];
@@ -296,9 +290,8 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                           {row.credit > 0 ? formatCurrency(row.credit) : "—"}
                         </td>
                         <td className="px-6 py-4 align-middle text-right">
-                          <span className={`inline-flex items-center px-2 py-1 font-mono text-xs font-bold rounded ${
-                            row.balanceSign === "Cr" ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
-                          }`}>
+                          <span className={`inline-flex items-center px-2 py-1 font-mono text-xs font-bold rounded ${row.balanceSign === "Cr" ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
+                            }`}>
                             {row.balanceStr}
                           </span>
                         </td>

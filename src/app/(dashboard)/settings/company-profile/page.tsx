@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { SettingsPreviewCard } from "@/components/settings/SettingsPreviewCard";
@@ -166,7 +167,7 @@ export default function CompanyProfileSettingsPage() {
               <div className="flex flex-col items-center">
                 <div className="w-32 h-32 rounded-xl border border-[#E5E7EB] overflow-hidden bg-[#F8FAFC] flex items-center justify-center relative">
                   {logoUrl ? (
-                    <img src={logoUrl} alt="Company Logo" className="object-contain w-full h-full" />
+                    <Image src={logoUrl} alt="Company Logo" width={128} height={128} className="object-contain w-full h-full" />
                   ) : (
                     <Building className="size-12 text-[#94A3B8]" />
                   )}

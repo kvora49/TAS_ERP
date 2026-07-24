@@ -11,7 +11,10 @@ export async function GET(request: Request) {
   try {
     const { data: templates, error } = await supabase
       .from("production_templates")
-      .select("*")
+      .select(`
+        *,
+        stages:production_stages(*)
+      `)
       .eq("business_id", businessId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -77,6 +80,7 @@ export async function POST(request: Request) {
         icon: s.icon || null,
         color: s.color || "#6366F1",
         order_index: idx + 1,
+        sort_order: idx + 1,
         custom_fields: s.custom_fields || [],
         is_active: s.is_active !== false,
       }));

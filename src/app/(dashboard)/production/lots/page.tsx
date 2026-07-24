@@ -15,6 +15,7 @@ import {
   Eye,
   MoreVertical,
   Edit,
+  Boxes,
   SlidersHorizontal,
   ChevronRight,
   Search,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import ProgressBar from "@/components/shared/ProgressBar";
@@ -49,9 +51,11 @@ interface Lot {
   completed_quantity: number;
   status: "draft" | "in_progress" | "completed" | "on_hold" | "cancelled";
   brand?: { name: string };
-  design?: { name: string; code: string };
+  design?: { name: string; code: string; size_set?: { id?: string; name?: string; sizes: string[] } };
   colour?: { colour_name: string; hex_code: string | null };
-  size_set?: { name: string; sizes: string[] };
+  colours?: Array<{ id?: string; colour_name: string; hex_code: string | null }>;
+  size_set?: { id?: string; name?: string; sizes: string[] };
+  is_moved_to_stock?: boolean;
 }
 
 interface Brand {
@@ -71,6 +75,7 @@ export default function ProductionLotsPage() {
 
   // Filter States
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [brandFilter, setBrandFilter] = useState("all");
   const [designFilter, setDesignFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -101,12 +106,12 @@ export default function ProductionLotsPage() {
   });
 
   const lotsQuery = useERPQuery(
-    ["lots-list", brandFilter, designFilter, statusFilter, search, startDate, endDate, currentPage],
+    ["lots-list", brandFilter, designFilter, statusFilter, debouncedSearch, startDate, endDate, currentPage],
     async () => {
       const bParam = brandFilter !== "all" ? `&brand_id=${brandFilter}` : "";
       const dParam = designFilter !== "all" ? `&design_id=${designFilter}` : "";
       const sParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
-      const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
+      const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : "";
       const sdParam = startDate ? `&startDate=${startDate}` : "";
       const edParam = endDate ? `&endDate=${endDate}` : "";
       const pgParam = `&page=${currentPage}&limit=${pageSize}`;
@@ -390,7 +395,7 @@ export default function ProductionLotsPage() {
                 setPageSize(parseInt(e.target.value, 10));
                 setCurrentPage(1);
               }}
-              className="h-8 rounded border border-[#E5E7EB] bg-white px-2 text-xs focus:ring-1 focus:ring-[#6366F1]"
+              className="h-8 rounded border border-[#E5E7EB] bg-white pl-2.5 pr-7 text-xs font-semibold text-[#1E293B] cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.4rem_center] bg-no-repeat"
             >
               <option value={10}>10 / page</option>
               <option value={25}>25 / page</option>
@@ -403,17 +408,17 @@ export default function ProductionLotsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
-                <th className="py-3 px-5">Lot No.</th>
-                <th className="py-3 px-5">Brand</th>
-                <th className="py-3 px-5">Design</th>
-                <th className="py-3 px-5">Colour</th>
-                <th className="py-3 px-5">Size Set</th>
-                <th className="py-3 px-5 text-right">Total Qty</th>
-                <th className="py-3 px-5 w-48">Completed Qty</th>
-                <th className="py-3 px-5 text-center">Status</th>
-                <th className="py-3 px-5">Start Date</th>
-                <th className="py-3 px-5">Due Date</th>
-                <th className="py-3 px-5 text-center w-28">Actions</th>
+                <th className="py-3 px-4 w-[160px] whitespace-nowrap">Lot No.</th>
+                <th className="py-3 px-4 whitespace-nowrap">Brand</th>
+                <th className="py-3 px-4">Design</th>
+                <th className="py-3 px-4">Colour</th>
+                <th className="py-3 px-4">Size Set</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Total Qty</th>
+                <th className="py-3 px-4 w-48 whitespace-nowrap">Completed Qty</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                <th className="py-3 px-4 whitespace-nowrap">Start Date</th>
+                <th className="py-3 px-4 whitespace-nowrap">Due Date</th>
+                <th className="py-3 px-4 text-center w-28 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E7EB] text-sm">
@@ -433,8 +438,15 @@ export default function ProductionLotsPage() {
                 </tr>
               ) : (
                 lots.map((lot: Lot) => {
-                  const sizesStr = lot.size_set?.sizes ? lot.size_set.sizes.join(", ") : "—";
-                  const colourStr = lot.colour?.colour_name || "—";
+                  const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
+                  const sizesStr = effectiveSizeSet?.name
+                    ? `${effectiveSizeSet.name}${effectiveSizeSet.sizes ? ` (${effectiveSizeSet.sizes.join(", ")})` : ""}`
+                    : effectiveSizeSet?.sizes
+                    ? effectiveSizeSet.sizes.join(", ")
+                    : "—";
+                  const activeColours = lot.colours && lot.colours.length > 0
+                    ? lot.colours
+                    : lot.colour ? [lot.colour] : [];
 
                   return (
                     <tr
@@ -442,7 +454,7 @@ export default function ProductionLotsPage() {
                       onClick={() => router.push(`/production/lots/${lot.id}`)}
                       className="hover:bg-[#F9FAFB] transition-colors cursor-pointer"
                     >
-                      <td className="py-3.5 px-5 font-mono text-xs font-bold text-[#6366F1]">
+                      <td className="py-3.5 px-4 font-mono text-xs font-bold text-[#6366F1] whitespace-nowrap">
                         <Link
                           href={`/production/lots/${lot.id}`}
                           onClick={(e) => e.stopPropagation()}
@@ -458,17 +470,25 @@ export default function ProductionLotsPage() {
                         {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
                       </td>
                       <td className="py-3.5 px-5 text-[#374151]">
-                        <div className="flex items-center gap-2">
-                          {lot.colour?.hex_code && (
-                            <span
-                              className="w-3 h-3 rounded-full border border-gray-300"
-                              style={{ backgroundColor: lot.colour.hex_code }}
-                            />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {activeColours.length === 0 ? (
+                            <span>—</span>
+                          ) : (
+                            activeColours.map((c, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                                {c.hex_code && (
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full border border-slate-300"
+                                    style={{ backgroundColor: c.hex_code }}
+                                  />
+                                )}
+                                {c.colour_name}
+                              </span>
+                            ))
                           )}
-                          <span>{colourStr}</span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151] truncate max-w-[120px]" title={sizesStr}>
+                      <td className="py-3.5 px-5 text-[#374151] font-semibold text-xs truncate max-w-[140px]" title={sizesStr}>
                         {sizesStr}
                       </td>
                       <td className="py-3.5 px-5 text-right font-medium text-[#374151]">
@@ -525,6 +545,15 @@ export default function ProductionLotsPage() {
                                 <Edit size={14} className="mr-2" />
                                 Edit
                               </DropdownMenuItem>
+                              {!lot.is_moved_to_stock && (
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/production/lots/${lot.id}`)}
+                                  className="text-emerald-700 font-semibold"
+                                >
+                                  <Boxes size={14} className="mr-2" />
+                                  Move to Finished Stock
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => router.push(`/production/stage-entries/new?lot_id=${lot.id}`)}
                               >

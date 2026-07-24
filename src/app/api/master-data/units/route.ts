@@ -60,6 +60,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Item 30d: Uniqueness pre-check — reject duplicates before hitting the DB constraint
+    const { data: existing } = await supabase
+      .from("units")
+      .select("id")
+      .eq("business_id", businessId)
+      .ilike("name", name.trim())
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json({ error: `A unit named "${name}" already exists.` }, { status: 409 });
+    }
+
     const { data: unit, error } = await supabase
       .from("units")
       .insert({

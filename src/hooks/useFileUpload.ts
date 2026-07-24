@@ -31,7 +31,22 @@ export function useFileUpload(folder: string) {
         return { success: false, error: errorData.error || "Failed to fetch upload session" };
       }
 
-      const { uploadUrl, publicUrl } = await res.json();
+      const { isPlaceholder, uploadUrl, publicUrl } = await res.json();
+
+      // If R2 is not configured in .env.local, convert to Data URL for seamless local testing
+      if (isPlaceholder || !uploadUrl) {
+        return new Promise<UploadResult>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            setProgress(100);
+            resolve({ success: true, url: reader.result as string });
+          };
+          reader.onerror = () => {
+            resolve({ success: false, error: "Failed to read image file locally" });
+          };
+          reader.readAsDataURL(file);
+        });
+      }
 
       // 2. Perform direct client-to-R2 upload via PUT using XMLHttpRequest for true progress tracking
       return new Promise<UploadResult>((resolve) => {

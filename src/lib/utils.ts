@@ -14,3 +14,11 @@ export function formatDate(dateString: string | Date | null | undefined): string
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
 }
+
+export function formatCurrency(val: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(val || 0);
+}

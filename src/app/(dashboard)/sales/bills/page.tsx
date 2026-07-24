@@ -478,14 +478,14 @@ export default function SalesBillsListPage() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Party Select */}
             <div className="flex items-center gap-1.5 border border-[#D1D5DB] rounded-lg px-3 py-2 bg-white">
-              <User className="h-4 w-4 text-[#64748B]" />
+              <User className="h-4 w-4 text-[#64748B] shrink-0" />
               <select
                 value={partyId}
                 onChange={(e) => {
                   setPartyId(e.target.value);
                   setPage(1);
                 }}
-                className="text-sm text-[#374151] font-medium bg-transparent border-0 outline-none p-0 focus:ring-0 focus:outline-none"
+                className="text-sm text-[#374151] font-medium bg-transparent border-0 outline-none pl-1 pr-6 py-0.5 focus:ring-0 focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.2rem_center] bg-no-repeat cursor-pointer"
               >
                 <option value="">All Customers</option>
                 {parties.map((p) => (
@@ -498,14 +498,14 @@ export default function SalesBillsListPage() {
 
             {/* Status Select */}
             <div className="flex items-center gap-1.5 border border-[#D1D5DB] rounded-lg px-3 py-2 bg-white">
-              <Filter className="h-4 w-4 text-[#64748B]" />
+              <Filter className="h-4 w-4 text-[#64748B] shrink-0" />
               <select
                 value={status}
                 onChange={(e) => {
                   setStatus(e.target.value);
                   setPage(1);
                 }}
-                className="text-sm text-[#374151] font-medium bg-transparent border-0 outline-none p-0 focus:ring-0 focus:outline-none"
+                className="text-sm text-[#374151] font-medium bg-transparent border-0 outline-none pl-1 pr-6 py-0.5 focus:ring-0 focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.2rem_center] bg-no-repeat cursor-pointer"
               >
                 <option value="">All Statuses</option>
                 <option value="unpaid">Unpaid</option>
@@ -564,15 +564,15 @@ export default function SalesBillsListPage() {
           <table className="min-w-full divide-y divide-[#E5E7EB] text-left">
             <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider select-none">
               <tr>
-                <th className="px-6 py-3.5">Bill Number</th>
-                <th className="px-6 py-3.5">Bill Date</th>
-                <th className="px-6 py-3.5">Customer / Party</th>
-                <th className="px-6 py-3.5">Type</th>
-                <th className="px-6 py-3.5">Total Amount</th>
-                <th className="px-6 py-3.5">Paid</th>
-                <th className="px-6 py-3.5">Outstanding</th>
-                <th className="px-6 py-3.5">Payment Status</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-6 py-3.5 w-[170px] whitespace-nowrap">Bill Number</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Bill Date</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Customer / Party</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Type</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Total Amount</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Paid</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Outstanding</th>
+                <th className="px-6 py-3.5 whitespace-nowrap">Payment Status</th>
+                <th className="px-6 py-3.5 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#0F172A] bg-white">
@@ -596,7 +596,7 @@ export default function SalesBillsListPage() {
                   const outstanding = bill.grand_total - bill.paid_amount;
                   return (
                     <tr key={bill.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-[#6366F1]">
+                      <td className="px-6 py-4 font-mono font-bold text-[#6366F1] whitespace-nowrap">
                         <Link href={`/sales/bills/${bill.id}`} className="hover:underline">
                           {bill.bill_number}
                         </Link>
@@ -712,7 +712,7 @@ export default function SalesBillsListPage() {
                     setLimit(parseInt(e.target.value, 10));
                     setPage(1);
                   }}
-                  className="text-xs border border-[#D1D5DB] rounded px-1.5 py-0.5 bg-white text-[#374151]"
+                  className="text-xs border border-[#D1D5DB] rounded pl-2 pr-6 py-1 bg-white font-semibold text-[#374151] cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.3rem_center] bg-no-repeat"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>

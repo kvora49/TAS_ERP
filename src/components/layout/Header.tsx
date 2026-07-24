@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import ThemeToggle from "./ThemeToggle";
 
 interface BrandItem {
   id: string;
@@ -69,26 +70,26 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-[232px] h-16 bg-white border-b border-[#E5E7EB] z-30 flex items-center justify-between px-6 lg:px-8 select-none">
+    <header className="fixed top-0 right-0 left-0 md:left-[232px] h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-6 lg:px-8 select-none transition-colors duration-200">
       {/* Left: Hamburger + Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={toggleSidebar}
-          className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] md:hidden cursor-pointer"
+          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--page-bg)] md:hidden cursor-pointer"
         >
           <Menu size={20} />
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[#64748B]">
+        <div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)]">
           {getBreadcrumbs().map((part, idx, arr) => (
             <div key={idx} className="flex items-center gap-1.5">
               <span
-                className={idx === arr.length - 1 ? "text-[#0F172A]" : ""}
+                className={idx === arr.length - 1 ? "text-[var(--text-primary)] font-bold" : ""}
               >
                 {part}
               </span>
-              {idx < arr.length - 1 && <span className="text-[#94A3B8]">/</span>}
+              {idx < arr.length - 1 && <span className="text-[var(--text-faint)]">/</span>}
             </div>
           ))}
         </div>
@@ -98,22 +99,22 @@ export default function Header() {
       <div className="flex items-center gap-3 md:gap-4">
         {/* Brand Filter */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-xs font-semibold text-[#374151] flex items-center gap-2 transition-colors cursor-pointer outline-none">
-            <Sliders size={13} className="text-[#64748B]" />
+          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-colors cursor-pointer outline-none">
+            <Sliders size={13} className="text-[var(--text-muted)]" />
             <span>
               {filters.brandId === "all"
                 ? "All Brands"
                 : brands.find((b) => b.id === filters.brandId)?.name || "Select Brand"}
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-white border border-[#E5E7EB] rounded-lg shadow-md mt-1">
-            <DropdownMenuLabel className="text-xs text-[#64748B] font-bold uppercase tracking-wider p-2">
+          <DropdownMenuContent align="end" className="w-48 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1">
+            <DropdownMenuLabel className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider p-2">
               Filter by Brand
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-[#E5E7EB]" />
+            <DropdownMenuSeparator className="bg-[var(--border)]" />
             <DropdownMenuItem
               onClick={() => setFilters({ brandId: "all" })}
-              className="text-xs font-medium cursor-pointer p-2 hover:bg-[#F1F5F9]"
+              className="text-xs font-medium cursor-pointer p-2 hover:bg-[var(--page-bg)] text-[var(--text-primary)]"
             >
               All Brands
             </DropdownMenuItem>
@@ -121,7 +122,7 @@ export default function Header() {
               <DropdownMenuItem
                 key={brand.id}
                 onClick={() => setFilters({ brandId: brand.id })}
-                className="text-xs font-medium cursor-pointer p-2 hover:bg-[#F1F5F9]"
+                className="text-xs font-medium cursor-pointer p-2 hover:bg-[var(--page-bg)] text-[var(--text-primary)]"
               >
                 {brand.name}
               </DropdownMenuItem>
@@ -131,17 +132,17 @@ export default function Header() {
 
         {/* Date Filter */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-xs font-semibold text-[#374151] flex items-center gap-2 transition-colors cursor-pointer outline-none">
-            <Calendar size={13} className="text-[#64748B]" />
+          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-colors cursor-pointer outline-none">
+            <Calendar size={13} className="text-[var(--text-muted)]" />
             <span className="capitalize">
               {filters.dateRange.replace("_", " ")}
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 bg-white border border-[#E5E7EB] rounded-lg shadow-md mt-1">
-            <DropdownMenuLabel className="text-xs text-[#64748B] font-bold uppercase tracking-wider p-2">
+          <DropdownMenuContent align="end" className="w-44 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1">
+            <DropdownMenuLabel className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider p-2">
               Select Period
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-[#E5E7EB]" />
+            <DropdownMenuSeparator className="bg-[var(--border)]" />
             {[
               { label: "Today", value: "today" },
               { label: "This Week", value: "this_week" },
@@ -152,7 +153,7 @@ export default function Header() {
               <DropdownMenuItem
                 key={p.value}
                 onClick={() => setFilters({ dateRange: p.value })}
-                className="text-xs font-medium cursor-pointer p-2 hover:bg-[#F1F5F9]"
+                className="text-xs font-medium cursor-pointer p-2 hover:bg-[var(--page-bg)] text-[var(--text-primary)]"
               >
                 {p.label}
               </DropdownMenuItem>
@@ -161,13 +162,13 @@ export default function Header() {
         </DropdownMenu>
 
         {/* Divider */}
-        <div className="h-5 w-px bg-[#E5E7EB]" />
+        <div className="h-5 w-px bg-[var(--border)]" />
 
         {/* Notification Bell */}
         <button
           type="button"
           onClick={() => setNotificationCount(0)}
-          className="relative w-9 h-9 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#374151] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+          className="relative w-9 h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
         >
           <Bell size={18} />
           {notificationCount > 0 && (
@@ -176,6 +177,9 @@ export default function Header() {
             </span>
           )}
         </button>
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* User profile dropdown */}
         {user && (

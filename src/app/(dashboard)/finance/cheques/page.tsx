@@ -5,6 +5,7 @@ import { Plus, Search, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Landmark
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 interface Party {
   id: string;
@@ -57,6 +58,8 @@ export default function ChequesPage() {
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isBounceOpen, setIsBounceOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
 
   // Selected states
   const [selectedCheque, setSelectedCheque] = useState<Cheque | null>(null);
@@ -261,14 +264,17 @@ export default function ChequesPage() {
       handleOpenDeposit(c);
       return;
     }
+    setSelectedCheque(c);
+    setIsClearOpen(true);
+  };
 
-    const confirmClear = window.confirm(`Mark Cheque #${c.cheque_number} as Cleared? This will reconcile financial balances.`);
-    if (!confirmClear) return;
-
+  const handleConfirmClear = async () => {
+    if (!selectedCheque) return;
     updateMutation.mutate({
-      id: c.id,
+      id: selectedCheque.id,
       data: { status: "cleared" },
     });
+    setIsClearOpen(false);
   };
 
   const handleOpenBounce = (c: Cheque) => {
@@ -293,13 +299,17 @@ export default function ChequesPage() {
   };
 
   const handleCancelCheque = async (c: Cheque) => {
-    const confirmCancel = window.confirm(`Mark Cheque #${c.cheque_number} as Cancelled?`);
-    if (!confirmCancel) return;
+    setSelectedCheque(c);
+    setIsCancelOpen(true);
+  };
 
+  const handleConfirmCancel = async () => {
+    if (!selectedCheque) return;
     updateMutation.mutate({
-      id: c.id,
+      id: selectedCheque.id,
       data: { status: "cancelled" },
     });
+    setIsCancelOpen(false);
   };
 
   const handleOpenDelete = (c: Cheque) => {
@@ -835,6 +845,26 @@ export default function ChequesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={isClearOpen}
+        onOpenChange={setIsClearOpen}
+        title="Clear Cheque"
+        description={`Mark Cheque #${selectedCheque?.cheque_number} as Cleared? This will reconcile financial balances.`}
+        onConfirm={handleConfirmClear}
+        confirmText="Clear Cheque"
+        cancelText="Cancel"
+      />
+
+      <ConfirmDialog
+        open={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        title="Cancel Cheque"
+        description={`Are you sure you want to cancel Cheque #${selectedCheque?.cheque_number}?`}
+        onConfirm={handleConfirmCancel}
+        confirmText="Cancel Cheque"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

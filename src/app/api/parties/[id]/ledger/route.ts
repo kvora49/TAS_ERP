@@ -25,6 +25,7 @@ export async function GET(
       newPaymentsResult,
       writeOffsResult,
       allocationsResult,
+      creditNotesResult,
     ] = await Promise.all([
       supabase
         .from("parties")
@@ -47,8 +48,8 @@ export async function GET(
         .neq("status", "cancelled"),
       supabase
         .from("sale_bills")
-        .select("id, invoice_number, invoice_date, grand_total, status")
-        .eq("customer_id", id)
+        .select("id, bill_number, bill_date, grand_total, status")
+        .eq("party_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled"),
       supabase
@@ -79,6 +80,11 @@ export async function GET(
         .from("payment_allocations")
         .select("payment_id, bill_type, bill_id, allocated_amount")
         .eq("business_id", businessId),
+      supabase
+        .from("credit_notes")
+        .select("id, cn_number, cn_date, amount, reason")
+        .eq("party_id", id)
+        .eq("business_id", businessId),
     ]);
 
     const party = partyResult.data;
@@ -94,12 +100,13 @@ export async function GET(
     const newPayments = newPaymentsResult.data || [];
     const writeOffs = writeOffsResult.data || [];
     const allocations = allocationsResult.data || [];
+    const creditNotes = creditNotesResult.data || [];
 
     // Helper map to find bill/invoice numbers by ID
     const billMap: Record<string, string> = {};
     purchases.forEach((p) => (billMap[p.id] = p.purchase_number));
     purchaseBills.forEach((p) => (billMap[p.id] = p.bill_number));
-    saleBills.forEach((s) => (billMap[s.id] = s.invoice_number));
+    saleBills.forEach((s) => (billMap[s.id] = s.bill_number));
 
     const isCustomerOnly = party.type?.includes("customer") && !party.type?.includes("supplier");
 
@@ -150,10 +157,10 @@ export async function GET(
     // Add Sale Bills (Customer Invoices)
     saleBills.forEach((s) => {
       entries.push({
-        date: s.invoice_date,
-        particulars: `Sales Invoice #${s.invoice_number}`,
+        date: s.bill_date,
+        particulars: `Sales Invoice #${s.bill_number}`,
         voucherType: "Sale",
-        voucherNo: s.invoice_number,
+        voucherNo: s.bill_number,
         debit: Number(s.grand_total),
         credit: 0,
         sortOrder: 1,
@@ -169,6 +176,19 @@ export async function GET(
         voucherNo: r.return_number,
         debit: Number(r.grand_total),
         credit: 0,
+        sortOrder: 2,
+      });
+    });
+
+    // Add Credit Notes (Sales Returns / Customer Credits -> Credit entry reducing receivable)
+    creditNotes.forEach((cn: any) => {
+      entries.push({
+        date: cn.cn_date,
+        particulars: `Credit Note #${cn.cn_number} ${cn.reason ? "(" + cn.reason + ")" : ""}`,
+        voucherType: "Credit Note",
+        voucherNo: cn.cn_number,
+        debit: 0,
+        credit: Number(cn.amount),
         sortOrder: 2,
       });
     });

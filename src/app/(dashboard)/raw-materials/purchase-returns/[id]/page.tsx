@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ArrowLeft, Loader2, Calendar, FileText, CheckCircle2, XCircle, Download, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { DebitNoteModal } from "@/components/modals/DebitNoteModal";
 
 interface ReturnItem {
   id: string;
@@ -57,6 +58,7 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
   const [pReturn, setPReturn] = useState<PurchaseReturn | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [debitNoteOpen, setDebitNoteOpen] = useState(false);
 
   const fetchReturnDetails = async () => {
     setLoading(true);
@@ -98,7 +100,7 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
   };
 
   const handleDebitNoteClick = () => {
-    toast.info("Debit Note Financial Module is coming soon!");
+    setDebitNoteOpen(true);
   };
 
   const formatCurrency = (val: number) => {
@@ -379,6 +381,15 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
           </div>
         </div>
       </div>
+
+      {/* Debit Note Voucher Modal */}
+      {pReturn && (
+        <DebitNoteModal
+          open={debitNoteOpen}
+          onClose={() => setDebitNoteOpen(false)}
+          pReturn={pReturn}
+        />
+      )}
     </div>
   );
 }

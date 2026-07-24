@@ -1,4 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { RawMaterialRepository } from "@/repositories/raw-material.repository";
+import { RawMaterialService } from "@/services/raw-material.service";
 import { NextResponse } from "next/server";
 
 export async function PUT(
@@ -15,60 +17,26 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    const {
-      name,
-      description,
-      category,
-      unit,
-      image_url,
-      default_supplier_id,
-      reorder_level,
-      is_active,
-      updated_at: lastKnownUpdatedAt,
-    } = body;
+    const repo = new RawMaterialRepository(supabase);
+    const service = new RawMaterialService(repo);
 
-    if (!name || !unit || !lastKnownUpdatedAt) {
-      return NextResponse.json(
-        { error: "Name, Unit, and last known updated_at timestamp are required" },
-        { status: 400 }
-      );
-    }
+    const materialType = await service.updateMaterialType(materialId, businessId, {
+      name: body.name,
+      description: body.description,
+      category: body.category,
+      unit: body.unit,
+      image_url: body.image_url,
+      default_supplier_id: body.default_supplier_id,
+      reorder_level: Number(body.reorder_level || 0),
+      is_active: body.is_active !== false,
+      lastKnownUpdatedAt: body.updated_at,
+    });
 
-    // Optimistic locking update query
-    const { data: updatedMaterial, error } = await supabase
-      .from("raw_material_types")
-      .update({
-        name,
-        description: description || null,
-        category: category || null,
-        unit,
-        image_url: image_url || null,
-        default_supplier_id: default_supplier_id || null,
-        reorder_level: Number(reorder_level || 0),
-        is_active: is_active !== false,
-      })
-      .eq("id", materialId)
-      .eq("business_id", businessId)
-      .eq("updated_at", lastKnownUpdatedAt) // Optimistic Lock Check!
-      .select();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!updatedMaterial || updatedMaterial.length === 0) {
-      return NextResponse.json(
-        { error: "Conflict: Raw Material Type was modified by another transaction. Please reload." },
-        { status: 409 }
-      );
-    }
-
-    return NextResponse.json({ materialType: updatedMaterial[0] });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return NextResponse.json({ materialType });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    const status = message.includes("Conflict") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -85,22 +53,13 @@ export async function DELETE(
   }
 
   try {
-    // Soft delete: update deleted_at
-    const { error } = await supabase
-      .from("raw_material_types")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", materialId)
-      .eq("business_id", businessId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const repo = new RawMaterialRepository(supabase);
+    const service = new RawMaterialService(repo);
+    await service.deleteMaterialType(materialId, businessId);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

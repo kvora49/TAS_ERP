@@ -49,6 +49,35 @@ supabase/migrations/          managed via Supabase CLI (`supabase db push`) — 
 - **Auth:** don't construct a Supabase client or call `.auth.*` directly inside UI components — use the shared `AuthProvider`/`useLogout()`.
 - **Errors:** `catch (err: unknown)` with `instanceof Error` narrowing, not `catch (err: any)`. Log via the `Logger` abstraction, not raw `console.*`.
 
+## Framework Architecture Map
+
+| Original layer / engine | Where it was built (P1) | Where it's used now (P2) |
+|---|---|---|
+| **Experience Framework** | P1 items 8–12, 18 | Consumed by every migrated page in item 19, plus new items **44–46** addressing raw speed directly |
+| — Loading Engine / Page Skeleton System | P1 item 9 (`useERPQuery`'s pending state) + item 10 (skeleton components) | Item 19 |
+| — Raw speed | Not built in P1 — direct to P2 as items **44–46** | Items 44 (double auth-session fetch), 45 (sequential-to-parallel API calls), 46 (dev-vs-production compilation check) |
+| — Progressive Rendering | P1 item 10 (skeletons per section) | Item 20 — component breakup enables independent section loading once pages aren't monolithic |
+| — Navigation Engine | P1 item 11 (Sidebar prefetch extension + route-level `loading.tsx`) | Item 20.12 (Sidebar split completes the config-driven nav this depends on) |
+| — Animation/Motion Engine | P1 item 12 | Item 20 (wizard step transitions, dialog animations) |
+| — Feedback Engine / Async Button System | P1 item 9 (`useERPMutation`'s pending/disabled/toast handling) | Item 19 |
+| **UI Framework** | shadcn/Radix primitives, `DataTable`, `TableSkeleton`, `ConfirmDialog`, `EmptyState` | Item 23 (accessibility pass) extends this layer further |
+| **Business Framework** | P1 items 13, 16–17 — repository + service layer | Item 22 — rolled out to every remaining module |
+| **ERP Modules** | N/A — built on top of everything above | Items 19–20 — the actual module-by-module migration onto the now-proven foundation |
+
+## 25. UX Experience Checklist & Engineering conventions
+
+### UX Experience Checklist
+1. **Tables**: Every data list table must include a structured skeleton loader during pending status, an explicit empty state placeholder, and pagination controls.
+2. **Buttons**: Every action button must display clear loading, disabled, or success states corresponding to its operation/mutation lifecycle.
+3. **Forms**: All form inputs must have programmatic `<label htmlFor="...">` bindings, standard inline validation messages, and disabled states during submit submission.
+4. **Dialogs**: All modal components must handle Radix-managed keyboard trapping, backdrop dismissal, and focus-locking bounds.
+
+### Engineering conventions
+1. **Type Safety**: Never use `any`. Always narrow exception types with `catch (err: unknown)` and `if (err instanceof Error)`.
+2. **List Keys**: Never map lists with `key={index}` in editable lists. Use database `id` or client-side generated UUID constants.
+3. **Inputs**: Debounce search inputs using `useDebounce` hook before sending them as dependencies for queries or backend fetches.
+4. **API Responses**: Standardize all API route returns to `{ data: T }` for successes and `{ error: string }` for exceptions.
+
 ## Where to look for more detail
 - Full findings + solutions, organized by priority: `TAS-ERP-P0-Security-DataIntegrity.md` through `TAS-ERP-P4-Future-ProductIdeas.md`
 - Sales Bills is the reference implementation for the repository/service/hook pattern — see `app/(dashboard)/sales/bills/brain.md` before replicating the pattern elsewhere

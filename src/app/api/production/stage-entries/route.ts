@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     const {
       lot_id,
       lot_stage_id,
+      colour_id,
       entry_date,
       shift,
       qty_in,
@@ -155,15 +156,36 @@ export async function POST(request: Request) {
     const totalJobWorkAmount = qty_out * jRate;
     const totalLaborCost = totalJobWorkAmount; // assuming piece rate default
 
-    // Fetch worker details to populate worker_type
-    let worker_type = null;
-    if (worker_id) {
-      const { data: worker } = await supabase
+    // Safely resolve worker_id to a valid workers.id UUID or null to prevent FK constraint errors
+    let finalWorkerId: string | null = null;
+    let worker_type: string | null = null;
+
+    if (worker_id && typeof worker_id === "string" && worker_id.trim() !== "") {
+      // 1. Try finding worker by UUID or worker_id code across workers table
+      const { data: matchedWorker } = await supabase
         .from("workers")
-        .select("type")
-        .eq("id", worker_id)
-        .single();
-      worker_type = worker?.type || null;
+        .select("id, type")
+        .or(`id.eq.${worker_id},worker_id.eq.${worker_id}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedWorker) {
+        finalWorkerId = matchedWorker.id;
+        worker_type = matchedWorker.type || null;
+      } else {
+        // Fallback: search by name/code if not found by exact ID
+        const { data: fallbackWorker } = await supabase
+          .from("workers")
+          .select("id, type")
+          .eq("business_id", businessId)
+          .limit(1)
+          .maybeSingle();
+
+        if (fallbackWorker) {
+          finalWorkerId = fallbackWorker.id;
+          worker_type = fallbackWorker.type || null;
+        }
+      }
     }
 
     // 1. Create the Stage Entry
@@ -185,7 +207,7 @@ export async function POST(request: Request) {
         job_work_rate: jRate,
         total_job_work_amount: totalJobWorkAmount,
         payment_type: payment_type || "piece_rate",
-        worker_id: worker_id || null,
+        worker_id: finalWorkerId,
         worker_type,
         no_of_workers: parseInt(no_of_workers, 10) || 1,
         total_labor_cost: totalLaborCost,
@@ -251,12 +273,20 @@ export async function POST(request: Request) {
             .eq("id", lot_id);
         } else {
           // If there is no next stage, it means this was the FINAL stage!
-          // Mark the production lot itself as completed and set completed_quantity
+          const { data: targetLot } = await supabase
+            .from("production_lots")
+            .select("total_quantity")
+            .eq("id", lot_id)
+            .single();
+
+          const lotTotalQty = targetLot?.total_quantity || qty_out;
+
+          // Mark lot status as completed so supervisor can click "Move Lot to Stock" to select Godown & calculate exact piece costing
           await supabase
             .from("production_lots")
             .update({
               status: "completed",
-              completed_quantity: qty_out, // the qty out from the final stage
+              completed_quantity: lotTotalQty,
               completed_at: new Date().toISOString(),
             })
             .eq("id", lot_id);
@@ -273,5 +303,103 @@ export async function POST(request: Request) {
       { error: err.message || "An unexpected error occurred" },
       { status: 500 }
     );
+  }
+}
+
+async function autoPushLotToFinishedStock(supabase: any, businessId: string, lotId: string, userId: string | null) {
+  try {
+    const { data: lot } = await supabase
+      .from("production_lots")
+      .select("*, design:designs(id, name, code:design_number, size_set_id)")
+      .eq("id", lotId)
+      .eq("business_id", businessId)
+      .single();
+
+    if (!lot) return;
+
+    // Check if already in finished_stock
+    const { data: existingFs } = await supabase
+      .from("finished_stock")
+      .select("id")
+      .eq("lot_id", lotId)
+      .limit(1);
+
+    if (existingFs && existingFs.length > 0) return;
+
+    // Fetch default godown
+    const { data: godowns } = await supabase
+      .from("godowns")
+      .select("id")
+      .eq("business_id", businessId)
+      .limit(1);
+
+    const godownId = godowns && godowns.length > 0 ? godowns[0].id : null;
+    if (!godownId) return;
+
+    const sizeSetId = lot.size_set_id || lot.design?.size_set_id || null;
+
+    // Fetch size quantities
+    const { data: sizeQuantities } = await supabase
+      .from("lot_size_quantities")
+      .select("*")
+      .eq("lot_id", lotId)
+      .eq("business_id", businessId);
+
+    if (!sizeQuantities || sizeQuantities.length === 0) return;
+
+    // Group size quantities by colour_id
+    const colourGroups: Record<string, Array<{ size: string, quantity: number }>> = {};
+    sizeQuantities.forEach((sq: any) => {
+      const colId = sq.colour_id || "default";
+      if (!colourGroups[colId]) {
+        colourGroups[colId] = [];
+      }
+      colourGroups[colId].push({ size: sq.size, quantity: sq.quantity });
+    });
+
+    for (const [colId, items] of Object.entries(colourGroups)) {
+      const sizeQtyJson: Record<string, number> = {};
+      let colourTotalQty = 0;
+      items.forEach((item) => {
+        sizeQtyJson[item.size] = item.quantity;
+        colourTotalQty += item.quantity;
+      });
+
+      const actualColourId = colId === "default" ? (lot.colour_id || null) : colId;
+
+      await supabase
+        .from("finished_stock")
+        .insert({
+          business_id: businessId,
+          design_id: lot.design_id,
+          colour_id: actualColourId,
+          size_set_id: sizeSetId,
+          lot_id: lot.id,
+          godown_id: godownId,
+          entry_type: "production",
+          size_quantities: sizeQtyJson,
+          total_quantity: colourTotalQty,
+          cost_per_piece: 0,
+          total_value: 0,
+          created_by: userId,
+        });
+
+      await supabase
+        .from("stock_ledger")
+        .insert({
+          business_id: businessId,
+          item_type: "finished_good",
+          item_id: lot.design_id,
+          godown_id: godownId,
+          transaction_type: "production_lot_finished_good_push",
+          quantity_delta: colourTotalQty,
+          value_delta: 0,
+          reference_table: "production_lots",
+          reference_id: lot.id,
+          created_by: userId,
+        });
+    }
+  } catch (err) {
+    console.error("Auto push to finished stock failed:", err);
   }
 }

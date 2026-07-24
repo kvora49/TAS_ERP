@@ -176,10 +176,11 @@ export default function StockOverviewPage() {
     {
       key: "material",
       header: "Raw Material",
+      width: "240px",
       render: (row) => (
-        <div>
-          <span className="font-bold text-[#0F172A] block">{row.material_type?.name || "—"}</span>
-          <span className="text-[10px] text-[#64748B] uppercase tracking-wider">
+        <div className="min-w-0 pr-2">
+          <span className="font-bold text-[#0F172A] block truncate">{row.material_type?.name || "—"}</span>
+          <span className="text-[10px] text-[#64748B] uppercase tracking-wider block truncate">
             {row.material_type?.category?.replace("_", " ") || "—"}
           </span>
         </div>
@@ -188,13 +189,15 @@ export default function StockOverviewPage() {
     {
       key: "godown",
       header: "Godown Location",
-      render: (row) => <span className="font-semibold text-slate-700">{row.godown?.name || "—"}</span>,
+      width: "180px",
+      render: (row) => <span className="font-semibold text-slate-700 whitespace-nowrap">{row.godown?.name || "—"}</span>,
     },
     {
       key: "current_stock",
       header: "Available Qty",
+      width: "140px",
       render: (row) => (
-        <span className="font-bold">
+        <span className="font-bold whitespace-nowrap">
           {row.current_stock} {row.material_type?.unit || "meter"}
         </span>
       ),
@@ -214,7 +217,7 @@ export default function StockOverviewPage() {
           label = "Low Stock";
         }
         return (
-          <Badge variant={variant} className="font-bold text-[10px]">
+          <Badge variant={variant} className="font-bold text-[10px] whitespace-nowrap">
             {label}
           </Badge>
         );
@@ -223,14 +226,14 @@ export default function StockOverviewPage() {
     {
       key: "unit_cost",
       header: "Unit Cost",
-      width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{formatCurrency(row.unit_cost)}</span>,
+      width: "130px",
+      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatCurrency(row.unit_cost)}</span>,
     },
     {
       key: "stock_value",
       header: "Stock Value",
-      width: "140px",
-      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A]">{formatCurrency(row.stock_value)}</span>,
+      width: "150px",
+      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A] whitespace-nowrap">{formatCurrency(row.stock_value)}</span>,
     },
   ];
 
@@ -238,11 +241,11 @@ export default function StockOverviewPage() {
     {
       key: "stock_entry_number",
       header: "Stock Entry ID",
-      width: "150px",
+      width: "220px",
       render: (row) => (
         <Link
           href={`/raw-materials/stock/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1] hover:underline"
+          className="font-mono font-bold text-xs text-[#6366F1] hover:underline whitespace-nowrap"
         >
           {row.stock_entry_number}
         </Link>
@@ -252,7 +255,7 @@ export default function StockOverviewPage() {
       key: "posting_date",
       header: "Posting Date",
       width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold">{formatDate(row.posting_date)}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatDate(row.posting_date)}</span>,
     },
     {
       key: "entry_type",
@@ -263,7 +266,7 @@ export default function StockOverviewPage() {
         if (row.entry_type === "stock_in") variant = "green";
         else if (row.entry_type === "stock_out") variant = "red";
         return (
-          <Badge variant={variant} className="capitalize text-[10px] font-bold">
+          <Badge variant={variant} className="capitalize text-[10px] font-bold whitespace-nowrap">
             {row.entry_type.replace("_", " ")}
           </Badge>
         );
@@ -272,25 +275,30 @@ export default function StockOverviewPage() {
     {
       key: "godown",
       header: "Godown Location",
-      render: (row) => <span className="font-semibold text-slate-700">{row.godown?.name || "—"}</span>,
+      width: "180px",
+      render: (row) => <span className="font-semibold text-slate-700 whitespace-nowrap">{row.godown?.name || "—"}</span>,
     },
     {
       key: "reference_no",
       header: "Ref Doc",
-      width: "130px",
-      render: (row) => <span className="font-mono text-xs text-[#64748B]">{row.reference_no || "—"}</span>,
+      width: "160px",
+      render: (row) => <span className="font-mono text-xs text-[#64748B] whitespace-nowrap">{row.reference_no || "—"}</span>,
     },
     {
       key: "remarks",
       header: "Remarks",
-      render: (row) => <span className="text-xs text-[#64748B] truncate max-w-[200px] block">{row.remarks || "—"}</span>,
+      render: (row) => (
+        <span className="text-xs text-[#64748B] truncate max-w-[320px] block font-medium" title={row.remarks || ""}>
+          {row.remarks || "—"}
+        </span>
+      ),
     },
     {
       key: "status",
       header: "Status",
       width: "100px",
       render: (row) => (
-        <Badge variant={row.status === "active" ? "green" : "red"} className="capitalize text-[10px] font-bold">
+        <Badge variant={row.status === "active" ? "green" : "red"} className="capitalize text-[10px] font-bold whitespace-nowrap">
           {row.status}
         </Badge>
       ),
@@ -300,7 +308,7 @@ export default function StockOverviewPage() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Purchase Stock"
+        title="Raw Material Stock"
         subtitle="Monitor current godown levels, check low stock alerts, and track stock transfers."
         actionLabel="Add Stock Entry"
         onAction={() => router.push("/raw-materials/stock/new")}

@@ -56,11 +56,20 @@ export async function GET(request: Request) {
       // Also fetch bank accounts for dropdown
       const { data: banks, error: banksError } = await supabase
         .from("bank_accounts")
-        .select("id, account_name, bank_name, account_number")
+        .select("id, name, bank_name, account_number, sub_label, type, is_default, is_active")
         .eq("business_id", businessId)
         .is("deleted_at", null);
 
-      return NextResponse.json({ customers, bankAccounts: banks || [] });
+      const formattedBanks = (banks || []).map((b: any) => ({
+        id: b.id,
+        name: b.name || b.bank_name || "Bank Account",
+        account_name: b.name || b.bank_name || "Bank Account",
+        bank_name: b.bank_name || b.sub_label || (b.type ? b.type.toUpperCase() : "Bank"),
+        account_number: b.account_number || "",
+        is_default: !!b.is_default,
+      }));
+
+      return NextResponse.json({ customers, bankAccounts: formattedBanks });
     }
   } catch (err: any) {
     return NextResponse.json(
@@ -112,12 +121,74 @@ export async function POST(request: Request) {
       p_bank_account_id: bank_account_id || null,
       p_amount: Number(amount),
       p_remarks: remarks || "",
-      p_allocations: JSON.stringify(allocations || []),
+      p_allocations: allocations || [],
       p_created_by: userId,
     });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Process bill allocations and update sale_bills paid_amount & payment_status
+    if (paymentId && allocations && Array.isArray(allocations) && allocations.length > 0) {
+      let totalAllocated = 0;
+      for (const alloc of allocations) {
+        const billId = alloc.billId || alloc.bill_id;
+        const allocatedAmount = Number(alloc.allocatedAmount || alloc.allocated_amount || alloc.amount || 0);
+
+        if (billId && allocatedAmount > 0) {
+          totalAllocated += allocatedAmount;
+
+          const { data: bill } = await supabase
+            .from("sale_bills")
+            .select("grand_total, paid_amount")
+            .eq("id", billId)
+            .maybeSingle();
+
+          if (bill) {
+            const currentPaid = Number(bill.paid_amount || 0);
+            const grandTotal = Number(bill.grand_total || 0);
+            const newPaid = currentPaid + allocatedAmount;
+            const newStatus = newPaid >= grandTotal ? "paid" : "partially_paid";
+
+            await supabase
+              .from("sale_bills")
+              .update({
+                paid_amount: newPaid,
+                payment_status: newStatus,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", billId);
+          }
+
+          await supabase
+            .from("payment_allocations")
+            .insert({
+              business_id: businessId,
+              payment_id: paymentId,
+              bill_id: billId,
+              bill_type: alloc.billType || alloc.bill_type || "sale_bill",
+              amount: allocatedAmount,
+              created_by: userId,
+            });
+        }
+      }
+
+      if (totalAllocated > 0) {
+        const { data: pRec } = await supabase
+          .from("payments")
+          .select("amount")
+          .eq("id", paymentId)
+          .maybeSingle();
+
+        if (pRec) {
+          const newUnallocated = Math.max(0, Number(pRec.amount || 0) - totalAllocated);
+          await supabase
+            .from("payments")
+            .update({ unallocated_amount: newUnallocated })
+            .eq("id", paymentId);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, paymentId });

@@ -26,11 +26,45 @@ export async function POST(req: Request) {
     }
 
     // Server-side validation of folder and contentType
-    const allowedFolders = ["worker-docs", "cheque-images", "attachments"];
+    const allowedFolders = [
+      "worker-docs",
+      "cheque-images",
+      "attachments",
+      "logos",
+      "brand_logos",
+      "bill_templates",
+      "design_catalogs",
+      "design_colours",
+      "design_colour_images",
+      "material_thumbnails",
+      "lots",
+      "stage-entries",
+      "purchases",
+      "returns",
+      "stock",
+      "workers",
+    ];
+
+    const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+    const allowedDocTypes = ["application/pdf", ...allowedImageTypes];
+
     const allowedTypes: Record<string, string[]> = {
-      "worker-docs": ["application/pdf", "image/jpeg", "image/png"],
-      "cheque-images": ["image/jpeg", "image/png"],
-      "attachments": ["application/pdf", "image/jpeg", "image/png"]
+      "worker-docs": allowedDocTypes,
+      "cheque-images": allowedImageTypes,
+      "attachments": allowedDocTypes,
+      "logos": allowedImageTypes,
+      "brand_logos": allowedImageTypes,
+      "bill_templates": allowedDocTypes,
+      "design_catalogs": allowedImageTypes,
+      "design_colours": allowedImageTypes,
+      "design_colour_images": allowedImageTypes,
+      "material_thumbnails": allowedImageTypes,
+      "lots": allowedImageTypes,
+      "stage-entries": allowedDocTypes,
+      "purchases": allowedDocTypes,
+      "returns": allowedDocTypes,
+      "stock": allowedImageTypes,
+      "workers": allowedDocTypes,
     };
 
     if (!allowedFolders.includes(folder)) {
@@ -40,7 +74,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!allowedTypes[folder].includes(contentType)) {
+    if (!allowedTypes[folder]?.includes(contentType)) {
       return NextResponse.json(
         { error: `File type not allowed for ${folder}` },
         { status: 400 }
@@ -51,7 +85,9 @@ export async function POST(req: Request) {
     const safeExtensions: Record<string, string[]> = {
       "application/pdf": ["pdf"],
       "image/jpeg": ["jpg", "jpeg"],
-      "image/png": ["png"]
+      "image/png": ["png"],
+      "image/webp": ["webp"],
+      "image/svg+xml": ["svg"]
     };
 
     const allowedExts = safeExtensions[contentType];
@@ -62,20 +98,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Initialize S3 client for Cloudflare R2
-    const s3 = new S3Client({
-      region: "auto",
-      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-      },
-    });
+    // 2. Check if real Cloudflare R2 credentials are set or placeholders
+    const r2AccountId = process.env.R2_ACCOUNT_ID;
+    const r2AccessKey = process.env.R2_ACCESS_KEY_ID;
+    const isR2Configured =
+      r2AccountId &&
+      r2AccessKey &&
+      !r2AccountId.includes("placeholder") &&
+      !r2AccessKey.includes("placeholder");
 
     const cleanFileName = `${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 9)}.${fileExt}`;
     const fileKey = `${folder}/${user.id}/${cleanFileName}`;
+
+    if (!isR2Configured) {
+      // Return local placeholder mode indicator so frontend can upload as Data URL or local blob
+      return NextResponse.json({
+        isPlaceholder: true,
+        fileKey,
+        publicUrl: "",
+      });
+    }
+
+    // Initialize S3 client for Cloudflare R2
+    const s3 = new S3Client({
+      region: "auto",
+      endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      },
+    });
 
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME!,
@@ -85,9 +139,11 @@ export async function POST(req: Request) {
 
     // Generate Pre-signed PUT URL valid for 300 seconds (5 mins)
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
-    const publicUrl = `${process.env.R2_PUBLIC_DOMAIN}/${fileKey}`;
+    const publicDomain = process.env.R2_PUBLIC_URL || "https://pub-placeholder.r2.dev";
+    const publicUrl = `${publicDomain}/${fileKey}`;
 
     return NextResponse.json({
+      isPlaceholder: false,
       uploadUrl,
       fileKey,
       publicUrl,

@@ -127,6 +127,19 @@ export default function BackupRestoreSettingsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const handleTestCronBackup = async () => {
+    const toastId = toast.loading("Running automated cron backup test...");
+    try {
+      const res = await fetch("/api/cron/backup");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Cron backup failed");
+      toast.success(`Cron backup run complete! Saved ${data.backupCount || 0} backup file(s).`, { id: toastId });
+      fetchBackupHistory();
+    } catch (err: any) {
+      toast.error(err.message || "Cron backup test failed", { id: toastId });
+    }
+  };
+
   // Get last backup details
   const lastBackup = historyRecords.find((h) => h.status === "completed");
 
