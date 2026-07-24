@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const idempotencyKey = request.headers.get("Idempotency-Key") || request.headers.get("idempotency-key");
     if (idempotencyKey) {
       const existing = await supabase
-        .from("sales_bills")
+        .from("sale_bills")
         .select("*")
         .eq("business_id", businessId)
         .eq("idempotency_key", idempotencyKey)

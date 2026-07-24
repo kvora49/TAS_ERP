@@ -475,7 +475,7 @@ export default function NewPurchaseBillPage() {
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-slate-400 gap-2 border-2 border-dashed border-[#E2E8F0] rounded-xl bg-slate-50/50">
                 <Package className="h-8 w-8 text-slate-300" />
-                <span className="text-xs font-semibold">No line items added yet. Click "+ Add Design Line Item" above.</span>
+                <span className="text-xs font-semibold">No line items added yet. Click &quot;+ Add Design Line Item&quot; above.</span>
               </div>
             ) : (
               <div className="space-y-4">

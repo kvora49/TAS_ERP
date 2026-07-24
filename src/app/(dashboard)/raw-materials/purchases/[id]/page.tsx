@@ -333,7 +333,7 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
                                     </div>
                                     <div className="flex items-center justify-between text-[10px] text-slate-500">
                                       <span>Shade: {roll.shade}</span>
-                                      {roll.width && <span>W: {roll.width}"</span>}
+                                      {roll.width && <span>W: {roll.width}&quot;</span>}
                                     </div>
                                     {roll.weight_value && (
                                       <div className="text-[10px] text-slate-400">
