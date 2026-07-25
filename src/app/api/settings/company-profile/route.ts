@@ -13,7 +13,8 @@ export async function GET(request: Request) {
       .from("businesses")
       .select("*")
       .eq("id", businessId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

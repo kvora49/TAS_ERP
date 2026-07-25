@@ -98,8 +98,8 @@ export default function UsersRolesSettingsPage() {
       if (search) query.append("search", search);
 
       const res = await fetch(`/api/settings/users?${query.toString()}`);
-      if (!res.ok) throw new Error("Failed to load users");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load users`);
       setUsers(data.users || []);
     } catch (err: any) {
       toast.error(err.message || "Error loading users");
@@ -113,8 +113,8 @@ export default function UsersRolesSettingsPage() {
     setLoadingPermissions(true);
     try {
       const res = await fetch("/api/settings/permissions");
-      if (!res.ok) throw new Error("Failed to load permissions");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load permissions`);
       setPermissions(data.permissions || []);
     } catch (err: any) {
       toast.error(err.message || "Error loading permissions");

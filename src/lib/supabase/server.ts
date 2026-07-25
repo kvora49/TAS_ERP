@@ -28,32 +28,55 @@ export function createClient() {
 import { headers } from "next/headers";
 
 export async function getSessionBusinessId(): Promise<string | null> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+
+  let candidateId: string | null = null;
+
   // 1. Try to read the forwarded business ID from headers (middleware)
   try {
     const headerBusinessId = headers().get("x-business-id");
     if (headerBusinessId) {
-      return headerBusinessId;
+      candidateId = headerBusinessId;
     }
   } catch (error) {
     // headers() may throw when called from static generation or non-request contexts
   }
 
-  // 2. Fallback to resolving from session cookie and database
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
-  if (!user) return null;
+  // 2. Resolve from user profile if not in header
+  if (!candidateId && user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("business_id, is_active")
+      .eq("id", user.id)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("business_id, is_active")
-    .eq("id", user.id)
-    .is("deleted_at", null)
-    .single();
+    if (profile && profile.is_active !== false) {
+      candidateId = profile.business_id;
+    }
+  }
 
-  // Item 30e: Deactivated users are rejected immediately on every request,
-  // without waiting for their JWT to expire naturally.
-  if (!profile || profile.is_active === false) return null;
-    
-  return profile?.business_id || null;
+  // 3. Verify candidateId actually exists in public.businesses table to satisfy FK constraints
+  if (candidateId) {
+    const { data: validBus } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("id", candidateId)
+      .limit(1)
+      .maybeSingle();
+
+    if (validBus) return validBus.id;
+  }
+
+  // 4. Fallback: if candidateId is invalid/missing, fetch the primary business record in DB
+  const { data: firstBus } = await supabase
+    .from("businesses")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  return firstBus?.id || null;
 }

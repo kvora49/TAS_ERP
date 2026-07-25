@@ -42,8 +42,8 @@ export default function CompanyProfileSettingsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/settings/company-profile");
-      if (!res.ok) throw new Error("Failed to load company profile");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load company profile`);
       if (data.business) {
         setName(data.business.name || "");
         setGstin(data.business.gstin || "");

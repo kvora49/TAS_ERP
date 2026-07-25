@@ -86,8 +86,8 @@ export default function NotificationsSettingsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/settings/notifications");
-      if (!res.ok) throw new Error("Failed to load notification settings");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load notification settings`);
 
       if (data.settings) {
         setNotifDefaultTime(data.settings.notif_default_time || "09:00 AM");

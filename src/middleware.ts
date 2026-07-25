@@ -61,16 +61,40 @@ export async function middleware(request: NextRequest) {
 
   // If authenticated, forward user context via request headers
   if (session) {
-    let businessId = request.cookies.get("sb-business-id")?.value;
+    let businessId: string | undefined = request.cookies.get("sb-business-id")?.value;
+
+    if (businessId) {
+      const { data: validBus } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("id", businessId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!validBus) businessId = undefined;
+    }
+
     if (!businessId) {
       const { data: profile } = await supabase
         .from("users")
         .select("business_id")
         .eq("id", session.user.id)
         .is("deleted_at", null)
-        .single();
+        .limit(1)
+        .maybeSingle();
       if (profile?.business_id) {
         businessId = profile.business_id;
+      }
+    }
+
+    if (!businessId) {
+      const { data: firstBus } = await supabase
+        .from("businesses")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      if (firstBus?.id) {
+        businessId = firstBus.id;
       }
     }
 

@@ -15,7 +15,8 @@ export async function GET(request: Request) {
         .from("businesses")
         .select("*")
         .eq("id", businessId)
-        .single(),
+        .limit(1)
+        .maybeSingle(),
       supabase
         .from("business_settings")
         .select("*")
@@ -27,7 +28,11 @@ export async function GET(request: Request) {
     let { data: settings, error: setError } = settingsResult;
 
     if (busError) {
+      console.error("GET /api/settings/general error busError:", busError);
       return NextResponse.json({ error: busError.message }, { status: 500 });
+    }
+    if (setError) {
+      console.error("GET /api/settings/general error setError:", setError);
     }
 
     if (!settings && !setError) {
@@ -55,6 +60,7 @@ export async function GET(request: Request) {
       settings: settings || {},
     });
   } catch (err: any) {
+    console.error("GET /api/settings/general exception:", err);
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
       { status: 500 }

@@ -76,7 +76,13 @@ export async function GET(request: Request) {
         enable_in_app: true,
       }));
 
-      const { data: seeded, error: seedError } = await supabase
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+      const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: seeded, error: seedError } = await supabaseAdmin
         .from("notification_rules")
         .insert(inserts)
         .select();

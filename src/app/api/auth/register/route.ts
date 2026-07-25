@@ -57,6 +57,13 @@ export async function POST(req: Request) {
       // Rollback business creation
       await supabaseAdmin.from("businesses").delete().eq("id", businessId);
 
+      if (userError.code === "23503" || userError.message?.includes("users_id_fkey")) {
+        return NextResponse.json(
+          { error: "This email is already registered in Authentication. Please sign in, or run 'TRUNCATE auth.users CASCADE;' in Supabase SQL Editor to reset accounts." },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         { error: `Failed to create user profile: ${userError.message}` },
         { status: 500 }

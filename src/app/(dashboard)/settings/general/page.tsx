@@ -50,8 +50,8 @@ export default function GeneralSettingsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/settings/general");
-      if (!res.ok) throw new Error("Failed to load settings");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load settings`);
       
       if (data.business) {
         setBusinessName(data.business.name || "");

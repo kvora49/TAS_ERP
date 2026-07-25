@@ -114,7 +114,14 @@ export async function GET(request: Request) {
         }
       }
 
-      const { data: seeded, error: seedError } = await supabase
+      // Use admin client to bypass initial RLS policy seeding constraint
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+      const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: seeded, error: seedError } = await supabaseAdmin
         .from("role_permissions")
         .insert(inserts)
         .select();
