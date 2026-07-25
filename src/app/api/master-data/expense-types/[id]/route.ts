@@ -81,18 +81,89 @@ export async function DELETE(
   }
 
   try {
-    // Soft delete: update deleted_at instead of deleting row
-    const { error } = await supabase
-      .from("expense_types")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", expenseTypeId)
-      .eq("business_id", businessId);
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get("action") || "check";
+    const targetExpenseTypeId = searchParams.get("target_expense_type_id");
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: expType, error: expErr } = await supabase
+      .from("expense_types")
+      .select("id, name")
+      .eq("id", expenseTypeId)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .single();
+
+    if (expErr || !expType) {
+      return NextResponse.json({ error: "Expense Type not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true });
+    // Check expense vouchers referencing this category
+    const { data: vouchers } = await supabase
+      .from("expenses")
+      .select("id")
+      .eq("category_id", expenseTypeId)
+      .eq("business_id", businessId);
+
+    const voucherCount = vouchers?.length || 0;
+
+    if (action === "check") {
+      return NextResponse.json({
+        hasReferences: voucherCount > 0,
+        voucherCount,
+      });
+    }
+
+    if (action === "transfer") {
+      if (!targetExpenseTypeId) {
+        return NextResponse.json({ error: "Target Expense Type is required for transfer" }, { status: 400 });
+      }
+
+      const { data: targetType } = await supabase
+        .from("expense_types")
+        .select("id, name")
+        .eq("id", targetExpenseTypeId)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .single();
+
+      if (!targetType) {
+        return NextResponse.json({ error: "Target Expense Type not found" }, { status: 404 });
+      }
+
+      if (voucherCount > 0) {
+        await supabase
+          .from("expenses")
+          .update({ category_id: targetExpenseTypeId })
+          .eq("category_id", expenseTypeId)
+          .eq("business_id", businessId);
+      }
+
+      await supabase
+        .from("expense_types")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", expenseTypeId)
+        .eq("business_id", businessId);
+
+      return NextResponse.json({
+        success: true,
+        message: `Expense Type '${expType.name}' deleted. Re-classified ${voucherCount} expense vouchers to '${targetType.name}'.`,
+      });
+    }
+
+    if (action === "force") {
+      await supabase
+        .from("expense_types")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", expenseTypeId)
+        .eq("business_id", businessId);
+
+      return NextResponse.json({
+        success: true,
+        message: `Expense Type '${expType.name}' soft-deleted. Historical expense vouchers remain intact.`,
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

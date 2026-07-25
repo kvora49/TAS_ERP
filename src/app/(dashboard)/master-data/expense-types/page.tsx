@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // Form validation schema
 const expenseTypeSchema = z.object({
@@ -534,6 +535,18 @@ export default function ExpenseTypesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Expense Type Dialog */}
+      <DeleteMasterItemDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Expense Category"
+        item={deletingType}
+        allItems={expenseTypes}
+        apiEndpoint="/api/master-data/expense-types"
+        targetQueryParam="target_expense_type_id"
+        onSuccess={fetchExpenseTypes}
+      />
     </div>
   );
 }

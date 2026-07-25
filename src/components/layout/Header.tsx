@@ -70,7 +70,7 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-[232px] h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-6 lg:px-8 select-none transition-colors duration-200">
+    <header className="fixed top-0 right-0 left-0 md:left-[232px] h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-6 lg:px-8 select-none transition-colors duration-200 print:hidden">
       {/* Left: Hamburger + Breadcrumb */}
       <div className="flex items-center gap-3">
         <button

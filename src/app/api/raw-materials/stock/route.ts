@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         query = query.or(`stock_entry_number.ilike.%${search}%,reference_no.ilike.%${search}%,remarks.ilike.%${search}%`);
       }
 
-      const { data: entries, error } = await query.order("posting_date", { ascending: false });
+      const { data: entries, error } = await query.order("created_at", { ascending: false });
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

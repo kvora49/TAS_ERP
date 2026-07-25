@@ -18,12 +18,12 @@ export default function DashboardLayout({
         <Sidebar />
 
         {/* Main Layout Area */}
-        <div className="flex flex-col flex-1 overflow-hidden ml-0 md:ml-[232px]">
+        <div className="flex flex-col flex-1 overflow-hidden ml-0 md:ml-[232px] print:ml-0 print:block print:overflow-visible">
           {/* Navigation Header */}
           <Header />
 
           {/* Content View */}
-          <main className="flex-1 overflow-y-auto bg-[#F1F5F9] px-6 lg:px-8 pt-24 pb-24 md:pb-8 relative">
+          <main className="flex-1 overflow-y-auto bg-[#F1F5F9] px-6 lg:px-8 pt-24 pb-24 md:pb-8 relative print:p-0 print:m-0 print:bg-white print:overflow-visible">
             {children}
           </main>
 

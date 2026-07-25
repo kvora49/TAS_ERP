@@ -132,18 +132,82 @@ export async function DELETE(
   const { id } = params;
 
   try {
-    // Soft delete by setting status to 'deleted'
-    const { error } = await supabase
+    // 1. Fetch purchase bill details
+    const { data: bill, error: fetchErr } = await supabase
       .from("purchase_bills")
-      .update({ status: "deleted", updated_at: new Date().toISOString() })
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (fetchErr || !bill) {
+      return NextResponse.json({ error: "Purchase bill not found" }, { status: 404 });
+    }
+
+    if (bill.status === "cancelled" || bill.status === "deleted") {
+      return NextResponse.json({ error: "This purchase bill is already cancelled" }, { status: 400 });
+    }
+
+    // 2. Payment Lock Check
+    if (Number(bill.paid_amount || 0) > 0) {
+      return NextResponse.json(
+        { error: `Cannot cancel purchase bill: Paid amount of ₹${bill.paid_amount} exists for this bill. Please cancel or unallocate payments first.` },
+        { status: 400 }
+      );
+    }
+
+    const { data: allocations } = await supabase
+      .from("payment_allocations")
+      .select("id, amount")
+      .eq("bill_id", id)
+      .eq("business_id", businessId);
+
+    if (allocations && allocations.length > 0) {
+      const totalAllocated = allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+      if (totalAllocated > 0) {
+        return NextResponse.json(
+          { error: `Cannot cancel purchase bill: Active payment allocation of ₹${totalAllocated} linked to this bill.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 3. Update status to 'cancelled' and set deleted_at
+    const { error: cancelErr } = await supabase
+      .from("purchase_bills")
+      .update({
+        status: "cancelled",
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .eq("business_id", businessId);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (cancelErr) {
+      return NextResponse.json({ error: cancelErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // 4. Record Audit Log
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+
+    await supabase.from("audit_log").insert({
+      business_id: businessId,
+      user_id: user?.id || null,
+      user_name: user?.user_metadata?.full_name || user?.email || "System",
+      action: "cancel_purchase_bill",
+      table_name: "purchase_bills",
+      record_id: id,
+      old_values: { bill_number: bill.bill_number, grand_total: bill.grand_total, status: bill.status },
+      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
+      ip_address: "127.0.0.1",
+      user_agent: "NextJS Server",
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Purchase Bill '${bill.bill_number}' successfully cancelled.`,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

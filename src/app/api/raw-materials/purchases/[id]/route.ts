@@ -170,20 +170,121 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = params;
+
   try {
     const service = new PurchaseService(supabase);
-    await service.deletePurchase(params.id, businessId);
+    const existing = await service.getPurchaseById(id, businessId);
 
-    // Also mark as cancelled
+    if (!existing) {
+      return NextResponse.json({ error: "Purchase not found or access denied" }, { status: 404 });
+    }
+
+    // 1. Stock In-Use Check: Check if any purchase rolls have already been consumed/partially used
+    const itemIdsList = (existing.items || []).map((it: any) => it.id);
+
+    if (itemIdsList.length > 0) {
+      const { data: rolls } = await supabase
+        .from("purchase_rolls")
+        .select("id, roll_number, meters, remaining_meters")
+        .in("purchase_item_id", itemIdsList)
+        .eq("business_id", businessId);
+
+      const usedRoll = (rolls || []).find(
+        (r: any) => Number(r.remaining_meters || 0) < Number(r.meters || 0)
+      );
+
+      if (usedRoll) {
+        return NextResponse.json(
+          {
+            error: `Stock already in use: Roll '${usedRoll.roll_number}' has been partially or fully consumed in production. You cannot delete this purchase bill.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2. Revert Stock & Insert Stock Ledger Reversal
+    const { data: { user } } = await supabase.auth.getUser();
+
+    for (const item of existing.items || []) {
+      const qty = Number(item.quantity || 0);
+      const val = Number(item.taxable_value || item.amount || 0);
+
+      // Insert negative delta entry into stock_ledger to reverse inventory
+      await supabase.from("stock_ledger").insert({
+        business_id: businessId,
+        item_type: "raw_material",
+        item_id: item.material_type_id,
+        godown_id: existing.godown_id,
+        transaction_type: "purchase_cancellation",
+        quantity_delta: -qty,
+        value_delta: -val,
+        reference_table: "raw_material_purchases",
+        reference_id: id,
+        created_by: user?.id || null,
+      });
+
+      // Update raw_material_current_stock for godown
+      const { data: stockEntry } = await supabase
+        .from("raw_material_current_stock")
+        .select("*")
+        .eq("business_id", businessId)
+        .eq("material_type_id", item.material_type_id)
+        .eq("godown_id", existing.godown_id)
+        .maybeSingle();
+
+      if (stockEntry) {
+        const updatedQty = Math.max(0, Number(stockEntry.current_stock || 0) - qty);
+        const updatedValue = Math.max(0, Number(stockEntry.stock_value || 0) - val);
+        const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+        await supabase
+          .from("raw_material_current_stock")
+          .update({
+            current_stock: updatedQty,
+            stock_value: updatedValue,
+            unit_cost: updatedUnitCost,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", stockEntry.id);
+      }
+    }
+
+    // 3. Mark Purchase Rolls as status = 'cancelled'
+    if (itemIdsList.length > 0) {
+      await supabase
+        .from("purchase_rolls")
+        .update({ status: "cancelled", remaining_meters: 0 })
+        .in("purchase_item_id", itemIdsList)
+        .eq("business_id", businessId);
+    }
+
+    // 4. Mark Raw Material Purchase as soft deleted and status = 'cancelled'
+    await service.deletePurchase(id, businessId);
     await supabase
       .from("raw_material_purchases")
-      .update({ status: "cancelled" })
-      .eq("id", params.id)
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", id)
       .eq("business_id", businessId);
 
-    return NextResponse.json({ success: true });
+    // 5. Create Audit Log Entry
+    await supabase.from("audit_log").insert({
+      business_id: businessId,
+      user_id: user?.id || null,
+      user_name: user?.user_metadata?.full_name || user?.email || "System",
+      action: "cancel_raw_material_purchase",
+      table_name: "raw_material_purchases",
+      record_id: id,
+      old_values: { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status },
+      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
+      ip_address: "127.0.0.1",
+      user_agent: "NextJS Server",
+    });
+
+    return NextResponse.json({ success: true, message: `Purchase ${existing.purchase_number} successfully cancelled and stock reverted.` });
   } catch (err: any) {
-    const status = err.message === "Purchase not found or access denied" ? 404 : 500;
+    const status = err.message?.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: err.message || "An unexpected error occurred" }, { status });
   }
 }

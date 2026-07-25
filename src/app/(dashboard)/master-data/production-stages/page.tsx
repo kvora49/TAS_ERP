@@ -27,6 +27,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // drag and drop kit
 import {
@@ -566,14 +567,16 @@ export default function ProductionStagesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
+      {/* Delete Production Stage Dialog */}
+      <DeleteMasterItemDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Stage?"
-        description={`Are you sure you want to delete stage "${deletingStage?.name}"? New workflow pathways will bypass this stage.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
+        title="Delete Production Stage"
+        item={deletingStage}
+        allItems={stages}
+        apiEndpoint="/api/master-data/production-stages"
+        targetQueryParam="target_stage_id"
+        onSuccess={fetchStages}
       />
     </div>
   );

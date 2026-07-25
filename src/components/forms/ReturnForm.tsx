@@ -30,6 +30,7 @@ const returnItemSchema = z.object({
     shade: z.string(),
     meters: z.number(),
     remaining_meters: z.number(),
+    return_meters: z.coerce.number().optional().default(0),
     selected: z.boolean().default(false),
   })).optional().default([]),
 });
@@ -66,7 +67,12 @@ interface Godown {
   name: string;
 }
 
-export function ReturnForm() {
+interface ReturnFormProps {
+  initialData?: any;
+  id?: string;
+}
+
+export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
   const router = useRouter();
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>([]);
   const [godowns, setGodowns] = useState<Godown[]>([]);
@@ -74,6 +80,8 @@ export function ReturnForm() {
   const [loadingInvoiceDetail, setLoadingInvoiceDetail] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { upload, uploading } = useFileUpload("returns");
+
+  const isEditMode = !!id;
 
   const defaultValues: ReturnFormValues = {
     purchase_id: "",
@@ -99,7 +107,7 @@ export function ReturnForm() {
     formState: { errors, isSubmitting },
   } = useForm<ReturnFormValues>({
     resolver: zodResolver(returnSchema) as any,
-    defaultValues,
+    defaultValues: initialData ? { ...defaultValues, ...initialData } : defaultValues,
   });
 
   const { fields, replace } = useFieldArray({
@@ -156,33 +164,43 @@ export function ReturnForm() {
           if (data.purchase) {
             const p = data.purchase;
             setValue("supplier_id", p.supplier_id);
+            if (p.godown_id) {
+              setValue("godown_id", p.godown_id);
+            }
 
             const itemsList = data.purchase?.items || data.items || [];
-            const returnItems = itemsList.map((it: any) => ({
-              purchase_item_id: it.id,
-              material_type_id: it.material_type_id,
-              material_name: it.material_type?.name || "Material",
-              hsn_sac: it.hsn_sac || "",
-              unit: it.unit,
-              invoice_qty: it.quantity,
-              returned_qty: 0,
-              rate: it.rate,
-              discount_percent: it.discount_percent || 0,
-              taxable_value: 0,
-              item_type: it.item_type || "fabric",
-              rolls: (it.rolls || []).map((r: any) => ({
-                id: r.id,
-                roll_number: r.roll_number,
-                shade: r.shade,
-                meters: Number(r.meters),
-                remaining_meters: Number(r.remaining_meters),
-                selected: false,
-              })),
-            }));
+            const returnItems = itemsList.map((it: any) => {
+              const itemCategory = it.material_type?.category?.toLowerCase() || "";
+              const rollsList = it.rolls || [];
+              const isFabric = rollsList.length > 0 || itemCategory.includes("fabric");
+
+              return {
+                purchase_item_id: it.id,
+                material_type_id: it.material_type_id,
+                material_name: it.material_type?.name || "Material",
+                hsn_sac: it.hsn_sac || "",
+                unit: it.unit || it.material_type?.unit || "Pcs",
+                invoice_qty: Number(it.quantity || 0),
+                returned_qty: 0,
+                rate: Number(it.rate || 0),
+                discount_percent: Number(it.discount_percent || 0),
+                taxable_value: 0,
+                item_type: isFabric ? "fabric" : "accessory",
+                rolls: rollsList.map((r: any) => ({
+                  id: r.id,
+                  roll_number: r.roll_number,
+                  shade: r.shade || "N/A",
+                  meters: Number(r.meters || 0),
+                  remaining_meters: Number(r.remaining_meters || 0),
+                  selected: false,
+                })),
+              };
+            });
             replace(returnItems);
           }
         })
         .catch((err) => {
+          console.error("Error loading invoice items:", err);
           toast.error("Failed to load invoice items");
         })
         .finally(() => {
@@ -201,23 +219,53 @@ export function ReturnForm() {
     if (!item || !item.rolls) return;
 
     const updatedRolls = [...item.rolls];
-    const isSelected = !updatedRolls[rollIndex].selected;
+    const targetRoll = updatedRolls[rollIndex];
+    const isSelected = !targetRoll.selected;
+
     updatedRolls[rollIndex] = {
-      ...updatedRolls[rollIndex],
+      ...targetRoll,
       selected: isSelected,
+      return_meters: isSelected ? (targetRoll.return_meters || targetRoll.remaining_meters) : 0,
     };
 
-    // Calculate sum of meters for selected rolls
-    const returnedQty = updatedRolls
-      .filter((r) => r.selected)
-      .reduce((sum, r) => sum + Number(r.remaining_meters || 0), 0);
+    recalcRollTotals(itemIndex, updatedRolls);
+  };
 
-    setValue(`items.${itemIndex}.rolls`, updatedRolls);
+  // Update specific roll return meters
+  const handleRollMetersChange = (itemIndex: number, rollIndex: number, metersVal: number) => {
+    const currentItems = watch("items") || [];
+    const item = currentItems[itemIndex];
+    if (!item || !item.rolls) return;
+
+    const updatedRolls = [...item.rolls];
+    const targetRoll = updatedRolls[rollIndex];
+    const maxMeters = Number(targetRoll.remaining_meters || 0);
+
+    if (metersVal > maxMeters) {
+      toast.error(`Return meters for Roll ${targetRoll.roll_number} cannot exceed remaining ${maxMeters} meters`);
+      metersVal = maxMeters;
+    }
+
+    updatedRolls[rollIndex] = {
+      ...targetRoll,
+      selected: metersVal > 0,
+      return_meters: metersVal,
+    };
+
+    recalcRollTotals(itemIndex, updatedRolls);
+  };
+
+  const recalcRollTotals = (itemIndex: number, rolls: any[]) => {
+    const item = watch(`items.${itemIndex}`);
+    const returnedQty = rolls
+      .filter((r) => r.selected)
+      .reduce((sum, r) => sum + Number(r.return_meters || 0), 0);
+
+    setValue(`items.${itemIndex}.rolls`, rolls);
     setValue(`items.${itemIndex}.returned_qty`, returnedQty);
 
-    // Calculate taxable value
-    const rate = Number(item.rate || 0);
-    const disc = Number(item.discount_percent || 0);
+    const rate = Number(item?.rate || 0);
+    const disc = Number(item?.discount_percent || 0);
     const taxable = returnedQty * rate * (1 - disc / 100);
     setValue(`items.${itemIndex}.taxable_value`, Number(taxable.toFixed(2)));
   };
@@ -262,19 +310,30 @@ export function ReturnForm() {
         grand_total: grandTotal,
       };
 
-      const res = await fetch("/api/raw-materials/purchase-returns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create purchase return");
-
-      if (values.generate_debit_note) {
-        toast.success("Purchase return recorded successfully! Debit Note stub created (Feature Coming Soon).");
+      if (isEditMode) {
+        // Edit mode — PUT to existing return
+        const res = await fetch(`/api/raw-materials/purchase-returns/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Failed to update purchase return");
+        toast.success("Purchase return updated successfully!");
       } else {
-        toast.success("Purchase return recorded successfully!");
+        // Create mode — POST
+        const res = await fetch("/api/raw-materials/purchase-returns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Failed to create purchase return");
+        if (values.generate_debit_note && result.return?.debit_note_id) {
+          toast.success(`Purchase return & Debit Note created successfully!`);
+        } else {
+          toast.success("Purchase return recorded successfully!");
+        }
       }
 
       router.push("/raw-materials/purchase-returns");
@@ -295,9 +354,13 @@ export function ReturnForm() {
             <ArrowLeft className="h-5 w-5 text-[#64748B]" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-[#0F172A]">Record Purchase Return</h1>
+            <h1 className="text-xl font-bold text-[#0F172A]">
+              {isEditMode ? "Edit Purchase Return" : "Record Purchase Return"}
+            </h1>
             <p className="text-xs text-[#64748B]">
-              Select a purchase invoice, specify return quantities, and transfer items back to stock.
+              {isEditMode
+                ? "Update return details, remarks, and quantities."
+                : "Select a purchase invoice, specify return quantities, and transfer items back to stock."}
             </p>
           </div>
         </div>
@@ -314,7 +377,7 @@ export function ReturnForm() {
             className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Submit Return
+            {isEditMode ? "Save Changes" : "Submit Return"}
           </button>
         </div>
       </div>
@@ -331,18 +394,35 @@ export function ReturnForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Purchase Invoice *</label>
-                <select
-                  disabled={loadingPurchases}
-                  {...register("purchase_id")}
-                  className="w-full pl-3 pr-8 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-semibold text-[#0F172A] truncate cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:9px_9px] bg-[right_0.6rem_center] bg-no-repeat"
-                >
-                  <option value="">Select Invoice</option>
-                  {purchases.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.purchase_number} (Inv: {p.invoice_no})
-                    </option>
-                  ))}
-                </select>
+                {isEditMode ? (
+                  // In edit mode: read-only display (invoice & items are already committed)
+                  <div className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-xs bg-slate-50 font-bold text-slate-700">
+                    {purchases.find((p) => p.id === watch("purchase_id"))?.purchase_number || initialData?.purchase_id || "—"}
+                    <span className="text-[10px] text-slate-400 font-normal block mt-0.5">Cannot change original invoice in edit mode</span>
+                  </div>
+                ) : (
+                  <select
+                    disabled={loadingPurchases}
+                    {...register("purchase_id", {
+                      onChange: (e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          setValue("supplier_id", "");
+                          setValue("godown_id", "");
+                          replace([]);
+                        }
+                      },
+                    })}
+                    className="w-full pl-3 pr-7 py-2 border border-[#CBD5E1] rounded-lg text-xs bg-white font-bold text-[#0F172A] truncate cursor-pointer focus:ring-1 focus:ring-[#6366F1]"
+                  >
+                    <option value="">Select Invoice</option>
+                    {purchases.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.purchase_number} (Inv: {p.invoice_no})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {errors.purchase_id && <p className="text-[10px] text-red-500 mt-1">{errors.purchase_id.message}</p>}
               </div>
 
@@ -448,29 +528,49 @@ export function ReturnForm() {
                           {(item.rolls || []).length === 0 ? (
                             <p className="text-xs text-rose-500 font-medium italic">No rolls found for this fabric item.</p>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {(item.rolls || []).map((roll: any, rollIndex: number) => (
-                                <label
+                                <div
                                   key={roll.id}
-                                  className={`flex items-center gap-3 p-2.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                                  className={`p-3 rounded-lg border text-xs transition-all space-y-2 ${
                                     roll.selected
                                       ? "bg-rose-50/50 border-rose-200 text-rose-900"
-                                      : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700"
+                                      : "bg-slate-50 border-slate-200 text-slate-700"
                                   }`}
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={!!roll.selected}
-                                    onChange={() => handleRollToggle(index, rollIndex)}
-                                    className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-4 w-4"
-                                  />
-                                  <div className="flex-1">
-                                    <span className="font-bold">Roll {roll.roll_number}</span>
-                                    <span className="text-[10px] text-slate-400 font-semibold block">
-                                      Shade: {roll.shade} | Remaining: {roll.remaining_meters} / {roll.meters} meters
-                                    </span>
+                                  <div className="flex items-center gap-2.5">
+                                    <input
+                                      type="checkbox"
+                                      id={`roll-${roll.id}`}
+                                      checked={!!roll.selected}
+                                      onChange={() => handleRollToggle(index, rollIndex)}
+                                      className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer"
+                                    />
+                                    <label htmlFor={`roll-${roll.id}`} className="flex-1 cursor-pointer select-none">
+                                      <span className="font-bold block text-slate-900">Roll {roll.roll_number}</span>
+                                      <span className="text-[10px] text-slate-500 font-medium">
+                                        Shade: {roll.shade} | Available: <strong className="text-slate-800">{roll.remaining_meters}</strong> / {roll.meters} m
+                                      </span>
+                                    </label>
                                   </div>
-                                </label>
+
+                                  {roll.selected && (
+                                    <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                                      <span className="text-[11px] font-bold text-rose-800">Return Meters:</span>
+                                      <div className="flex items-center gap-1">
+                                        <NumericInput
+                                          step="0.01"
+                                          value={roll.return_meters ?? roll.remaining_meters}
+                                          onChange={(e) =>
+                                            handleRollMetersChange(index, rollIndex, Number(e.target.value || 0))
+                                          }
+                                          className="w-24 px-2 py-1 border border-rose-300 rounded text-right text-xs font-bold bg-white focus:ring-1 focus:ring-rose-500"
+                                        />
+                                        <span className="text-[10px] text-slate-500 font-semibold">m</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           )}

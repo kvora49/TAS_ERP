@@ -31,6 +31,8 @@ const materialSchema = z.object({
   unit: z.string().min(1, "Please select or specify a unit"),
   image_url: z.string().optional(),
   reorder_level: z.string(),
+  hsn_code: z.string().optional(),
+  gst_percent: z.string().optional(),
   is_active: z.boolean(),
 });
 
@@ -44,6 +46,8 @@ interface RawMaterialType {
   unit: string;
   image_url: string | null;
   reorder_level: number;
+  hsn_code?: string | null;
+  gst_percent?: number | null;
   is_active: boolean;
   updated_at: string;
 }
@@ -104,6 +108,8 @@ export default function RawMaterialsPage() {
       unit: "Meters",
       image_url: "",
       reorder_level: "0",
+      hsn_code: "",
+      gst_percent: "",
       is_active: true,
     });
     setModalOpen(true);
@@ -118,6 +124,8 @@ export default function RawMaterialsPage() {
       unit: material.unit || "Meters",
       image_url: material.image_url || "",
       reorder_level: String(material.reorder_level || 0),
+      hsn_code: material.hsn_code || "",
+      gst_percent: material.gst_percent !== undefined && material.gst_percent !== null ? String(material.gst_percent) : "",
       is_active: material.is_active,
     });
     setModalOpen(true);
@@ -152,7 +160,14 @@ export default function RawMaterialsPage() {
           : "Raw material created successfully"
       );
       setModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"] });
+      queryClient.setQueryData(["raw-materials-list"], (old: RawMaterialType[] | undefined) => {
+        if (!old) return [data.materialType];
+        if (editingMaterial) {
+          return old.map((m) => (m.id === data.materialType.id ? data.materialType : m));
+        }
+        return [data.materialType, ...old];
+      });
+      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"], refetchType: "none" });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An error occurred";
       toast.error(message);
@@ -179,7 +194,12 @@ export default function RawMaterialsPage() {
 
       toast.success("Raw material deleted successfully");
       setDeleteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"] });
+      setDeletingMaterial(null);
+      queryClient.setQueryData(["raw-materials-list"], (old: RawMaterialType[] | undefined) => {
+        if (!old) return [];
+        return old.filter((m) => m.id !== deletingMaterial.id);
+      });
+      queryClient.invalidateQueries({ queryKey: ["raw-materials-list"], refetchType: "none" });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An error occurred during deletion";
       toast.error(message);
@@ -411,6 +431,33 @@ export default function RawMaterialsPage() {
                   placeholder="e.g. 50"
                   className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
                   {...register("reorder_level")}
+                />
+              </div>
+
+              {/* HSN / SAC Code */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  HSN / SAC Code
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 5208, 6006"
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
+                  {...register("hsn_code")}
+                />
+              </div>
+
+              {/* GST Percent */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  GST Tax Rate (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 5, 12, 18"
+                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
+                  {...register("gst_percent")}
                 />
               </div>
 

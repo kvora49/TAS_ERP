@@ -235,6 +235,44 @@ export class PurchaseRepository {
       throw new Error(`Failed to create stock ledger entries: ${ledgerError.message}`);
     }
 
+    // 5. Update live godown stock (raw_material_current_stock)
+    for (const item of params.items) {
+      const { data: existingStock } = await this.supabase
+        .from("raw_material_current_stock")
+        .select("*")
+        .eq("business_id", params.businessId)
+        .eq("material_type_id", item.material_type_id)
+        .eq("godown_id", params.godown_id)
+        .maybeSingle();
+
+      const newQty = Number((existingStock?.current_stock || 0)) + Number(item.quantity);
+      const newCost = Number(item.rate || existingStock?.unit_cost || 0);
+      const newValue = Number((existingStock?.stock_value || 0)) + Number(item.taxable_value || (item.quantity * item.rate));
+
+      if (existingStock) {
+        await this.supabase
+          .from("raw_material_current_stock")
+          .update({
+            current_stock: newQty,
+            unit_cost: newCost,
+            stock_value: newValue,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingStock.id);
+      } else {
+        await this.supabase
+          .from("raw_material_current_stock")
+          .insert({
+            business_id: params.businessId,
+            material_type_id: item.material_type_id,
+            godown_id: params.godown_id,
+            current_stock: newQty,
+            unit_cost: newCost,
+            stock_value: newValue,
+          });
+      }
+    }
+
     return purchase;
   }
 

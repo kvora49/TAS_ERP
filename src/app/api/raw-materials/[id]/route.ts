@@ -28,6 +28,8 @@ export async function PUT(
       image_url: body.image_url,
       default_supplier_id: body.default_supplier_id,
       reorder_level: Number(body.reorder_level || 0),
+      hsn_code: body.hsn_code || null,
+      gst_percent: body.gst_percent !== undefined && body.gst_percent !== "" ? Number(body.gst_percent) : null,
       is_active: body.is_active !== false,
       lastKnownUpdatedAt: body.updated_at,
     });

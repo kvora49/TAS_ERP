@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
-import { Plus, Search, Eye, RefreshCw, FileText } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { Plus, Search, Eye, Edit2, RefreshCw, FileText, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 
 interface PurchaseReturn {
@@ -32,7 +33,10 @@ interface PurchaseReturn {
 
 export default function PurchaseReturnsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [deletingReturn, setDeletingReturn] = useState<PurchaseReturn | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: returnsData, isLoading: returnsLoading } = useQuery<PurchaseReturn[]>({
     queryKey: ["purchase-returns"],
@@ -43,6 +47,26 @@ export default function PurchaseReturnsPage() {
       return data.returns || [];
     }
   });
+
+  const handleDelete = async () => {
+    if (!deletingReturn) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/raw-materials/purchase-returns/${deletingReturn.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel purchase return");
+
+      toast.success(data.message || `Purchase Return ${deletingReturn.return_number} cancelled and stock restored.`);
+      queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
+      setDeletingReturn(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel purchase return");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const returns = returnsData || [];
   const loading = returnsLoading;
@@ -148,9 +172,9 @@ export default function PurchaseReturnsPage() {
     {
       key: "actions",
       header: "Actions",
-      width: "80px",
+      width: "120px",
       render: (row) => (
-        <div className="flex items-center justify-center">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
           <Link
             href={`/raw-materials/purchase-returns/${row.id}`}
             onClick={(e) => e.stopPropagation()}
@@ -159,6 +183,26 @@ export default function PurchaseReturnsPage() {
           >
             <Eye className="h-4 w-4" />
           </Link>
+          {row.status !== "cancelled" && (
+            <Link
+              href={`/raw-materials/purchase-returns/${row.id}/edit`}
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
+              title="Edit Return"
+            >
+              <Edit2 className="h-4 w-4" />
+            </Link>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeletingReturn(row);
+            }}
+            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+            title="Cancel / Delete Return"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       ),
     },
@@ -206,6 +250,17 @@ export default function PurchaseReturnsPage() {
           emptyMessage="No purchase returns found."
         />
       </div>
+
+      {/* CANCEL / DELETE RETURN CONFIRM DIALOG */}
+      <ConfirmDialog
+        open={!!deletingReturn}
+        onOpenChange={(op) => !op && setDeletingReturn(null)}
+        onConfirm={handleDelete}
+        title="Cancel Purchase Return"
+        description={`Are you sure you want to cancel purchase return ${deletingReturn?.return_number}? This will restore the returned stock back into your godown inventory.`}
+        confirmText="Cancel Return & Restore Stock"
+        loading={deleting}
+      />
     </div>
   );
 }

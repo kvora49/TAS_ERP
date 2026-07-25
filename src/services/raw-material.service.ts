@@ -15,6 +15,8 @@ export class RawMaterialService {
     image_url?: string | null;
     default_supplier_id?: string | null;
     reorder_level: number;
+    hsn_code?: string | null;
+    gst_percent?: number | null;
     is_active: boolean;
   }) {
     if (!params.name || !params.unit) {
@@ -31,6 +33,8 @@ export class RawMaterialService {
     image_url?: string | null;
     default_supplier_id?: string | null;
     reorder_level: number;
+    hsn_code?: string | null;
+    gst_percent?: number | null;
     is_active: boolean;
     lastKnownUpdatedAt: string;
   }) {

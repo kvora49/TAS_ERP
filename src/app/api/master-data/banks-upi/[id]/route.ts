@@ -217,18 +217,150 @@ export async function DELETE(
   }
 
   try {
-    // Soft delete: update deleted_at
-    const { error } = await supabase
-      .from("bank_accounts")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", accountId)
-      .eq("business_id", businessId);
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get("action") || "check";
+    const targetAccountId = searchParams.get("target_account_id");
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // 1. Fetch account
+    const { data: account, error: accountErr } = await supabase
+      .from("bank_accounts")
+      .select("id, name, type")
+      .eq("id", accountId)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .single();
+
+    if (accountErr || !account) {
+      return NextResponse.json({ error: "Bank/UPI Account not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true });
+    // 2. Query references in purchase payments, job work payments, customer payments, salary, etc.
+    const { data: purchasePmts } = await supabase
+      .from("purchase_payments")
+      .select("id")
+      .or(`bank_account_id.eq.${accountId},upi_id.eq.${accountId}`)
+      .eq("business_id", businessId);
+
+    const { data: jobWorkPmts } = await supabase
+      .from("job_work_payments")
+      .select("id")
+      .or(`bank_account_id.eq.${accountId},upi_id.eq.${accountId}`)
+      .eq("business_id", businessId);
+
+    const { data: brandConfigs } = await supabase
+      .from("brand_bill_configs")
+      .select("brand_id")
+      .eq("bank_account_id", accountId)
+      .eq("business_id", businessId);
+
+    const purchaseCount = purchasePmts?.length || 0;
+    const jobWorkCount = jobWorkPmts?.length || 0;
+    const brandConfigCount = brandConfigs?.length || 0;
+    const totalTransactions = purchaseCount + jobWorkCount;
+    const hasReferences = totalTransactions > 0 || brandConfigCount > 0;
+
+    // ACTION: Check reference status
+    if (action === "check") {
+      return NextResponse.json({
+        hasReferences,
+        purchaseCount,
+        jobWorkCount,
+        brandConfigCount,
+        totalTransactions,
+      });
+    }
+
+    // ACTION: Transfer links to target bank account
+    if (action === "transfer") {
+      if (!targetAccountId) {
+        return NextResponse.json({ error: "Target bank account is required for transfer" }, { status: 400 });
+      }
+
+      if (targetAccountId === accountId) {
+        return NextResponse.json({ error: "Target account must be different from source account" }, { status: 400 });
+      }
+
+      const { data: targetAccount } = await supabase
+        .from("bank_accounts")
+        .select("id, name")
+        .eq("id", targetAccountId)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .single();
+
+      if (!targetAccount) {
+        return NextResponse.json({ error: "Target account not found" }, { status: 404 });
+      }
+
+      // Re-link purchase payments
+      if (purchaseCount > 0) {
+        await supabase
+          .from("purchase_payments")
+          .update({ bank_account_id: targetAccountId, updated_at: new Date().toISOString() })
+          .eq("bank_account_id", accountId)
+          .eq("business_id", businessId);
+      }
+
+      // Re-link job work payments
+      if (jobWorkCount > 0) {
+        await supabase
+          .from("job_work_payments")
+          .update({ bank_account_id: targetAccountId, updated_at: new Date().toISOString() })
+          .eq("bank_account_id", accountId)
+          .eq("business_id", businessId);
+      }
+
+      // Re-link brand bill configs
+      if (brandConfigCount > 0) {
+        await supabase
+          .from("brand_bill_configs")
+          .update({ bank_account_id: targetAccountId })
+          .eq("bank_account_id", accountId)
+          .eq("business_id", businessId);
+      }
+
+      // Soft-delete account
+      const { error: deleteErr } = await supabase
+        .from("bank_accounts")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", accountId)
+        .eq("business_id", businessId);
+
+      if (deleteErr) throw new Error(deleteErr.message);
+
+      return NextResponse.json({
+        success: true,
+        message: `Account '${account.name}' deleted. Transferred transactions and billing templates to '${targetAccount.name}'.`,
+      });
+    }
+
+    // ACTION: Force delete (Soft-delete account while preserving past ledger links)
+    if (action === "force") {
+      // Re-link brand configs to null if deleted
+      if (brandConfigCount > 0) {
+        await supabase
+          .from("brand_bill_configs")
+          .update({ bank_account_id: null })
+          .eq("bank_account_id", accountId)
+          .eq("business_id", businessId);
+      }
+
+      // Soft-delete account
+      const { error: deleteErr } = await supabase
+        .from("bank_accounts")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", accountId)
+        .eq("business_id", businessId);
+
+      if (deleteErr) throw new Error(deleteErr.message);
+
+      return NextResponse.json({
+        success: true,
+        message: `Account '${account.name}' soft-deleted. Historical transaction logs and payments remain untouched for financial audit.`,
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

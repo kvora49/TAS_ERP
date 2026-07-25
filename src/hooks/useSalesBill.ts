@@ -35,10 +35,10 @@ export function useSalesBill(id?: string) {
   const { data: billData, isPending } = useERPQuery(
     ["sales-bill-detail", id],
     async () => {
-      if (!id) return null;
       const res = await fetch(`/api/sales/bills/${id}`);
       if (!res.ok) throw new Error("Failed to load bill details");
-      return (await res.json()).data;
+      const json = await res.json();
+      return json.bill || json.data || json;
     },
     { enabled: !!id }
   );

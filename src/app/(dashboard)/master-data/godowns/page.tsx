@@ -6,7 +6,6 @@ import { useERPQuery } from "@/hooks/useERPQuery";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
@@ -21,6 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteGodownDialog } from "./_components/DeleteGodownDialog";
 
 const godownSchema = z.object({
   name: z.string().min(2, "Godown Name must be at least 2 characters"),
@@ -129,7 +129,14 @@ export default function GodownsPage() {
           : "Godown created successfully"
       );
       setModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["godowns-list"] });
+      queryClient.setQueryData(["godowns-list"], (old: Godown[] | undefined) => {
+        if (!old) return [data.godown];
+        if (editingGodown) {
+          return old.map((g) => (g.id === data.godown.id ? data.godown : g));
+        }
+        return [data.godown, ...old];
+      });
+      queryClient.invalidateQueries({ queryKey: ["godowns-list"], refetchType: "none" });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An error occurred";
       toast.error(message);
@@ -411,14 +418,13 @@ export default function GodownsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
+      {/* Delete Godown Dialog */}
+      <DeleteGodownDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Godown Location?"
-        description={`Are you sure you want to delete godown "${deletingGodown?.name}"? Wiping locations could make stock tracking invalid.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
+        godown={deletingGodown}
+        allGodowns={godowns}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["godowns-list"] })}
       />
     </div>
   );

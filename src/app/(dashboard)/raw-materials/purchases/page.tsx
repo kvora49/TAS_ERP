@@ -198,7 +198,7 @@ export default function PurchasesPage() {
     {
       key: "actions",
       header: "Actions",
-      width: "120px",
+      width: "140px",
       render: (row) => {
         const isPaid = row.payment_status === "paid";
         return (
@@ -210,6 +210,14 @@ export default function PurchasesPage() {
               title="View Invoice"
             >
               <Eye className="h-4 w-4" />
+            </Link>
+            <Link
+              href={`/raw-materials/purchases/${row.id}/edit`}
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
+              title="Edit Invoice"
+            >
+              <Edit2 className="h-4 w-4" />
             </Link>
             {!isPaid && (
               <button

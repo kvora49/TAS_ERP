@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // Form validation schema
 const unitSchema = z.object({
@@ -451,6 +452,18 @@ export default function UnitsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Unit Dialog */}
+      <DeleteMasterItemDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Unit of Measure"
+        item={deletingUnit}
+        allItems={units}
+        apiEndpoint="/api/master-data/units"
+        targetQueryParam="target_unit_id"
+        onSuccess={fetchUnits}
+      />
     </div>
   );
 }

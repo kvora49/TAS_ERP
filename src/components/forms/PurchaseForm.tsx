@@ -892,18 +892,28 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Invoice Number *</label>
+                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Our Purchase Ref No. (Auto)</label>
                 <input
                   type="text"
-                  placeholder="e.g. INV-12345"
+                  disabled
+                  value={initialData?.purchase_number || "(Auto Generated)"}
+                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-100 font-mono text-[#6366F1] font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier Invoice No. *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SUP-INV-2026-001"
                   {...register("invoice_no")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono"
                 />
                 {errors.invoice_no && <p className="text-[10px] text-red-500 mt-1">{errors.invoice_no.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Invoice Date *</label>
+                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier Invoice Date *</label>
                 <input
                   type="date"
                   {...register("invoice_date")}

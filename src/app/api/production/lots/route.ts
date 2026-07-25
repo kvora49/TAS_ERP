@@ -447,6 +447,35 @@ export async function POST(request: Request) {
         if (ledgerError) {
           throw new Error(`Failed to write stock ledger for roll ${purchase_roll_id}: ${ledgerError.message}`);
         }
+
+        // Deduct from raw_material_current_stock
+        const godownId = roll.item?.purchase?.godown_id;
+        const matTypeId = roll.item?.material_type_id;
+        if (godownId && matTypeId) {
+          const { data: stockEntry } = await supabase
+            .from("raw_material_current_stock")
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("material_type_id", matTypeId)
+            .eq("godown_id", godownId)
+            .maybeSingle();
+
+          if (stockEntry) {
+            const updatedQty = Math.max(0, Number(stockEntry.current_stock || 0) - Number(allocated_meters));
+            const updatedValue = Math.max(0, Number(stockEntry.stock_value || 0) - valDelta);
+            const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+            await supabase
+              .from("raw_material_current_stock")
+              .update({
+                current_stock: updatedQty,
+                stock_value: updatedValue,
+                unit_cost: updatedUnitCost,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", stockEntry.id);
+          }
+        }
       }
     }
 

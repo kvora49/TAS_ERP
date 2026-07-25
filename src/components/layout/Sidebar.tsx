@@ -102,7 +102,7 @@ export default function Sidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-[#0F1629] w-[232px] fixed left-0 top-0 bottom-0 z-40 border-r border-[#1E293B] transition-transform duration-200 select-none",
+        "flex flex-col h-full bg-[#0F1629] w-[232px] fixed left-0 top-0 bottom-0 z-40 border-r border-[#1E293B] transition-transform duration-200 select-none print:hidden",
         sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}
     >

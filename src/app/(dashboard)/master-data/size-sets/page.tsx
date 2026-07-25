@@ -18,6 +18,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // Form validation schema
 const sizeSetSchema = z.object({
@@ -406,14 +407,16 @@ export default function SizeSetsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
+      {/* Delete Size Set Dialog */}
+      <DeleteMasterItemDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Size Set?"
-        description={`Are you sure you want to delete size set "${deletingSizeSet?.name}"? New design templates cannot select this size scale.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
+        title="Delete Size Set"
+        item={deletingSizeSet}
+        allItems={sizeSets}
+        apiEndpoint="/api/master-data/size-sets"
+        targetQueryParam="target_size_set_id"
+        onSuccess={fetchSizeSets}
       />
     </div>
   );

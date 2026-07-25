@@ -18,6 +18,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // Zod schemas
 const garmentTypeSchema = z.object({
@@ -464,15 +465,16 @@ export default function GarmentTypesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Garment Type Confirm */}
-      <ConfirmDialog
+      {/* Delete Garment Type Dialog */}
+      <DeleteMasterItemDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete Garment Type"
-        description={`Are you sure you want to delete the garment type "${deletingType?.name}"? Any active designs referencing this garment type will continue to show it.`}
-        confirmText="Delete Type"
-        onConfirm={handleDeleteConfirm}
-        loading={deleteLoading}
+        item={deletingType}
+        allItems={garmentTypes}
+        apiEndpoint="/api/master-data/garment-types"
+        targetQueryParam="target_garment_type_id"
+        onSuccess={fetchGarmentTypes}
       />
     </div>
   );

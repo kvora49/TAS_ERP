@@ -140,7 +140,7 @@ export default function StockOverviewPage() {
   const moveChartData = moveChartDataVal || [];
   const godowns = godownsData || [];
 
-  const loading = summaryLoading || entriesLoading || statsLoading || catLoading || moveLoading || godownsLoading;
+  const loading = activeView === "summary" ? summaryLoading : entriesLoading;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

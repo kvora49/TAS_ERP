@@ -91,11 +91,25 @@ interface Rollups {
   reorderWarning: boolean;
 }
 
+interface Roll {
+  id: string;
+  roll_number: string;
+  shade: string | null;
+  total_quantity: number;
+  remaining_quantity: number;
+  rate: number;
+  invoice_no: string;
+  invoice_date: string | null;
+  supplier_name: string;
+  created_at: string;
+}
+
 interface RawMaterialDetailResponse {
   material: Material;
   stocks: Stock[];
   purchases: Purchase[];
   movements: Movement[];
+  rolls?: Roll[];
   rollups: Rollups;
 }
 
@@ -314,10 +328,10 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
       </div>
 
       {/* Tabs list */}
-      <div className="flex gap-1 border-b border-[#E2E8F0] pb-px select-none">
+      <div className="flex gap-1 border-b border-[#E2E8F0] pb-px select-none overflow-x-auto">
         <button
           onClick={() => setActiveTab("stock")}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === "stock"
               ? "border-[#6366F1] text-[#6366F1]"
               : "border-transparent text-[#64748B] hover:text-[#0F172A]"
@@ -326,8 +340,18 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
           Live Stock per Godown ({stocks.length})
         </button>
         <button
+          onClick={() => setActiveTab("rolls")}
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "rolls"
+              ? "border-[#6366F1] text-[#6366F1]"
+              : "border-transparent text-[#64748B] hover:text-[#0F172A]"
+          }`}
+        >
+          Rolls & Batches In Stock ({(detailData.rolls || []).length})
+        </button>
+        <button
           onClick={() => setActiveTab("purchases")}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === "purchases"
               ? "border-[#6366F1] text-[#6366F1]"
               : "border-transparent text-[#64748B] hover:text-[#0F172A]"
@@ -337,7 +361,7 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
         </button>
         <button
           onClick={() => setActiveTab("movements")}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === "movements"
               ? "border-[#6366F1] text-[#6366F1]"
               : "border-transparent text-[#64748B] hover:text-[#0F172A]"
@@ -347,7 +371,7 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
         </button>
         <button
           onClick={() => setActiveTab("details")}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === "details"
               ? "border-[#6366F1] text-[#6366F1]"
               : "border-transparent text-[#64748B] hover:text-[#0F172A]"
@@ -399,6 +423,64 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
                       </td>
                       <td className="py-3.5 px-5 text-right font-mono font-bold text-[#0F172A]">
                         {formatCurrency(item.stock_value)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "rolls" && (
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-xs font-bold text-[#475569] uppercase tracking-wider">
+                  <th className="py-3 px-5">Roll / Batch No.</th>
+                  <th className="py-3 px-5">Colour / Shade</th>
+                  <th className="py-3 px-5">Supplier & Invoice</th>
+                  <th className="py-3 px-5 text-right">Initial Qty</th>
+                  <th className="py-3 px-5 text-right">Remaining Balance</th>
+                  <th className="py-3 px-5 text-right">Purchase Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
+                {(!detailData.rolls || detailData.rolls.length === 0) ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[#64748B]">
+                      No individual rolls/batches recorded yet for this material.
+                    </td>
+                  </tr>
+                ) : (
+                  detailData.rolls.map((r) => (
+                    <tr key={r.id} className="hover:bg-[#F8FAFC] transition-colors">
+                      <td className="py-3.5 px-5 font-bold font-mono text-[#6366F1]">
+                        {r.roll_number}
+                      </td>
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {r.shade ? (
+                          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700">
+                            {r.shade}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-5 text-xs text-[#64748B]">
+                        <span className="font-bold text-[#1E293B] block">{r.supplier_name}</span>
+                        <span className="font-mono text-[11px]">Inv: {r.invoice_no}</span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono text-[#64748B]">
+                        {r.total_quantity} {material.unit}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-emerald-600">
+                        {r.remaining_quantity} {material.unit}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-[#0F172A]">
+                        {formatCurrency(r.rate)}
                       </td>
                     </tr>
                   ))

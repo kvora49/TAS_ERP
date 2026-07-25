@@ -217,3 +217,114 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = params;
+
+  try {
+    const { data: pReturn } = await supabase
+      .from("purchase_returns")
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (!pReturn) {
+      return NextResponse.json({ error: "Purchase return not found or access denied" }, { status: 404 });
+    }
+
+    const { data: returnItems } = await supabase
+      .from("purchase_return_items")
+      .select("*")
+      .eq("return_id", id)
+      .eq("business_id", businessId);
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // 1. Revert Stock: Restore stock that was returned to supplier
+    if (returnItems && returnItems.length > 0 && pReturn.godown_id) {
+      for (const item of returnItems) {
+        const qty = Number(item.returned_qty || 0);
+        const val = Number(item.taxable_value || (qty * Number(item.rate || 0)));
+
+        // Insert positive delta entry in stock_ledger to add stock back to godown
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "raw_material",
+          item_id: item.material_type_id,
+          godown_id: pReturn.godown_id,
+          transaction_type: "purchase_return_cancellation",
+          quantity_delta: qty,
+          value_delta: val,
+          reference_table: "purchase_returns",
+          reference_id: id,
+          created_by: user?.id || null,
+        });
+
+        // Update raw_material_current_stock for godown
+        const { data: stockEntry } = await supabase
+          .from("raw_material_current_stock")
+          .select("*")
+          .eq("business_id", businessId)
+          .eq("material_type_id", item.material_type_id)
+          .eq("godown_id", pReturn.godown_id)
+          .maybeSingle();
+
+        if (stockEntry) {
+          const updatedQty = Number(stockEntry.current_stock || 0) + qty;
+          const updatedValue = Number(stockEntry.stock_value || 0) + val;
+          const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+          await supabase
+            .from("raw_material_current_stock")
+            .update({
+              current_stock: updatedQty,
+              stock_value: updatedValue,
+              unit_cost: updatedUnitCost,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", stockEntry.id);
+        }
+      }
+    }
+
+    // 2. Soft-delete Purchase Return
+    await supabase
+      .from("purchase_returns")
+      .update({
+        status: "cancelled",
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("business_id", businessId);
+
+    // 3. Record Audit Log
+    await supabase.from("audit_log").insert({
+      business_id: businessId,
+      user_id: user?.id || null,
+      user_name: user?.user_metadata?.full_name || user?.email || "System",
+      action: "cancel_purchase_return",
+      table_name: "purchase_returns",
+      record_id: id,
+      old_values: { return_number: pReturn.return_number, grand_total: pReturn.grand_total, status: pReturn.status },
+      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
+      ip_address: "127.0.0.1",
+      user_agent: "NextJS Server",
+    });
+
+    return NextResponse.json({ success: true, message: `Purchase Return '${pReturn.return_number}' cancelled and stock restored.` });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "An unexpected error occurred" }, { status: 500 });
+  }
+}

@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/shared/Badge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { ArrowLeft, Loader2, Calendar, FileText, CheckCircle2, XCircle, Download, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, FileText, CheckCircle2, XCircle, Download, AlertTriangle, Pencil } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { DebitNoteModal } from "@/components/modals/DebitNoteModal";
+
+import { useRouter } from "next/navigation";
 
 interface ReturnItem {
   id: string;
@@ -55,10 +57,12 @@ interface PurchaseReturn {
 
 export default function PurchaseReturnDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const router = useRouter();
   const [pReturn, setPReturn] = useState<PurchaseReturn | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [debitNoteOpen, setDebitNoteOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const fetchReturnDetails = async () => {
     setLoading(true);
@@ -96,6 +100,25 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
       toast.error(err.message || "Error updating status");
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleDeleteReturn = async () => {
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/raw-materials/purchase-returns/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel return");
+
+      toast.success(data.message || "Purchase return cancelled and stock restored.");
+      router.push("/raw-materials/purchase-returns");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel return");
+    } finally {
+      setUpdating(false);
+      setCancelConfirmOpen(false);
     }
   };
 
@@ -152,6 +175,25 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
             </p>
           </div>
         </div>
+
+        {pReturn.status !== "cancelled" && (
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/raw-materials/purchase-returns/${pReturn.id}/edit`}
+              className="px-3.5 py-2 text-xs font-bold text-[#475569] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC] flex items-center gap-1.5 transition-all"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit Return
+            </Link>
+            <button
+              onClick={() => setCancelConfirmOpen(true)}
+              disabled={updating}
+              className="px-3.5 py-2 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all flex items-center gap-1.5"
+            >
+              {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+              Cancel Return
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -390,6 +432,17 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
           pReturn={pReturn}
         />
       )}
+
+      {/* CANCEL RETURN CONFIRM DIALOG */}
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={handleDeleteReturn}
+        title="Cancel Purchase Return"
+        description={`Are you sure you want to cancel purchase return ${pReturn?.return_number}? This will restore the returned stock back into your godown inventory.`}
+        confirmText="Cancel Return & Restore Stock"
+        loading={updating}
+      />
     </div>
   );
 }

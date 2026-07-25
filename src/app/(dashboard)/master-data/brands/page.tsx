@@ -6,6 +6,7 @@ import Image from "next/image";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { DeleteBrandDialog } from "./_components/DeleteBrandDialog";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -262,7 +263,14 @@ export default function BrandsPage() {
           : "Brand created successfully"
       );
       setModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["brands-list"] });
+      queryClient.setQueryData(["brands-list"], (old: Brand[] | undefined) => {
+        if (!old) return [data.brand];
+        if (editingBrand) {
+          return old.map((b) => (b.id === data.brand.id ? data.brand : b));
+        }
+        return [data.brand, ...old];
+      });
+      queryClient.invalidateQueries({ queryKey: ["brands-list"], refetchType: "none" });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An error occurred";
       toast.error(message);
@@ -687,14 +695,13 @@ export default function BrandsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
+      {/* Delete Brand Dialog */}
+      <DeleteBrandDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Brand?"
-        description={`Are you sure you want to delete brand "${deletingBrand?.name}"? All related inventory tags will lose alignment.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
+        brand={deletingBrand}
+        allBrands={brands}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["brands-list"] })}
       />
     </div>
   );

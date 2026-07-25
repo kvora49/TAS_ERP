@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { DeleteBankAccountDialog } from "./_components/DeleteBankAccountDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
@@ -634,14 +635,13 @@ export default function BanksUpiPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
+      {/* Delete Bank Account Dialog */}
+      <DeleteBankAccountDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Payment Option?"
-        description={`Are you sure you want to delete payment account "${deletingAccount?.name}"? Previous transactions will retain integrity, but new bills cannot target this account.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
+        account={deletingAccount}
+        allAccounts={accounts}
+        onSuccess={fetchAccounts}
       />
     </div>
   );

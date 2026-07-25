@@ -16,7 +16,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0F1629] border-t border-[#1E293B] flex items-center justify-around z-40 select-none pb-safe">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0F1629] border-t border-[#1E293B] flex items-center justify-around z-40 select-none pb-safe print:hidden">
       {navItems.map((item, idx) => {
         const Icon = item.icon;
         const isActive =

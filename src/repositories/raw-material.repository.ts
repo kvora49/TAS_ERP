@@ -23,6 +23,8 @@ export class RawMaterialRepository {
     image_url?: string | null;
     default_supplier_id?: string | null;
     reorder_level: number;
+    hsn_code?: string | null;
+    gst_percent?: number | null;
     is_active: boolean;
   }) {
     const { data, error } = await this.supabase
@@ -36,6 +38,8 @@ export class RawMaterialRepository {
         image_url: params.image_url || null,
         default_supplier_id: params.default_supplier_id || null,
         reorder_level: params.reorder_level,
+        hsn_code: params.hsn_code || null,
+        gst_percent: params.gst_percent ?? null,
         is_active: params.is_active,
       })
       .select()
@@ -53,6 +57,8 @@ export class RawMaterialRepository {
     image_url?: string | null;
     default_supplier_id?: string | null;
     reorder_level: number;
+    hsn_code?: string | null;
+    gst_percent?: number | null;
     is_active: boolean;
     lastKnownUpdatedAt: string;
   }) {
@@ -66,6 +72,8 @@ export class RawMaterialRepository {
         image_url: params.image_url || null,
         default_supplier_id: params.default_supplier_id || null,
         reorder_level: params.reorder_level,
+        hsn_code: params.hsn_code || null,
+        gst_percent: params.gst_percent ?? null,
         is_active: params.is_active,
       })
       .eq("id", id)

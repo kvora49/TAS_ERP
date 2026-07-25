@@ -113,7 +113,7 @@ export default function SaleBillPrintPage() {
       doc.setTextColor(73, 80, 87);
       const addrLines = doc.splitTextToSize(brand?.address || "", 100);
       doc.text(addrLines, 14, 30);
-      
+
       let nextY = 30 + (addrLines.length * 4.5);
       if (brand?.gstin) {
         doc.setFont("helvetica", "bold");
@@ -145,7 +145,7 @@ export default function SaleBillPrintPage() {
       doc.setFontSize(10);
       doc.text("Billed To:", 14, nextY);
       doc.text(bill.party?.name || "", 14, nextY + 5);
-      
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       const buyerAddrLines = doc.splitTextToSize(bill.billing_address || "", 80);
@@ -244,7 +244,7 @@ export default function SaleBillPrintPage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(73, 80, 87);
-      
+
       doc.text(`Subtotal:`, 130, finalY);
       doc.text(`Rs ${bill.item_total.toFixed(2)}`, 170, finalY, { align: "right" });
 
@@ -320,11 +320,11 @@ export default function SaleBillPrintPage() {
   // Choose template type
   const templateType = bill.bill_type === "pakka"
     ? (brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000002" ? "modern" :
-       brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
-       brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic")
+      brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
+        brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic")
     : (brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000002" ? "modern" :
-       brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
-       brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic");
+      brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
+        brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic");
 
   const primaryColorVal = brandConfig?.primary_color || "#6366F1";
   const showHsnVal = brandConfig?.show_hsn !== false;
@@ -361,7 +361,7 @@ export default function SaleBillPrintPage() {
 
       {/* Invoice Canvas Container */}
       <div className="w-full max-w-4xl bg-white md:border md:border-[#E5E7EB] md:rounded-xl md:shadow-md p-6 md:p-12 print:p-0 print:border-none print:shadow-none min-h-[29.7cm]">
-        
+
         {/* MODERN LAYOUT */}
         {templateType === "modern" && (
           <div className="flex flex-col gap-6 text-sm text-slate-800">
@@ -451,7 +451,7 @@ export default function SaleBillPrintPage() {
                   </div>
                 )}
               </div>
-              
+
               <div className="w-64 flex flex-col gap-2.5 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span>Item Subtotal</span>

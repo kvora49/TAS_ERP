@@ -171,11 +171,12 @@ export async function POST(request: Request) {
         if (inputItem && inputItem.item_type === "fabric" && inputItem.rolls && inputItem.rolls.length > 0) {
           const selectedRolls = inputItem.rolls.filter((r: any) => r.selected);
           for (const roll of selectedRolls) {
+            const returnedMeters = Number(roll.return_meters || roll.remaining_meters || 0);
             returnRollsToInsert.push({
               business_id: businessId,
               return_item_id: insertedItem.id,
               purchase_roll_id: roll.id,
-              returned_meters: Number(roll.remaining_meters),
+              returned_meters: returnedMeters,
             });
 
             // Update remaining meters on original roll record
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
               .single();
             
             if (origRoll) {
-              const newRemaining = Math.max(0, Number(origRoll.remaining_meters || 0) - Number(roll.remaining_meters));
+              const newRemaining = Math.max(0, Number(origRoll.remaining_meters || 0) - returnedMeters);
               await supabase
                 .from("purchase_rolls")
                 .update({ remaining_meters: newRemaining })

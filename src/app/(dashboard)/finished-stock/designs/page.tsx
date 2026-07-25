@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Search, SlidersHorizontal, ArrowUpDown, ChevronRight, RefreshCw, Layers } from "lucide-react";
+import { ArrowLeft, Search, SlidersHorizontal, ArrowUpDown, ChevronRight, RefreshCw, Layers, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { DeleteDesignDialog } from "../_components/DeleteDesignDialog";
 
 interface Design {
   id: string;
@@ -26,6 +27,9 @@ export default function DesignStockListPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"code" | "name" | "qty" | "value">("qty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingDesign, setDeletingDesign] = useState<Design | null>(null);
 
   const fetchDesigns = async () => {
     setLoading(true);
@@ -172,26 +176,41 @@ export default function DesignStockListPage() {
       ) : filteredDesigns.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDesigns.map((design) => (
-            <Link
+            <div
               key={design.id}
-              href={`/finished-stock/designs/${design.id}`}
-              className="group bg-white border border-[#E2E8F0] hover:border-[#6366F1] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+              className="group bg-white border border-[#E2E8F0] hover:border-[#6366F1] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between relative"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold text-[#6366F1] uppercase">
-                  <span>{design.design_number}</span>
-                  <span className="bg-slate-100 text-[#475569] px-2 py-0.5 rounded-md font-semibold">
-                    {design.brand?.name || "No Brand"}
-                  </span>
+                  <Link href={`/finished-stock/designs/${design.id}`} className="hover:underline">
+                    {design.design_number}
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-slate-100 text-[#475569] px-2 py-0.5 rounded-md font-semibold">
+                      {design.brand?.name || "No Brand"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingDesign(design);
+                        setDeleteOpen(true);
+                      }}
+                      className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
+                      title="Delete Design"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div>
+                <Link href={`/finished-stock/designs/${design.id}`}>
                   <h3 className="text-base font-bold text-[#1E293B] group-hover:text-[#6366F1] transition-colors leading-tight">
                     {design.name}
                   </h3>
                   <p className="text-xs text-[#64748B] mt-0.5">
                     {design.category} {design.sub_category ? `• ${design.sub_category}` : ""}
                   </p>
-                </div>
+                </Link>
 
                 <div className="flex items-center gap-2 border-t border-b border-dashed border-[#E2E8F0] py-2.5 text-xs text-[#475569] font-medium">
                   <Layers className="h-4 w-4 text-[#94A3B8]" />
@@ -201,7 +220,7 @@ export default function DesignStockListPage() {
               </div>
 
               {/* Stats Footer */}
-              <div className="mt-5 pt-3 border-t border-[#F1F5F9] flex items-center justify-between">
+              <Link href={`/finished-stock/designs/${design.id}`} className="mt-5 pt-3 border-t border-[#F1F5F9] flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-[#94A3B8] uppercase">Stock On Hand</p>
                   <p className="text-lg font-bold text-[#1E293B]">
@@ -214,8 +233,8 @@ export default function DesignStockListPage() {
                     {formatRupee(design.total_value || 0)}
                   </p>
                 </div>
-              </div>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
       ) : (
@@ -223,6 +242,15 @@ export default function DesignStockListPage() {
           No designs found matching your search.
         </div>
       )}
+
+      {/* Delete Design Dialog */}
+      <DeleteDesignDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        design={deletingDesign}
+        allDesigns={designs}
+        onSuccess={fetchDesigns}
+      />
     </div>
   );
 }
