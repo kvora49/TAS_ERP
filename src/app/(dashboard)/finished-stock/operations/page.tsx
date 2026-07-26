@@ -291,7 +291,7 @@ export default function StockOperationsUnifiedPage() {
               <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <RotateCcw className="mx-auto text-slate-300 h-10 w-10 mb-2" />
                 <p className="text-sm font-bold text-slate-700">No Stock Adjustments Found</p>
-                <p className="text-xs text-slate-500 mt-0.5">Click "+ New Stock Adjustment" to record inventory reconciliation.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Click &quot;+ New Stock Adjustment&quot; to record inventory reconciliation.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
@@ -368,7 +368,7 @@ export default function StockOperationsUnifiedPage() {
             <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
               <ArrowLeftRight className="mx-auto text-slate-300 h-10 w-10 mb-2" />
               <p className="text-sm font-bold text-slate-700">No Inter-Godown Transfers Recorded</p>
-              <p className="text-xs text-slate-500 mt-0.5">Click "+ New Godown Transfer" to transfer stock between storage locations.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Click &quot;+ New Godown Transfer&quot; to transfer stock between storage locations.</p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
@@ -421,7 +421,7 @@ export default function StockOperationsUnifiedPage() {
             <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
               <Truck className="mx-auto text-slate-300 h-10 w-10 mb-2" />
               <p className="text-sm font-bold text-slate-700">No Delivery Challans Found</p>
-              <p className="text-xs text-slate-500 mt-0.5">Click "+ Create Delivery Challan" to generate dispatch vouchers.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Click &quot;+ Create Delivery Challan&quot; to generate dispatch vouchers.</p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">

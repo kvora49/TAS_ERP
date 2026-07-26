@@ -558,7 +558,7 @@ export default function MasterDataDesignDetailPage({
             <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
               <Factory className="mx-auto text-slate-300 h-10 w-10 mb-2" />
               <p className="text-sm font-bold text-slate-700">No Production Lots Created Yet</p>
-              <p className="text-xs text-slate-500 mt-0.5">Click "+ Create New Lot" to start a manufacturing run for this design.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Click &quot;+ Create New Lot&quot; to start a manufacturing run for this design.</p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">

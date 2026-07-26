@@ -1037,7 +1037,7 @@ export default function UnifiedJobWorkPage() {
               <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <CreditCard className="mx-auto text-slate-300 h-10 w-10 mb-2" />
                 <p className="text-sm font-bold text-slate-700">No Job Work Payments Recorded</p>
-                <p className="text-xs text-slate-500 mt-0.5">Click "+ Record Job Work Payment" to record a payment.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Click &quot;+ Record Job Work Payment&quot; to record a payment.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
