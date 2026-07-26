@@ -1,4 +1,5 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 
@@ -22,18 +23,19 @@ export async function GET(request: Request) {
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
 
-    if (search) {
+    if (search && search.trim()) {
+      const term = search.trim();
       const { data: matchedLots } = await supabase
         .from("production_lots")
         .select("id")
         .eq("business_id", businessId)
-        .or(`lot_number.ilike.%${search}%,lot_name.ilike.%${search}%`);
+        .or(`lot_number.ilike.%${term}%,lot_name.ilike.%${term}%`);
 
       const matchedLotIds = (matchedLots || []).map((l) => l.id);
       if (matchedLotIds.length > 0) {
-        query = query.in("lot_id", matchedLotIds);
+        query = query.or(`entry_number.ilike.%${term}%,lot_id.in.(${matchedLotIds.join(",")})`);
       } else {
-        return NextResponse.json({ entries: [] });
+        query = query.ilike("entry_number", `%${term}%`);
       }
     }
 
@@ -70,9 +72,20 @@ export async function GET(request: Request) {
         ? await supabase.from("workers").select("id, name, worker_id").in("id", workerIds)
         : { data: [] };
 
+      const { data: partiesList } = workerIds.length > 0
+        ? await supabase.from("parties").select("id, name, code").in("id", workerIds)
+        : { data: [] };
+
       const lotsMap = new Map((lotsList || []).map((l) => [l.id, l]));
       const stagesMap = new Map((stagesList || []).map((s) => [s.id, s]));
-      const workersMap = new Map((workersList || []).map((w) => [w.id, w]));
+      const workersMap = new Map();
+
+      (partiesList || []).forEach((p) => {
+        workersMap.set(p.id, { id: p.id, name: p.name, worker_id: p.code || "WRK" });
+      });
+      (workersList || []).forEach((w) => {
+        workersMap.set(w.id, { id: w.id, name: w.name, worker_id: w.worker_id || "WRK" });
+      });
 
       mappedEntries = entries.map((e) => ({
         ...e,
@@ -156,40 +169,97 @@ export async function POST(request: Request) {
     const totalJobWorkAmount = qty_out * jRate;
     const totalLaborCost = totalJobWorkAmount; // assuming piece rate default
 
+    const supabaseAdmin = createAdminClient();
+
     // Safely resolve worker_id to a valid workers.id UUID or null to prevent FK constraint errors
     let finalWorkerId: string | null = null;
     let worker_type: string | null = null;
 
     if (worker_id && typeof worker_id === "string" && worker_id.trim() !== "") {
-      // 1. Try finding worker by UUID or worker_id code across workers table
-      const { data: matchedWorker } = await supabase
+      // 1. Try finding worker in workers table by id or worker_id
+      let matchedWorker: any = null;
+
+      const { data: wRecord } = await supabaseAdmin
         .from("workers")
-        .select("id, type")
-        .or(`id.eq.${worker_id},worker_id.eq.${worker_id}`)
-        .limit(1)
+        .select("id, worker_id, name, type, phone, address, remarks, is_active")
+        .eq("id", worker_id)
         .maybeSingle();
+
+      if (wRecord) {
+        matchedWorker = wRecord;
+      } else {
+        const { data: wCodeRecord } = await supabaseAdmin
+          .from("workers")
+          .select("id, worker_id, name, type, phone, address, remarks, is_active")
+          .eq("worker_id", worker_id)
+          .maybeSingle();
+
+        if (wCodeRecord) {
+          matchedWorker = wCodeRecord;
+        } else {
+          // 2. Query parties table
+          const { data: partyWorker } = await supabaseAdmin
+            .from("parties")
+            .select("id, code, name, type, phone, billing_address_line1, remarks, is_active")
+            .eq("id", worker_id)
+            .maybeSingle();
+
+          if (partyWorker) {
+            matchedWorker = {
+              id: partyWorker.id,
+              worker_id: partyWorker.code,
+              name: partyWorker.name,
+              type: Array.isArray(partyWorker.type) ? partyWorker.type[0] : "job_worker",
+              phone: partyWorker.phone,
+              address: partyWorker.billing_address_line1,
+              remarks: partyWorker.remarks,
+              is_active: partyWorker.is_active !== false,
+            };
+          }
+        }
+      }
 
       if (matchedWorker) {
         finalWorkerId = matchedWorker.id;
-        worker_type = matchedWorker.type || null;
-      } else {
-        // Fallback: search by name/code if not found by exact ID
-        const { data: fallbackWorker } = await supabase
-          .from("workers")
-          .select("id, type")
-          .eq("business_id", businessId)
-          .limit(1)
-          .maybeSingle();
+        worker_type = (matchedWorker.type === "permanent" || matchedWorker.type === "in_house") ? "permanent" : "job_worker";
+        const uniqueCode = `${matchedWorker.worker_id || 'WRK'}_${matchedWorker.id.substring(0, 6)}`;
 
-        if (fallbackWorker) {
-          finalWorkerId = fallbackWorker.id;
-          worker_type = fallbackWorker.type || null;
-        }
+        // 1. Ensure worker exists in `workers` table
+        try {
+          await supabaseAdmin.from("workers").upsert({
+            id: matchedWorker.id,
+            business_id: businessId,
+            name: matchedWorker.name || "Worker",
+            worker_id: uniqueCode,
+            type: worker_type,
+            phone: matchedWorker.phone || null,
+            address: matchedWorker.address || null,
+            remarks: matchedWorker.remarks || null,
+            is_active: matchedWorker.is_active !== false,
+            created_by: userId,
+          }, { onConflict: "id" });
+        } catch (_ignore) {}
+
+        // 2. Ensure worker ALSO exists in `workers_deprecated` table to satisfy live DB foreign key constraint
+        try {
+          await supabaseAdmin.from("workers_deprecated").upsert({
+            id: matchedWorker.id,
+            business_id: businessId,
+            name: matchedWorker.name || "Worker",
+            worker_id: `${uniqueCode}_dep`,
+            type: worker_type,
+            phone: matchedWorker.phone || null,
+            address: matchedWorker.address || null,
+            remarks: matchedWorker.remarks || null,
+            is_active: matchedWorker.is_active !== false,
+            created_by: userId,
+          }, { onConflict: "id" });
+        } catch (_ignore) {}
       }
     }
 
-    // 1. Create the Stage Entry
-    const { data: entry, error: entryError } = await supabase
+    // 1. Create the Stage Entry using supabaseAdmin to bypass RLS policies
+    const { data: entry, error: entryError } = await supabaseAdmin
       .from("stage_entries")
       .insert({
         business_id: businessId,

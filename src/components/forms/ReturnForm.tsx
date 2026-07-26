@@ -14,7 +14,10 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 
 const returnItemSchema = z.object({
   purchase_item_id: z.string().optional(),
-  material_type_id: z.string().min(1, "Material is required"),
+  material_type_id: z.string().optional().nullable(),
+  design_id: z.string().optional().nullable(),
+  colour_id: z.string().optional().nullable(),
+  size_quantities: z.record(z.string(), z.coerce.number()).optional().default({}),
   material_name: z.string().optional(), // display helper
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
@@ -23,7 +26,7 @@ const returnItemSchema = z.object({
   rate: z.coerce.number().min(0.01),
   discount_percent: z.coerce.number(),
   taxable_value: z.coerce.number(),
-  item_type: z.enum(["fabric", "accessory"]).default("fabric"),
+  item_type: z.enum(["fabric", "accessory", "finished_goods", "others"]).default("fabric"),
   rolls: z.array(z.object({
     id: z.string(),
     roll_number: z.string(),
@@ -170,22 +173,29 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
 
             const itemsList = data.purchase?.items || data.items || [];
             const returnItems = itemsList.map((it: any) => {
-              const itemCategory = it.material_type?.category?.toLowerCase() || "";
               const rollsList = it.rolls || [];
-              const isFabric = rollsList.length > 0 || itemCategory.includes("fabric");
+              const calculatedType = it.item_type || (rollsList.length > 0 ? "fabric" : it.design_id ? "finished_goods" : "accessory");
+              const materialName = calculatedType === "finished_goods"
+                ? `${it.design?.design_number || it.design?.name || "Finished Good"} ${it.colour?.colour_name ? `(${it.colour.colour_name})` : ""}`
+                : calculatedType === "others"
+                ? it.other_item_name || "Other Item"
+                : it.material_type?.name || "Material";
 
               return {
                 purchase_item_id: it.id,
-                material_type_id: it.material_type_id,
-                material_name: it.material_type?.name || "Material",
+                material_type_id: it.material_type_id || null,
+                design_id: it.design_id || null,
+                colour_id: it.colour_id || null,
+                size_quantities: {},
+                material_name: materialName,
                 hsn_sac: it.hsn_sac || "",
-                unit: it.unit || it.material_type?.unit || "Pcs",
+                unit: it.unit || (calculatedType === "finished_goods" ? "Pcs" : "Meters"),
                 invoice_qty: Number(it.quantity || 0),
                 returned_qty: 0,
                 rate: Number(it.rate || 0),
                 discount_percent: Number(it.discount_percent || 0),
                 taxable_value: 0,
-                item_type: isFabric ? "fabric" : "accessory",
+                item_type: calculatedType,
                 rolls: rollsList.map((r: any) => ({
                   id: r.id,
                   roll_number: r.roll_number,

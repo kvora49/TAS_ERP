@@ -90,12 +90,21 @@ export async function GET(
       });
     }
 
+    // Fetch connected production lots
+    const { data: productionLots } = await supabase
+      .from("production_lots")
+      .select("id, lot_number, total_quantity, completed_quantity, status, created_at")
+      .eq("design_id", designId)
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false });
+
     return NextResponse.json({
       design,
       colours: colours || [],
       godowns: godowns || [],
       matrix,
-      colourCosts
+      colourCosts,
+      productionLots: productionLots || [],
     });
   } catch (err: any) {
     return NextResponse.json(

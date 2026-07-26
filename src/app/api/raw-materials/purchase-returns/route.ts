@@ -142,7 +142,11 @@ export async function POST(request: Request) {
       business_id: businessId,
       return_id: pReturn.id,
       purchase_item_id: item.purchase_item_id || null,
-      material_type_id: item.material_type_id,
+      material_type_id: item.item_type === "finished_goods" ? null : (item.material_type_id || null),
+      item_type: item.item_type || "fabric",
+      design_id: item.design_id || null,
+      colour_id: item.colour_id || null,
+      size_quantities: item.size_quantities || null,
       hsn_sac: item.hsn_sac || null,
       unit: item.unit,
       invoice_qty: Number(item.invoice_qty),
@@ -251,68 +255,104 @@ export async function POST(request: Request) {
       }
     }
 
-    // If status is 'completed' and godown_id is specified, automatically generate a stock entry and write to stock_ledger
+    // If status is 'completed' and godown_id is specified, update inventory stock
     if ((status === "completed") && godown_id) {
-      // 1. Write negative delta to stock_ledger
       const { data: { user } } = await supabase.auth.getUser();
-      const ledgerEntries = items.map((item: any) => ({
-        business_id: businessId,
-        item_type: 'raw_material',
-        item_id: item.material_type_id,
-        godown_id: godown_id,
-        transaction_type: 'purchase_return',
-        quantity_delta: -Number(item.returned_qty),
-        value_delta: -Number(item.taxable_value),
-        reference_table: 'purchase_returns',
-        reference_id: pReturn.id,
-        created_by: user?.id || null,
-      }));
+      const ledgerEntries: any[] = [];
 
-      const { error: ledgerError } = await supabase
-        .from("stock_ledger")
-        .insert(ledgerEntries);
+      for (const item of items) {
+        if (item.item_type === "finished_goods") {
+          // Deduct from finished_stock for godown
+          await supabase.from("finished_stock").insert({
+            business_id: businessId,
+            design_id: item.design_id,
+            colour_id: item.colour_id || null,
+            godown_id: godown_id,
+            entry_type: "return",
+            size_quantities: item.size_quantities || {},
+            total_quantity: -Number(item.returned_qty),
+            cost_per_piece: Number(item.rate),
+            total_value: -Number(item.taxable_value),
+            notes: `Purchase Return ${returnNumber}`,
+          });
 
-      if (ledgerError) {
-        // Clean up
-        await supabase.from("purchase_return_items").delete().eq("return_id", pReturn.id);
-        await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
-        return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
+          ledgerEntries.push({
+            business_id: businessId,
+            item_type: 'finished_good',
+            item_id: item.design_id,
+            godown_id: godown_id,
+            transaction_type: 'purchase_return',
+            quantity_delta: -Number(item.returned_qty),
+            value_delta: -Number(item.taxable_value),
+            reference_table: 'purchase_returns',
+            reference_id: pReturn.id,
+            created_by: user?.id || null,
+          });
+        } else if (item.material_type_id) {
+          ledgerEntries.push({
+            business_id: businessId,
+            item_type: 'raw_material',
+            item_id: item.material_type_id,
+            godown_id: godown_id,
+            transaction_type: 'purchase_return',
+            quantity_delta: -Number(item.returned_qty),
+            value_delta: -Number(item.taxable_value),
+            reference_table: 'purchase_returns',
+            reference_id: pReturn.id,
+            created_by: user?.id || null,
+          });
+        }
       }
 
-      // 2. Generate legacy stock entry for historical data
-      const { data: stockEntry, error: seError } = await supabase
-        .from("raw_material_stock_entries")
-        .insert({
-          business_id: businessId,
-          stock_entry_number: `STK-OUT-${returnNumber}`,
-          entry_type: "stock_out",
-          reference_type: "return",
-          reference_id: pReturn.id,
-          reference_no: returnNumber,
-          reference_date: return_date,
-          godown_id,
-          posting_date: return_date,
-          remarks: `Auto-generated from Purchase Return ${returnNumber}`,
-          total_items_value: Number(total_taxable_value || 0),
-          grand_total: Number(grand_total || 0),
-          status: "active",
-        })
-        .select()
-        .single();
+      if (ledgerEntries.length > 0) {
+        const { error: ledgerError } = await supabase
+          .from("stock_ledger")
+          .insert(ledgerEntries);
 
-      if (!seError && stockEntry) {
-        const seItems = items.map((item: any) => ({
-          business_id: businessId,
-          stock_entry_id: stockEntry.id,
-          material_type_id: item.material_type_id,
-          hsn_sac: item.hsn_sac || null,
-          unit: item.unit,
-          quantity: Number(item.returned_qty),
-          rate: Number(item.rate),
-          amount: Number(item.taxable_value),
-        }));
+        if (ledgerError) {
+          await supabase.from("purchase_return_items").delete().eq("return_id", pReturn.id);
+          await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
+          return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
+        }
+      }
 
-        await supabase.from("raw_material_stock_entry_items").insert(seItems);
+      // Generate stock entry for raw material items
+      const rmItems = items.filter((i: any) => i.item_type !== "finished_goods" && i.material_type_id);
+      if (rmItems.length > 0) {
+        const { data: stockEntry, error: seError } = await supabase
+          .from("raw_material_stock_entries")
+          .insert({
+            business_id: businessId,
+            stock_entry_number: `STK-OUT-${returnNumber}`,
+            entry_type: "stock_out",
+            reference_type: "return",
+            reference_id: pReturn.id,
+            reference_no: returnNumber,
+            reference_date: return_date,
+            godown_id,
+            posting_date: return_date,
+            remarks: `Auto-generated from Purchase Return ${returnNumber}`,
+            total_items_value: Number(total_taxable_value || 0),
+            grand_total: Number(grand_total || 0),
+            status: "active",
+          })
+          .select()
+          .single();
+
+        if (!seError && stockEntry) {
+          const seItems = rmItems.map((item: any) => ({
+            business_id: businessId,
+            stock_entry_id: stockEntry.id,
+            material_type_id: item.material_type_id,
+            hsn_sac: item.hsn_sac || null,
+            unit: item.unit,
+            quantity: Number(item.returned_qty),
+            rate: Number(item.rate),
+            amount: Number(item.taxable_value),
+          }));
+
+          await supabase.from("raw_material_stock_entry_items").insert(seItems);
+        }
       }
     }
 

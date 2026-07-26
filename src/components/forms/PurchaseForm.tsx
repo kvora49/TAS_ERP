@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { QuickAddDesignModal } from "@/components/forms/QuickAddDesignModal";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -87,7 +88,13 @@ const purchaseRollSchema = z.object({
 });
 
 const purchaseItemSchema = z.object({
-  material_type_id: z.string().min(1, "Material Type is required"),
+  material_type_id: z.string().optional().nullable(),
+  design_id: z.string().optional().nullable(),
+  colour_id: z.string().optional().nullable(),
+  size_quantities: z.record(z.string(), z.coerce.number()).optional().default({}),
+  other_item_name: z.string().optional().nullable(),
+  other_category: z.enum(["capital_asset", "office_expense", "consumable"]).optional().nullable(),
+  asset_tag: z.string().optional().nullable(),
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
   quantity: z.coerce.number().min(0.01, "Quantity must be greater than 0"),
@@ -97,7 +104,7 @@ const purchaseItemSchema = z.object({
   gst_percent: z.coerce.number().min(0).max(100),
   gst_amount: z.coerce.number(),
   amount: z.coerce.number(),
-  item_type: z.enum(["fabric", "accessory"]).default("fabric"),
+  item_type: z.enum(["fabric", "accessory", "finished_goods", "others"]).default("fabric"),
   rolls: z.array(purchaseRollSchema).optional().default([]),
 });
 
@@ -256,6 +263,125 @@ function MaterialTypeCombobox({
   );
 }
 
+interface DesignComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  designs: any[];
+  disabled?: boolean;
+  onAddNew: () => void;
+  placeholder?: string;
+}
+
+function DesignCombobox({
+  value,
+  onChange,
+  designs,
+  disabled = false,
+  onAddNew,
+  placeholder = "Select Design Code",
+}: DesignComboboxProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedDesign = designs.find((d) => d.id === value);
+  const selectedLabel = selectedDesign
+    ? `${selectedDesign.design_number || selectedDesign.name} - ${selectedDesign.name}`
+    : placeholder;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const filtered = designs.filter((d) => {
+    const text = `${d.design_number || ""} ${d.name || ""}`.toLowerCase();
+    return text.includes(search.toLowerCase());
+  });
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
+          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
+            <Search size={14} className="text-[#94A3B8] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search design..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+                No matching designs
+              </div>
+            ) : (
+              filtered.map((d) => {
+                const isSelected = d.id === value;
+                const label = `${d.design_number || d.name} - ${d.name}`;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(d.id);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    }`}
+                  >
+                    <span className="truncate">{label}</span>
+                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onAddNew();
+              setIsOpen(false);
+              setSearch("");
+            }}
+            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+          >
+            <Plus size={14} /> Add New Design
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface SupplierComboboxProps {
   value: string;
   onChange: (val: string) => void;
@@ -389,9 +515,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const [godowns, setGodowns] = useState<any[]>([]);
+  const [designs, setDesigns] = useState<any[]>([]);
+  const [sizeSets, setSizeSets] = useState<any[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [loadingGodowns, setLoadingGodowns] = useState(false);
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
+  const [quickAddDesignOpen, setQuickAddDesignOpen] = useState(false);
+  const [quickAddDesignItemIndex, setQuickAddDesignItemIndex] = useState<number | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { upload, uploading } = useFileUpload("purchases");
 
@@ -492,6 +623,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     items: [
       {
         material_type_id: "",
+        design_id: "",
+        colour_id: "",
+        size_quantities: {},
+        other_item_name: "",
+        other_category: "office_expense",
+        asset_tag: "",
         hsn_sac: "",
         unit: "meter",
         quantity: 0,
@@ -571,8 +708,31 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
       }
     }
 
+    async function fetchDesignsAndSizeSets() {
+      setLoadingDesigns(true);
+      try {
+        const [desRes, ssRes] = await Promise.all([
+          fetch("/api/master-data/designs"),
+          fetch("/api/master-data/size-sets"),
+        ]);
+        if (desRes.ok) {
+          const data = await desRes.json();
+          setDesigns(data.designs || []);
+        }
+        if (ssRes.ok) {
+          const data = await ssRes.json();
+          setSizeSets(data.sizeSets || []);
+        }
+      } catch (err) {
+        console.error("Failed to load designs/size-sets:", err);
+      } finally {
+        setLoadingDesigns(false);
+      }
+    }
+
     fetchSuppliers();
     fetchMaterials();
+    fetchDesignsAndSizeSets();
 
     async function fetchInventorySettings() {
       setLoadingGodowns(true);
@@ -968,7 +1128,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </h2>
               <button
                 type="button"
-                onClick={() => append({ material_type_id: "", hsn_sac: "", unit: "Meters", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", weight_unit: "gsm" }] })}
+                onClick={() => append({ material_type_id: "", design_id: "", colour_id: "", size_quantities: {}, other_item_name: "", other_category: "office_expense", asset_tag: "", hsn_sac: "", unit: "Meters", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", weight_unit: "gsm" }] })}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg flex items-center gap-1"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Material Row
@@ -996,13 +1156,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                     </div>
 
                     <div className="space-y-3">
-                      {/* Item Type Toggle */}
+                      {/* Item Type Toggle - 4 Tabs */}
                       <input type="hidden" {...register(`items.${index}.item_type` as const)} />
-                      <div className="flex items-center gap-2 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-100 w-fit">
+                      <div className="flex items-center gap-1.5 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-100 w-fit flex-wrap">
                         <button
                           type="button"
                           onClick={() => {
                             setValue(`items.${index}.item_type`, "fabric");
+                            setValue(`items.${index}.unit`, "meter");
                             setValue(`items.${index}.quantity`, 0);
                             recalcItem(index);
                           }}
@@ -1018,8 +1179,9 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           type="button"
                           onClick={() => {
                             setValue(`items.${index}.item_type`, "accessory");
+                            setValue(`items.${index}.unit`, "Pcs");
                             setValue(`items.${index}.quantity`, 1);
-                            setValue(`items.${index}.rolls`, []); // clear rolls
+                            setValue(`items.${index}.rolls`, []);
                             recalcItem(index);
                           }}
                           className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
@@ -1030,85 +1192,260 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                         >
                           Accessory
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue(`items.${index}.item_type`, "finished_goods");
+                            setValue(`items.${index}.unit`, "Pcs");
+                            setValue(`items.${index}.quantity`, 0);
+                            setValue(`items.${index}.rolls`, []);
+                            recalcItem(index);
+                          }}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                            watchItems[index]?.item_type === "finished_goods"
+                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
+                              : "text-[#64748B] hover:text-[#0F172A]"
+                          }`}
+                        >
+                          Finished Goods
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue(`items.${index}.item_type`, "others");
+                            setValue(`items.${index}.unit`, "Pcs");
+                            setValue(`items.${index}.quantity`, 1);
+                            setValue(`items.${index}.rolls`, []);
+                            recalcItem(index);
+                          }}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                            watchItems[index]?.item_type === "others"
+                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
+                              : "text-[#64748B] hover:text-[#0F172A]"
+                          }`}
+                        >
+                          Others (Assets/Expenses)
+                        </button>
                       </div>
 
-                      {/* Row 1 */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                        <div className="md:col-span-4">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
-                          <input
-                            type="hidden"
-                            {...register(`items.${index}.material_type_id` as const)}
-                          />
-                          <MaterialTypeCombobox
-                            value={watchItems[index]?.material_type_id || ""}
-                            onChange={(val) => {
-                              setValue(`items.${index}.material_type_id`, val);
-                              handleMaterialChange(index, val);
-                            }}
-                            materialTypes={materialTypes}
-                            disabled={loadingMaterials}
-                            onAddNew={() => {
-                              setNewTypeItemIndex(index);
-                              setNewTypeModalOpen(true);
-                            }}
-                          />
-                          {errors.items?.[index]?.material_type_id && (
-                            <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
-                          )}
-                        </div>
+                      {/* Row 1 - Conditional based on item_type */}
+                      {watchItems[index]?.item_type === "finished_goods" ? (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                          <div className="md:col-span-3">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Design Code *</label>
+                            <input type="hidden" {...register(`items.${index}.design_id` as const)} />
+                            <DesignCombobox
+                              value={watchItems[index]?.design_id || ""}
+                              onChange={(val) => {
+                                setValue(`items.${index}.design_id`, val);
+                                const selectedDes = designs.find((d) => d.id === val);
+                                if (selectedDes?.hsn_code) {
+                                  setValue(`items.${index}.hsn_sac`, selectedDes.hsn_code);
+                                }
+                                if (selectedDes?.design_colours?.length) {
+                                  setValue(`items.${index}.colour_id`, selectedDes.design_colours[0].id);
+                                }
+                              }}
+                              designs={designs}
+                              disabled={loadingDesigns}
+                              onAddNew={() => {
+                                setQuickAddDesignItemIndex(index);
+                                setQuickAddDesignOpen(true);
+                              }}
+                            />
+                          </div>
 
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
-                          <input
-                            type="text"
-                            placeholder="HSN"
-                            {...register(`items.${index}.hsn_sac` as const)}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
-                          />
-                        </div>
+                          <div className="md:col-span-3">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Color *</label>
+                            <select
+                              {...register(`items.${index}.colour_id` as const)}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-semibold text-[#0F172A] truncate"
+                            >
+                              <option value="">Select Color</option>
+                              {(() => {
+                                const selectedDes = designs.find((d) => d.id === watchItems[index]?.design_id);
+                                return (selectedDes?.design_colours || []).map((c: any) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.colour_name}
+                                  </option>
+                                ));
+                              })()}
+                            </select>
+                          </div>
 
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
-                          <input
-                            type="text"
-                            placeholder="Unit"
-                            {...register(`items.${index}.unit` as const)}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
-                          />
-                        </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                            <input
+                              type="text"
+                              placeholder="6109"
+                              {...register(`items.${index}.hsn_sac` as const)}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
 
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">
-                            {(watchItems[index]?.item_type || "fabric") === "fabric" ? "Total Meters" : "Qty *"}
-                          </label>
-                          <NumericInput
-                            step="0.01"
-                            placeholder="0"
-                            disabled={(watchItems[index]?.item_type || "fabric") === "fabric"}
-                            {...register(`items.${index}.quantity` as const)}
-                            onChange={(e) => {
-                              register(`items.${index}.quantity` as const).onChange(e);
-                              recalcItem(index);
-                            }}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all disabled:bg-slate-50 disabled:text-slate-700"
-                          />
-                        </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Total Pcs</label>
+                            <NumericInput
+                              disabled
+                              value={watchItems[index]?.quantity || 0}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold bg-slate-50 text-slate-700 truncate"
+                            />
+                          </div>
 
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
-                          <NumericInput
-                            step="0.01"
-                            placeholder="0.00"
-                            {...register(`items.${index}.rate` as const)}
-                            onChange={(e) => {
-                              register(`items.${index}.rate` as const).onChange(e);
-                              recalcItem(index);
-                            }}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate/Pc (₹) *</label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0.00"
+                              {...register(`items.${index}.rate` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.rate` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      ) : watchItems[index]?.item_type === "others" ? (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                          <div className="md:col-span-3">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Item / Expense Description *</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 55-inch TV / Office Table"
+                              {...register(`items.${index}.other_item_name` as const)}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-3">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Category</label>
+                            <select
+                              {...register(`items.${index}.other_category` as const)}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-semibold text-[#0F172A] cursor-pointer truncate"
+                            >
+                              <option value="capital_asset">Capital Asset (TV/Table)</option>
+                              <option value="office_expense">Office Expense (Stationery)</option>
+                              <option value="consumable">Consumable (Cleaning)</option>
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
+                            <input
+                              type="text"
+                              placeholder="Pcs"
+                              {...register(`items.${index}.unit` as const)}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Qty *</label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="1"
+                              {...register(`items.${index}.quantity` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.quantity` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0.00"
+                              {...register(`items.${index}.rate` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.rate` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                          <div className="md:col-span-4">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
+                            <input
+                              type="hidden"
+                              {...register(`items.${index}.material_type_id` as const)}
+                            />
+                            <MaterialTypeCombobox
+                              value={watchItems[index]?.material_type_id || ""}
+                              onChange={(val) => {
+                                setValue(`items.${index}.material_type_id`, val);
+                                handleMaterialChange(index, val);
+                              }}
+                              materialTypes={materialTypes}
+                              disabled={loadingMaterials}
+                              onAddNew={() => {
+                                setNewTypeItemIndex(index);
+                                setNewTypeModalOpen(true);
+                              }}
+                            />
+                            {errors.items?.[index]?.material_type_id && (
+                              <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
+                            )}
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                            <input
+                              type="text"
+                              placeholder="HSN"
+                              {...register(`items.${index}.hsn_sac` as const)}
+                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
+                            <input
+                              type="text"
+                              placeholder="Unit"
+                              {...register(`items.${index}.unit` as const)}
+                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">
+                              {(watchItems[index]?.item_type || "fabric") === "fabric" ? "Total Meters" : "Qty *"}
+                            </label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0"
+                              disabled={(watchItems[index]?.item_type || "fabric") === "fabric"}
+                              {...register(`items.${index}.quantity` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.quantity` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all disabled:bg-slate-50 disabled:text-slate-700"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0.00"
+                              {...register(`items.${index}.rate` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.rate` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Row 2 */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1.5">
@@ -1162,6 +1499,53 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           </div>
                         </div>
                       </div>
+
+                      {/* Finished Goods Size Set Breakdown */}
+                      {watchItems[index]?.item_type === "finished_goods" && (
+                        <div className="mt-4 border-t border-[#F1F5F9] pt-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                                Size Set Quantity Breakdown
+                              </h4>
+                              <p className="text-[10px] text-[#64748B] font-semibold mt-0.5">
+                                Enter piece quantities for each size. Total Pcs will auto-calculate.
+                              </p>
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const selectedDes = designs.find((d) => d.id === watchItems[index]?.design_id);
+                            const sizes = selectedDes?.size_set?.sizes || ["S", "M", "L", "XL", "XXL", "3XL"];
+                            const currentSizeQs = watchItems[index]?.size_quantities || {};
+
+                            return (
+                              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                {sizes.map((sz: string) => (
+                                  <div key={sz} className="space-y-1">
+                                    <label className="text-[10px] font-bold text-[#64748B] uppercase block text-center bg-white py-0.5 rounded border border-slate-200">
+                                      {sz}
+                                    </label>
+                                    <NumericInput
+                                      placeholder="0"
+                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-center font-bold"
+                                      value={currentSizeQs[sz] || ""}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value || 0);
+                                        const updated = { ...currentSizeQs, [sz]: val };
+                                        setValue(`items.${index}.size_quantities`, updated);
+                                        const total = Object.values(updated).reduce((a, b) => Number(a) + Number(b), 0);
+                                        setValue(`items.${index}.quantity`, total);
+                                        recalcItem(index);
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
 
                       {/* Rolls Sub-section */}
                       {((watchItems[index]?.item_type || "fabric") === "fabric") && (
@@ -1640,6 +2024,31 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Quick Add Design Modal */}
+      <QuickAddDesignModal
+        open={quickAddDesignOpen}
+        onOpenChange={setQuickAddDesignOpen}
+        sizeSets={sizeSets}
+        onDesignCreated={(newDesign) => {
+          setDesigns((prev) => [...prev, newDesign]);
+          if (quickAddDesignItemIndex !== null) {
+            setValue(`items.${quickAddDesignItemIndex}.design_id`, newDesign.id, { shouldValidate: true });
+            if (newDesign.hsn_code) {
+              setValue(`items.${quickAddDesignItemIndex}.hsn_sac`, newDesign.hsn_code);
+            }
+            if (newDesign.design_colours && newDesign.design_colours.length > 0) {
+              setValue(`items.${quickAddDesignItemIndex}.colour_id`, newDesign.design_colours[0].id);
+            }
+            const sizeList = newDesign.size_set?.sizes || ["S", "M", "L", "XL"];
+            const initialSizeQty: Record<string, number> = {};
+            sizeList.forEach((sz: string) => {
+              initialSizeQty[sz] = 0;
+            });
+            setValue(`items.${quickAddDesignItemIndex}.size_quantities`, initialSizeQty);
+          }
+        }}
+      />
     </form>
   );
 }

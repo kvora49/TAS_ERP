@@ -1,67 +1,86 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { RecordPaymentModal } from "@/components/forms/RecordPaymentModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
+import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, AlertCircle, Trash2, ArrowLeftRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 
-interface Purchase {
+interface PurchaseLog {
   id: string;
-  purchase_number: string;
+  record_type: "purchase" | "return";
+  doc_number: string;
   invoice_no: string;
-  invoice_date: string;
+  date: string;
   grand_total: number;
   paid_amount: number;
-  payment_status: "unpaid" | "partial" | "paid" | "cancelled";
-  status: "active" | "draft" | "cancelled";
-  gst_type: "with_gst" | "without_gst" | "reverse_charge";
+  payment_status?: "unpaid" | "partial" | "paid" | "cancelled";
+  status: string;
   supplier?: {
     name: string;
-    company_name: string;
+    company_name?: string | null;
   };
+  purchase_ref?: string;
+  raw_purchase?: any;
+  raw_return?: any;
 }
 
 interface Stats {
   totalPurchases: number;
   totalPaid: number;
   totalDue: number;
+  totalReturns: number;
   unpaidCount: number;
-  partialCount: number;
-  paidCount: number;
-  totalCount: number;
 }
 
 export default function PurchasesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as any) || "all";
   const queryClient = useQueryClient();
+
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "unpaid" | "partial" | "paid">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "purchases" | "returns" | "unpaid" | "paid">(
+    ["all", "purchases", "returns", "unpaid", "paid"].includes(initialTab) ? initialTab : "all"
+  );
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentPurchase, setPaymentPurchase] = useState<Purchase | null>(null);
+  const [paymentPurchase, setPaymentPurchase] = useState<any | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletingPurchase, setDeletingPurchase] = useState<Purchase | null>(null);
+  const [deletingLog, setDeletingLog] = useState<PurchaseLog | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const { data: purchasesData, isLoading: purchasesLoading } = useQuery<Purchase[]>({
+  // Fetch Purchases
+  const { data: purchasesData, isLoading: purchasesLoading } = useQuery<any[]>({
     queryKey: ["purchases"],
     queryFn: async () => {
       const res = await fetch("/api/raw-materials/purchases");
       if (!res.ok) throw new Error("Failed to fetch purchases");
       const data = await res.json();
       return data.purchases || [];
-    }
+    },
   });
 
+  // Fetch Purchase Returns
+  const { data: returnsData, isLoading: returnsLoading } = useQuery<any[]>({
+    queryKey: ["purchase-returns"],
+    queryFn: async () => {
+      const res = await fetch("/api/raw-materials/purchase-returns");
+      if (!res.ok) throw new Error("Failed to fetch returns");
+      const data = await res.json();
+      return data.returns || [];
+    },
+  });
+
+  // Fetch Stats
   const { data: statsData, isLoading: statsLoading } = useQuery<Stats | null>({
     queryKey: ["purchases", "stats"],
     queryFn: async () => {
@@ -69,32 +88,77 @@ export default function PurchasesPage() {
       if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
       return data.stats || null;
-    }
+    },
   });
 
   const purchases = purchasesData || [];
-  const stats = statsData || null;
-  const loading = purchasesLoading || statsLoading;
+  const returns = returnsData || [];
+  const loading = purchasesLoading || returnsLoading || statsLoading;
 
-  const handleOpenDelete = (purchase: Purchase) => {
-    setDeletingPurchase(purchase);
+  // Unified stream mapping
+  const unifiedLogs: PurchaseLog[] = [
+    ...purchases.map((p: any) => ({
+      id: p.id,
+      record_type: "purchase" as const,
+      doc_number: p.purchase_number,
+      invoice_no: p.invoice_no || "—",
+      date: p.invoice_date,
+      grand_total: Number(p.grand_total || 0),
+      paid_amount: Number(p.paid_amount || 0),
+      payment_status: p.payment_status,
+      status: p.status,
+      supplier: p.supplier,
+      raw_purchase: p,
+    })),
+    ...returns.map((r: any) => ({
+      id: r.id,
+      record_type: "return" as const,
+      doc_number: r.return_number,
+      invoice_no: r.purchase?.invoice_no ? `Ref: ${r.purchase.invoice_no}` : (r.challan_no || "—"),
+      date: r.return_date,
+      grand_total: Number(r.grand_total || 0),
+      paid_amount: Number(r.grand_total || 0),
+      payment_status: undefined,
+      status: r.status,
+      supplier: r.supplier,
+      purchase_ref: r.purchase?.purchase_number,
+      raw_return: r,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Compute total returns sum
+  const totalReturnsVal = returns.reduce((acc, r) => acc + Number(r.grand_total || 0), 0);
+  const totalPurchasesVal = statsData?.totalPurchases || 0;
+  const netProcurementVal = Math.max(0, totalPurchasesVal - totalReturnsVal);
+
+  const handleOpenDelete = (log: PurchaseLog) => {
+    setDeletingLog(log);
     setDeleteOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (!deletingPurchase) return;
+    if (!deletingLog) return;
     setDeleteLoading(true);
     try {
-      const res = await fetch(`/api/raw-materials/purchases/${deletingPurchase.id}`, {
-        method: "DELETE",
-      });
+      const endpoint =
+        deletingLog.record_type === "purchase"
+          ? `/api/raw-materials/purchases/${deletingLog.id}`
+          : `/api/raw-materials/purchase-returns/${deletingLog.id}`;
+
+      const res = await fetch(endpoint, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to cancel invoice");
+        throw new Error(data.error || "Failed to delete record");
       }
-      toast.success("Invoice cancelled successfully");
+
+      toast.success(
+        deletingLog.record_type === "purchase"
+          ? "Purchase Invoice cancelled successfully"
+          : "Purchase Return cancelled successfully"
+      );
       setDeleteOpen(false);
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
       queryClient.invalidateQueries({ queryKey: ["purchases", "stats"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred");
@@ -110,37 +174,71 @@ export default function PurchasesPage() {
     }).format(val);
   };
 
-  const filteredPurchases = purchases.filter((p) => {
+  const filteredLogs = unifiedLogs.filter((log) => {
     const matchesSearch =
-      p.purchase_number.toLowerCase().includes(search.toLowerCase()) ||
-      p.invoice_no.toLowerCase().includes(search.toLowerCase()) ||
-      (p.supplier?.name && p.supplier.name.toLowerCase().includes(search.toLowerCase())) ||
-      (p.supplier?.company_name && p.supplier.company_name.toLowerCase().includes(search.toLowerCase()));
+      log.doc_number.toLowerCase().includes(search.toLowerCase()) ||
+      log.invoice_no.toLowerCase().includes(search.toLowerCase()) ||
+      (log.supplier?.name && log.supplier.name.toLowerCase().includes(search.toLowerCase())) ||
+      (log.supplier?.company_name && log.supplier.company_name.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesTab = activeTab === "all" || p.payment_status === activeTab;
+    let matchesTab = true;
+    if (activeTab === "purchases") matchesTab = log.record_type === "purchase";
+    else if (activeTab === "returns") matchesTab = log.record_type === "return";
+    else if (activeTab === "unpaid") matchesTab = log.record_type === "purchase" && log.payment_status === "unpaid";
+    else if (activeTab === "paid") matchesTab = log.record_type === "purchase" && log.payment_status === "paid";
 
     return matchesSearch && matchesTab;
   });
 
-  const columns: DataTableColumn<Purchase>[] = [
+  const columns: DataTableColumn<PurchaseLog>[] = [
     {
-      key: "purchase_number",
-      header: "PO Number",
-      width: "140px",
-      render: (row) => (
-        <Link
-          href={`/raw-materials/purchases/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1] whitespace-nowrap"
-        >
-          {row.purchase_number}
-        </Link>
-      ),
+      key: "doc_number",
+      header: "Doc / Reference No.",
+      width: "170px",
+      render: (row) => {
+        const href =
+          row.record_type === "purchase"
+            ? `/raw-materials/purchases/${row.id}`
+            : `/raw-materials/purchase-returns/${row.id}`;
+
+        return (
+          <div className="flex items-center gap-2">
+            <Link
+              href={href}
+              className={`font-mono font-bold text-xs hover:underline ${
+                row.record_type === "purchase" ? "text-indigo-600" : "text-purple-700 dark:text-purple-400"
+              }`}
+            >
+              {row.doc_number}
+            </Link>
+          </div>
+        );
+      },
     },
     {
-      key: "invoice_date",
-      header: "Invoice Date",
-      width: "120px",
-      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatDate(row.invoice_date)}</span>,
+      key: "record_type",
+      header: "Type",
+      width: "150px",
+      render: (row) => {
+        if (row.record_type === "purchase") {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60 uppercase tracking-wider">
+              Purchase Bill
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 shadow-xs uppercase tracking-wider">
+            Purchase Return
+          </span>
+        );
+      },
+    },
+    {
+      key: "date",
+      header: "Date",
+      width: "110px",
+      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatDate(row.date)}</span>,
     },
     {
       key: "supplier",
@@ -155,43 +253,46 @@ export default function PurchasesPage() {
     },
     {
       key: "invoice_no",
-      header: "Invoice No.",
-      width: "160px",
-      render: (row) => <span className="font-mono text-xs font-semibold text-[#1E293B] whitespace-nowrap">{row.invoice_no || "—"}</span>,
+      header: "Inv / Ref No.",
+      width: "150px",
+      render: (row) => <span className="font-mono text-xs font-semibold text-[#1E293B] whitespace-nowrap">{row.invoice_no}</span>,
     },
     {
       key: "grand_total",
       header: "Grand Total",
       width: "140px",
-      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A] whitespace-nowrap">{formatCurrency(row.grand_total)}</span>,
+      render: (row) => (
+        <span
+          className={`font-mono text-xs font-bold whitespace-nowrap ${
+            row.record_type === "return" ? "text-purple-700 dark:text-purple-400" : "text-[#0F172A]"
+          }`}
+        >
+          {row.record_type === "return" ? `- ${formatCurrency(row.grand_total)}` : formatCurrency(row.grand_total)}
+        </span>
+      ),
     },
     {
-      key: "balance",
-      header: "Balance Due",
-      width: "140px",
+      key: "status",
+      header: "Status / Payment",
+      width: "130px",
       render: (row) => {
-        const bal = Number(row.grand_total) - Number(row.paid_amount || 0);
-        return (
-          <span className={`font-mono text-xs font-bold whitespace-nowrap ${bal > 0 ? "text-amber-700" : "text-emerald-700"}`}>
-            {formatCurrency(bal)}
-          </span>
-        );
-      },
-    },
-    {
-      key: "payment_status",
-      header: "Payment",
-      width: "110px",
-      render: (row) => {
-        let variant: BadgeVariant = "gray";
-        if (row.payment_status === "paid") variant = "green";
-        else if (row.payment_status === "partial") variant = "orange";
-        else if (row.payment_status === "unpaid") variant = "red";
+        if (row.record_type === "purchase") {
+          let variant: BadgeVariant = "gray";
+          if (row.payment_status === "paid") variant = "green";
+          else if (row.payment_status === "partial") variant = "orange";
+          else if (row.payment_status === "unpaid") variant = "red";
+
+          return (
+            <Badge variant={variant} className="capitalize text-[10px] font-bold">
+              {row.payment_status}
+            </Badge>
+          );
+        }
 
         return (
-          <Badge variant={variant} className="capitalize text-[10px] font-bold">
-            {row.payment_status}
-          </Badge>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 capitalize">
+            {row.status}
+          </span>
         );
       },
     },
@@ -200,30 +301,41 @@ export default function PurchasesPage() {
       header: "Actions",
       width: "140px",
       render: (row) => {
+        const detailHref =
+          row.record_type === "purchase"
+            ? `/raw-materials/purchases/${row.id}`
+            : `/raw-materials/purchase-returns/${row.id}`;
+
+        const editHref =
+          row.record_type === "purchase"
+            ? `/raw-materials/purchases/${row.id}/edit`
+            : `/raw-materials/purchase-returns/${row.id}/edit`;
+
         const isPaid = row.payment_status === "paid";
+
         return (
           <div className="flex items-center gap-1.5 whitespace-nowrap">
             <Link
-              href={`/raw-materials/purchases/${row.id}`}
+              href={detailHref}
               onClick={(e) => e.stopPropagation()}
               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-              title="View Invoice"
+              title="View Details"
             >
               <Eye className="h-4 w-4" />
             </Link>
             <Link
-              href={`/raw-materials/purchases/${row.id}/edit`}
+              href={editHref}
               onClick={(e) => e.stopPropagation()}
               className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
-              title="Edit Invoice"
+              title="Edit"
             >
               <Edit2 className="h-4 w-4" />
             </Link>
-            {!isPaid && (
+            {row.record_type === "purchase" && !isPaid && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setPaymentPurchase(row);
+                  setPaymentPurchase(row.raw_purchase);
                   setPaymentModalOpen(true);
                 }}
                 className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-100"
@@ -238,7 +350,7 @@ export default function PurchasesPage() {
                 handleOpenDelete(row);
               }}
               className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-              title="Cancel Invoice"
+              title="Cancel / Delete Record"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -250,12 +362,30 @@ export default function PurchasesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <PageHeader
-        title="Purchase Invoices"
-        subtitle="Record and track raw material purchases, invoices, and payment statuses."
-        actionLabel="Record Purchase"
-        onAction={() => router.push("/raw-materials/purchases/new")}
-      />
+      {/* Header & Dual Action Buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-[#0F172A]">Purchases</h1>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            Manage purchase bills, debit notes, and inventory return transactions.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => router.push("/raw-materials/purchases/new")}
+            className="flex-1 sm:flex-initial px-4 py-2 bg-[#6366F1] hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <Plus className="h-4 w-4" /> Record Purchase
+          </button>
+          <button
+            onClick={() => router.push("/raw-materials/purchase-returns/new")}
+            className="flex-1 sm:flex-initial px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Record Purchase Return
+          </button>
+        </div>
+      </div>
 
       {/* STAT CARDS ROW */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -265,7 +395,17 @@ export default function PurchasesPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Purchases</span>
-            <p className="text-lg font-black text-[#0F172A] mt-0.5">{stats ? formatCurrency(stats.totalPurchases) : "₹0.00"}</p>
+            <p className="text-lg font-black text-[#0F172A] mt-0.5">{formatCurrency(totalPurchasesVal)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
+          <div className="p-3 bg-purple-50 text-purple-700 rounded-lg shrink-0">
+            <RotateCcw className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Returns / Debit Notes</span>
+            <p className="text-lg font-black text-purple-700 mt-0.5">{formatCurrency(totalReturnsVal)}</p>
           </div>
         </div>
 
@@ -274,8 +414,8 @@ export default function PurchasesPage() {
             <DollarSign className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Paid</span>
-            <p className="text-lg font-black text-[#16A34A] mt-0.5">{stats ? formatCurrency(stats.totalPaid) : "₹0.00"}</p>
+            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Net Procurement</span>
+            <p className="text-lg font-black text-[#16A34A] mt-0.5">{formatCurrency(netProcurementVal)}</p>
           </div>
         </div>
 
@@ -284,18 +424,8 @@ export default function PurchasesPage() {
             <CreditCard className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Outstanding</span>
-            <p className="text-lg font-black text-[#D97706] mt-0.5">{stats ? formatCurrency(stats.totalDue) : "₹0.00"}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="p-3 bg-[#FEF2F2] rounded-lg text-[#DC2626] shrink-0">
-            <AlertCircle className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Unpaid Invoices</span>
-            <p className="text-lg font-black text-[#DC2626] mt-0.5">{stats ? stats.unpaidCount : "0"}</p>
+            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Outstanding Due</span>
+            <p className="text-lg font-black text-[#D97706] mt-0.5">{statsData ? formatCurrency(statsData.totalDue) : "₹0.00"}</p>
           </div>
         </div>
       </div>
@@ -303,20 +433,22 @@ export default function PurchasesPage() {
       {/* FILTER & TABS BAR */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white border border-[#E2E8F0] p-4 rounded-xl shadow-sm">
         {/* Tabs */}
-        <div className="flex bg-[#F1F5F9] p-1 rounded-lg w-full md:w-auto">
+        <div className="flex bg-[#F1F5F9] p-1 rounded-lg w-full md:w-auto overflow-x-auto">
           {[
-            { id: "all", label: "All Invoices" },
+            { id: "all", label: "All Logs" },
+            { id: "purchases", label: "Purchases" },
+            { id: "returns", label: "Purchase Returns" },
             { id: "unpaid", label: "Unpaid" },
-            { id: "partial", label: "Partial" },
             { id: "paid", label: "Paid" },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeTab === tab.id
-                  ? "bg-white text-[#0F172A] shadow-sm font-bold"
+              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-white text-[#0F172A] shadow-sm"
                   : "text-[#64748B] hover:text-[#0F172A]"
-                }`}
+              }`}
             >
               {tab.label}
             </button>
@@ -328,7 +460,7 @@ export default function PurchasesPage() {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]" />
           <input
             type="text"
-            placeholder="Search PO, invoice, supplier..."
+            placeholder="Search PO, return #, supplier..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
@@ -336,18 +468,24 @@ export default function PurchasesPage() {
         </div>
       </div>
 
-      {/* INVOICES TABLE */}
+      {/* UNIFIED LOGS TABLE */}
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
         <DataTable
           columns={columns}
-          data={filteredPurchases}
+          data={filteredLogs}
           isLoading={loading}
-          total={filteredPurchases.length}
+          total={filteredLogs.length}
           page={1}
           perPage={10000}
-          onPageChange={() => { }}
-          onRowClick={(row) => router.push(`/raw-materials/purchases/${row.id}`)}
-          emptyMessage="No purchases invoices found."
+          onPageChange={() => {}}
+          onRowClick={(row) => {
+            const href =
+              row.record_type === "purchase"
+                ? `/raw-materials/purchases/${row.id}`
+                : `/raw-materials/purchase-returns/${row.id}`;
+            router.push(href);
+          }}
+          emptyMessage="No purchases or returns found."
         />
       </div>
 
@@ -371,9 +509,9 @@ export default function PurchasesPage() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Cancel Purchase Invoice"
-        description={`Are you sure you want to cancel purchase invoice ${deletingPurchase?.purchase_number}? This will set status to cancelled.`}
-        confirmText="Cancel Invoice"
+        title={deletingLog?.record_type === "purchase" ? "Cancel Purchase Invoice" : "Cancel Purchase Return"}
+        description={`Are you sure you want to cancel ${deletingLog?.doc_number}? This will reverse transactions and set status to cancelled.`}
+        confirmText="Confirm Cancel"
         loading={deleteLoading}
         onConfirm={handleConfirmDelete}
       />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTableColumn } from "@/components/tables/DataTable";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -15,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -150,7 +151,7 @@ export default function DesignsPage() {
     setLoading(true);
     try {
       const [resDesigns, resBrands, resSizeSets] = await Promise.all([
-        fetch("/api/master-data/designs"),
+        fetch("/api/finished-stock/designs"),
         fetch("/api/master-data/brands"),
         fetch("/api/master-data/size-sets"),
       ]);
@@ -377,16 +378,19 @@ export default function DesignsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {filteredDesigns.map((design) => {
+              {filteredDesigns.map((design: any) => {
                 const coverImage = design.images?.[0];
+                const stockQty = design.total_quantity || 0;
+                const stockVal = design.total_value || 0;
+
                 return (
                   <div
                     key={design.id}
                     className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group"
                   >
                     {/* Catalog Image Swatch */}
-                    <div
-                      onClick={() => setSelectedDesignDetails(design)}
+                    <Link
+                      href={`/master-data/designs/${design.id}`}
                       className="aspect-[4/3] bg-[#F8FAFC] border-b border-[#E5E7EB] relative flex items-center justify-center overflow-hidden cursor-pointer"
                     >
                       {coverImage ? (
@@ -398,44 +402,48 @@ export default function DesignsPage() {
                       ) : (
                         <ImageIcon className="h-10 w-10 text-[#CBD5E1]" />
                       )}
-                      
+
                       {/* Active Status tag overlay */}
                       <div className="absolute top-2 left-2">
                         <StatusBadge active={design.is_active} />
                       </div>
-                    </div>
+                    </Link>
 
                     {/* Meta info */}
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <div>
-                        <span className="text-[10px] font-bold text-[#6366F1] uppercase tracking-wider">
-                          {design.brand?.name || "Apparel Brand"}
-                        </span>
-                        <button
-                          onClick={() => setSelectedDesignDetails(design)}
-                          className="font-bold text-[#0F172A] hover:text-[#6366F1] text-sm mt-0.5 truncate w-full text-left bg-transparent border-0 p-0 cursor-pointer"
-                        >
-                          {design.name}
-                        </button>
-                        
-                        <div className="flex items-center gap-2 mt-1 font-mono text-xs">
-                          <span className="text-[#334155] font-bold bg-[#F1F5F9] px-1.5 py-0.5 rounded">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#6366F1] uppercase tracking-wider">
+                            {design.brand?.name || "Apparel Brand"}
+                          </span>
+                          <span className="text-[10px] font-bold text-[#334155] bg-[#F1F5F9] px-1.5 py-0.5 rounded font-mono">
                             {design.design_number}
                           </span>
-                          {design.category && (
-                            <span className="text-[#64748B] font-semibold">{design.category}</span>
-                          )}
                         </div>
+
+                        <Link
+                          href={`/master-data/designs/${design.id}`}
+                          className="font-bold text-[#0F172A] hover:text-[#6366F1] text-sm mt-0.5 truncate block w-full transition-colors"
+                        >
+                          {design.name}
+                        </Link>
+
+                        {design.category && (
+                          <span className="text-xs text-[#64748B] font-semibold block mt-0.5">
+                            {design.category}
+                          </span>
+                        )}
                       </div>
 
                       {/* Sizes & Colors preview */}
                       <div className="border-t border-[#F1F5F9] pt-3 flex items-center justify-between text-xs">
                         <div className="flex flex-wrap gap-1 max-w-[120px] overflow-hidden">
-                          {design.size_set?.sizes && design.size_set.sizes.slice(0, 3).map((size) => (
-                            <span key={size} className="text-[9px] font-bold text-[#475569] bg-[#E2E8F0] px-1 rounded">
-                              {size}
-                            </span>
-                          ))}
+                          {design.size_set?.sizes &&
+                            design.size_set.sizes.slice(0, 3).map((size: string) => (
+                              <span key={size} className="text-[9px] font-bold text-[#475569] bg-[#E2E8F0] px-1 rounded">
+                                {size}
+                              </span>
+                            ))}
                           {design.size_set?.sizes && design.size_set.sizes.length > 3 && (
                             <span className="text-[9px] font-bold text-[#64748B]">+ {design.size_set.sizes.length - 3}</span>
                           )}
@@ -443,24 +451,49 @@ export default function DesignsPage() {
 
                         {/* Colour circle indicators */}
                         <div className="flex -space-x-1.5 overflow-hidden">
-                          {design.design_colours && design.design_colours.slice(0, 4).map((c, i) => (
-                            <span
-                              key={i}
-                              className="w-3.5 h-3.5 rounded-full border border-white ring-1 ring-black/10 inline-block shrink-0"
-                              style={{ backgroundColor: c.colour_hex || "#6366F1" }}
-                              title={c.colour_name}
-                            />
-                          ))}
+                          {design.design_colours &&
+                            design.design_colours.slice(0, 4).map((c: any, i: number) => (
+                              <span
+                                key={i}
+                                className="w-3.5 h-3.5 rounded-full border border-white ring-1 ring-black/10 inline-block shrink-0"
+                                style={{ backgroundColor: c.colour_hex || "#6366F1" }}
+                                title={c.colour_name}
+                              />
+                            ))}
+                        </div>
+                      </div>
+
+                      {/* Stock Summary Section (Image 1 replica) */}
+                      <div className="border-t border-b border-[#F1F5F9] py-2.5 grid grid-cols-2 gap-2 text-xs bg-slate-50/70 rounded-lg px-2.5">
+                        <div>
+                          <span className="text-[9px] font-bold text-[#94A3B8] uppercase block">Stock On Hand</span>
+                          <span className="font-extrabold text-[#0F172A] text-xs">{stockQty.toLocaleString()} pcs</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] font-bold text-[#94A3B8] uppercase block">Stock Value</span>
+                          <span className="font-extrabold text-emerald-600 text-xs">
+                            ₹{stockVal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                          </span>
                         </div>
                       </div>
 
                       {/* Price & Actions */}
-                      <div className="border-t border-[#F1F5F9] pt-3 flex items-center justify-between">
-                        <span className="font-bold text-xs text-[#0F172A]">
-                          ₹{design.sale_price?.toLocaleString("en-IN") || "0.00"}
-                        </span>
-                        
+                      <div className="pt-1 flex items-center justify-between">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase">Sale Price</span>
+                          <span className="font-bold text-xs text-[#0F172A]">
+                            ₹{design.sale_price?.toLocaleString("en-IN") || "0.00"}
+                          </span>
+                        </div>
+
                         <div className="flex items-center gap-1">
+                          <Link
+                            href={`/master-data/designs/${design.id}`}
+                            className="w-7 h-7 rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-600 flex items-center justify-center cursor-pointer transition-all"
+                            title="View Stock Matrix & Details"
+                          >
+                            <Eye size={13} />
+                          </Link>
                           <button
                             onClick={() => handleOpenEdit(design)}
                             className="w-7 h-7 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
@@ -898,122 +931,6 @@ export default function DesignsPage() {
         loading={deleteLoading}
       />
 
-      {/* View Design Details Modal */}
-      <Dialog open={selectedDesignDetails !== null} onOpenChange={(open) => !open && setSelectedDesignDetails(null)}>
-        <DialogContent className="sm:max-w-lg bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <Palette className="h-5 w-5 text-[#6366F1]" />
-              Design Specifications
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedDesignDetails && (
-            <div className="space-y-4 pt-3 text-sm text-[#374151]">
-              {/* Image Swatches */}
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {selectedDesignDetails.images && selectedDesignDetails.images.length > 0 ? (
-                  selectedDesignDetails.images.map((img, i) => (
-                    <img
-                      key={i}
-                      src={img}
-                      alt={`Design Swatch ${i + 1}`}
-                      className="w-24 h-24 object-cover rounded-lg border border-[#E5E7EB]"
-                    />
-                  ))
-                ) : (
-                  <div className="w-full h-24 rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] flex items-center justify-center text-xs text-[#94A3B8]">
-                    No images uploaded
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-[#F3F4F6] pt-3 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Design Code</span>
-                  <span className="font-mono text-sm font-bold text-[#6366F1]">{selectedDesignDetails.design_number}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Design Name</span>
-                  <span className="font-semibold">{selectedDesignDetails.name}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Brand</span>
-                  <span className="font-semibold text-xs">{selectedDesignDetails.brand?.name || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Category / Sub-category</span>
-                  <span className="font-semibold text-xs">
-                    {selectedDesignDetails.category || "—"} {selectedDesignDetails.sub_category ? `/ ${selectedDesignDetails.sub_category}` : ""}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Season</span>
-                  <span className="font-semibold text-xs">{selectedDesignDetails.season || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Gender Range</span>
-                  <span className="font-semibold text-xs">{selectedDesignDetails.gender || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Sale Price (₹)</span>
-                  <span className="font-bold text-xs">
-                    ₹{selectedDesignDetails.sale_price?.toLocaleString("en-IN") || "0.00"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">HSN Code</span>
-                  <span className="font-mono text-xs">{selectedDesignDetails.hsn_code || "—"}</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Size Set Template</span>
-                  <span className="font-semibold text-xs">
-                    {selectedDesignDetails.size_set?.name || "—"}{" "}
-                    {selectedDesignDetails.size_set?.sizes ? `(${selectedDesignDetails.size_set.sizes.join(", ")})` : ""}
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Description</span>
-                  <p className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] whitespace-pre-line">
-                    {selectedDesignDetails.description || "No description provided."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Colours Section */}
-              <div className="border-t border-[#F3F4F6] pt-3">
-                <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider mb-2">Available Colours</span>
-                {selectedDesignDetails.design_colours && selectedDesignDetails.design_colours.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedDesignDetails.design_colours.map((col, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
-                        <span
-                          className="w-4 h-4 rounded-full border border-gray-300 shadow-sm shrink-0"
-                          style={{ backgroundColor: col.colour_hex || "#CCCCCC" }}
-                        />
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold block truncate text-[#334155]">{col.colour_name}</span>
-                          <span className="text-[10px] text-[#64748B] font-mono">{col.colour_hex}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-xs text-[#94A3B8]">No colours configured.</span>
-                )}
-              </div>
-            </div>
-          )}
-          <DialogFooter className="pt-2 border-t border-[#F3F4F6]">
-            <button
-              onClick={() => setSelectedDesignDetails(null)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

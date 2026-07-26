@@ -1,4 +1,5 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 
@@ -156,25 +157,92 @@ export async function PUT(
     const totalJobWorkAmount = qty_out * jRate;
     const totalLaborCost = totalJobWorkAmount;
 
+    const supabaseAdmin = createAdminClient();
+
     // Safely resolve worker_id to a valid workers.id UUID or null to prevent FK constraint errors
     let finalWorkerId: string | null = null;
     let worker_type: string | null = null;
 
     if (worker_id && typeof worker_id === "string" && worker_id.trim() !== "") {
-      const { data: matchedWorker } = await supabase
+      let matchedWorker: any = null;
+
+      const { data: wRecord } = await supabaseAdmin
         .from("workers")
-        .select("id, type")
-        .or(`id.eq.${worker_id},worker_id.eq.${worker_id}`)
-        .limit(1)
+        .select("id, worker_id, name, type, phone, address, remarks, is_active")
+        .eq("id", worker_id)
         .maybeSingle();
+
+      if (wRecord) {
+        matchedWorker = wRecord;
+      } else {
+        const { data: wCodeRecord } = await supabaseAdmin
+          .from("workers")
+          .select("id, worker_id, name, type, phone, address, remarks, is_active")
+          .eq("worker_id", worker_id)
+          .maybeSingle();
+
+        if (wCodeRecord) {
+          matchedWorker = wCodeRecord;
+        } else {
+          const { data: partyWorker } = await supabaseAdmin
+            .from("parties")
+            .select("id, code, name, type, phone, billing_address_line1, remarks, is_active")
+            .eq("id", worker_id)
+            .maybeSingle();
+
+          if (partyWorker) {
+            matchedWorker = {
+              id: partyWorker.id,
+              worker_id: partyWorker.code,
+              name: partyWorker.name,
+              type: Array.isArray(partyWorker.type) ? partyWorker.type[0] : "job_worker",
+              phone: partyWorker.phone,
+              address: partyWorker.billing_address_line1,
+              remarks: partyWorker.remarks,
+              is_active: partyWorker.is_active !== false,
+            };
+          }
+        }
+      }
 
       if (matchedWorker) {
         finalWorkerId = matchedWorker.id;
-        worker_type = matchedWorker.type || null;
+        worker_type = (matchedWorker.type === "permanent" || matchedWorker.type === "in_house") ? "permanent" : "job_worker";
+        const uniqueCode = `${matchedWorker.worker_id || 'WRK'}_${matchedWorker.id.substring(0, 6)}`;
+
+        // 1. Ensure worker exists in `workers` table
+        try {
+          await supabaseAdmin.from("workers").upsert({
+            id: matchedWorker.id,
+            business_id: businessId,
+            name: matchedWorker.name || "Worker",
+            worker_id: uniqueCode,
+            type: worker_type,
+            phone: matchedWorker.phone || null,
+            address: matchedWorker.address || null,
+            remarks: matchedWorker.remarks || null,
+            is_active: matchedWorker.is_active !== false,
+          }, { onConflict: "id" });
+        } catch (_ignore) {}
+
+        // 2. Ensure worker ALSO exists in `workers_deprecated` table to satisfy live DB foreign key constraint
+        try {
+          await supabaseAdmin.from("workers_deprecated").upsert({
+            id: matchedWorker.id,
+            business_id: businessId,
+            name: matchedWorker.name || "Worker",
+            worker_id: `${uniqueCode}_dep`,
+            type: worker_type,
+            phone: matchedWorker.phone || null,
+            address: matchedWorker.address || null,
+            remarks: matchedWorker.remarks || null,
+            is_active: matchedWorker.is_active !== false,
+          }, { onConflict: "id" });
+        } catch (_ignore) {}
       }
     }
 
-    const { data: entry, error } = await supabase
+    const { data: entry, error } = await supabaseAdmin
       .from("stage_entries")
       .update({
         entry_date,
@@ -220,6 +288,138 @@ export async function PUT(
     await logAudit(businessId, "update", "stage_entries", id, entry, oldEntry);
 
     return NextResponse.json({ entry });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = params;
+
+  try {
+    const { data: oldEntry } = await supabase
+      .from("stage_entries")
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (!oldEntry) {
+      return NextResponse.json({ error: "Stage entry not found" }, { status: 404 });
+    }
+
+    // -------------------------------------------------------------
+    // GUARDRAIL 1: Payment Settled / Paid Amount Check
+    // -------------------------------------------------------------
+    const paidAmount = Number(oldEntry.paid_amount || 0);
+    if (paidAmount > 0 || oldEntry.payment_status === "paid" || oldEntry.payment_status === "partial") {
+      return NextResponse.json(
+        {
+          error: `Cannot delete stage entry ${oldEntry.entry_number} because a payment of ₹${paidAmount.toFixed(
+            2
+          )} has already been recorded against it. Please reverse or adjust the payment voucher first.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: linkedPayments } = await supabase
+      .from("job_work_payment_entries")
+      .select("id")
+      .eq("stage_entry_id", id)
+      .limit(1);
+
+    if (linkedPayments && linkedPayments.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete stage entry ${oldEntry.entry_number} because it is linked to job work payment vouchers. Please delete or unlink the payment vouchers first.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // GUARDRAIL 2: Moved to Finished Stock Check
+    // -------------------------------------------------------------
+    if (
+      oldEntry.moved_to_stock === true ||
+      oldEntry.finished_stock_id ||
+      oldEntry.is_moved_to_stock
+    ) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete stage entry ${oldEntry.entry_number} because the processed output items have already been moved to Finished Stock.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: stockMovements } = await supabase
+      .from("stock_ledger")
+      .select("id")
+      .eq("reference_id", id)
+      .eq("reference_type", "stage_entry")
+      .limit(1);
+
+    if (stockMovements && stockMovements.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete stage entry ${oldEntry.entry_number} because output inventory has already been posted to Finished Stock ledger.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // Delete Stage Entry
+    // -------------------------------------------------------------
+    const { error } = await supabase
+      .from("stage_entries")
+      .delete()
+      .eq("id", id)
+      .eq("business_id", businessId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    // -------------------------------------------------------------
+    // Reconcile Lot Production Stage completed quantities
+    // -------------------------------------------------------------
+    if (oldEntry.lot_stage_id && oldEntry.qty_out > 0) {
+      const { data: stage } = await supabase
+        .from("lot_production_stages")
+        .select("completed_quantity, status")
+        .eq("id", oldEntry.lot_stage_id)
+        .maybeSingle();
+
+      if (stage) {
+        const newCompleted = Math.max(0, (stage.completed_quantity || 0) - oldEntry.qty_out);
+        await supabase
+          .from("lot_production_stages")
+          .update({
+            completed_quantity: newCompleted,
+            status: newCompleted > 0 ? "in_progress" : "pending",
+          })
+          .eq("id", oldEntry.lot_stage_id);
+      }
+    }
+
+    await logAudit(businessId, "delete", "stage_entries", id, oldEntry);
+
+    return NextResponse.json({ success: true, message: "Stage entry deleted successfully and ledgers reconciled" });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

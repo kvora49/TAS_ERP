@@ -243,6 +243,23 @@ export async function DELETE(
       return NextResponse.json({ error: "Purchase return not found or access denied" }, { status: 404 });
     }
 
+    // 🔒 GUARDRAIL: If purchase return / debit note has been settled or adjusted, block cancellation!
+    if (pReturn.debit_note_id) {
+      const { data: dn } = await supabase
+        .from("debit_notes")
+        .select("status, amount_adjusted")
+        .eq("id", pReturn.debit_note_id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (dn && (dn.status === "settled" || Number(dn.amount_adjusted || 0) > 0)) {
+        return NextResponse.json(
+          { error: "Cannot cancel this purchase return because the associated Debit Note has already been settled or adjusted against payments." },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: returnItems } = await supabase
       .from("purchase_return_items")
       .select("*")
@@ -251,54 +268,111 @@ export async function DELETE(
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // 1. Revert Stock: Restore stock that was returned to supplier
+    // 1. Revert Stock: Restore stock that was returned to supplier (Finished Goods & Raw Materials)
     if (returnItems && returnItems.length > 0 && pReturn.godown_id) {
       for (const item of returnItems) {
         const qty = Number(item.returned_qty || 0);
         const val = Number(item.taxable_value || (qty * Number(item.rate || 0)));
 
-        // Insert positive delta entry in stock_ledger to add stock back to godown
-        await supabase.from("stock_ledger").insert({
-          business_id: businessId,
-          item_type: "raw_material",
-          item_id: item.material_type_id,
-          godown_id: pReturn.godown_id,
-          transaction_type: "purchase_return_cancellation",
-          quantity_delta: qty,
-          value_delta: val,
-          reference_table: "purchase_returns",
-          reference_id: id,
-          created_by: user?.id || null,
-        });
+        if (item.item_type === "finished_goods" && item.design_id) {
+          // Restore Finished Goods stock to Godown
+          await supabase.from("finished_stock").insert({
+            business_id: businessId,
+            design_id: item.design_id,
+            colour_id: item.colour_id || null,
+            godown_id: pReturn.godown_id,
+            entry_type: "adjustment",
+            size_quantities: item.size_quantities || {},
+            total_quantity: qty,
+            cost_per_piece: Number(item.rate || 0),
+            total_value: val,
+            notes: `Restored stock from cancelled Purchase Return ${pReturn.return_number}`,
+          });
 
-        // Update raw_material_current_stock for godown
-        const { data: stockEntry } = await supabase
-          .from("raw_material_current_stock")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("material_type_id", item.material_type_id)
-          .eq("godown_id", pReturn.godown_id)
-          .maybeSingle();
+          await supabase.from("stock_ledger").insert({
+            business_id: businessId,
+            item_type: "finished_good",
+            item_id: item.design_id,
+            godown_id: pReturn.godown_id,
+            transaction_type: "purchase_return_cancellation",
+            quantity_delta: qty,
+            value_delta: val,
+            reference_table: "purchase_returns",
+            reference_id: id,
+            created_by: user?.id || null,
+          });
+        } else if (item.material_type_id) {
+          // Restore Fabric rolls remaining meters if applicable
+          if (item.item_type === "fabric") {
+            const { data: retRolls } = await supabase
+              .from("purchase_return_rolls")
+              .select("*")
+              .eq("return_item_id", item.id)
+              .eq("business_id", businessId);
 
-        if (stockEntry) {
-          const updatedQty = Number(stockEntry.current_stock || 0) + qty;
-          const updatedValue = Number(stockEntry.stock_value || 0) + val;
-          const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+            if (retRolls && retRolls.length > 0) {
+              for (const rRoll of retRolls) {
+                const { data: origRoll } = await supabase
+                  .from("purchase_rolls")
+                  .select("remaining_meters")
+                  .eq("id", rRoll.purchase_roll_id)
+                  .maybeSingle();
 
-          await supabase
+                if (origRoll) {
+                  await supabase
+                    .from("purchase_rolls")
+                    .update({
+                      remaining_meters: Number(origRoll.remaining_meters || 0) + Number(rRoll.returned_meters || 0),
+                    })
+                    .eq("id", rRoll.purchase_roll_id);
+                }
+              }
+            }
+          }
+
+          // Insert positive delta entry in stock_ledger for Raw Materials
+          await supabase.from("stock_ledger").insert({
+            business_id: businessId,
+            item_type: "raw_material",
+            item_id: item.material_type_id,
+            godown_id: pReturn.godown_id,
+            transaction_type: "purchase_return_cancellation",
+            quantity_delta: qty,
+            value_delta: val,
+            reference_table: "purchase_returns",
+            reference_id: id,
+            created_by: user?.id || null,
+          });
+
+          // Update raw_material_current_stock for godown
+          const { data: stockEntry } = await supabase
             .from("raw_material_current_stock")
-            .update({
-              current_stock: updatedQty,
-              stock_value: updatedValue,
-              unit_cost: updatedUnitCost,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", stockEntry.id);
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("material_type_id", item.material_type_id)
+            .eq("godown_id", pReturn.godown_id)
+            .maybeSingle();
+
+          if (stockEntry) {
+            const updatedQty = Number(stockEntry.current_stock || 0) + qty;
+            const updatedValue = Number(stockEntry.stock_value || 0) + val;
+            const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+            await supabase
+              .from("raw_material_current_stock")
+              .update({
+                current_stock: updatedQty,
+                stock_value: updatedValue,
+                unit_cost: updatedUnitCost,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", stockEntry.id);
+          }
         }
       }
     }
 
-    // 2. Soft-delete Purchase Return
+    // 2. Soft-delete Purchase Return & cancel associated Debit Note if active
     await supabase
       .from("purchase_returns")
       .update({
@@ -308,6 +382,14 @@ export async function DELETE(
       })
       .eq("id", id)
       .eq("business_id", businessId);
+
+    if (pReturn.debit_note_id) {
+      await supabase
+        .from("debit_notes")
+        .update({ status: "cancelled" })
+        .eq("id", pReturn.debit_note_id)
+        .eq("business_id", businessId);
+    }
 
     // 3. Record Audit Log
     await supabase.from("audit_log").insert({

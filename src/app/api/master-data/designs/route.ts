@@ -68,7 +68,23 @@ export async function POST(request: Request) {
       colours, // Array of { colour_name: string, colour_hex: string, image_url: string }
     } = body;
 
-    if (!brand_id || !name) {
+    let targetBrandId = brand_id;
+    if (!targetBrandId) {
+      const { data: firstBrand } = await supabase
+        .from("brands")
+        .select("id")
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstBrand) {
+        targetBrandId = firstBrand.id;
+      }
+    }
+
+    if (!targetBrandId || !name) {
       return NextResponse.json(
         { error: "Brand and Design Name are required" },
         { status: 400 }
@@ -81,7 +97,7 @@ export async function POST(request: Request) {
     const { data: brand, error: brandError } = await supabase
       .from("brands")
       .select("*")
-      .eq("id", brand_id)
+      .eq("id", targetBrandId)
       .single();
 
     if (brandError || !brand) {
@@ -100,7 +116,7 @@ export async function POST(request: Request) {
       await supabase
         .from("brands")
         .update({ design_sequence: seq + 1 })
-        .eq("id", brand_id);
+        .eq("id", targetBrandId);
     }
 
     // Insert the design record
@@ -108,7 +124,7 @@ export async function POST(request: Request) {
       .from("designs")
       .insert({
         business_id: businessId,
-        brand_id,
+        brand_id: targetBrandId,
         design_number: finalDesignNumber,
         name,
         category: category || null,
@@ -151,7 +167,26 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ design });
+    // Re-fetch created design with full relations (brand, size_set, design_colours)
+    const { data: fullDesign } = await supabase
+      .from("designs")
+      .select(`
+        *,
+        brand:brands(name, design_prefix, design_separator, design_digits, design_sequence),
+        size_set:size_sets(name, sizes),
+        design_colours(*)
+      `)
+      .eq("id", design.id)
+      .single();
+
+    const activeDesign = fullDesign
+      ? {
+          ...fullDesign,
+          design_colours: fullDesign.design_colours?.filter((c: any) => c.deleted_at === null) || [],
+        }
+      : design;
+
+    return NextResponse.json({ design: activeDesign });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

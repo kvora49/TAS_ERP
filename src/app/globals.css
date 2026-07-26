@@ -444,14 +444,14 @@
 .dark .bg-slate-100,
 .dark .bg-gray-50,
 .dark .bg-gray-100,
-.dark .bg-[#F8FAFC],
-.dark .bg-[#F1F5F9],
+.dark \.bg-\[\#F8FAFC\],
+.dark \.bg-\[\#F1F5F9\],
 [data-theme="dark"] .bg-slate-50,
 [data-theme="dark"] .bg-slate-100,
 [data-theme="dark"] .bg-gray-50,
 [data-theme="dark"] .bg-gray-100,
-[data-theme="dark"] .bg-[#F8FAFC],
-[data-theme="dark"] .bg-[#F1F5F9] {
+[data-theme="dark"] \.bg-\[\#F8FAFC\],
+[data-theme="dark"] \.bg-\[\#F1F5F9\] {
   background-color: #0F172A !important;
   border-color: #334155 !important;
 }

@@ -50,6 +50,7 @@ export const IMPLEMENTED_ROUTES = [
   "/raw-materials/stock",
   "/production/lots",
   "/production/stage-entries",
+  "/production/job-work",
   "/production/job-work/list",
   "/production/job-work/record-payment",
   "/payments/supplier",
@@ -85,6 +86,7 @@ export const isWhitelisted = (href: string): boolean => {
     href.startsWith("/production/lots/") ||
     href.startsWith("/production/stage-entries/") ||
     href.startsWith("/finished-stock/designs/") ||
+    href.startsWith("/finished-stock/operations") ||
     href.startsWith("/finished-stock/adjustments/") ||
     href.startsWith("/finished-stock/transfers/") ||
     href.startsWith("/finished-stock/challans/") ||
@@ -177,6 +179,7 @@ export const navItems: NavItem[] = [
     subItems: [
       { name: "Brands", href: "/master-data/brands" },
       { name: "Godowns", href: "/master-data/godowns" },
+      { name: "Material Types", href: "/master-data/raw-materials" },
       { name: "Production Stages", href: "/master-data/production-stages/templates" },
       { name: "Size Sets", href: "/master-data/size-sets" },
       { name: "Designs", href: "/master-data/designs" },
@@ -185,6 +188,7 @@ export const navItems: NavItem[] = [
       { name: "Banks & UPI", href: "/master-data/banks-upi" },
       { name: "Units", href: "/master-data/units" },
       { name: "Garment Types", href: "/master-data/garment-types" },
+      { name: "Barcode / QR", href: "/master-data/barcode-qr" },
     ],
   },
   { name: "Parties", href: "/parties", icon: Users },
@@ -192,9 +196,7 @@ export const navItems: NavItem[] = [
     name: "Raw Materials",
     icon: Package,
     subItems: [
-      { name: "Material Types", href: "/master-data/raw-materials" },
       { name: "Purchases", href: "/raw-materials/purchases" },
-      { name: "Purchase Returns", href: "/raw-materials/purchase-returns" },
       { name: "Raw Material Stock", href: "/raw-materials/stock" },
     ],
   },
@@ -204,14 +206,7 @@ export const navItems: NavItem[] = [
     subItems: [
       { name: "Production Lots", href: "/production/lots" },
       { name: "Stage Entries", href: "/production/stage-entries" },
-      {
-        name: "Job Work",
-        subItems: [
-          { name: "Job Work List", href: "/production/job-work/list" },
-          { name: "Job Worker Ledger", href: "/production/job-work/ledger" },
-          { name: "Record Payment", href: "/production/job-work/record-payment" },
-        ]
-      }
+      { name: "Job Work", href: "/production/job-work" },
     ],
   },
   {
@@ -219,11 +214,7 @@ export const navItems: NavItem[] = [
     icon: Boxes,
     subItems: [
       { name: "Overview", href: "/finished-stock" },
-      { name: "Design Stock", href: "/finished-stock/designs" },
-      { name: "Adjustments", href: "/finished-stock/adjustments" },
-      { name: "Transfers", href: "/finished-stock/transfers" },
-      { name: "Challans", href: "/finished-stock/challans" },
-      { name: "Barcode / QR", href: "/finished-stock/barcode-qr" },
+      { name: "Stock Operations", href: "/finished-stock/operations" },
     ],
   },
   { name: "Scan (PWA)", href: "/scan", icon: QrCode },

@@ -106,8 +106,14 @@ export async function GET(request: Request) {
       const colours = Array.from(colourMap.values());
       const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
 
+      const effectiveCompletedQty =
+        lot.status === "completed"
+          ? (lot.completed_quantity || lot.total_quantity || 0)
+          : (lot.completed_quantity || 0);
+
       return {
         ...lot,
+        completed_quantity: effectiveCompletedQty,
         size_set: effectiveSizeSet,
         colours,
         sizes,

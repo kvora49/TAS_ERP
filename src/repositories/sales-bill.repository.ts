@@ -248,25 +248,137 @@ export class SalesBillRepository {
 
   async updateAtomic(billId: string, businessId: string, billData: any, items: any[], charges: any[]) {
     const { gstin, phone, transporter_name, vehicle_no, ...cleanData } = billData;
-    const insertableData = {
+    const updateData = {
       ...cleanData,
       eway_transporter: transporter_name || null,
       eway_vehicle_no: vehicle_no || null,
       generate_eway_bill: !!transporter_name,
+      updated_at: new Date().toISOString(),
     };
 
-    const { error } = await this.supabase.rpc("update_sales_bill_atomic", {
-      p_bill_id: billId,
-      p_business_id: businessId,
-      p_bill_data: insertableData,
-      p_items: items,
-      p_charges: charges,
-    });
-    if (error) throw error;
+    // 1. Update parent bill
+    const { error: billErr } = await this.supabase
+      .from("sale_bills")
+      .update(updateData)
+      .eq("id", billId)
+      .eq("business_id", businessId);
+
+    if (billErr) throw billErr;
+
+    // 2. Delete and re-insert items if provided
+    if (items) {
+      await this.supabase
+        .from("sale_bill_items")
+        .delete()
+        .eq("bill_id", billId)
+        .eq("business_id", businessId);
+
+      if (items.length > 0) {
+        const itemsToInsert = items.map((it) => ({
+          business_id: businessId,
+          bill_id: billId,
+          design_id: it.design_id,
+          colour_id: it.colour_id || null,
+          size: it.size,
+          brand_id: it.brand_id || null,
+          hsn_sac: it.hsn_sac || null,
+          quantity: Number(it.quantity || 0),
+          unit: it.unit || "Pcs",
+          rate: Number(it.rate || 0),
+          discount_percent: Number(it.discount_percent || 0),
+          tax_percent: Number(it.tax_percent || 0),
+          amount: Number(it.amount || 0),
+          cost_per_piece: it.cost_per_piece !== undefined ? Number(it.cost_per_piece) : null,
+          description: it.description || null,
+        }));
+
+        const { error: itemsErr } = await this.supabase
+          .from("sale_bill_items")
+          .insert(itemsToInsert);
+
+        if (itemsErr) throw itemsErr;
+      }
+    }
+
+    // 3. Delete and re-insert charges if provided
+    if (charges) {
+      await this.supabase
+        .from("sale_bill_charges")
+        .delete()
+        .eq("bill_id", billId)
+        .eq("business_id", businessId);
+
+      if (charges.length > 0) {
+        const chargesToInsert = charges.map((ch) => ({
+          business_id: businessId,
+          bill_id: billId,
+          charge_name: ch.charge_name,
+          charge_type: ch.charge_type || "flat",
+          is_taxable: !!ch.is_taxable,
+          amount: Number(ch.amount || 0),
+        }));
+
+        const { error: chargesErr } = await this.supabase
+          .from("sale_bill_charges")
+          .insert(chargesToInsert);
+
+        if (chargesErr) throw chargesErr;
+      }
+    }
+
     return { success: true };
   }
 
   async delete(id: string, businessId: string) {
+    // 1. Fetch sale bill with items to restore stock
+    const bill = await this.getById(id, businessId);
+    if (bill && bill.items && bill.items.length > 0) {
+      const godownId = bill.godown_id || bill.items[0]?.godown_id;
+      if (godownId) {
+        const finishedStockRestorations: any[] = [];
+        const stockLedgerRestorations: any[] = [];
+
+        for (const item of bill.items) {
+          if (item.design_id) {
+            const sizeQty = item.size ? { [item.size]: Number(item.quantity || 0) } : {};
+            const totalQty = Number(item.quantity || 0);
+
+            finishedStockRestorations.push({
+              business_id: businessId,
+              design_id: item.design_id,
+              colour_id: item.colour_id || null,
+              godown_id: godownId,
+              entry_type: "adjustment",
+              size_quantities: sizeQty,
+              total_quantity: totalQty,
+              cost_per_piece: item.cost_per_piece || item.rate || 0,
+              total_value: (item.cost_per_piece || item.rate || 0) * totalQty,
+            });
+
+            stockLedgerRestorations.push({
+              business_id: businessId,
+              item_type: "finished_goods",
+              item_id: item.design_id,
+              godown_id: godownId,
+              transaction_type: "sales_return",
+              quantity_delta: totalQty,
+              value_delta: (item.cost_per_piece || item.rate || 0) * totalQty,
+              reference_table: "sale_bills",
+              reference_id: id,
+            });
+          }
+        }
+
+        if (finishedStockRestorations.length > 0) {
+          await this.supabase.from("finished_stock").insert(finishedStockRestorations);
+        }
+        if (stockLedgerRestorations.length > 0) {
+          await this.supabase.from("stock_ledger").insert(stockLedgerRestorations);
+        }
+      }
+    }
+
+    // 2. Soft delete the sale bill
     const { error } = await this.supabase
       .from("sale_bills")
       .update({ deleted_at: new Date().toISOString() })

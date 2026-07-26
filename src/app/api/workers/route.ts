@@ -131,24 +131,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // Mirror worker into workers_deprecated so stage_entries_worker_id_fkey FK constraint is satisfied
-    try {
-      const uniqueCode = `${worker.worker_id}_${worker.id.substring(0, 4)}`;
-      await supabase.from("workers_deprecated").insert({
-        id: worker.id,
-        business_id: businessId,
-        name: worker.name,
-        worker_id: uniqueCode,
-        type: "job_worker",
-        phone: worker.phone,
-        address: worker.address,
-        remarks: worker.remarks,
-        is_active: worker.is_active,
-        created_by: userId,
-      });
-    } catch (_ignore) {
-      // Ignore if already exists or fails
-    }
+
 
     // Log audit trail
     await logAudit(businessId, "create", "workers", worker.id, worker);

@@ -380,9 +380,13 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
             <div className="flex gap-4 p-4 border border-indigo-100 rounded-xl bg-indigo-50/50">
               <div className="flex-1 space-y-1">
-                <span className="text-xs font-bold text-slate-800 block">Finalize & Generate Invoice</span>
+                <span className="text-xs font-bold text-slate-800 block">
+                  {mode === "edit" ? "Save & Update Sales Bill" : "Finalize & Generate Invoice"}
+                </span>
                 <p className="text-xs text-slate-500 leading-normal">
-                  Publishes the invoice. This generates a sequential bill number and registers financial entries.
+                  {mode === "edit"
+                    ? "Saves all updated items, charges, totals, and customer details for this invoice."
+                    : "Publishes the invoice. This generates a sequential bill number and registers financial entries."}
                 </p>
               </div>
               <Button
@@ -391,7 +395,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 className="self-center bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold"
               >
                 {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <span>Generate Invoice</span>
+                <span>{mode === "edit" ? "Update Sales Bill" : "Generate Invoice"}</span>
               </Button>
             </div>
           </div>

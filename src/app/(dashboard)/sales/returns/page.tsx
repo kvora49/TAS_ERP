@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, Calendar, RefreshCw, Layers, CheckCircle2, DollarSign, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, Calendar, RefreshCw, Layers, CheckCircle2, DollarSign, Loader2, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -40,7 +40,8 @@ interface SalesReturn {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   party?: Party;
-  credit_note?: { cn_number: string } | { cn_number: string }[] | null;
+  bill?: { id: string; bill_number: string } | null;
+  credit_note?: { id: string; cn_number: string } | { id: string; cn_number: string }[] | null;
 }
 
 export default function SalesReturnsPage() {
@@ -318,6 +319,7 @@ export default function SalesReturnsPage() {
                   <th className="p-4">Return Date</th>
                   <th className="p-4">Return Number</th>
                   <th className="p-4">Customer</th>
+                  <th className="p-4">Original Bill</th>
                   <th className="p-4">Reason</th>
                   <th className="p-4 text-right">Value (₹)</th>
                   <th className="p-4 text-center">Status</th>
@@ -327,48 +329,73 @@ export default function SalesReturnsPage() {
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {returns.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-semibold text-slate-700">{r.return_date}</td>
-                    <td className="p-4 font-bold text-[#DC2626] font-mono">{r.return_number}</td>
-                    <td className="p-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">{r.party?.name}</span>
-                        {r.party?.company_name && (
-                          <span className="text-[10px] text-slate-400 font-medium">{r.party.company_name}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 text-slate-500 font-medium">{r.return_reason || "—"}</td>
-                    <td className="p-4 text-right font-bold text-slate-800">
-                      ₹{r.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="px-2.5 py-0.5 bg-[#DCFCE7] text-[#15803D] rounded-full text-[10px] font-bold uppercase tracking-wider">
-                        Approved
-                      </span>
-                    </td>
-                    <td className="p-4 text-center font-bold text-[#6366F1] font-mono">
-                      {(() => {
-                        const cn = Array.isArray(r.credit_note) ? r.credit_note[0] : r.credit_note;
-                        return cn?.cn_number ? (
-                          <Link href="/sales/credit-notes" className="hover:underline">
-                            {cn.cn_number}
+                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-700">{r.return_date}</td>
+                      <td className="p-4 font-bold text-[#DC2626] font-mono">
+                        <Link href={`/sales/returns/${r.id}`} className="hover:underline">
+                          {r.return_number}
+                        </Link>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800">{r.party?.name}</span>
+                          {r.party?.company_name && (
+                            <span className="text-[10px] text-slate-400 font-medium">{r.party.company_name}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {r.bill ? (
+                          <Link
+                            href={`/sales/bills/${r.bill.id}`}
+                            className="font-mono text-xs font-bold text-[#6366F1] hover:underline"
+                          >
+                            {r.bill.bill_number}
                           </Link>
                         ) : (
-                          "—"
-                        );
-                      })()}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleOpenDelete(r)}
-                        className="w-8 h-8 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded-lg flex items-center justify-center cursor-pointer transition-all self-end"
-                        title="Delete Return"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-500 font-medium">{r.return_reason || "—"}</td>
+                      <td className="p-4 text-right font-bold text-slate-800">
+                        ₹{r.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="px-2.5 py-0.5 bg-[#DCFCE7] text-[#15803D] rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          Approved
+                        </span>
+                      </td>
+                      <td className="p-4 text-center font-bold text-[#6366F1] font-mono">
+                        {(() => {
+                          const cn = Array.isArray(r.credit_note) ? r.credit_note[0] : r.credit_note;
+                          return cn?.cn_number ? (
+                            <Link href="/sales/credit-notes" className="hover:underline">
+                              {cn.cn_number}
+                            </Link>
+                          ) : (
+                            "—"
+                          );
+                        })()}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/sales/returns/${r.id}`}
+                            className="w-8 h-8 border border-[#E2E8F0] hover:bg-[#F1F5F9] text-[#6366F1] rounded-lg flex items-center justify-center transition-all"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                          </Link>
+                          <button
+                            onClick={() => handleOpenDelete(r)}
+                            className="w-8 h-8 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                            title="Delete Return"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                 ))}
               </tbody>
             </table>

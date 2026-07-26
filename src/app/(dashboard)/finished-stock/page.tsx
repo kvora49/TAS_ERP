@@ -437,7 +437,7 @@ export default function FinishedStockOverviewPage() {
                     </td>
                     <td className="py-3.5 px-5 text-center">
                       <Link
-                        href={`/finished-stock/designs/${design.design_id}`}
+                        href={`/master-data/designs/${design.design_id}`}
                         className="inline-flex items-center justify-center p-1.5 bg-white border border-[#E2E8F0] text-[#64748B] hover:text-[#6366F1] hover:border-[#6366F1] rounded-lg transition-all"
                         title="View Details"
                       >

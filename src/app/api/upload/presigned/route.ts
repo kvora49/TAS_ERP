@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       "brand_logos",
       "bill_templates",
       "design_catalogs",
+      "designs",
       "design_colours",
       "design_colour_images",
       "material_thumbnails",

@@ -23,7 +23,12 @@ interface PurchaseRoll {
 
 interface PurchaseItem {
   id: string;
-  material_type_id: string;
+  material_type_id?: string | null;
+  design_id?: string | null;
+  colour_id?: string | null;
+  size_quantities?: Record<string, number>;
+  other_item_name?: string | null;
+  other_category?: string | null;
   hsn_sac: string | null;
   unit: string;
   quantity: number;
@@ -38,6 +43,13 @@ interface PurchaseItem {
   material_type?: {
     name: string;
     category: string;
+  };
+  design?: {
+    design_number: string;
+    name: string;
+  };
+  colour?: {
+    colour_name: string;
   };
 }
 
@@ -284,9 +296,19 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
                     <React.Fragment key={item.id}>
                       <tr className="border-b border-[#F1F5F9] align-middle">
                         <td className="py-3 pr-2">
-                          <span className="font-bold text-[#0F172A]">{item.material_type?.name || "—"}</span>
+                          <span className="font-bold text-[#0F172A]">
+                            {item.item_type === "finished_goods"
+                              ? `${item.design?.design_number || item.design?.name || "Finished Good"} ${item.colour?.colour_name ? `(${item.colour.colour_name})` : ""}`
+                              : item.item_type === "others"
+                              ? item.other_item_name || "Other Item"
+                              : item.material_type?.name || "—"}
+                          </span>
                           <span className="text-[10px] text-[#64748B] block uppercase tracking-wider">
-                            {item.material_type?.category || "—"}
+                            {item.item_type === "finished_goods"
+                              ? "Finished Goods"
+                              : item.item_type === "others"
+                              ? item.other_category?.replace("_", " ") || "Expense / Asset"
+                              : item.material_type?.category || "—"}
                           </span>
                         </td>
                         <td className="py-3 pr-2 font-mono text-[10px]">{item.hsn_sac || "—"}</td>

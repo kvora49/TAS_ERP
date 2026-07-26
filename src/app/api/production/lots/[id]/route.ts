@@ -116,8 +116,14 @@ export async function GET(
 
     const isMovedToStock = !!(fsEntries && fsEntries.length > 0);
 
+    const effectiveCompletedQty =
+      lot.status === "completed"
+        ? (lot.completed_quantity || lot.total_quantity || 0)
+        : (lot.completed_quantity || 0);
+
     const lotWithImageUrl = {
       ...lot,
+      completed_quantity: effectiveCompletedQty,
       size_set: effectiveSizeSet,
       colours,
       is_moved_to_stock: isMovedToStock,

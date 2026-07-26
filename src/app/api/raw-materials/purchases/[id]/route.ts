@@ -34,7 +34,7 @@ export async function GET(
 
     const itemsWithRolls = (purchase.items || []).map((item: any) => {
       const itemRolls = rollsLookup[item.id] || [];
-      return { ...item, rolls: itemRolls, item_type: itemRolls.length > 0 ? "fabric" : "accessory" };
+      return { ...item, rolls: itemRolls, item_type: item.item_type || (itemRolls.length > 0 ? "fabric" : "accessory") };
     });
 
     const { data: payments } = await supabase
