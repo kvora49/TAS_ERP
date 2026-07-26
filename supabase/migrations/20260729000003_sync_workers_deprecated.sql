@@ -1,27 +1,47 @@
 -- Migration: 20260729000003_sync_workers_deprecated.sql
 -- Populate workers_deprecated table to satisfy stage_entries_worker_id_fkey foreign key constraint in live schema.
 
--- 1. Sync existing workers into workers_deprecated
-INSERT INTO workers_deprecated (id, business_id, name, worker_id, type, phone, address, remarks, is_active, created_at, updated_at)
-SELECT 
-  w.id,
-  w.business_id,
-  w.name,
-  w.worker_id || '_dep',
-  w.type,
-  w.phone,
-  w.address,
-  w.remarks,
-  COALESCE(w.is_active, true),
-  COALESCE(w.created_at, NOW()),
-  COALESCE(w.updated_at, NOW())
-FROM workers w
-ON CONFLICT (id) DO UPDATE SET
-  name = EXCLUDED.name,
-  phone = EXCLUDED.phone,
-  address = EXCLUDED.address,
-  is_active = EXCLUDED.is_active,
-  updated_at = NOW();
+-- 0. Ensure workers_deprecated table exists
+CREATE TABLE IF NOT EXISTS workers_deprecated (
+  id UUID PRIMARY KEY,
+  business_id UUID,
+  name TEXT,
+  worker_id TEXT,
+  type TEXT,
+  phone TEXT,
+  address TEXT,
+  remarks TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 1. Sync existing workers into workers_deprecated if workers table or view exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'workers') THEN
+    INSERT INTO workers_deprecated (id, business_id, name, worker_id, type, phone, address, remarks, is_active, created_at, updated_at)
+    SELECT 
+      w.id,
+      w.business_id,
+      w.name,
+      w.worker_id || '_dep',
+      w.type,
+      w.phone,
+      w.address,
+      w.remarks,
+      COALESCE(w.is_active, true),
+      COALESCE(w.created_at, NOW()),
+      COALESCE(w.updated_at, NOW())
+    FROM workers w
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      phone = EXCLUDED.phone,
+      address = EXCLUDED.address,
+      is_active = EXCLUDED.is_active,
+      updated_at = NOW();
+  END IF;
+END $$;
 
 -- 2. Sync existing worker parties into workers_deprecated
 INSERT INTO workers_deprecated (id, business_id, name, worker_id, type, phone, address, remarks, is_active, created_at, updated_at)
