@@ -4,8 +4,17 @@
 --          and safely drop `workers_deprecated` table forever.
 -- ====================================================================
 
--- 1. Drop old views and constraints
-DROP VIEW IF EXISTS public.workers CASCADE;
+-- 1. Safely drop old views and constraints (only if workers is a view)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'workers' AND table_type = 'VIEW'
+  ) THEN
+    EXECUTE 'DROP VIEW public.workers CASCADE';
+  END IF;
+END $$;
+
 ALTER TABLE IF EXISTS stage_entries DROP CONSTRAINT IF EXISTS stage_entries_worker_id_fkey;
 ALTER TABLE IF EXISTS job_work_payments DROP CONSTRAINT IF EXISTS job_work_payments_worker_id_fkey;
 ALTER TABLE IF EXISTS lot_stage_workers DROP CONSTRAINT IF EXISTS lot_stage_workers_worker_id_fkey;
