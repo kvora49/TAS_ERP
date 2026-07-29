@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
-import { useERPQuery } from "@/hooks/useERPQuery";
+import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import {
   FileText,
   IndianRupee,
@@ -22,6 +22,8 @@ import {
   Eye,
   Edit2,
   Download,
+  Printer,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
 import PageState from "@/components/shared/PageState";
@@ -61,12 +63,13 @@ interface Party {
 interface SaleBill {
   id: string;
   bill_number: string;
-  bill_type: "pakka" | "kacha";
+  bill_type: "pakka" | "kacha" | "return";
   bill_date: string;
   grand_total: number;
   paid_amount: number;
-  payment_status: "unpaid" | "partial" | "paid" | "overdue";
+  payment_status: "unpaid" | "partial" | "paid" | "overdue" | "settled";
   status: "draft" | "active" | "cancelled";
+  is_sales_return?: boolean;
   party: {
     name: string;
     gstin: string | null;
@@ -77,8 +80,8 @@ export default function SalesBillsListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Active Tab: 'pakka' or 'kacha'
-  const [activeTab, setActiveTab] = useState<"pakka" | "kacha">("pakka");
+  // Active Tab: 'pakka', 'kacha', 'return', 'all'
+  const [activeTab, setActiveTab] = useState<"pakka" | "kacha" | "return" | "all">("pakka");
 
   // Filters
   const [search, setSearch] = useState("");
@@ -265,6 +268,49 @@ export default function SalesBillsListPage() {
   // UI state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeRowAction, setActiveRowAction] = useState<string | null>(null);
+  const [billToDelete, setBillToDelete] = useState<SaleBill | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const deleteMutation = useERPMutation(
+    async (target: SaleBill) => {
+      const endpoint = target.is_sales_return ? `/api/sales/returns/${target.id}` : `/api/sales/bills/${target.id}`;
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete record");
+      }
+      return res.json();
+    },
+    {
+      successMessage: "Record deleted and stock & ledgers updated successfully!",
+      invalidates: [
+        ["sales-bills"],
+        ["sales-returns"],
+        ["parties-customers"],
+        ["finished-stock"],
+        ["dashboard-stats"],
+      ],
+      onSuccess: () => {
+        setDeleteDialogOpen(false);
+        setBillToDelete(null);
+      },
+    }
+  );
+
+  const handleDeleteClick = (e: React.MouseEvent, bill: SaleBill) => {
+    e.stopPropagation();
+    if (!bill.is_sales_return && (Number(bill.paid_amount || 0) > 0 || bill.payment_status === "paid" || bill.payment_status === "partial")) {
+      toast.error(
+        `Cannot delete bill ${bill.bill_number}: Payment of ${formatCurrency(bill.paid_amount)} has been received. Please reverse/delete payment allocations first.`,
+        { duration: 5000 }
+      );
+      return;
+    }
+    setBillToDelete(bill);
+    setDeleteDialogOpen(true);
+  };
 
   const queryKey = ["sales-bills", activeTab, page, limit, search, partyId, status, startDate, endDate];
 
@@ -331,8 +377,8 @@ export default function SalesBillsListPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-[var(--primary)] uppercase tracking-wider">Sales & Billing</span>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Sales Bills List</h1>
-          <p className="text-sm text-[var(--text-muted)]">Manage all your sales bills (Pakka & Kacha)</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Sales</h1>
+          <p className="text-sm text-[var(--text-muted)]">Manage all your sales bills (Pakka & Kacha) and sales returns</p>
         </div>
 
         {/* Buttons */}
@@ -345,10 +391,18 @@ export default function SalesBillsListPage() {
             Import Bills
           </button>
 
+          <Link
+            href="/sales/returns/new"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Record Sales Return</span>
+          </Link>
+
           {/* Split Dropdown Button */}
           <div className="relative flex">
             <Link
-              href={`/sales/bills/new?type=${activeTab}`}
+              href={`/sales/bills/new?type=${activeTab === "all" || activeTab === "return" ? "pakka" : activeTab}`}
               className="px-4 py-2 rounded-l-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2 border-r border-[var(--primary-dark)]"
             >
               <Plus className="h-4 w-4" />
@@ -413,6 +467,34 @@ export default function SalesBillsListPage() {
             )}
           >
             Kacha Bills
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("return");
+              setPage(1);
+            }}
+            className={cn(
+              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+              activeTab === "return"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            )}
+          >
+            Sales Returns
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("all");
+              setPage(1);
+            }}
+            className={cn(
+              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+              activeTab === "all"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            )}
+          >
+            All Transactions
           </button>
         </nav>
       </div>
@@ -585,11 +667,21 @@ export default function SalesBillsListPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-primary)] bg-[var(--card-bg)]">
                 {bills.map((bill) => {
-                  const outstanding = bill.grand_total - bill.paid_amount;
+                  const isReturn = bill.is_sales_return;
+                  const outstanding = isReturn ? 0 : bill.grand_total - bill.paid_amount;
+                  const detailHref = isReturn ? `/sales/returns/${bill.id}` : `/sales/bills/${bill.id}`;
+                  const editHref = isReturn ? `/sales/returns/${bill.id}/edit` : `/sales/bills/${bill.id}/edit`;
+                  const printHref = isReturn ? `/sales/returns/${bill.id}/print` : `/sales/bills/${bill.id}/print`;
+                  const downloadHref = isReturn ? `/sales/returns/${bill.id}/print?autoDownload=true` : `/sales/bills/${bill.id}/print?autoDownload=true`;
+
                   return (
-                    <tr key={bill.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                    <tr
+                      key={bill.id}
+                      onClick={() => router.push(detailHref)}
+                      className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                    >
                       <td className="px-6 py-4 font-mono font-bold text-[var(--primary)] whitespace-nowrap">
-                        <Link href={`/sales/bills/${bill.id}`} className="hover:underline">
+                        <Link href={detailHref} onClick={(e) => e.stopPropagation()} className="hover:underline">
                           {bill.bill_number}
                         </Link>
                       </td>
@@ -612,19 +704,21 @@ export default function SalesBillsListPage() {
                         <span
                           className={cn(
                             "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                            bill.bill_type === "pakka"
+                            isReturn
+                              ? "bg-rose-500/10 text-rose-500"
+                              : bill.bill_type === "pakka"
                               ? "bg-green-500/10 text-green-500"
                               : "bg-amber-500/10 text-amber-500"
                           )}
                         >
-                          {bill.bill_type}
+                          {isReturn ? "RETURN" : bill.bill_type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap font-medium text-[var(--text-primary)]">
-                        {formatCurrency(bill.grand_total)}
+                      <td className={cn("px-6 py-4 whitespace-nowrap font-medium", isReturn ? "text-rose-500 font-bold" : "text-[var(--text-primary)]")}>
+                        {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-green-500 font-medium">
-                        {formatCurrency(bill.paid_amount)}
+                      <td className={cn("px-6 py-4 whitespace-nowrap font-medium", isReturn ? "text-[var(--text-muted)]" : "text-green-500")}>
+                        {isReturn ? "-" : formatCurrency(bill.paid_amount)}
                       </td>
                       <td
                         className={cn(
@@ -635,45 +729,58 @@ export default function SalesBillsListPage() {
                         {formatCurrency(outstanding)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={getStatusVariant(bill.payment_status)}>
-                          {bill.payment_status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right relative">
-                        <button
-                          onClick={() =>
-                            setActiveRowAction(activeRowAction === bill.id ? null : bill.id)
-                          }
-                          className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                        >
-                          <MoreVertical className="h-4.5 w-4.5" />
-                        </button>
-
-                        {activeRowAction === bill.id && (
-                          <div className="absolute right-6 top-12 w-40 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-md)] z-20 overflow-hidden text-left">
-                            <Link
-                              href={`/sales/bills/${bill.id}`}
-                              className="px-4 py-2 text-xs text-[var(--text-body)] hover:bg-[var(--table-row-hover)] flex items-center gap-2"
-                            >
-                              <Eye className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                              <span>View Details</span>
-                            </Link>
-                            <Link
-                              href={`/sales/bills/${bill.id}/edit`}
-                              className="px-4 py-2 text-xs text-[var(--text-body)] hover:bg-[var(--table-row-hover)] flex items-center gap-2"
-                            >
-                              <Edit2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                              <span>Edit Bill</span>
-                            </Link>
-                            <Link
-                              href={`/sales/bills/${bill.id}/print`}
-                              className="px-4 py-2 text-xs text-[var(--text-body)] hover:bg-[var(--table-row-hover)] flex items-center gap-2"
-                            >
-                              <Download className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                              <span>Download PDF</span>
-                            </Link>
-                          </div>
+                        {isReturn ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">
+                            CREDITED
+                          </span>
+                        ) : (
+                          <Badge variant={getStatusVariant(bill.payment_status)}>
+                            {bill.payment_status}
+                          </Badge>
                         )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {/* Edit */}
+                          <Link
+                            href={editHref}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] text-amber-500 flex items-center justify-center transition-all cursor-pointer"
+                            title={isReturn ? "Edit Sales Return" : "Edit Bill"}
+                          >
+                            <Edit2 size={14} />
+                          </Link>
+
+                          {/* Print */}
+                          <Link
+                            href={printHref}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-amber-500/10 text-amber-600 flex items-center justify-center transition-all cursor-pointer"
+                            title={isReturn ? "Print Return Memo" : "Print Bill"}
+                          >
+                            <Printer size={14} />
+                          </Link>
+
+                          {/* Download PDF */}
+                          <Link
+                            href={downloadHref}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-emerald-500/10 text-emerald-500 flex items-center justify-center transition-all cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download size={14} />
+                          </Link>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteClick(e, bill)}
+                            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-red-500/10 text-red-500 flex items-center justify-center transition-all cursor-pointer"
+                            title={isReturn ? "Delete Sales Return" : "Delete Sales Bill"}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -863,6 +970,48 @@ export default function SalesBillsListPage() {
               className="px-5 py-2 text-xs font-bold"
             >
               Confirm & Import Bills
+            </AsyncButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Confirm Sales Bill Deletion"
+        description={`Are you sure you want to delete sales bill '${billToDelete?.bill_number}'?`}
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs font-semibold space-y-1">
+            <p className="font-bold">⚠️ Automatic Multi-Module Reversal</p>
+            <p className="mt-1">Deleting this unpaid invoice will automatically:</p>
+            <ul className="list-disc pl-4 space-y-0.5 mt-1 font-medium">
+              <li>Restore finished goods inventory to specified godowns</li>
+              <li>Record stock ledger cancellation entries</li>
+              <li>Deduct ₹{billToDelete?.grand_total} from customer balance</li>
+              <li>Revert linked Sales Order booking status (if applicable)</li>
+            </ul>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteDialogOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-body)] hover:bg-[var(--page-bg)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              variant="destructive"
+              onClick={async () => {
+                if (billToDelete) {
+                  await deleteMutation.mutateAsync(billToDelete);
+                }
+              }}
+            >
+              Delete Sales Bill
             </AsyncButton>
           </div>
         </div>

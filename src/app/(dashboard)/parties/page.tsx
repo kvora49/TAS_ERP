@@ -37,6 +37,8 @@ interface Party {
   shipping_pincode?: string | null;
 }
 
+import { ManualNoteModal } from "@/components/sales/ManualNoteModal";
+
 export default function PartiesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -46,6 +48,9 @@ export default function PartiesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteModalType, setNoteModalType] = useState<"credit_note" | "debit_note">("credit_note");
 
   const { data: partiesData, isLoading: loading, error, refetch } = usePartiesList();
 
@@ -210,13 +215,33 @@ export default function PartiesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <PageHeader
-        title="Parties Directory"
-        subtitle="Manage suppliers, customers, and workers in one unified system."
-        actionLabel="Add Party"
-        onAction={() => router.push("/parties/new")}
-        actionIcon={<Plus size={16} className="text-white" />}
-      />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Parties Directory</h1>
+          <p className="text-xs text-[var(--text-muted)]">Manage suppliers, customers, and workers in one unified system.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => { setNoteModalType("credit_note"); setNoteModalOpen(true); }}
+            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={14} /> Issue Credit Note
+          </button>
+          <button
+            onClick={() => { setNoteModalType("debit_note"); setNoteModalOpen(true); }}
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={14} /> Issue Debit Note
+          </button>
+          <AsyncButton
+            onClick={() => router.push("/parties/new")}
+            variant="primary"
+            className="px-4 py-2 text-xs font-bold flex items-center gap-1"
+          >
+            <Plus size={14} /> Add Party
+          </AsyncButton>
+        </div>
+      </div>
 
       <PageState
         isLoading={loading}
@@ -330,6 +355,16 @@ export default function PartiesPage() {
         confirmText="Delete"
         loading={deleteLoading}
         onConfirm={handleConfirmDelete}
+      />
+
+      <ManualNoteModal
+        open={noteModalOpen}
+        onOpenChange={setNoteModalOpen}
+        initialType={noteModalType}
+        onSuccess={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ["master-data", "parties"] });
+        }}
       />
     </div>
   );

@@ -207,6 +207,40 @@ export async function DELETE(
       }
     }
 
+    // 3.5 Reverse customer party balance & soft-delete party ledger entry
+    if (bill.party_id && Number(bill.grand_total || 0) > 0) {
+      const { data: party } = await supabase
+        .from("parties")
+        .select("current_balance")
+        .eq("id", bill.party_id)
+        .maybeSingle();
+
+      if (party) {
+        const newBal = Math.max(0, Number(party.current_balance || 0) - Number(bill.grand_total || 0));
+        await supabase
+          .from("parties")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", bill.party_id);
+      }
+
+      await supabase
+        .from("party_ledger")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("reference_id", id);
+    }
+
+    // 3.6 Revert Sales Order linkage if created from a Sales Order
+    if (bill.sale_order_id) {
+      await supabase
+        .from("sale_orders")
+        .update({
+          converted_bill_id: null,
+          status: "ready",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", bill.sale_order_id);
+    }
+
     // 4. Update sales bill status to 'cancelled' and mark deleted_at for record keeping
     const { error: cancelErr } = await supabase
       .from("sale_bills")

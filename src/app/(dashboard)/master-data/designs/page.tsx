@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -90,6 +90,8 @@ interface Design {
   brand?: { name: string };
   size_set?: { name: string; sizes: string[] };
   design_colours?: DesignColour[];
+  total_quantity?: number;
+  total_value?: number;
   updated_at: string;
 }
 
@@ -102,6 +104,12 @@ export default function DesignsPage() {
   const [sizeSets, setSizeSets] = useState<SizeSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Brand-wise & Filter states
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grouped" | "grid">("grouped");
 
   // Editor screen toggle
   const [isEditing, setIsEditing] = useState(false);
@@ -330,11 +338,203 @@ export default function DesignsPage() {
     );
   };
 
-  const filteredDesigns = designs.filter(
-    (d) =>
-      d.name.toLowerCase().includes(search.toLowerCase()) ||
-      d.design_number.toLowerCase().includes(search.toLowerCase())
+  // Brand counts map
+  const brandCounts: Record<string, number> = {};
+  designs.forEach((d) => {
+    if (d.brand_id) {
+      brandCounts[d.brand_id] = (brandCounts[d.brand_id] || 0) + 1;
+    }
+  });
+
+  const filteredDesigns = designs.filter((d) => {
+    const s = search.trim().toLowerCase();
+    const matchesSearch =
+      !s ||
+      d.name?.toLowerCase().includes(s) ||
+      d.design_number?.toLowerCase().includes(s) ||
+      d.brand?.name?.toLowerCase().includes(s) ||
+      d.category?.toLowerCase().includes(s) ||
+      d.sub_category?.toLowerCase().includes(s) ||
+      d.season?.toLowerCase().includes(s) ||
+      d.hsn_code?.toLowerCase().includes(s);
+
+    const matchesBrand = selectedBrandFilter === "all" || d.brand_id === selectedBrandFilter;
+    const matchesCategory = selectedCategoryFilter === "all" || d.category === selectedCategoryFilter;
+    const matchesStatus =
+      selectedStatusFilter === "all" ||
+      (selectedStatusFilter === "active" ? d.is_active : !d.is_active);
+
+    return matchesSearch && matchesBrand && matchesCategory && matchesStatus;
+  });
+
+  // Group designs by Brand for the brand-wise section view
+  const groupedByBrand = brands
+    .map((brand) => {
+      const brandDesigns = filteredDesigns.filter((d) => d.brand_id === brand.id);
+      const totalPcs = brandDesigns.reduce((acc, curr) => acc + (curr.total_quantity || 0), 0);
+      const totalVal = brandDesigns.reduce((acc, curr) => acc + (curr.total_value || 0), 0);
+      return {
+        brand,
+        designs: brandDesigns,
+        totalPcs,
+        totalVal,
+      };
+    })
+    .filter((g) => g.designs.length > 0);
+
+  const unbrandedDesigns = filteredDesigns.filter(
+    (d) => !d.brand_id || !brands.some((b) => b.id === d.brand_id)
   );
+
+  const renderDesignCard = (design: any) => {
+    const coverImage = design.images?.[0];
+    const stockQty = design.total_quantity || 0;
+    const stockVal = design.total_value || 0;
+
+    return (
+      <div
+        key={design.id}
+        className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all flex flex-col group"
+      >
+        {/* Catalog Image Swatch */}
+        <Link
+          href={`/master-data/designs/${design.id}`}
+          className="aspect-[4/3] bg-[var(--page-bg)] border-b border-[var(--border)] relative flex items-center justify-center overflow-hidden cursor-pointer"
+        >
+          {coverImage ? (
+            <img
+              src={coverImage}
+              alt={design.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <ImageIcon className="h-10 w-10 text-[var(--text-faint)]" />
+          )}
+
+          {/* Active Status tag overlay */}
+          <div className="absolute top-2 left-2">
+            <StatusBadge active={design.is_active} />
+          </div>
+        </Link>
+
+        {/* Meta info */}
+        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">
+                {design.brand?.name || "Apparel Brand"}
+              </span>
+              <span className="text-[10px] font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded font-mono border border-[var(--border)]">
+                {design.design_number}
+              </span>
+            </div>
+
+            <Link
+              href={`/master-data/designs/${design.id}`}
+              className="font-bold text-[var(--text-primary)] hover:text-[var(--primary)] text-sm mt-0.5 truncate block w-full transition-colors"
+            >
+              {design.name}
+            </Link>
+
+            {design.category && (
+              <span className="text-xs text-[var(--text-muted)] font-semibold block mt-0.5">
+                {design.category} {design.sub_category ? `• ${design.sub_category}` : ""}
+              </span>
+            )}
+          </div>
+
+          {/* Sizes & Colors preview */}
+          <div className="border-t border-[var(--border-light)] pt-3 flex items-center justify-between text-xs">
+            <div className="flex flex-wrap gap-1 max-w-[120px] overflow-hidden">
+              {design.size_set?.sizes &&
+                design.size_set.sizes.slice(0, 3).map((size: string) => (
+                  <span
+                    key={size}
+                    className="text-[9px] font-bold text-[var(--text-secondary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded border border-[var(--border)]"
+                  >
+                    {size}
+                  </span>
+                ))}
+              {design.size_set?.sizes && design.size_set.sizes.length > 3 && (
+                <span className="text-[9px] font-bold text-[var(--text-muted)]">
+                  + {design.size_set.sizes.length - 3}
+                </span>
+              )}
+            </div>
+
+            {/* Colour circle indicators */}
+            <div className="flex -space-x-1.5 overflow-hidden">
+              {design.design_colours &&
+                design.design_colours.slice(0, 4).map((c: any, i: number) => (
+                  <span
+                    key={i}
+                    className="w-3.5 h-3.5 rounded-full border border-white ring-1 ring-black/10 inline-block shrink-0"
+                    style={{ backgroundColor: c.colour_hex || "#6366F1" }}
+                    title={c.colour_name}
+                  />
+                ))}
+            </div>
+          </div>
+
+          {/* Stock Summary Section */}
+          <div className="border-t border-b border-[var(--border-light)] py-2.5 grid grid-cols-2 gap-2 text-xs bg-[var(--page-bg)] rounded-lg px-2.5">
+            <div>
+              <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+                Stock On Hand
+              </span>
+              <span className="font-extrabold text-[var(--text-primary)] text-xs">
+                {stockQty.toLocaleString()} pcs
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+                Stock Value
+              </span>
+              <span className="font-extrabold text-emerald-500 text-xs">
+                ₹{stockVal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          {/* Price & Actions */}
+          <div className="pt-1 flex items-center justify-between">
+            <div>
+              <span className="text-[9px] font-bold text-[var(--text-faint)] block uppercase">
+                Sale Price
+              </span>
+              <span className="font-bold text-xs text-[var(--text-primary)]">
+                ₹{design.sale_price?.toLocaleString("en-IN") || "0.00"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Link
+                href={`/master-data/designs/${design.id}`}
+                className="w-7 h-7 rounded-lg border border-[var(--border)] bg-[var(--primary-light)] hover:bg-[var(--primary)] hover:text-white text-[var(--primary)] flex items-center justify-center cursor-pointer transition-all"
+                title="View Stock Matrix & Details"
+              >
+                <Eye size={13} />
+              </Link>
+              <button
+                onClick={() => handleOpenEdit(design)}
+                className="w-7 h-7 rounded-lg border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
+                title="Edit Design"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => handleOpenDelete(design)}
+                className="w-7 h-7 rounded-lg border border-red-500/20 hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
+                title="Delete Design"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -342,178 +542,246 @@ export default function DesignsPage() {
         <>
           <PageHeader
             title="Designs Master"
-            subtitle="Manage product design catalogs, catalog photos, and color sets"
+            subtitle="Manage product design catalogs, catalog photos, and color sets brand-wise"
             breadcrumbs={[
               { label: "Dashboard", href: "/" },
               { label: "Master Data" },
               { label: "Designs" },
             ]}
-            searchPlaceholder="Search design name or SKU..."
-            searchValue={search}
-            onSearch={setSearch}
             actionLabel="Add Design"
             onAction={handleOpenAdd}
             actionIcon={<Plus size={16} className="text-white" />}
           />
 
-          {/* Cards Grid layout for Designs */}
+          {/* BRAND TABS BAR */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-[var(--border)]">
+            <button
+              onClick={() => setSelectedBrandFilter("all")}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                selectedBrandFilter === "all"
+                  ? "bg-[var(--primary)] text-white shadow-sm font-bold"
+                  : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--page-bg)] border border-[var(--border)]"
+              }`}
+            >
+              <span>All Brands</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  selectedBrandFilter === "all"
+                    ? "bg-white/20 text-white"
+                    : "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                }`}
+              >
+                {designs.length}
+              </span>
+            </button>
+
+            {brands.map((b) => {
+              const count = brandCounts[b.id] || 0;
+              const isSelected = selectedBrandFilter === b.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBrandFilter(b.id)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                    isSelected
+                      ? "bg-[var(--primary)] text-white shadow-sm font-bold"
+                      : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--page-bg)] border border-[var(--border)]"
+                  }`}
+                >
+                  <span>{b.name}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isSelected
+                        ? "bg-white/20 text-white"
+                        : "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* FILTER CONTROL TOOLBAR */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Category Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Category:</span>
+                <select
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  className="h-9 pl-3 pr-8 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer transition-all"
+                >
+                  <option value="all">All Categories</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Status:</span>
+                <select
+                  value={selectedStatusFilter}
+                  onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                  className="h-9 pl-3 pr-8 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer transition-all"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* View Mode Toggle */}
+              <div className="flex bg-[var(--page-bg)] p-1 rounded-lg border border-[var(--border)]">
+                <button
+                  onClick={() => setViewMode("grouped")}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === "grouped"
+                      ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm font-bold"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                  title="Group designs brand-wise"
+                >
+                  <Layers size={14} />
+                  <span className="hidden sm:inline">Brand Sections</span>
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === "grid"
+                      ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm font-bold"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                  title="View as single grid"
+                >
+                  <LayoutGrid size={14} />
+                  <span className="hidden sm:inline">Grid View</span>
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative w-full md:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
+                <input
+                  type="text"
+                  placeholder="Search design name, SKU, brand..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CONTENT AREA */}
           {loading ? (
-            <div className="py-20 text-center text-[#64748B] bg-white border border-[#E5E7EB] rounded-xl">
+            <div className="py-20 text-center text-[var(--text-muted)] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl">
               <div className="flex justify-center items-center gap-2 text-sm font-semibold">
                 <RefreshCw className="animate-spin" size={16} />
                 Loading designs catalog...
               </div>
             </div>
           ) : filteredDesigns.length === 0 ? (
-            <div className="py-20 text-center text-[#64748B] bg-white border border-[#E5E7EB] rounded-xl flex flex-col items-center justify-center">
-              <ImageIcon className="h-10 w-10 text-[#94A3B8] mb-3" />
-              <h3 className="text-sm font-bold text-[#374151]">No Designs Created</h3>
-              <p className="text-xs text-[#64748B] mt-1 mb-4">Set up style numbers and image swatches for production lots.</p>
+            <div className="py-20 text-center text-[var(--text-muted)] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl flex flex-col items-center justify-center">
+              <ImageIcon className="h-10 w-10 text-[var(--text-faint)] mb-3" />
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">No Designs Found</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">
+                No designs match your selected brand or filters.
+              </p>
               <button
                 onClick={handleOpenAdd}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus size={16} /> Add Design
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {filteredDesigns.map((design: any) => {
-                const coverImage = design.images?.[0];
-                const stockQty = design.total_quantity || 0;
-                const stockVal = design.total_value || 0;
-
-                return (
-                  <div
-                    key={design.id}
-                    className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group"
-                  >
-                    {/* Catalog Image Swatch */}
-                    <Link
-                      href={`/master-data/designs/${design.id}`}
-                      className="aspect-[4/3] bg-[#F8FAFC] border-b border-[#E5E7EB] relative flex items-center justify-center overflow-hidden cursor-pointer"
-                    >
-                      {coverImage ? (
-                        <img
-                          src={coverImage}
-                          alt={design.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <ImageIcon className="h-10 w-10 text-[#CBD5E1]" />
-                      )}
-
-                      {/* Active Status tag overlay */}
-                      <div className="absolute top-2 left-2">
-                        <StatusBadge active={design.is_active} />
+          ) : viewMode === "grouped" && selectedBrandFilter === "all" ? (
+            /* BRAND SECTIONS GROUPED VIEW */
+            <div className="space-y-8">
+              {groupedByBrand.map(({ brand, designs: bDesigns, totalPcs, totalVal }) => (
+                <div
+                  key={brand.id}
+                  className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4"
+                >
+                  {/* Brand Section Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-[var(--border)] gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[var(--primary-light)] rounded-lg text-[var(--primary)]">
+                        <Tag className="h-5 w-5" />
                       </div>
-                    </Link>
-
-                    {/* Meta info */}
-                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-[#6366F1] uppercase tracking-wider">
-                            {design.brand?.name || "Apparel Brand"}
-                          </span>
-                          <span className="text-[10px] font-bold text-[#334155] bg-[#F1F5F9] px-1.5 py-0.5 rounded font-mono">
-                            {design.design_number}
-                          </span>
-                        </div>
-
-                        <Link
-                          href={`/master-data/designs/${design.id}`}
-                          className="font-bold text-[#0F172A] hover:text-[#6366F1] text-sm mt-0.5 truncate block w-full transition-colors"
-                        >
-                          {design.name}
-                        </Link>
-
-                        {design.category && (
-                          <span className="text-xs text-[#64748B] font-semibold block mt-0.5">
-                            {design.category}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Sizes & Colors preview */}
-                      <div className="border-t border-[#F1F5F9] pt-3 flex items-center justify-between text-xs">
-                        <div className="flex flex-wrap gap-1 max-w-[120px] overflow-hidden">
-                          {design.size_set?.sizes &&
-                            design.size_set.sizes.slice(0, 3).map((size: string) => (
-                              <span key={size} className="text-[9px] font-bold text-[#475569] bg-[#E2E8F0] px-1 rounded">
-                                {size}
-                              </span>
-                            ))}
-                          {design.size_set?.sizes && design.size_set.sizes.length > 3 && (
-                            <span className="text-[9px] font-bold text-[#64748B]">+ {design.size_set.sizes.length - 3}</span>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold text-[var(--text-primary)]">
+                            {brand.name}
+                          </h2>
+                          {brand.design_prefix && (
+                            <span className="text-[10px] font-mono font-bold bg-[var(--page-bg)] border border-[var(--border)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
+                              Prefix: {brand.design_prefix}
+                            </span>
                           )}
                         </div>
-
-                        {/* Colour circle indicators */}
-                        <div className="flex -space-x-1.5 overflow-hidden">
-                          {design.design_colours &&
-                            design.design_colours.slice(0, 4).map((c: any, i: number) => (
-                              <span
-                                key={i}
-                                className="w-3.5 h-3.5 rounded-full border border-white ring-1 ring-black/10 inline-block shrink-0"
-                                style={{ backgroundColor: c.colour_hex || "#6366F1" }}
-                                title={c.colour_name}
-                              />
-                            ))}
-                        </div>
+                        <span className="text-xs text-[var(--text-muted)] font-medium">
+                          {bDesigns.length} Design{bDesigns.length === 1 ? "" : "s"} Catalogued
+                        </span>
                       </div>
+                    </div>
 
-                      {/* Stock Summary Section (Image 1 replica) */}
-                      <div className="border-t border-b border-[#F1F5F9] py-2.5 grid grid-cols-2 gap-2 text-xs bg-slate-50/70 rounded-lg px-2.5">
-                        <div>
-                          <span className="text-[9px] font-bold text-[#94A3B8] uppercase block">Stock On Hand</span>
-                          <span className="font-extrabold text-[#0F172A] text-xs">{stockQty.toLocaleString()} pcs</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[9px] font-bold text-[#94A3B8] uppercase block">Stock Value</span>
-                          <span className="font-extrabold text-emerald-600 text-xs">
-                            ₹{stockVal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                          </span>
-                        </div>
+                    <div className="flex items-center gap-4 text-xs bg-[var(--page-bg)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
+                      <div>
+                        <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+                          Total Stock
+                        </span>
+                        <span className="font-extrabold text-[var(--text-primary)]">
+                          {totalPcs.toLocaleString()} pcs
+                        </span>
                       </div>
-
-                      {/* Price & Actions */}
-                      <div className="pt-1 flex items-center justify-between">
-                        <div>
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase">Sale Price</span>
-                          <span className="font-bold text-xs text-[#0F172A]">
-                            ₹{design.sale_price?.toLocaleString("en-IN") || "0.00"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <Link
-                            href={`/master-data/designs/${design.id}`}
-                            className="w-7 h-7 rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-600 flex items-center justify-center cursor-pointer transition-all"
-                            title="View Stock Matrix & Details"
-                          >
-                            <Eye size={13} />
-                          </Link>
-                          <button
-                            onClick={() => handleOpenEdit(design)}
-                            className="w-7 h-7 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
-                            title="Edit Design"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenDelete(design)}
-                            className="w-7 h-7 rounded-lg border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
-                            title="Delete Design"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                      <div className="w-px h-6 bg-[var(--border)]" />
+                      <div>
+                        <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+                          Stock Value
+                        </span>
+                        <span className="font-extrabold text-emerald-500">
+                          ₹{totalVal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                        </span>
                       </div>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Design Cards Grid for Brand */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {bDesigns.map(renderDesignCard)}
+                  </div>
+                </div>
+              ))}
+
+              {unbrandedDesigns.length > 0 && (
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+                  <div className="pb-3 border-b border-[var(--border)]">
+                    <h2 className="text-base font-bold text-[var(--text-primary)]">
+                      Unassigned Brand Designs
+                    </h2>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {unbrandedDesigns.length} Designs
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {unbrandedDesigns.map(renderDesignCard)}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* FLAT GRID VIEW */
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {filteredDesigns.map(renderDesignCard)}
             </div>
           )}
         </>

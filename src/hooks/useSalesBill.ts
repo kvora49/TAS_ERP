@@ -65,7 +65,22 @@ export function useSalesBill(id?: string) {
       setDiscountType(b.discount_type || null);
       setDiscountValue(Number(b.discount_value || 0));
       setStatus(b.status || "draft");
-      setItems(b.items || []);
+
+      const rawItems = b.items || [];
+      const normalizedItems = rawItems.map((it: any) => ({
+        ...it,
+        id: it.id || crypto.randomUUID(),
+        design_code: it.design_code || it.design?.design_number || it.design?.code || "—",
+        design_name: it.design_name || it.design?.name || "—",
+        colour_name: it.colour_name || it.colour?.colour_name || "Default",
+        unit: it.unit || "Pcs",
+        discount_percent: Number(it.discount_percent || 0),
+        tax_percent: Number(it.tax_percent || 0),
+        rate: Number(it.rate || 0),
+        quantity: Number(it.quantity || 0),
+        amount: Number(it.amount || (it.quantity * it.rate * (1 - (it.discount_percent || 0) / 100))),
+      }));
+      setItems(normalizedItems);
       setCharges(b.charges || []);
     }
   }, [billData]);

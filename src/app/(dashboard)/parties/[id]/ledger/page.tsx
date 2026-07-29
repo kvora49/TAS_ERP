@@ -38,10 +38,16 @@ interface Party {
   status: string;
 }
 
+import { ManualNoteModal } from "@/components/sales/ManualNoteModal";
+import { Plus } from "lucide-react";
+
 export default function PartyLedgerPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const [filterType, setFilterType] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteModalType, setNoteModalType] = useState<"credit_note" | "debit_note">("credit_note");
 
   const { data: partyData, isLoading: partyLoading } = useERPQuery<Party | null>(["party", id], async () => {
     const res = await fetch(`/api/parties/${id}`);
@@ -50,7 +56,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
     return data.party || null;
   }, { skeleton: "card" });
 
-  const { data: ledgerResponse, isLoading: ledgerLoading } = useERPQuery<{ ledger: LedgerEntry[]; remainingAdvance: number }>(["ledger", id], async () => {
+  const { data: ledgerResponse, isLoading: ledgerLoading, refetch: refetchLedger } = useERPQuery<{ ledger: LedgerEntry[]; remainingAdvance: number }>(["ledger", id], async () => {
     const res = await fetch(`/api/parties/${id}/ledger`);
     if (!res.ok) throw new Error("Failed to load ledger details");
     return res.json();
@@ -63,6 +69,11 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
 
   const toggleRow = (rowId: string) => {
     setExpandedRows((prev) => ({ ...prev, [rowId]: !prev[rowId] }));
+  };
+
+  const handleOpenNoteModal = (type: "credit_note" | "debit_note") => {
+    setNoteModalType(type);
+    setNoteModalOpen(true);
   };
 
   const formatCurrency = (val: number) => {
@@ -97,6 +108,12 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
     );
   }
 
+  const partyTypeCategory = party.type?.includes("supplier")
+    ? "supplier"
+    : party.type?.includes("worker")
+    ? "worker"
+    : "customer";
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -113,25 +130,37 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
               </span>
             </h1>
             <p className="text-xs text-[#64748B]">
-              Chronological statement of purchases, returns, payments, and balances.
+              Chronological statement of purchases, returns, payments, credit/debit notes, and balances.
             </p>
           </div>
         </div>
 
-        {/* Filter dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide">
-            Voucher Type:
-          </label>
+        {/* Action Buttons & Filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleOpenNoteModal("credit_note")}
+            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={14} /> Issue Credit Note
+          </button>
+          <button
+            onClick={() => handleOpenNoteModal("debit_note")}
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={14} /> Issue Debit Note
+          </button>
+
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[140px]"
+            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[130px]"
           >
             <option value="all">All Vouchers</option>
             <option value="purchase">Purchase</option>
             <option value="sale">Sale</option>
             <option value="return">Return</option>
+            <option value="credit note">Credit Note</option>
+            <option value="debit note">Debit Note</option>
             <option value="payment">Payment</option>
             <option value="advance">Advance</option>
             <option value="write-off">Write-off</option>
@@ -327,6 +356,17 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           </table>
         </div>
       </div>
+
+      <ManualNoteModal
+        open={noteModalOpen}
+        onOpenChange={setNoteModalOpen}
+        initialType={noteModalType}
+        initialPartyId={party.id}
+        initialPartyType={partyTypeCategory as any}
+        onSuccess={() => {
+          refetchLedger();
+        }}
+      />
     </div>
   );
 }

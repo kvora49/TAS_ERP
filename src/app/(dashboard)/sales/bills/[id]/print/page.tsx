@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Printer, FileText, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -57,6 +57,9 @@ interface SaleBill {
 export default function SaleBillPrintPage() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoDownload = searchParams.get("autoDownload") === "true";
+
   const [bill, setBill] = useState<SaleBill | null>(null);
   const [brand, setBrand] = useState<any>(null);
   const [brandConfig, setBrandConfig] = useState<any>(null);
@@ -295,6 +298,12 @@ export default function SaleBillPrintPage() {
       toast.error("Failed to generate PDF Invoice document");
     }
   };
+
+  useEffect(() => {
+    if (!loading && bill && autoDownload) {
+      handleDownloadPDF();
+    }
+  }, [loading, bill, autoDownload]);
 
   if (loading) {
     return (

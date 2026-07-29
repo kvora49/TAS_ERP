@@ -16,6 +16,84 @@ export class SalesBillRepository {
     const { page, limit, type, partyId, status, search, startDate, endDate } = options;
     const offset = (page - 1) * limit;
 
+    if (type === "return" || type === "sales_return") {
+      let query = this.supabase
+        .from("sales_returns")
+        .select("*, party:parties(name, gstin)", { count: "exact" })
+        .eq("business_id", businessId)
+        .order("return_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (partyId) query = query.eq("party_id", partyId);
+      if (startDate) query = query.gte("return_date", startDate);
+      if (endDate) query = query.lte("return_date", endDate);
+      if (search) query = query.or(`return_number.ilike.%${search}%,return_reason.ilike.%${search}%`);
+
+      const { data, count, error } = await query.range(offset, offset + limit - 1);
+      if (error) throw error;
+
+      const normalized = (data || []).map((r) => ({
+        ...r,
+        bill_number: r.return_number,
+        bill_date: r.return_date,
+        bill_type: "return",
+        paid_amount: 0,
+        payment_status: "settled",
+        is_sales_return: true,
+      }));
+
+      return { data: normalized, total: count || 0 };
+    }
+
+    if (type === "all") {
+      const [billsRes, returnsRes] = await Promise.all([
+        this.supabase
+          .from("sale_bills")
+          .select("*, party:parties(name, gstin)")
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .order("bill_date", { ascending: false }),
+        this.supabase
+          .from("sales_returns")
+          .select("*, party:parties(name, gstin)")
+          .eq("business_id", businessId)
+          .order("return_date", { ascending: false }),
+      ]);
+
+      let allBills = (billsRes.data || []).map((b) => ({ ...b, is_sales_return: false }));
+      let allReturns = (returnsRes.data || []).map((r) => ({
+        ...r,
+        bill_number: r.return_number,
+        bill_date: r.return_date,
+        bill_type: "return",
+        paid_amount: 0,
+        payment_status: "settled",
+        is_sales_return: true,
+      }));
+
+      let combined = [...allBills, ...allReturns];
+
+      if (partyId) combined = combined.filter((c) => c.party_id === partyId);
+      if (status) combined = combined.filter((c) => c.payment_status === status);
+      if (startDate) combined = combined.filter((c) => c.bill_date >= startDate);
+      if (endDate) combined = combined.filter((c) => c.bill_date <= endDate);
+      if (search) {
+        const s = search.toLowerCase();
+        combined = combined.filter(
+          (c) =>
+            (c.bill_number && c.bill_number.toLowerCase().includes(s)) ||
+            (c.party?.name && c.party.name.toLowerCase().includes(s))
+        );
+      }
+
+      combined.sort((a, b) => new Date(b.bill_date).getTime() - new Date(a.bill_date).getTime());
+
+      const total = combined.length;
+      const paginated = combined.slice(offset, offset + limit);
+
+      return { data: paginated, total };
+    }
+
     let query = this.supabase
       .from("sale_bills")
       .select("*, party:parties(name, gstin)", { count: "exact" })
@@ -45,7 +123,8 @@ export class SalesBillRepository {
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);
     if (error) throw error;
-    return { data, total: count || 0 };
+    const normalized = (data || []).map((b) => ({ ...b, is_sales_return: false }));
+    return { data: normalized, total: count || 0 };
   }
 
   async getById(id: string, businessId: string) {

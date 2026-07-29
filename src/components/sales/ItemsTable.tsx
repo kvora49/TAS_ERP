@@ -166,9 +166,36 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
 
     if (newItems.length === 0) return;
 
-    state.setItems((prev: any[]) => [...prev, ...newItems]);
+    state.setItems((prev: any[]) => {
+      const next = [...prev];
+      newItems.forEach((newItem) => {
+        const existingIndex = next.findIndex(
+          (item) =>
+            item.design_id === newItem.design_id &&
+            ((newItem.colour_id && item.colour_id === newItem.colour_id) || item.colour_name === newItem.colour_name) &&
+            String(item.size).trim().toLowerCase() === String(newItem.size).trim().toLowerCase()
+        );
+
+        if (existingIndex >= 0) {
+          const existing = next[existingIndex];
+          const updatedQty = Number(existing.quantity || 0) + Number(newItem.quantity || 0);
+          const discountFactor = 1 - Number(existing.discount_percent || 0) / 100;
+          const updatedAmount = updatedQty * Number(existing.rate || 0) * discountFactor;
+
+          next[existingIndex] = {
+            ...existing,
+            quantity: updatedQty,
+            amount: updatedAmount,
+          };
+        } else {
+          next.push(newItem);
+        }
+      });
+      return next;
+    });
+
     const addedTotalQty = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
-    toast.success(`Added ${addedTotalQty} Pcs (${newItems.length} lines) to invoice`);
+    toast.success(`Added ${addedTotalQty} Pcs to invoice`);
 
     // Reset size matrix quantities for next entry while preserving design/rate
     if (sizes.length > 0) {
@@ -180,6 +207,32 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
     } else {
       setSingleQty(1);
     }
+  };
+
+  const handleItemQtyChange = (index: number, newQty: number) => {
+    const qty = Math.max(1, newQty);
+    state.setItems((prev: any[]) => {
+      const next = [...prev];
+      const target = next[index];
+      if (!target) return prev;
+      const discountFactor = 1 - Number(target.discount_percent || 0) / 100;
+      const amount = qty * Number(target.rate || 0) * discountFactor;
+      next[index] = { ...target, quantity: qty, amount };
+      return next;
+    });
+  };
+
+  const handleItemRateChange = (index: number, newRate: number) => {
+    const rateVal = Math.max(0, newRate);
+    state.setItems((prev: any[]) => {
+      const next = [...prev];
+      const target = next[index];
+      if (!target) return prev;
+      const discountFactor = 1 - Number(target.discount_percent || 0) / 100;
+      const amount = Number(target.quantity || 0) * rateVal * discountFactor;
+      next[index] = { ...target, rate: rateVal, amount };
+      return next;
+    });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -455,33 +508,59 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {state.items.map((it: any, index: number) => (
-              <tr key={it.id || index} className="hover:bg-slate-50/80 transition-colors">
-                <td className="p-3.5 pl-4 font-mono font-bold text-indigo-600">{it.design_code}</td>
-                <td className="p-3.5 font-semibold text-slate-800">{it.design_name}</td>
-                <td className="p-3.5 text-slate-600">{it.colour_name}</td>
-                <td className="p-3.5 font-bold text-slate-700">
-                  <span className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                    {it.size}
-                  </span>
-                </td>
-                <td className="p-3.5 text-right font-bold text-slate-800">{it.quantity} Pcs</td>
-                <td className="p-3.5 text-right text-slate-700 font-medium">₹{it.rate.toFixed(2)}</td>
-                <td className="p-3.5 text-right text-slate-600">{it.discount_percent}%</td>
-                <td className="p-3.5 text-right text-slate-600">{it.tax_percent}%</td>
-                <td className="p-3.5 text-right font-extrabold text-slate-900">₹{it.amount.toFixed(2)}</td>
-                <td className="p-3.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(index)}
-                    className="p-1 hover:bg-red-50 text-red-500 rounded-md transition-colors cursor-pointer"
-                    title="Remove Line"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {state.items.map((it: any, index: number) => {
+              const matchedDesign = designs.find((d) => d.id === it.design_id);
+              const designCode = (it.design_code && it.design_code !== "—") ? it.design_code : (matchedDesign?.design_number || matchedDesign?.code || "—");
+              const designName = (it.design_name && it.design_name !== "—") ? it.design_name : (matchedDesign?.name || "—");
+              const colourName = (it.colour_name && it.colour_name !== "Default") ? it.colour_name : (matchedDesign?.design_colours?.find((c: any) => c.id === it.colour_id)?.colour_name || "Default");
+
+              return (
+                <tr key={it.id || index} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="p-3 pl-4 font-mono font-bold text-indigo-600">{designCode}</td>
+                  <td className="p-3 font-semibold text-slate-800">{designName}</td>
+                  <td className="p-3 text-slate-600">{colourName}</td>
+                  <td className="p-3 font-bold text-slate-700">
+                    <span className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
+                      {it.size}
+                    </span>
+                  </td>
+                  <td className="p-2 text-right">
+                    <input
+                      type="number"
+                      min="1"
+                      value={it.quantity}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleItemQtyChange(index, parseInt(e.target.value, 10) || 1)}
+                      className="w-16 h-8 px-2 text-right border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                    />
+                  </td>
+                  <td className="p-2 text-right">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={it.rate}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleItemRateChange(index, parseFloat(e.target.value) || 0)}
+                      className="w-20 h-8 px-2 text-right border border-slate-200 rounded font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                    />
+                  </td>
+                  <td className="p-3 text-right text-slate-600">{it.discount_percent}%</td>
+                  <td className="p-3 text-right text-slate-600">{it.tax_percent}%</td>
+                  <td className="p-3 text-right font-extrabold text-slate-900">₹{(Number(it.amount) || 0).toFixed(2)}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(index)}
+                      className="p-1 hover:bg-red-50 text-red-500 rounded-md transition-colors cursor-pointer"
+                      title="Remove Line"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {state.items.length === 0 && (
               <tr>
                 <td colSpan={10} className="p-8 text-center text-slate-400 font-semibold">

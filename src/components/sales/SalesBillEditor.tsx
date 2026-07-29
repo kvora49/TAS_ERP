@@ -12,6 +12,7 @@ import { BillValidation } from "./BillValidation";
 import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
+import { PostInvoiceSuccessModal, CreatedInvoiceInfo } from "./PostInvoiceSuccessModal";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -22,8 +23,11 @@ interface SalesBillEditorProps {
 export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEditorProps) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-
   const [showEway, setShowEway] = useState(false);
+
+  // Post invoice success modal states
+  const [createdInvoice, setCreatedInvoice] = useState<CreatedInvoiceInfo | null>(null);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
 
   // Initialize unified state hook
   const { state, totals, loading: loadingBill } = useSalesBill(billId);
@@ -104,9 +108,17 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     {
       successMessage: mode === "create" ? "Invoice generated successfully!" : "Invoice updated successfully!",
       invalidates: [["sales-bills"], ["sales-bill-detail", billId]],
-      onSuccess: () => {
-        router.push("/sales/bills");
-        router.refresh();
+      onSuccess: (data: any) => {
+        const billObj = data?.data || data?.bill || data;
+        const selectedParty = parties.find((p: any) => p.id === state.partyId);
+        setCreatedInvoice({
+          id: billObj?.id || billId || "",
+          bill_number: billObj?.bill_number || "INV-SUCCESS",
+          party_name: selectedParty?.name || selectedParty?.company_name || state.phone || undefined,
+          grand_total: billObj?.grand_total ?? totals?.grand_total ?? 0,
+          bill_type: type,
+        });
+        setSuccessModalOpen(true);
       },
     }
   );
@@ -160,7 +172,9 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     saveMutation.mutate(payload);
   };
 
-  if (loadingBill || loadingParties || loadingDesigns) {
+  const isInitialLoading = (mode === "edit" && loadingBill) || (loadingParties && parties.length === 0) || (loadingDesigns && designs.length === 0);
+
+  if (isInitialLoading) {
     return (
       <div className="flex flex-col items-center justify-center p-24 gap-3">
         <Loader2 className="h-8 w-8 text-[#6366F1] animate-spin" />
@@ -423,6 +437,21 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
           </Button>
         ) : null}
       </div>
+
+      {/* Success Modal with Preview, Print, Download options */}
+      <PostInvoiceSuccessModal
+        open={successModalOpen}
+        onOpenChange={setSuccessModalOpen}
+        invoice={createdInvoice}
+        onCreateAnother={() => {
+          setCreatedInvoice(null);
+          setStep(1);
+          state.setItems([]);
+          state.setPartyId("");
+          state.setReferenceNo("");
+          state.setRemarks("");
+        }}
+      />
     </div>
   );
 }

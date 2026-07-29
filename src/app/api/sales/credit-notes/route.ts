@@ -109,6 +109,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Update Party Current Balance
+    const { data: party } = await supabase
+      .from("parties")
+      .select("current_balance")
+      .eq("id", party_id)
+      .maybeSingle();
+
+    if (party) {
+      const newBal = Number(party.current_balance || 0) - Number(amount);
+      await supabase
+        .from("parties")
+        .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+        .eq("id", party_id);
+    }
+
     return NextResponse.json({ creditNote });
   } catch (err: any) {
     return NextResponse.json(

@@ -222,12 +222,8 @@ export const navItems: NavItem[] = [
     name: "Sales & Billing",
     icon: Receipt,
     subItems: [
-      { name: "Sales Bills", href: "/sales/bills" },
-      { name: "Purchase Bills", href: "/purchases/bills" },
+      { name: "Sales", href: "/sales/bills" },
       { name: "Orders", href: "/sales/orders" },
-      { name: "Sales Returns", href: "/sales/returns" },
-      { name: "Credit Notes", href: "/sales/credit-notes" },
-      { name: "Debit Notes", href: "/sales/debit-notes" },
       { name: "Cheques / PDC", href: "/finance/cheques" },
     ],
   },
@@ -235,7 +231,6 @@ export const navItems: NavItem[] = [
     name: "Payments & Finance",
     icon: Wallet,
     subItems: [
-      { name: "Party Ledger", href: "/parties" },
       {
         name: "Payments",
         subItems: [

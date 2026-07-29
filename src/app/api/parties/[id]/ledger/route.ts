@@ -26,6 +26,7 @@ export async function GET(
       writeOffsResult,
       allocationsResult,
       creditNotesResult,
+      debitNotesResult,
     ] = await Promise.all([
       supabase
         .from("parties")
@@ -85,6 +86,11 @@ export async function GET(
         .select("id, cn_number, cn_date, amount, reason")
         .eq("party_id", id)
         .eq("business_id", businessId),
+      supabase
+        .from("debit_notes")
+        .select("id, dn_number, dn_date, amount, reason")
+        .eq("party_id", id)
+        .eq("business_id", businessId),
     ]);
 
     const party = partyResult.data;
@@ -101,6 +107,7 @@ export async function GET(
     const writeOffs = writeOffsResult.data || [];
     const allocations = allocationsResult.data || [];
     const creditNotes = creditNotesResult.data || [];
+    const debitNotes = debitNotesResult.data || [];
 
     // Helper map to find bill/invoice numbers by ID
     const billMap: Record<string, string> = {};
@@ -189,6 +196,19 @@ export async function GET(
         voucherNo: cn.cn_number,
         debit: 0,
         credit: Number(cn.amount),
+        sortOrder: 2,
+      });
+    });
+
+    // Add Debit Notes (Purchase Returns / Vendor/Worker Debits -> Debit entry reducing payable or increasing receivable)
+    debitNotes.forEach((dn: any) => {
+      entries.push({
+        date: dn.dn_date,
+        particulars: `Debit Note #${dn.dn_number} ${dn.reason ? "(" + dn.reason + ")" : ""}`,
+        voucherType: "Debit Note",
+        voucherNo: dn.dn_number,
+        debit: Number(dn.amount),
+        credit: 0,
         sortOrder: 2,
       });
     });
