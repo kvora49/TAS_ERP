@@ -188,20 +188,20 @@ export default function ProductionSettingsPage() {
                 <div className="flex items-center gap-2 overflow-x-auto pb-3 pt-1 select-none scrollbar-thin">
                   {stages.map((stage, idx) => (
                     <div key={stage.id} className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E5E7EB] bg-white text-sm text-[#374151] font-medium shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-sm text-[var(--text-body)] font-medium shadow-[var(--shadow-sm)] hover:shadow-md transition-shadow">
                         <span
-                          style={{ color: stage.color || "#6366F1" }}
+                          style={{ color: stage.color || "var(--primary)" }}
                           className="font-semibold"
                         >
                           {stage.icon || "•"}
                         </span>
                         <span>{stage.name}</span>
                         {idx === stages.length - 1 && (
-                          <ChevronDown size={14} className="text-[#94A3B8] ml-1 shrink-0" />
+                          <ChevronDown size={14} className="text-[var(--text-faint)] ml-1 shrink-0" />
                         )}
                       </div>
                       {idx < stages.length - 1 && (
-                        <ChevronRight size={14} className="text-[#94A3B8] shrink-0" />
+                        <ChevronRight size={14} className="text-[var(--text-faint)] shrink-0" />
                       )}
                     </div>
                   ))}
@@ -210,13 +210,13 @@ export default function ProductionSettingsPage() {
 
               {/* SECTION B — Job Work Bill Type */}
               <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                  Job Work Bill Type (Default) <span className="text-[#DC2626]">*</span>
+                <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
+                  Job Work Bill Type (Default) <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={jobWorkBillType}
                   onChange={(e) => setJobWorkBillType(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="Job Work In">Job Work In</option>
                   <option value="Job Work Out">Job Work Out</option>
@@ -225,7 +225,7 @@ export default function ProductionSettingsPage() {
               </div>
 
               {/* SECTION C — Auto-complete Lot Toggle */}
-              <div className="border-t border-[#F3F4F6] pt-3">
+              <div className="border-t border-[var(--border-light)] pt-3">
                 <SettingsToggleRow
                   icon={SlidersHorizontal}
                   label="Auto-complete Lot"
@@ -263,13 +263,13 @@ export default function ProductionSettingsPage() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+                <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
                   Default Work Center
                 </label>
                 <select
                   value={defaultGodownId}
                   onChange={(e) => setDefaultGodownId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Main Production Unit</option>
                   {godowns.map((g) => (

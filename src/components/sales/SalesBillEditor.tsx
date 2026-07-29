@@ -180,23 +180,23 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-6 bg-white border border-[#E5E7EB] rounded-2xl shadow-sm">
+    <div className="space-y-6 max-w-5xl mx-auto p-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
       {/* Back button and title */}
       <div className="flex items-center gap-4">
         <Button
           variant="outline"
           size="sm"
           onClick={() => router.push("/sales/bills")}
-          className="border-slate-200 text-slate-600 hover:bg-slate-50"
+          className="border-[var(--border)] text-[var(--text-body)] hover:bg-[var(--page-bg)]"
         >
           <ArrowLeft size={16} className="mr-1.5" />
           <span>Back</span>
         </Button>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 capitalize">
+          <h1 className="text-xl font-bold text-[var(--text-primary)] capitalize">
             {mode} {type} Invoice
           </h1>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
             Step {step} of 4: {steps[step - 1].title}
           </p>
         </div>
@@ -204,7 +204,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
       <WizardHeader steps={steps} currentStep={step} />
 
-      <div className="pt-6 border-t border-slate-100 min-h-[300px]">
+      <div className="pt-6 border-t border-[var(--border-light)] min-h-[300px]">
         {step === 1 && (
           <CustomerSection state={state} parties={parties} salesmen={salesmen} />
         )}
@@ -218,34 +218,34 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
           <div className="space-y-6">
             <BillValidation state={state} />
 
-            <div className="border border-[#E2E8F0] rounded-xl p-6 bg-white space-y-6">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-mono">Review & E-Way Details</h3>
+            <div className="border border-[var(--border)] rounded-xl p-6 bg-[var(--card-bg)] space-y-6">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider font-mono">Review & E-Way Details</h3>
               
               {/* Invoice Overview */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Invoice Overview</span>
+              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest block font-mono">Invoice Overview</span>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Customer</span>
-                    <span className="text-xs font-bold text-slate-800 capitalize">
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Customer</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] capitalize">
                       {parties.find((p: any) => p.id === state.partyId)?.name || "Unknown"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">GSTIN</span>
-                    <span className="text-xs font-bold text-slate-800 font-mono">
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">GSTIN</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">
                       {state.gstin || "URP"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Bill Date</span>
-                    <span className="text-xs font-bold text-slate-800 font-mono">
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Bill Date</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">
                       {state.billDate}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Payment Terms</span>
-                    <span className="text-xs font-bold text-slate-800">
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Payment Terms</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
                       {state.paymentTerms || "None Listed"}
                     </span>
                   </div>

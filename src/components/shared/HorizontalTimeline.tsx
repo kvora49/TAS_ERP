@@ -18,7 +18,7 @@ export default function HorizontalTimeline({ steps }: HorizontalTimelineProps) {
   return (
     <div className="flex items-start gap-0 w-full overflow-x-auto py-2 relative scrollbar-none select-none">
       {/* Background connector line */}
-      <div className="absolute left-[12.5%] right-[12.5%] top-6 h-[2px] bg-[#E5E7EB] z-0" />
+      <div className="absolute left-[12.5%] right-[12.5%] top-6 h-[2px] bg-[var(--border)] z-0" />
 
       {/* Done connector lines overlay */}
       <div className="absolute left-[12.5%] right-[12.5%] top-6 h-[2px] z-0 flex">
@@ -30,7 +30,7 @@ export default function HorizontalTimeline({ steps }: HorizontalTimelineProps) {
           return (
             <div
               key={idx}
-              className={cn("flex-1 h-[2px]", isDoneSegment ? "bg-[#15803D]" : "bg-[#E5E7EB]")}
+              className={cn("flex-1 h-[2px]", isDoneSegment ? "bg-green-600" : "bg-[var(--border)]")}
             />
           );
         })}
@@ -47,30 +47,30 @@ export default function HorizontalTimeline({ steps }: HorizontalTimelineProps) {
               {/* Circle */}
               <div
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-200 bg-white",
-                  isCompleted && "bg-[#DCFCE7] border-[#15803D] text-[#15803D]",
-                  isActive && "border-[#6366F1] text-[#6366F1] font-bold text-sm",
-                  isPending && "bg-[#F9FAFB] border-[#D1D5DB] text-[#94A3B8] text-sm"
+                  "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-200 bg-[var(--card-bg)]",
+                  isCompleted && "bg-emerald-500/10 border-emerald-600 text-emerald-600 dark:text-emerald-400",
+                  isActive && "border-[var(--primary)] text-[var(--primary)] font-bold text-sm",
+                  isPending && "bg-[var(--page-bg)] border-[var(--input-border)] text-[var(--text-faint)] text-sm"
                 )}
               >
                 {isCompleted ? <Check className="h-4 w-4" /> : <span>{idx + 1}</span>}
               </div>
 
               {/* Label */}
-              <span className="text-xs font-semibold text-[#374151] text-center mt-2.5 px-1">
+              <span className="text-xs font-semibold text-[var(--text-body)] text-center mt-2.5 px-1">
                 {step.label}
               </span>
 
               {/* Date */}
               {step.date && (
-                <span className="text-[10px] text-[#94A3B8] text-center mt-1 font-medium">
+                <span className="text-[10px] text-[var(--text-faint)] text-center mt-1 font-medium">
                   {step.date}
                 </span>
               )}
 
               {/* Time */}
               {step.time && (
-                <span className="text-[10px] text-[#94A3B8] text-center font-medium leading-none mt-0.5">
+                <span className="text-[10px] text-[var(--text-faint)] text-center font-medium leading-none mt-0.5">
                   {step.time}
                 </span>
               )}

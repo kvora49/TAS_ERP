@@ -6,10 +6,10 @@ export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
 
-  // Bypass paths
+  // Bypass paths - API routes handle their own auth, never redirect to HTML
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/") ||
     pathname.startsWith("/auth/callback") ||
     pathname.includes(".")
   ) {

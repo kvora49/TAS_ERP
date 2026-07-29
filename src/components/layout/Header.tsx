@@ -185,32 +185,32 @@ export default function Header() {
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger className="focus:outline-none cursor-pointer">
-              <div className="w-9 h-9 rounded-full bg-[#6366F1] text-white text-xs font-bold flex items-center justify-center border border-[#E5E7EB] hover:scale-105 transition-all select-none">
+              <div className="w-9 h-9 rounded-full bg-[var(--primary)] text-white text-xs font-bold flex items-center justify-center border border-[var(--border)] hover:scale-105 transition-all select-none">
                 {user.fullName.charAt(0).toUpperCase()}
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-white border border-[#E5E7EB] rounded-lg shadow-md mt-1">
+            <DropdownMenuContent align="end" className="w-56 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1">
               <DropdownMenuLabel className="p-3">
-                <p className="text-sm font-bold text-[#0F172A] truncate">
+                <p className="text-sm font-bold text-[var(--text-primary)] truncate">
                   {user.fullName}
                 </p>
-                <p className="text-xs text-[#64748B] truncate mt-0.5 font-medium">
+                <p className="text-xs text-[var(--text-muted)] truncate mt-0.5 font-medium">
                   {user.email}
                 </p>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-[#E5E7EB]" />
+              <DropdownMenuSeparator className="bg-[var(--border)]" />
               <DropdownMenuItem
                 onClick={() => router.push("/settings")}
-                className="text-xs font-medium cursor-pointer p-2.5 hover:bg-[#F1F5F9] flex items-center gap-2"
+                className="text-xs font-medium cursor-pointer p-2.5 hover:bg-[var(--page-bg)] text-[var(--text-primary)] flex items-center gap-2"
               >
-                <User size={14} className="text-[#64748B]" />
+                <User size={14} className="text-[var(--text-muted)]" />
                 Profile Settings
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleLogout}
-                className="text-xs font-medium text-[#DC2626] cursor-pointer p-2.5 hover:bg-red-50 flex items-center gap-2"
+                className="text-xs font-medium text-red-500 cursor-pointer p-2.5 hover:bg-red-500/10 flex items-center gap-2"
               >
-                <LogOut size={14} className="text-[#DC2626]" />
+                <LogOut size={14} className="text-red-500" />
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>

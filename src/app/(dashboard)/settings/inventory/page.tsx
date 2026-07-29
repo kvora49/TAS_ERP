@@ -159,13 +159,13 @@ export default function InventorySettingsPage() {
           >
             <div className="flex flex-col gap-5">
               <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                  Default Godown <span className="text-[#DC2626]">*</span>
+                <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
+                  Default Godown <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={defaultGodownId}
                   onChange={(e) => setDefaultGodownId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Select Godown...</option>
                   {godowns.map((g) => (
@@ -174,14 +174,14 @@ export default function InventorySettingsPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-[#94A3B8] mt-1.5">
+                <p className="text-xs text-[var(--text-muted)] mt-1.5">
                   Select the default godown for all inventory transactions
                 </p>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                  Low Stock Alert Threshold <span className="text-[#DC2626]">*</span>
+                <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
+                  Low Stock Alert Threshold <span className="text-red-500">*</span>
                 </label>
                 <div className="flex w-full">
                   <input
@@ -189,20 +189,20 @@ export default function InventorySettingsPage() {
                     min="0"
                     value={lowStockThreshold}
                     onChange={(e) => setLowStockThreshold(Number(e.target.value))}
-                    className="flex-1 h-10 px-3 rounded-l-lg border border-r-0 border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                    className="flex-1 h-10 px-3 rounded-l-lg border border-r-0 border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                     placeholder="10"
                   />
-                  <span className="h-10 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded-r-lg text-sm text-[#64748B] flex items-center justify-center font-medium">
+                  <span className="h-10 px-4 bg-[var(--page-bg)] border border-[var(--input-border)] rounded-r-lg text-sm text-[var(--text-muted)] flex items-center justify-center font-medium">
                     items
                   </span>
                 </div>
-                <p className="text-xs text-[#94A3B8] mt-1.5">
+                <p className="text-xs text-[var(--text-muted)] mt-1.5">
                   Minimum quantity to trigger low stock alert
                 </p>
               </div>
 
               {/* Toggles */}
-              <div className="border-t border-[#F3F4F6] pt-3 flex flex-col">
+              <div className="border-t border-[var(--border-light)] pt-3 flex flex-col">
                 <SettingsToggleRow
                   icon={TrendingDown}
                   label="Allow Negative Stock"
@@ -236,20 +236,20 @@ export default function InventorySettingsPage() {
           >
             <div className="flex flex-col gap-4">
               <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+                <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
                   Valuation Method
                 </label>
                 <select
                   value={valuationMethod}
                   onChange={(e) => setValuationMethod(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="fifo">FIFO (First In First Out)</option>
                   <option value="lifo">LIFO (Last In First Out)</option>
                   <option value="avg">Average Cost</option>
                   <option value="manual">Manual</option>
                 </select>
-                <p className="text-xs text-[#94A3B8] mt-1.5">
+                <p className="text-xs text-[var(--text-muted)] mt-1.5">
                   This method will be used for stock valuation and cost calculation
                 </p>
               </div>

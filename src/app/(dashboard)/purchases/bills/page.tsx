@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Calendar, Landmark, Coins, Receipt, ArrowLeftRight, Trash2, Pencil, CreditCard, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Search, Calendar, Landmark, Coins, Receipt, Pencil, Trash2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Modal } from "@/components/shared/Modal";
+import { useQueryClient } from "@tanstack/react-query";
+import { useERPQuery } from "@/hooks/useERPQuery";
 
 interface Party {
   id: string;
@@ -30,9 +33,7 @@ interface PurchaseBill {
 
 export default function PurchaseBillsPage() {
   const router = useRouter();
-  const [bills, setBills] = useState<PurchaseBill[]>([]);
-  const [suppliers, setSuppliers] = useState<Party[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Filter states
   const [search, setSearch] = useState("");
@@ -60,43 +61,34 @@ export default function PurchaseBillsPage() {
   // Payment Recording form state
   const [paymentAmount, setPaymentAmount] = useState<number | "">("");
 
-  // Load purchase bills and suppliers
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Build filter query parameters
+  const queryKey = ["purchase-bills", statusFilter, startDate, endDate, search];
+
+  const { data: billsData, isPending: loading, isError, error, refetch } = useERPQuery(
+    queryKey,
+    async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append("payment_status", statusFilter);
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
       if (search) params.append("search", search);
 
-      const [billsRes, suppliersRes] = await Promise.all([
-        fetch(`/api/purchases/bills?${params.toString()}`),
-        fetch("/api/parties?type=supplier"),
-      ]);
-
-      if (!billsRes.ok || !suppliersRes.ok) {
-        throw new Error("Failed to load purchases data");
-      }
-
-      const billsData = await billsRes.json();
-      const suppliersData = await suppliersRes.json();
-
-      setBills(billsData.bills || []);
-      setSuppliers(suppliersData.parties || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching purchase invoices");
-    } finally {
-      setLoading(false);
+      const res = await fetch(`/api/purchases/bills?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load purchase invoices");
+      const data = await res.json();
+      return data.bills || [];
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [statusFilter, startDate, endDate, search]);
+  const { data: suppliersData } = useERPQuery(["parties-suppliers"], async () => {
+    const res = await fetch("/api/parties?type=supplier");
+    if (!res.ok) throw new Error("Failed to load suppliers");
+    const data = await res.json();
+    return data.parties || [];
+  });
 
-  // Aggregate stats
+  const bills: PurchaseBill[] = billsData || [];
+  const suppliers: Party[] = suppliersData || [];
+
   const totalPurchaseVal = bills.reduce((sum, b) => sum + Number(b.grand_total), 0);
   const totalPaidVal = bills.reduce((sum, b) => sum + Number(b.paid_amount), 0);
   const totalDueVal = totalPurchaseVal - totalPaidVal;
@@ -146,7 +138,7 @@ export default function PurchaseBillsPage() {
 
       toast.success("Purchase bill recorded successfully!");
       setIsAddOpen(false);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -188,7 +180,7 @@ export default function PurchaseBillsPage() {
 
       toast.success("Purchase bill updated successfully!");
       setIsEditOpen(false);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -234,7 +226,7 @@ export default function PurchaseBillsPage() {
 
       toast.success("Payment recorded successfully!");
       setIsPaymentOpen(false);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -263,7 +255,7 @@ export default function PurchaseBillsPage() {
 
       toast.success("Purchase bill deleted successfully");
       setIsDeleteOpen(false);
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -276,120 +268,127 @@ export default function PurchaseBillsPage() {
       {/* Top Header Section */}
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Finished Goods Purchase Bills</h1>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Finished Goods Purchase Bills</h1>
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             Track inward shipments, supplier invoices, outstanding dues, and cash outflows
           </p>
         </div>
-        <Button onClick={() => router.push("/purchases/bills/new")} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2 cursor-pointer shadow-sm">
+        <AsyncButton
+          onClick={() => router.push("/purchases/bills/new")}
+          variant="primary"
+          className="flex items-center gap-2 text-sm font-semibold"
+        >
           <Plus size={16} />
           <span>Add Purchase Bill</span>
-        </Button>
+        </AsyncButton>
       </div>
 
-      {/* Aesthetic Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#EEF2FF] text-[#6366F1] rounded-lg">
-            <Receipt className="h-6 w-6" />
+      <PageState
+        isLoading={loading}
+        isError={isError}
+        error={error ? (error instanceof Error ? error.message : "Failed to load purchase invoices") : undefined}
+        onRetry={refetch}
+        isEmpty={bills.length === 0}
+        emptyTitle="No Purchase Invoices Found"
+        emptyMessage="No inward purchase invoices match your active date or status filters."
+        emptyAction={
+          <AsyncButton onClick={() => router.push("/purchases/bills/new")} variant="primary">
+            + Add First Purchase Bill
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={8}
+        skeletonColumns={8}
+      >
+        {/* Aesthetic Stat Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-[var(--primary-light)] text-[var(--primary)] rounded-lg">
+              <Receipt className="h-6 w-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Total Purchases</span>
+              <span className="text-xl font-bold text-[var(--text-primary)]">
+                ₹{totalPurchaseVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Purchases</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{totalPurchaseVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
+
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-green-500/10 text-green-500 rounded-lg">
+              <Coins className="h-6 w-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Total Paid Out</span>
+              <span className="text-xl font-bold text-[var(--text-primary)]">
+                ₹{totalPaidVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-red-500/10 text-red-500 rounded-lg">
+              <Landmark className="h-6 w-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Outstanding Dues</span>
+              <span className="text-xl font-bold text-[var(--text-primary)]">
+                ₹{totalDueVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#DCFCE7] text-[#16A34A] rounded-lg">
-            <Coins className="h-6 w-6" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Paid Out</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{totalPaidVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
+        {/* Dynamic Filters Bar */}
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 shadow-[var(--shadow-sm)] flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-[var(--text-faint)]" />
+              <input
+                type="text"
+                placeholder="Search supplier, bill no..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-10 pl-10 pr-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
 
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#FEE2E2] text-[#DC2626] rounded-lg">
-            <Landmark className="h-6 w-6" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full sm:w-44 h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
+            >
+              <option value="">All Statuses</option>
+              <option value="paid">Paid</option>
+              <option value="partially_paid">Partially Paid</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Outstanding Dues</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{totalDueVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* Dynamic Filters Bar */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+          <div className="flex items-center gap-2 w-full lg:w-auto">
+            <Calendar className="h-4.5 w-4.5 text-[var(--text-muted)] shrink-0" />
             <input
-              type="text"
-              placeholder="Search supplier, bill no..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            />
+            <span className="text-[var(--text-muted)] font-semibold text-xs uppercase">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             />
           </div>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-44 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            <option value="paid">Paid</option>
-            <option value="partially_paid">Partially Paid</option>
-            <option value="unpaid">Unpaid</option>
-          </select>
         </div>
 
-        {/* Date Filters */}
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <Calendar className="h-4.5 w-4.5 text-slate-400 shrink-0" />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-          />
-          <span className="text-slate-400 font-semibold text-xs uppercase">to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Invoices List Table */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 gap-2">
-            <Loader2 className="h-7 w-7 text-[#6366F1] animate-spin" />
-            <span className="text-xs text-slate-500 font-semibold">Loading purchase invoices...</span>
-          </div>
-        ) : bills.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-2">
-            <Receipt className="h-8 w-8 text-slate-300" />
-            <span className="text-sm font-semibold">No purchase bills found matching the filters.</span>
-          </div>
-        ) : (
+        {/* Invoices List Table */}
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#F3F4F6] bg-slate-50 font-bold text-slate-600">
+                <tr className="border-b border-[var(--border)] bg-[var(--table-header-bg)] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   <th className="p-4">Invoice Date</th>
                   <th className="p-4">Bill Code / Invoice No</th>
                   <th className="p-4">Supplier</th>
@@ -400,45 +399,45 @@ export default function PurchaseBillsPage() {
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
+              <tbody className="divide-y divide-[var(--border)] text-[var(--text-body)]">
                 {bills.map((b) => {
                   const outstanding = b.grand_total - b.paid_amount;
                   return (
-                    <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-700">{b.invoice_date}</td>
+                    <tr key={b.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                      <td className="p-4 font-semibold text-[var(--text-body)]">{b.invoice_date}</td>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-[#6366F1] font-mono">{b.bill_number}</span>
+                          <span className="font-bold text-[var(--primary)] font-mono">{b.bill_number}</span>
                           {b.invoice_no && (
-                            <span className="text-[10px] text-slate-400 font-mono">Invoice: {b.invoice_no}</span>
+                            <span className="text-[10px] text-[var(--text-faint)] font-mono">Invoice: {b.invoice_no}</span>
                           )}
                         </div>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-slate-800">{b.supplier?.name}</span>
+                          <span className="font-bold text-[var(--text-primary)]">{b.supplier?.name}</span>
                           {b.supplier?.company_name && (
-                            <span className="text-[10px] text-slate-400 font-medium">{b.supplier.company_name}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium">{b.supplier.company_name}</span>
                           )}
                         </div>
                       </td>
-                      <td className="p-4 text-right font-bold text-slate-800">
+                      <td className="p-4 text-right font-bold text-[var(--text-primary)]">
                         ₹{b.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="p-4 text-right font-semibold text-slate-600">
+                      <td className="p-4 text-right font-semibold text-green-500">
                         ₹{b.paid_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="p-4 text-right font-bold text-[#DC2626]">
+                      <td className="p-4 text-right font-bold text-red-500">
                         ₹{outstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="p-4 text-center">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             b.payment_status === "paid"
-                              ? "bg-[#DCFCE7] text-[#15803D]"
+                              ? "bg-green-500/10 text-green-500"
                               : b.payment_status === "partially_paid"
-                              ? "bg-[#FEF3C7] text-[#D97706]"
-                              : "bg-[#FEE2E2] text-[#DC2626]"
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-red-500/10 text-red-500"
                           }`}
                         >
                           {b.payment_status.replace("_", " ")}
@@ -449,7 +448,7 @@ export default function PurchaseBillsPage() {
                           {outstanding > 0 && (
                             <button
                               onClick={() => handleOpenPayment(b)}
-                              className="w-8 h-8 border border-[#BFDBFE] hover:bg-[#EFF6FF] text-[#2563EB] rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                              className="w-8 h-8 border border-[var(--primary)]/30 hover:bg-[var(--primary-light)] text-[var(--primary)] rounded-lg flex items-center justify-center cursor-pointer transition-all"
                               title="Record Payment"
                             >
                               <CreditCard size={14} />
@@ -457,14 +456,14 @@ export default function PurchaseBillsPage() {
                           )}
                           <button
                             onClick={() => handleOpenEdit(b)}
-                            className="w-8 h-8 border border-[#E5E7EB] hover:bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                            className="w-8 h-8 border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] rounded-lg flex items-center justify-center cursor-pointer transition-all"
                             title="Edit Bill"
                           >
                             <Pencil size={14} />
                           </button>
                           <button
                             onClick={() => handleOpenDelete(b)}
-                            className="w-8 h-8 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                            className="w-8 h-8 border border-red-500/20 hover:bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center cursor-pointer transition-all"
                             title="Delete Bill"
                           >
                             <Trash2 size={14} />
@@ -477,259 +476,267 @@ export default function PurchaseBillsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      </PageState>
 
-      {/* Add Modal */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Add Purchase Bill</DialogTitle>
-          </DialogHeader>
+      {/* Add Shared Modal */}
+      <Modal
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+        title="Add Purchase Bill"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleCreateBill} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Supplier *</label>
+            <select
+              value={supplierId}
+              required
+              onChange={(e) => setSupplierId(e.target.value)}
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
+            >
+              <option value="">Select Supplier</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.company_name ? `(${s.company_name})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <form onSubmit={handleCreateBill} className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Supplier *</label>
-              <select
-                value={supplierId}
-                required
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} {s.company_name ? `(${s.company_name})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Supplier Invoice No</label>
-                <input
-                  type="text"
-                  placeholder="e.g. INV-1092"
-                  value={invoiceNo}
-                  onChange={(e) => setInvoiceNo(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Invoice Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Bill Grand Total (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  min="0"
-                  placeholder="0.00"
-                  value={grandTotal}
-                  onChange={(e) => setGrandTotal(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initial Paid Amount (₹)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Save Bill</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Modal */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Edit Purchase Bill</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleUpdateBill} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Supplier</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Supplier Invoice No</label>
               <input
                 type="text"
-                disabled
-                value={selectedBill?.supplier?.name || ""}
-                className="w-full h-10 px-3 bg-slate-50 border border-[#D1D5DB] rounded-lg text-sm text-slate-500 cursor-not-allowed outline-none"
+                placeholder="e.g. INV-1092"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Supplier Invoice No</label>
-                <input
-                  type="text"
-                  placeholder="e.g. INV-1092"
-                  value={invoiceNo}
-                  onChange={(e) => setInvoiceNo(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Invoice Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Bill Grand Total (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  min="0"
-                  placeholder="0.00"
-                  value={grandTotal}
-                  onChange={(e) => setGrandTotal(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Paid Amount (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  min="0"
-                  placeholder="0.00"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Save Changes</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Record Payment Modal */}
-      <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Record Supplier Payment</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleRecordPayment} className="space-y-4 pt-2">
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3 text-xs text-[#1E40AF] space-y-1 font-medium">
-              <div className="flex justify-between">
-                <span>Total Bill Value:</span>
-                <span className="font-bold">₹{selectedBill?.grand_total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Already Paid:</span>
-                <span className="font-bold">₹{selectedBill?.paid_amount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t border-[#BFDBFE] pt-1 mt-1 font-bold text-[#1D4ED8]">
-                <span>Outstanding Dues:</span>
-                <span>₹{selectedBill ? (selectedBill.grand_total - selectedBill.paid_amount).toFixed(2) : "0.00"}</span>
-              </div>
-            </div>
-
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment Amount Out (₹) *</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Invoice Date *</label>
+              <input
+                type="date"
+                required
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Bill Grand Total (₹) *</label>
               <input
                 type="number"
                 step="0.01"
                 required
-                min="0.01"
+                min="0"
                 placeholder="0.00"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                value={grandTotal}
+                onChange={(e) => setGrandTotal(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsPaymentOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#16A34A] hover:bg-[#15803D] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Record Outflow</span>
-              </Button>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Initial Paid Amount (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB] p-6">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#DC2626]">Delete Purchase Bill</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 pt-2">
-            <p className="text-xs text-slate-500 leading-normal">
-              Are you sure you want to delete purchase bill <span className="font-bold text-slate-700">{selectedBill?.bill_number}</span>? This action will remove it from supplier ledger aggregates and dashboard outstanding tallies.
-            </p>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsDeleteOpen(false)}>
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsAddOpen(false)}
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] font-semibold text-sm rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
               Cancel
-            </Button>
-            <Button onClick={handleDeleteBill} size="sm" disabled={saving} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
-              {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-              <span>Delete Permanently</span>
-            </Button>
+            </button>
+            <AsyncButton type="submit" isLoading={saving} variant="primary" className="px-4 py-2 text-sm font-semibold">
+              Save Bill
+            </AsyncButton>
           </div>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </Modal>
+
+      {/* Edit Shared Modal */}
+      <Modal
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        title="Edit Purchase Bill"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleUpdateBill} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Supplier</label>
+            <input
+              type="text"
+              disabled
+              value={selectedBill?.supplier?.name || ""}
+              className="w-full h-10 px-3 bg-[var(--page-bg)] border border-[var(--input-border)] text-[var(--text-muted)] rounded-lg text-sm cursor-not-allowed"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Supplier Invoice No</label>
+              <input
+                type="text"
+                placeholder="e.g. INV-1092"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Invoice Date *</label>
+              <input
+                type="date"
+                required
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Bill Grand Total (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                min="0"
+                placeholder="0.00"
+                value={grandTotal}
+                onChange={(e) => setGrandTotal(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Paid Amount (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                min="0"
+                placeholder="0.00"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(false)}
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] font-semibold text-sm rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton type="submit" isLoading={saving} variant="primary" className="px-4 py-2 text-sm font-semibold">
+              Save Changes
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Record Payment Shared Modal */}
+      <Modal
+        open={isPaymentOpen}
+        onOpenChange={setIsPaymentOpen}
+        title="Record Supplier Payment"
+        maxWidth="max-w-sm"
+      >
+        <form onSubmit={handleRecordPayment} className="space-y-4 pt-2">
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-500 space-y-1 font-medium">
+            <div className="flex justify-between">
+              <span>Total Bill Value:</span>
+              <span className="font-bold">₹{selectedBill?.grand_total.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Already Paid:</span>
+              <span className="font-bold">₹{selectedBill?.paid_amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1 font-bold text-blue-500">
+              <span>Outstanding Dues:</span>
+              <span>₹{selectedBill ? (selectedBill.grand_total - selectedBill.paid_amount).toFixed(2) : "0.00"}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Payment Amount Out (₹) *</label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              min="0.01"
+              placeholder="0.00"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] font-mono"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsPaymentOpen(false)}
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] font-semibold text-sm rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton type="submit" isLoading={saving} variant="primary" className="px-4 py-2 text-sm font-semibold bg-green-600 hover:bg-green-700">
+              Record Outflow
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Shared Modal */}
+      <Modal
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete Purchase Bill"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-3 pt-2">
+          <p className="text-xs text-[var(--text-muted)] leading-normal">
+            Are you sure you want to delete purchase bill <span className="font-bold text-[var(--text-primary)]">{selectedBill?.bill_number}</span>? This action will remove it from supplier ledger aggregates and dashboard outstanding tallies.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)] mt-4">
+            <button
+              type="button"
+              onClick={() => setIsDeleteOpen(false)}
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] font-semibold text-sm rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton onClick={handleDeleteBill} isLoading={saving} variant="destructive" className="px-4 py-2 text-sm font-semibold">
+              Delete Permanently
+            </AsyncButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

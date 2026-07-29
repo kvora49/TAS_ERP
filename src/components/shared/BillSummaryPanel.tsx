@@ -52,43 +52,43 @@ export default function BillSummaryPanel({
   };
 
   return (
-    <div className={cn("bg-white rounded-xl border border-[#E5E7EB] p-5 sticky top-6 shadow-sm flex flex-col", className)}>
-      <h3 className="flex items-center gap-2 text-base font-semibold text-[#0F172A] mb-4 pb-3 border-b border-[#F3F4F6]">
-        <FileText className="h-5 w-5 text-[#6366F1]" />
+    <div className={cn("bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 sticky top-6 shadow-[var(--shadow-sm)] flex flex-col", className)}>
+      <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--text-primary)] mb-4 pb-3 border-b border-[var(--border-light)]">
+        <FileText className="h-5 w-5 text-[var(--primary)]" />
         <span>Bill Summary</span>
       </h3>
 
-      <div className="flex flex-col gap-3 text-sm text-[#475569]">
+      <div className="flex flex-col gap-3 text-sm text-[var(--text-body)]">
         {/* Item Total */}
         <div className="flex items-center justify-between">
           <span>Item Total ({itemCount} Item{itemCount !== 1 ? "s" : ""})</span>
-          <span className="font-medium text-[#1E293B]">{formatCurrency(itemTotal)}</span>
+          <span className="font-medium text-[var(--text-primary)]">{formatCurrency(itemTotal)}</span>
         </div>
 
         {/* Charges Total */}
         <div className="flex items-center justify-between">
           <span>Charges Total</span>
-          <span className="font-medium text-[#1E293B]">{formatCurrency(chargesTotal)}</span>
+          <span className="font-medium text-[var(--text-primary)]">{formatCurrency(chargesTotal)}</span>
         </div>
 
         {/* Sub Total */}
-        <div className="flex items-center justify-between font-medium text-[#1E293B]">
+        <div className="flex items-center justify-between font-medium text-[var(--text-primary)]">
           <span>Sub Total</span>
           <span>{formatCurrency(subTotal)}</span>
         </div>
 
         {/* Discount */}
         {discount > 0 && (
-          <div className="flex items-center justify-between text-[#DC2626] font-medium">
+          <div className="flex items-center justify-between text-red-500 font-medium">
             <span>Discount (Less)</span>
             <span>-{formatCurrency(discount)}</span>
           </div>
         )}
 
         {/* Taxable Amount */}
-        <div className="flex items-center justify-between border-t border-[#F3F4F6] pt-3">
+        <div className="flex items-center justify-between border-t border-[var(--border-light)] pt-3">
           <span>Taxable Amount</span>
-          <span className="font-semibold text-[#1E293B]">{formatCurrency(taxableAmount)}</span>
+          <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(taxableAmount)}</span>
         </div>
 
         {/* CGST */}
@@ -116,27 +116,27 @@ export default function BillSummaryPanel({
         )}
 
         {/* Round Off */}
-        <div className="flex items-center justify-between text-xs text-[#64748B] pb-3 border-b border-[#F3F4F6]">
+        <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pb-3 border-b border-[var(--border-light)]">
           <span>Round Off</span>
           <span>{roundOff >= 0 ? "+" : ""}{formatCurrency(roundOff)}</span>
         </div>
 
         {/* Grand Total */}
         <div className="flex items-center justify-between py-2">
-          <span className="text-sm font-semibold text-[#0F172A]">Grand Total</span>
-          <span className="text-xl font-bold text-[#6366F1]">{formatCurrency(grandTotal)}</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Grand Total</span>
+          <span className="text-xl font-bold text-[var(--primary)]">{formatCurrency(grandTotal)}</span>
         </div>
 
         {/* Amount in words */}
-        <div className="bg-[#DCFCE7] rounded-lg p-3 mt-2 border border-[#BBF7D0] relative flex items-start justify-between gap-3">
+        <div className="bg-emerald-500/10 rounded-lg p-3 mt-2 border border-emerald-500/20 relative flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold text-[#15803D] uppercase tracking-wider">Amount in Words</span>
-            <span className="text-xs font-semibold text-[#15803D] leading-relaxed">{amountInWordsStr}</span>
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Amount in Words</span>
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 leading-relaxed">{amountInWordsStr}</span>
           </div>
           <button
             type="button"
             onClick={handleCopy}
-            className="text-[#15803D] hover:bg-[#BBF7D0]/40 p-1.5 rounded transition-colors shrink-0"
+            className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 p-1.5 rounded transition-colors shrink-0"
             title="Copy Amount in Words"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

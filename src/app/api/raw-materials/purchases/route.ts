@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const purchases = await service.listPurchases(businessId, { status, paymentStatus, search });
     return NextResponse.json({ purchases });
   } catch (err: any) {
+    console.error("[/api/raw-materials/purchases] ERROR:", JSON.stringify(err), err?.message, err?.code, err?.details);
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
       { status: 500 }

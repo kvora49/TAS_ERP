@@ -22,14 +22,14 @@ export default function LotSummaryPanel({
   items,
 }: LotSummaryPanelProps) {
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm">
-      <h3 className="flex items-center gap-2 text-base font-semibold text-[#0F172A] mb-4">
-        <BarChart2 className="h-5 w-5 text-[#6366F1]" />
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)]">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--text-primary)] mb-4">
+        <BarChart2 className="h-5 w-5 text-[var(--primary)]" />
         <span>{title}</span>
       </h3>
 
       {designImage && (
-        <div className="relative w-full h-64 rounded-xl mb-4 overflow-hidden border border-[#E5E7EB] flex items-center justify-center bg-slate-100 group shadow-xs">
+        <div className="relative w-full h-64 rounded-xl mb-4 overflow-hidden border border-[var(--border)] flex items-center justify-center bg-[var(--page-bg)] group shadow-xs">
           {/* Full-bleed ambient color glow matching the image palette */}
           <img
             src={designImage}
@@ -53,20 +53,20 @@ export default function LotSummaryPanel({
         {items.map((item, idx) => (
           <div
             key={idx}
-            className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0"
+            className="flex items-center justify-between py-2.5 border-b border-[var(--border-light)] last:border-0"
           >
-            <span className="text-sm text-[#64748B]">{item.label}</span>
+            <span className="text-sm text-[var(--text-muted)]">{item.label}</span>
             <div className="flex items-center gap-2">
               {item.colorHex && (
                 <span
-                  className="w-4 h-4 rounded-full border border-[#D1D5DB]"
+                  className="w-4 h-4 rounded-full border border-[var(--border)]"
                   style={{ backgroundColor: item.colorHex }}
                 />
               )}
               <span
                 className={cn(
-                  "text-sm font-medium text-[#374151]",
-                  item.isQuantity && "text-[#6366F1] font-semibold"
+                  "text-sm font-medium text-[var(--text-body)]",
+                  item.isQuantity && "text-[var(--primary)] font-semibold"
                 )}
               >
                 {item.value}

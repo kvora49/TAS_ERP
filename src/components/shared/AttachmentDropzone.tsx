@@ -108,22 +108,22 @@ export function AttachmentDropzone({
         onDrop={handleDrop}
         onClick={triggerInput}
         className={cn(
-          "border-2 border-dashed border-[#D1D5DB] rounded-xl p-6 flex flex-col items-center gap-3 cursor-pointer hover:border-[#6366F1] hover:bg-[#F8FAFC] transition-colors text-center select-none",
-          isDragActive && "border-[#6366F1] bg-[#F8FAFC]"
+          "border-2 border-dashed border-[var(--input-border)] rounded-xl p-6 flex flex-col items-center gap-3 cursor-pointer hover:border-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-colors text-center select-none",
+          isDragActive && "border-[var(--primary)] bg-[var(--table-row-hover)]"
         )}
       >
-        <UploadCloud className="size-8 text-[#94A3B8]" />
+        <UploadCloud className="size-8 text-[var(--text-faint)]" />
         <div className="flex flex-col gap-1">
-          <span className="text-sm text-[#374151] font-medium">
+          <span className="text-sm text-[var(--text-body)] font-medium">
             Click to upload or drag and drop
           </span>
-          <span className="text-xs text-[#94A3B8]">
+          <span className="text-xs text-[var(--text-faint)]">
             PDF, JPG, PNG (Max {maxSizeMB}MB)
           </span>
         </div>
         <button
           type="button"
-          className="border border-[#E5E7EB] h-9 px-4 rounded-lg text-sm bg-white text-[#374151] hover:bg-[#F9FAFB] font-medium mt-1 shrink-0"
+          className="border border-[var(--border)] h-9 px-4 rounded-lg text-sm bg-[var(--card-bg)] text-[var(--text-body)] hover:bg-[var(--page-bg)] font-medium mt-1 shrink-0"
         >
           Browse Files
         </button>
@@ -134,14 +134,14 @@ export function AttachmentDropzone({
           {selectedFiles.map((file, idx) => (
             <div
               key={idx}
-              className="flex items-center justify-between p-3 border border-[#E5E7EB] rounded-lg bg-white"
+              className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg bg-[var(--card-bg)]"
             >
               <div className="flex items-center gap-2 overflow-hidden mr-2">
-                <FileText className="size-4 text-[#6366F1] shrink-0" />
-                <span className="text-xs text-[#374151] font-medium truncate">
+                <FileText className="size-4 text-[var(--primary)] shrink-0" />
+                <span className="text-xs text-[var(--text-body)] font-medium truncate">
                   {file.name}
                 </span>
-                <span className="text-[10px] text-[#94A3B8] shrink-0">
+                <span className="text-[10px] text-[var(--text-faint)] shrink-0">
                   ({formatSize(file.size)})
                 </span>
               </div>
@@ -151,7 +151,7 @@ export function AttachmentDropzone({
                   e.stopPropagation();
                   onRemoveFile(idx);
                 }}
-                className="p-1 hover:bg-[#FEF2F2] hover:text-[#EF4444] rounded text-[#94A3B8]"
+                className="p-1 hover:bg-red-500/10 hover:text-red-500 rounded text-[var(--text-faint)]"
               >
                 <X className="size-4" />
               </button>

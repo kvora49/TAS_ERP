@@ -292,13 +292,13 @@ export default function UsersRolesSettingsPage() {
               placeholder="Search by name, email or role..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
             />
           </div>
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+            className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
           >
             <option value="all">All Roles</option>
             <option value="owner">Owner</option>
@@ -543,15 +543,15 @@ export default function UsersRolesSettingsPage() {
 
       {/* ADD USER DIALOG MODAL */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-        <DialogContent className="max-w-lg w-full bg-white rounded-2xl p-6 text-left shadow-xl">
+        <DialogContent className="max-w-lg w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 text-left shadow-[var(--shadow-md)]">
           <DialogHeader>
-            <div className="w-12 h-12 rounded-full bg-[#EEF2FF] flex items-center justify-center">
-              <UserPlus className="size-6 text-[#6366F1]" />
+            <div className="w-12 h-12 rounded-full bg-[var(--primary-light)] flex items-center justify-center">
+              <UserPlus className="size-6 text-[var(--primary)]" />
             </div>
-            <DialogTitle className="text-xl font-bold text-[#0F172A] mt-4">
+            <DialogTitle className="text-xl font-bold text-[var(--text-primary)] mt-4">
               Add New User
             </DialogTitle>
-            <p className="text-sm text-[#64748B] mt-1">
+            <p className="text-sm text-[var(--text-muted)] mt-1">
               Invite a team member to join TAS ERP
             </p>
           </DialogHeader>

@@ -26,12 +26,12 @@ export function SettingsCard({
   return (
     <div
       className={cn(
-        "bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-[var(--shadow-sm)]",
+        "bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]",
         className
       )}
     >
       {/* Section Header */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#F3F4F6]">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-light)]">
         <div className="flex items-center gap-3">
           <div
             className={cn(
@@ -42,11 +42,11 @@ export function SettingsCard({
             <Icon className={cn("size-5", iconColor)} />
           </div>
           <div className="text-left">
-            <h3 className="text-base font-semibold text-[#0F172A] leading-none">
+            <h3 className="text-base font-semibold text-[var(--text-primary)] leading-none">
               {title}
             </h3>
             {subtitle && (
-              <p className="text-xs sm:text-sm text-[#64748B] mt-1.5 leading-tight">
+              <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-1.5 leading-tight">
                 {subtitle}
               </p>
             )}

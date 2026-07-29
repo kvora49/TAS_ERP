@@ -42,7 +42,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 min-w-[160px] overflow-hidden rounded-md border border-slate-250 border-slate-200 bg-white p-1.5 text-slate-950 shadow-md outline-none",
+            "z-50 min-w-[160px] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card-bg)] p-1.5 text-[var(--text-primary)] shadow-md outline-none",
             className
           )}
           {...props}
@@ -68,7 +68,7 @@ function DropdownMenuLabel({
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
-        "px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:pl-7",
+        "px-1.5 py-1 text-xs font-medium text-[var(--text-muted)] data-inset:pl-7",
         className
       )}
       {...props}
@@ -91,7 +91,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs outline-none select-none hover:bg-slate-100 focus:bg-slate-100 text-slate-700 hover:text-slate-900 transition-colors data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "group/dropdown-menu-item relative flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs outline-none select-none hover:bg-[var(--table-row-hover)] focus:bg-[var(--table-row-hover)] text-[var(--text-body)] hover:text-[var(--text-primary)] transition-colors data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className
       )}
       {...props}
@@ -116,7 +116,7 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-[var(--table-row-hover)] focus:text-[var(--text-primary)] data-inset:pl-7 data-popup-open:bg-[var(--table-row-hover)] data-popup-open:text-[var(--text-primary)] data-open:bg-[var(--table-row-hover)] data-open:text-[var(--text-primary)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -139,7 +139,7 @@ function DropdownMenuSubContent({
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "w-auto min-w-[96px] rounded-md border border-slate-200 bg-white p-1 text-slate-950 shadow-lg",
+        "w-auto min-w-[96px] rounded-md border border-[var(--border)] bg-[var(--card-bg)] p-1 text-[var(--text-primary)] shadow-lg",
         className
       )}
       align={align}

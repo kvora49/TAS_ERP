@@ -24,7 +24,26 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,company_name.ilike.%${search}%,phone.ilike.%${search}%,code.ilike.%${search}%,billing_city.ilike.%${search}%,billing_state.ilike.%${search}%`);
+      const s = search.trim();
+      if (s) {
+        query = query.or(
+          `name.ilike.%${s}%,` +
+          `company_name.ilike.%${s}%,` +
+          `phone.ilike.%${s}%,` +
+          `code.ilike.%${s}%,` +
+          `gstin.ilike.%${s}%,` +
+          `billing_address_line1.ilike.%${s}%,` +
+          `billing_address_line2.ilike.%${s}%,` +
+          `billing_city.ilike.%${s}%,` +
+          `billing_state.ilike.%${s}%,` +
+          `billing_pincode.ilike.%${s}%,` +
+          `shipping_address_line1.ilike.%${s}%,` +
+          `shipping_address_line2.ilike.%${s}%,` +
+          `shipping_city.ilike.%${s}%,` +
+          `shipping_state.ilike.%${s}%,` +
+          `shipping_pincode.ilike.%${s}%`
+        );
+      }
     }
 
     const { data: parties, error } = await query.order("name", { ascending: true });

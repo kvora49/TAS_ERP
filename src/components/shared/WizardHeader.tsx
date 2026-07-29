@@ -20,13 +20,13 @@ function getStepDescription(step: WizardStep): string | undefined {
 
 export default function WizardHeader({ currentStep, steps }: WizardHeaderProps) {
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 mb-6 relative">
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 mb-6 relative">
       {/* Connector line (background) */}
-      <div className="absolute left-10 right-10 top-[38px] h-[2px] bg-[#E5E7EB] z-0" />
+      <div className="absolute left-10 right-10 top-[38px] h-[2px] bg-[var(--border)] z-0" />
 
       {/* Active connector line */}
       <div
-        className="absolute left-10 top-[38px] h-[2px] bg-[#15803D] transition-all duration-300 z-0"
+        className="absolute left-10 top-[38px] h-[2px] bg-green-600 transition-all duration-300 z-0"
         style={{
           width: `${
             steps.length > 1
@@ -51,10 +51,10 @@ export default function WizardHeader({ currentStep, steps }: WizardHeaderProps) 
                 className={cn(
                   "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all duration-200",
                   isDone
-                    ? "bg-[#15803D] border-[#15803D] text-white"
+                    ? "bg-green-600 border-green-600 text-white"
                     : isActive
-                    ? "bg-[#6366F1] border-[#6366F1] text-white"
-                    : "bg-white border-[#D1D5DB] text-[#64748B]"
+                    ? "bg-[var(--primary)] border-[var(--primary)] text-white"
+                    : "bg-[var(--card-bg)] border-[var(--input-border)] text-[var(--text-muted)]"
                 )}
               >
                 {isDone ? <Check className="h-4 w-4" /> : stepNum}
@@ -62,13 +62,13 @@ export default function WizardHeader({ currentStep, steps }: WizardHeaderProps) 
               <span
                 className={cn(
                   "text-[10px] font-bold mt-2 text-center uppercase tracking-wider",
-                  isActive ? "text-[#6366F1]" : isDone ? "text-[#15803D]" : "text-[#94A3B8]"
+                  isActive ? "text-[var(--primary)]" : isDone ? "text-green-600" : "text-[var(--text-faint)]"
                 )}
               >
                 {label}
               </span>
               {description && (
-                <span className="text-[9px] text-[#94A3B8] font-medium text-center max-w-[80px] leading-tight">
+                <span className="text-[9px] text-[var(--text-faint)] font-medium text-center max-w-[80px] leading-tight">
                   {description}
                 </span>
               )}

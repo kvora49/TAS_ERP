@@ -109,7 +109,7 @@ export default function ReportPageHeader({
 
       {/* Filter Row container */}
       {filters && showFilters && (
-        <div className="p-4 bg-white rounded-xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] transition-all duration-200">
+        <div className="p-4 bg-[var(--card-bg)] rounded-xl shadow-[var(--shadow-sm)] border border-[var(--border)] transition-all duration-200">
           {filters}
         </div>
       )}

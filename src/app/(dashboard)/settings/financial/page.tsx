@@ -301,7 +301,7 @@ export default function FinancialSettingsPage() {
               <select
                 value={defaultPaymentTerms}
                 onChange={(e) => setDefaultPaymentTerms(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               >
                 <option value="immediate">Immediate</option>
                 <option value="15_days">15 Days</option>
@@ -327,13 +327,13 @@ export default function FinancialSettingsPage() {
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
           <div>
-            <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+            <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
               Default TDS Type
             </label>
             <select
               value={defaultTdsType}
               onChange={(e) => setDefaultTdsType(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
               <option value="194C">194C - Contractor</option>
               <option value="194H">194H - Commission</option>
@@ -344,13 +344,13 @@ export default function FinancialSettingsPage() {
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+            <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
               Round Off Option
             </label>
             <select
               value={roundOffMethod}
               onChange={(e) => setRoundOffMethod(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
               <option value="two_decimals">Round to 2 Decimal Places</option>
               <option value="nearest_rupee">Round to Nearest Rupee</option>

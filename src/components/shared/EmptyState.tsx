@@ -21,26 +21,26 @@ export function EmptyState({
   shortcutHint,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center text-center p-8 lg:p-12 bg-white rounded-xl border border-[#E5E7EB] shadow-[var(--shadow-sm)] min-h-[300px]">
+    <div className="flex flex-col items-center justify-center text-center p-8 lg:p-12 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] min-h-[300px]">
       {icon && (
-        <div className="w-16 h-16 rounded-full bg-[#F1F5F9] flex items-center justify-center text-[#94A3B8] mb-4">
+        <div className="w-16 h-16 rounded-full bg-[var(--page-bg)] flex items-center justify-center text-[var(--text-faint)] mb-4">
           {icon}
         </div>
       )}
-      <h3 className="text-base font-bold text-[#0F172A]">{title}</h3>
-      <p className="text-xs text-[#64748B] mt-1 max-w-sm leading-relaxed">
+      <h3 className="text-base font-bold text-[var(--text-primary)]">{title}</h3>
+      <p className="text-xs text-[var(--text-muted)] mt-1 max-w-sm leading-relaxed">
         {description}
       </p>
       {actionLabel && onAction && (
         <button
           type="button"
           onClick={onAction}
-          className="mt-5 h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-md shadow-[#6366F1]/10"
+          className="mt-5 h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-md"
         >
           {actionIcon}
           <span>{actionLabel}</span>
           {shortcutHint && (
-            <kbd className="ml-1 text-[10px] bg-[#4F46E5] text-white/90 px-1.5 py-0.5 rounded font-mono border border-white/20">
+            <kbd className="ml-1 text-[10px] bg-[var(--primary-dark)] text-white/90 px-1.5 py-0.5 rounded font-mono border border-white/20">
               {shortcutHint}
             </kbd>
           )}

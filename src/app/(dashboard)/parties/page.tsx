@@ -7,12 +7,13 @@ import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
 import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, User } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useERPQuery } from "@/hooks/useERPQuery";
+import { usePartiesList } from "@/hooks/queries/useParties";
 
 interface Party {
   id: string;
@@ -24,6 +25,16 @@ interface Party {
   gstin: string | null;
   status: string;
   opening_balance: number;
+  billing_address_line1?: string | null;
+  billing_address_line2?: string | null;
+  billing_city?: string | null;
+  billing_state?: string | null;
+  billing_pincode?: string | null;
+  shipping_address_line1?: string | null;
+  shipping_address_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_pincode?: string | null;
 }
 
 export default function PartiesPage() {
@@ -36,15 +47,9 @@ export default function PartiesPage() {
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const { data: partiesData, isLoading: partiesLoading } = useERPQuery<Party[]>(["parties"], async () => {
-    const res = await fetch("/api/parties");
-    if (!res.ok) throw new Error("Failed to fetch parties");
-    const data = await res.json();
-    return data.parties || [];
-  }, { skeleton: "table" });
+  const { data: partiesData, isLoading: loading, error, refetch } = usePartiesList();
 
-  const parties = partiesData || [];
-  const loading = partiesLoading;
+  const parties: Party[] = partiesData?.parties || [];
 
   const handleOpenDelete = (party: Party) => {
     setDeletingParty(party);
@@ -64,7 +69,7 @@ export default function PartiesPage() {
       }
       toast.success("Party deleted successfully");
       setDeleteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["parties"] });
+      queryClient.invalidateQueries({ queryKey: ["master-data", "parties"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred during deletion");
     } finally {
@@ -73,11 +78,24 @@ export default function PartiesPage() {
   };
 
   const filteredParties = parties.filter((p) => {
+    const s = search.trim().toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.company_name && p.company_name.toLowerCase().includes(search.toLowerCase())) ||
-      (p.code && p.code.toLowerCase().includes(search.toLowerCase())) ||
-      (p.phone && p.phone.includes(search));
+      !s ||
+      p.name?.toLowerCase().includes(s) ||
+      (p.company_name && p.company_name.toLowerCase().includes(s)) ||
+      (p.code && p.code.toLowerCase().includes(s)) ||
+      (p.phone && p.phone.toLowerCase().includes(s)) ||
+      (p.gstin && p.gstin.toLowerCase().includes(s)) ||
+      (p.billing_address_line1 && p.billing_address_line1.toLowerCase().includes(s)) ||
+      (p.billing_address_line2 && p.billing_address_line2.toLowerCase().includes(s)) ||
+      (p.billing_city && p.billing_city.toLowerCase().includes(s)) ||
+      (p.billing_state && p.billing_state.toLowerCase().includes(s)) ||
+      (p.billing_pincode && p.billing_pincode.toLowerCase().includes(s)) ||
+      (p.shipping_address_line1 && p.shipping_address_line1.toLowerCase().includes(s)) ||
+      (p.shipping_address_line2 && p.shipping_address_line2.toLowerCase().includes(s)) ||
+      (p.shipping_city && p.shipping_city.toLowerCase().includes(s)) ||
+      (p.shipping_state && p.shipping_state.toLowerCase().includes(s)) ||
+      (p.shipping_pincode && p.shipping_pincode.toLowerCase().includes(s));
 
     const matchesTab = activeTab === "all" || p.type?.includes(activeTab);
 
@@ -93,7 +111,7 @@ export default function PartiesPage() {
       key: "code",
       header: "Code",
       width: "110px",
-      render: (row) => <span className="font-mono font-bold text-xs text-[#6366F1]">{row.code || "—"}</span>,
+      render: (row) => <span className="font-mono font-bold text-xs text-[var(--primary)]">{row.code || "—"}</span>,
     },
     {
       key: "name",
@@ -102,11 +120,11 @@ export default function PartiesPage() {
         <div>
           <Link
             href={`/parties/${row.id}`}
-            className="font-bold text-[#6366F1] block text-left"
+            className="font-bold text-[var(--primary)] hover:underline block text-left"
           >
             {row.name}
           </Link>
-          {row.company_name && <span className="text-xs text-[#64748B]">{row.company_name}</span>}
+          {row.company_name && <span className="text-xs text-[var(--text-muted)]">{row.company_name}</span>}
         </div>
       ),
     },
@@ -132,12 +150,12 @@ export default function PartiesPage() {
     {
       key: "phone",
       header: "Phone Number",
-      render: (row) => <span className="text-sm font-medium">{row.phone || "—"}</span>,
+      render: (row) => <span className="text-sm font-medium text-[var(--text-primary)]">{row.phone || "—"}</span>,
     },
     {
       key: "gstin",
       header: "GSTIN",
-      render: (row) => <span className="font-mono text-xs uppercase">{row.gstin || "—"}</span>,
+      render: (row) => <span className="font-mono text-xs uppercase text-[var(--text-primary)]">{row.gstin || "—"}</span>,
     },
     {
       key: "status",
@@ -150,11 +168,11 @@ export default function PartiesPage() {
       header: "Actions",
       width: "150px",
       render: (row) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 select-none">
           <Link
             href={`/parties/${row.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+            className="p-1.5 text-[var(--primary)] hover:bg-[var(--primary-light)] rounded-lg transition-colors border border-transparent"
             title="View Profile / Details"
           >
             <User className="h-4 w-4" />
@@ -162,7 +180,7 @@ export default function PartiesPage() {
           <Link
             href={`/parties/${row.id}/ledger`}
             onClick={(e) => e.stopPropagation()}
-            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+            className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent"
             title="View Ledger"
           >
             <FileText className="h-4 w-4" />
@@ -170,7 +188,7 @@ export default function PartiesPage() {
           <Link
             href={`/parties/${row.id}/edit`}
             onClick={(e) => e.stopPropagation()}
-            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
+            className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors border border-transparent"
             title="Edit Party"
           >
             <Pencil className="h-4 w-4" />
@@ -180,7 +198,7 @@ export default function PartiesPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent cursor-pointer"
             title="Delete Party"
           >
             <Trash2 className="h-4 w-4" />
@@ -197,92 +215,111 @@ export default function PartiesPage() {
         subtitle="Manage suppliers, customers, and workers in one unified system."
         actionLabel="Add Party"
         onAction={() => router.push("/parties/new")}
+        actionIcon={<Plus size={16} className="text-white" />}
       />
 
-
-      {/* STAT CARDS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#EEF2FF] rounded-lg text-[#6366F1]">
-            <Users className="h-6 w-6" />
+      <PageState
+        isLoading={loading}
+        isError={!!error}
+        error={error ? (error instanceof Error ? error.message : "Failed to load parties directory") : undefined}
+        onRetry={refetch}
+        isEmpty={filteredParties.length === 0}
+        emptyTitle="No Parties Found"
+        emptyMessage="No party directory records match your search or filter."
+        emptyAction={
+          <AsyncButton onClick={() => router.push("/parties/new")} variant="primary">
+            + Add First Party
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={8}
+        skeletonColumns={7}
+      >
+        {/* STAT CARDS ROW */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)]">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-[var(--text-muted)]">Suppliers</span>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{supplierCount}</p>
+            </div>
           </div>
-          <div>
-            <span className="text-xs font-semibold text-[#64748B]">Suppliers</span>
-            <p className="text-2xl font-bold text-[#0F172A]">{supplierCount}</p>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-green-500/10 rounded-lg text-green-500">
+              <Briefcase className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-[var(--text-muted)]">Customers</span>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{customerCount}</p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500">
+              <UserCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-[var(--text-muted)]">Workers</span>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{workerCount}</p>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#F0FDF4] rounded-lg text-[#16A34A]">
-            <Briefcase className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-[#64748B]">Customers</span>
-            <p className="text-2xl font-bold text-[#0F172A]">{customerCount}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEF9C3] rounded-lg text-[#D97706]">
-            <UserCheck className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-[#64748B]">Workers</span>
-            <p className="text-2xl font-bold text-[#0F172A]">{workerCount}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER & TABS BAR */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white border border-[#E2E8F0] p-4 rounded-xl shadow-sm">
-        {/* Tabs */}
-        <div className="flex bg-[#F1F5F9] p-1 rounded-lg w-full md:w-auto">
-          {[
-            { id: "all", label: "All Parties" },
-            { id: "supplier", label: "Suppliers" },
-            { id: "customer", label: "Customers" },
-            { id: "worker", label: "Workers" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${activeTab === tab.id
-                  ? "bg-white text-[#0F172A] shadow-sm font-bold"
-                  : "text-[#64748B] hover:text-[#0F172A]"
+        {/* FILTER & TABS BAR */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+          {/* Tabs */}
+          <div className="flex bg-[var(--page-bg)] p-1 rounded-lg w-full md:w-auto">
+            {[
+              { id: "all", label: "All Parties" },
+              { id: "supplier", label: "Suppliers" },
+              { id: "customer", label: "Customers" },
+              { id: "worker", label: "Workers" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  activeTab === tab.id
+                    ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] font-bold"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
+            <input
+              type="text"
+              placeholder="Search by name, address, city, state, pincode, GSTIN..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+            />
+          </div>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]" />
-          <input
-            type="text"
-            placeholder="Search code, name, phone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+        {/* DATA TABLE */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={filteredParties}
+            isLoading={false}
+            total={filteredParties.length}
+            page={1}
+            perPage={10000}
+            onPageChange={() => {}}
+            onRowClick={(row) => router.push(`/parties/${row.id}`)}
+            emptyMessage="No parties found matching filter."
           />
         </div>
-      </div>
-
-      {/* DATA TABLE */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={filteredParties}
-          isLoading={loading}
-          total={filteredParties.length}
-          page={1}
-          perPage={10000}
-          onPageChange={() => { }}
-          onRowClick={(row) => router.push(`/parties/${row.id}`)}
-          emptyMessage="No parties found in database."
-        />
-      </div>
+      </PageState>
 
       {/* DELETE CONFIRM DIALOG */}
       <ConfirmDialog

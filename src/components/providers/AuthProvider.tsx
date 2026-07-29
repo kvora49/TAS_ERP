@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,9 @@ const AuthContext = createContext<AuthContextType>({ loading: true });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
   const setUser = useAppStore((state) => state.setUser);
   const setSelectedBusinessId = useAppStore((state) => state.setSelectedBusinessId);
   const [loading, setLoading] = useState(true);
@@ -23,15 +26,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useNotifications();
 
   useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+
     const syncUser = async () => {
-      const supabase = createClient();
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Race session fetch against a 10-second timeout so the
+        // spinner never blocks the app indefinitely.
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error("Session timeout")), 10_000)
+          ),
+        ]);
+
+        if (cancelled) return;
+
+        if (!sessionResult) {
+          routerRef.current.replace("/login");
+          return;
+        }
+
+        const { data: { session } } = sessionResult as Awaited<ReturnType<typeof supabase.auth.getSession>>;
 
         if (!session?.user) {
-          router.push("/login");
+          routerRef.current.replace("/login");
           return;
         }
 
@@ -40,11 +59,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select("id, email, full_name, role, business_id")
           .eq("id", session.user.id)
           .is("deleted_at", null)
-          .single();
+          .maybeSingle();
+
+        if (cancelled) return;
 
         if (error || !profile) {
           await supabase.auth.signOut();
-          router.push("/login");
+          routerRef.current.replace("/login");
           return;
         }
 
@@ -58,19 +79,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSelectedBusinessId(profile.business_id);
       } catch (err) {
         console.error("Error syncing user session:", err);
+        if (!cancelled) {
+          // On timeout or unexpected error, redirect to login
+          routerRef.current.replace("/login");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     syncUser();
-  }, [router, setUser, setSelectedBusinessId]);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        setUser(null);
+        routerRef.current.replace("/login");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+    // Empty deps: run once on mount only — router is accessed via routerRef
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUser, setSelectedBusinessId]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F1F5F9] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 text-[#6366F1] animate-spin" />
-        <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
+      <div className="min-h-screen bg-[var(--page-bg)] text-[var(--text-body)] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 text-[var(--primary)] animate-spin" />
+        <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
           Syncing ERP Workspace...
         </span>
       </div>

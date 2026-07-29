@@ -22,13 +22,16 @@ import {
   Clock,
   LayoutGrid,
   FileSpreadsheet,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useExperienceController } from "@/components/experience";
 
 export default function GeneralSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
+  const { profile, setMotionProfile } = useExperienceController();
 
   // Form states
   const [businessName, setBusinessName] = useState("");
@@ -44,6 +47,7 @@ export default function GeneralSettingsPage() {
   const [enableSerialNumbers, setEnableSerialNumbers] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [motionProfile, setMotionProfileState] = useState<"ultraFast" | "balanced" | "premium">("balanced");
 
   // Fetch initial settings
   const fetchSettings = async () => {
@@ -68,6 +72,10 @@ export default function GeneralSettingsPage() {
 
       if (data.settings) {
         setEnableSerialNumbers(data.settings.enable_serial_numbers ?? false);
+        if (data.settings.motion_profile) {
+          setMotionProfileState(data.settings.motion_profile);
+          setMotionProfile(data.settings.motion_profile);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Error loading settings");
@@ -99,6 +107,7 @@ export default function GeneralSettingsPage() {
           enable_serial_numbers: enableSerialNumbers,
           low_stock_alerts: lowStockAlerts,
           allow_negative_stock: allowNegativeStock,
+          motion_profile: motionProfile,
           client_updated_at: version,
         }),
       });
@@ -195,7 +204,7 @@ export default function GeneralSettingsPage() {
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full h-10 rounded-lg border border-[#D1D5DB] px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] px-3 text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               >
                 <option value="INR (₹) - Indian Rupee">INR (₹) - Indian Rupee</option>
                 <option value="USD ($) - US Dollar">USD ($) - US Dollar</option>
@@ -214,7 +223,7 @@ export default function GeneralSettingsPage() {
               <select
                 value={dateFormat}
                 onChange={(e) => setDateFormat(e.target.value)}
-                className="w-full h-10 rounded-lg border border-[#D1D5DB] px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] px-3 text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               >
                 <option value="DD MMM YYYY (31 May 2024)">DD MMM YYYY (31 May 2024)</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD (2024-05-31)</option>
@@ -233,7 +242,7 @@ export default function GeneralSettingsPage() {
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="w-full h-10 rounded-lg border border-[#D1D5DB] px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] px-3 text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               >
                 <option value="(GMT+05:30) Asia/Kolkata">(GMT+05:30) Asia/Kolkata</option>
                 <option value="(GMT+00:00) UTC">(GMT+00:00) UTC</option>
@@ -251,7 +260,7 @@ export default function GeneralSettingsPage() {
               <select
                 value={itemsPerPage}
                 onChange={(e) => setItemsPerPage(e.target.value)}
-                className="w-full h-10 rounded-lg border border-[#D1D5DB] px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] px-3 text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               >
                 <option value="10 items">10 items</option>
                 <option value="25 items">25 items</option>
@@ -307,6 +316,29 @@ export default function GeneralSettingsPage() {
               checked={allowNegativeStock}
               onCheckedChange={setAllowNegativeStock}
             />
+
+            <div className="pt-4 mt-2 border-t border-[var(--border)]">
+              <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5 flex items-center gap-2">
+                <Sparkles className="size-4 text-[var(--primary)]" />
+                Motion Style & Transitions
+              </label>
+              <select
+                value={motionProfile}
+                onChange={(e) => {
+                  const level = e.target.value as any;
+                  setMotionProfileState(level);
+                  setMotionProfile(level);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
+              >
+                <option value="ultraFast">Efficient (Ultra Fast — Zero Delays)</option>
+                <option value="balanced">Balanced (Default Standard)</option>
+                <option value="premium">Premium (Fluid Overshoot & Micro-animations)</option>
+              </select>
+              <p className="text-xs text-[var(--text-muted)] mt-1.5">
+                Controls navigation transitions, entrance animations, and micro-interactions
+              </p>
+            </div>
           </div>
         </SettingsCard>
 

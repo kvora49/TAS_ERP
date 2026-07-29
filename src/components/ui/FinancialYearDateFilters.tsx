@@ -59,7 +59,7 @@ export default function FinancialYearDateFilters({
         <select
           value={financialYear}
           onChange={(e) => setFinancialYear(e.target.value)}
-          className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[120px]"
+          className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[120px]"
         >
           <option value="2026-27">FY 2026-27</option>
           <option value="2025-26">FY 2025-26</option>
@@ -78,7 +78,7 @@ export default function FinancialYearDateFilters({
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
+              className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -89,7 +89,7 @@ export default function FinancialYearDateFilters({
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
+              className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
             />
           </div>
         </>
@@ -102,7 +102,7 @@ export default function FinancialYearDateFilters({
             type="date"
             value={asOnDate}
             onChange={(e) => setAsOnDate(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
+            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none"
           />
         </div>
       )}
@@ -114,7 +114,7 @@ export default function FinancialYearDateFilters({
         <select
           value={compareWith}
           onChange={(e) => setCompareWith(e.target.value)}
-          className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[140px]"
+          className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[140px]"
         >
           <option value="none">No Comparison</option>
           <option value="previous_period">Previous Period</option>

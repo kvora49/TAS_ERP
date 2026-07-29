@@ -294,7 +294,7 @@ export default function NotificationsSettingsPage() {
                         <span>{info.label}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-[#64748B] text-xs sm:text-sm">
+                    <td className="px-4 py-3.5 text-[var(--text-muted)] text-xs sm:text-sm">
                       {info.description}
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -305,13 +305,13 @@ export default function NotificationsSettingsPage() {
                           disabled={!r.is_enabled || !hasDays}
                           value={hasDays ? r.days_before : 0}
                           onChange={(e) => handleRuleDaysChange(idx, Number(e.target.value))}
-                          className="w-14 h-8 text-center border border-[#E5E7EB] rounded-lg text-sm bg-white focus:ring-2 focus:ring-[#6366F1] disabled:opacity-50 disabled:bg-slate-100"
+                          className="w-14 h-8 text-center border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--input-focus)] disabled:opacity-50 disabled:bg-[var(--page-bg)]"
                         />
-                        <span className="text-xs text-[#64748B]">days</span>
+                        <span className="text-xs text-[var(--text-muted)]">days</span>
                       </div>
                     </td>
                     <td
-                      className="px-4 py-3.5 cursor-pointer hover:bg-slate-100/50 transition-colors select-none"
+                      className="px-4 py-3.5 cursor-pointer hover:bg-[var(--table-row-hover)] transition-colors select-none"
                       onClick={() => {
                         setEditingRuleIdx(idx);
                         setRoleSelectorOpen(true);

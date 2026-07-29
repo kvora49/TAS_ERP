@@ -13,7 +13,7 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthProvider>
-      <div className="flex h-screen overflow-hidden bg-[#F1F5F9]">
+      <div className="flex h-screen overflow-hidden bg-[var(--page-bg)] text-[var(--text-body)]">
         {/* Navigation Sidebar */}
         <Sidebar />
 
@@ -23,7 +23,7 @@ export default function DashboardLayout({
           <Header />
 
           {/* Content View */}
-          <main className="flex-1 overflow-y-auto bg-[#F1F5F9] px-6 lg:px-8 pt-24 pb-24 md:pb-8 relative print:p-0 print:m-0 print:bg-white print:overflow-visible">
+          <main className="flex-1 overflow-y-auto bg-[var(--page-bg)] text-[var(--text-body)] px-6 lg:px-8 pt-24 pb-24 md:pb-8 relative print:p-0 print:m-0 print:bg-white print:overflow-visible">
             {children}
           </main>
 

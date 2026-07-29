@@ -88,8 +88,14 @@ export async function PUT(request: Request) {
       enable_serial_numbers,
       low_stock_alerts,
       allow_negative_stock,
+      motion_profile,
       client_updated_at,
     } = body;
+
+    // Validate motion_profile
+    const validMotionProfile = ['ultraFast', 'balanced', 'premium'].includes(motion_profile)
+      ? motion_profile
+      : 'balanced';
 
     // Optimistic Lock Check
     const { data: currentBus, error: currentError } = await supabase
@@ -144,6 +150,7 @@ export async function PUT(request: Request) {
           enable_batch_tracking: !!enable_batch_tracking,
           allow_negative_stock: !!allow_negative_stock,
           enable_serial_numbers: !!enable_serial_numbers,
+          motion_profile: validMotionProfile,
           updated_at: new Date().toISOString(),
         })
         .eq("business_id", businessId);
@@ -159,6 +166,7 @@ export async function PUT(request: Request) {
           enable_batch_tracking: !!enable_batch_tracking,
           allow_negative_stock: !!allow_negative_stock,
           enable_serial_numbers: !!enable_serial_numbers,
+          motion_profile: validMotionProfile,
         });
 
       if (setInsertError) {

@@ -5,21 +5,18 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, Ruler, RefreshCw } from "lucide-react";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Pencil, Trash2, Plus, Ruler } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
+import { useUnitsList } from "@/hooks/queries/useMasterData";
+import { useQueryClient } from "@tanstack/react-query";
 
-// Form validation schema
 const unitSchema = z.object({
   name: z.string().min(1, "Unit Name is required"),
   abbreviation: z.string().min(1, "Abbreviation is required"),
@@ -41,8 +38,7 @@ interface Unit {
 }
 
 export default function UnitsPage() {
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,9 +46,11 @@ export default function UnitsPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingUnit, setDeletingUnit] = useState<Unit | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [selectedUnitDetails, setSelectedUnitDetails] = useState<Unit | null>(null);
+
+  const { data: unitsData, isLoading: loading, error, refetch } = useUnitsList();
+  const units: Unit[] = unitsData?.units || [];
 
   const {
     register,
@@ -72,24 +70,6 @@ export default function UnitsPage() {
   });
 
   const baseUnitId = watch("base_unit_id");
-
-  const fetchUnits = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/master-data/units");
-      if (!res.ok) throw new Error("Failed to load Units");
-      const result = await res.json();
-      setUnits(result.units || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching units list");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUnits();
-  }, []);
 
   const handleOpenAdd = () => {
     setEditingUnit(null);
@@ -143,7 +123,7 @@ export default function UnitsPage() {
         editingUnit ? "Unit updated successfully" : "Unit created successfully"
       );
       setModalOpen(false);
-      fetchUnits();
+      queryClient.invalidateQueries({ queryKey: ["master-data", "units"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred");
     }
@@ -154,30 +134,6 @@ export default function UnitsPage() {
     setDeleteOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deletingUnit) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`/api/master-data/units/${deletingUnit.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete unit");
-      }
-
-      toast.success("Unit deleted successfully");
-      setDeleteOpen(false);
-      fetchUnits();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred during deletion");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  // Filter out the editing unit from list of potential base units to prevent self-reference loops
   const potentialBaseUnits = units.filter(
     (u) => !editingUnit || u.id !== editingUnit.id
   );
@@ -200,7 +156,7 @@ export default function UnitsPage() {
       render: (row) => (
         <button
           onClick={() => setSelectedUnitDetails(row)}
-          className="font-bold text-sm text-[#6366F1] cursor-pointer text-left bg-transparent border-0 p-0"
+          className="font-bold text-sm text-[var(--primary)] cursor-pointer text-left bg-transparent border-0 p-0 hover:underline"
         >
           {row.name}
         </button>
@@ -210,7 +166,7 @@ export default function UnitsPage() {
       key: "abbreviation",
       header: "Abbreviation",
       render: (row) => (
-        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+        <span className="font-mono text-xs font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)]">
           {row.abbreviation}
         </span>
       ),
@@ -227,7 +183,7 @@ export default function UnitsPage() {
         if (row.base_unit_id) {
           const baseUnit = units.find((u) => u.id === row.base_unit_id);
           return (
-            <span className="text-xs font-semibold text-slate-600">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">
               1 {row.abbreviation} = {row.conversion_factor} {baseUnit?.abbreviation || ""}
             </span>
           );
@@ -246,7 +202,7 @@ export default function UnitsPage() {
               e.stopPropagation();
               handleOpenEdit(row);
             }}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Unit"
           >
             <Pencil size={15} />
@@ -256,7 +212,7 @@ export default function UnitsPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-red-500/20 rounded-lg hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
             title="Delete Unit"
           >
             <Trash2 size={15} />
@@ -284,174 +240,192 @@ export default function UnitsPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filteredUnits}
+      <PageState
         isLoading={loading}
-        total={filteredUnits.length}
-        page={1}
-        perPage={100}
-        onPageChange={() => {}}
-        onRowClick={setSelectedUnitDetails}
-        emptyMessage="No units of measurement found. Click 'Add Unit' to create one."
-      />
+        isError={!!error}
+        error={error ? (error instanceof Error ? error.message : "Failed to load units") : undefined}
+        onRetry={refetch}
+        isEmpty={filteredUnits.length === 0}
+        emptyTitle="No Units of Measurement Found"
+        emptyMessage="No inventory units created yet. Click Add Unit to create primary and derived measurement units."
+        emptyAction={
+          <AsyncButton onClick={handleOpenAdd} variant="primary">
+            + Add First Unit
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={6}
+        skeletonColumns={5}
+      >
+        <DataTable
+          columns={columns}
+          data={filteredUnits}
+          isLoading={false}
+          total={filteredUnits.length}
+          page={1}
+          perPage={100}
+          onPageChange={() => {}}
+          onRowClick={setSelectedUnitDetails}
+          emptyMessage="No matching units of measurement found."
+        />
+      </PageState>
 
-      {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle>
-              {editingUnit ? "Edit Unit of Measurement" : "Add Unit of Measurement"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Unit Name *</label>
-              <input
-                type="text"
-                placeholder="e.g. Metre"
-                {...register("name")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-              />
-              {errors.name && <p className="text-[10px] text-red-500 mt-1">{errors.name.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Abbreviation *</label>
-              <input
-                type="text"
-                placeholder="e.g. m"
-                {...register("abbreviation")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
-              />
-              {errors.abbreviation && <p className="text-[10px] text-red-500 mt-1">{errors.abbreviation.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Sub-unit of / Base Unit (Optional)</label>
-              <select
-                {...register("base_unit_id")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
-              >
-                <option value="">No Base Unit (This is a primary unit)</option>
-                {potentialBaseUnits.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.abbreviation})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {baseUnitId && (
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Conversion Factor *</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-500">1 unit =</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. 100"
-                    {...register("conversion_factor")}
-                    className="w-24 px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right"
-                  />
-                  <span className="text-sm font-semibold text-slate-500">
-                    {getBaseUnitName(baseUnitId).split(" ")[0]}
-                  </span>
-                </div>
-                {errors.conversion_factor && (
-                  <p className="text-[10px] text-red-500 mt-1">{errors.conversion_factor.message}</p>
-                )}
-                <p className="text-[10px] text-slate-500 mt-1 italic">
-                  Example: If 1 Roll = 100 Metres, Unit is Roll, Base Unit is Metre, Conversion Factor is 100.
-                </p>
-              </div>
+      {/* Add/Edit Shared Modal */}
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingUnit ? "Edit Unit of Measurement" : "Add Unit of Measurement"}
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
+              Unit Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Metre"
+              {...register("name")}
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            />
+            {errors.name && (
+              <p className="text-[10px] text-red-500 mt-1">{errors.name.message}</p>
             )}
+          </div>
 
-            <DialogFooter className="pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg flex items-center gap-2"
-              >
-                {isSubmitting && <RefreshCw className="h-4 w-4 animate-spin" />}
-                {editingUnit ? "Save Changes" : "Create Unit"}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
+              Abbreviation *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. m"
+              {...register("abbreviation")}
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] font-mono"
+            />
+            {errors.abbreviation && (
+              <p className="text-[10px] text-red-500 mt-1">{errors.abbreviation.message}</p>
+            )}
+          </div>
 
-      {/* Delete Confirmation */}
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title="Delete Unit of Measurement"
-        description={`Are you sure you want to delete unit "${deletingUnit?.name}"? This action cannot be undone.`}
-        loading={deleteLoading}
-        onConfirm={handleConfirmDelete}
-      />
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
+              Sub-unit of / Base Unit (Optional)
+            </label>
+            <select
+              {...register("base_unit_id")}
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="">No Base Unit (This is a primary unit)</option>
+              {potentialBaseUnits.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.abbreviation})
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* View Details Modal */}
-      <Dialog open={!!selectedUnitDetails} onOpenChange={(open) => !open && setSelectedUnitDetails(null)}>
-        <DialogContent className="max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle>Unit Details</DialogTitle>
-          </DialogHeader>
-          {selectedUnitDetails && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-50 text-[#6366F1] rounded-lg flex items-center justify-center">
-                  <Ruler size={20} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg text-slate-800">{selectedUnitDetails.name}</h3>
-                  <p className="text-xs text-slate-500">Symbol: <span className="font-mono font-bold">{selectedUnitDetails.abbreviation}</span></p>
-                </div>
+          {baseUnitId && (
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
+                Conversion Factor *
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-[var(--text-muted)]">1 unit =</span>
+                <input
+                  type="text"
+                  placeholder="e.g. 100"
+                  {...register("conversion_factor")}
+                  className="w-24 px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm text-right font-mono"
+                />
+                <span className="text-sm font-semibold text-[var(--text-muted)]">
+                  {getBaseUnitName(baseUnitId).split(" ")[0]}
+                </span>
               </div>
-
-              <div className="border-t border-slate-100 pt-3 space-y-2.5 text-sm text-slate-600">
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Base Unit Type:</span>
-                  <span>{selectedUnitDetails.base_unit_id ? "Derived Unit" : "Primary Base Unit"}</span>
-                </div>
-                {selectedUnitDetails.base_unit_id && (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="font-semibold text-slate-500">Parent Base Unit:</span>
-                      <span>{getBaseUnitName(selectedUnitDetails.base_unit_id)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-semibold text-slate-500">Conversion Multiplier:</span>
-                      <span className="font-mono">{selectedUnitDetails.conversion_factor}</span>
-                    </div>
-                  </>
-                )}
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Created At:</span>
-                  <span>{new Date(selectedUnitDetails.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              <DialogFooter className="pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setSelectedUnitDetails(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
-                >
-                  Close
-                </button>
-              </DialogFooter>
+              {errors.conversion_factor && (
+                <p className="text-[10px] text-red-500 mt-1">{errors.conversion_factor.message}</p>
+              )}
+              <p className="text-[10px] text-[var(--text-faint)] mt-1 italic">
+                Example: If 1 Roll = 100 Metres, Unit is Roll, Base Unit is Metre, Conversion Factor is 100.
+              </p>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+
+          <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-semibold text-[var(--text-muted)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={isSubmitting}
+              variant="primary"
+              className="px-4 py-2 text-sm font-semibold"
+            >
+              {editingUnit ? "Save Changes" : "Create Unit"}
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* View Details Shared Modal */}
+      <Modal
+        open={!!selectedUnitDetails}
+        onOpenChange={(open) => !open && setSelectedUnitDetails(null)}
+        title="Unit Details"
+        maxWidth="max-w-md"
+      >
+        {selectedUnitDetails && (
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[var(--primary-light)] text-[var(--primary)] rounded-lg flex items-center justify-center">
+                <Ruler size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-[var(--text-primary)]">{selectedUnitDetails.name}</h3>
+                <p className="text-xs text-[var(--text-muted)]">Symbol: <span className="font-mono font-bold text-[var(--text-primary)]">{selectedUnitDetails.abbreviation}</span></p>
+              </div>
+            </div>
+
+            <div className="border-t border-[var(--border)] pt-3 space-y-2.5 text-sm text-[var(--text-body)]">
+              <div className="flex justify-between">
+                <span className="font-semibold text-[var(--text-muted)]">Base Unit Type:</span>
+                <span>{selectedUnitDetails.base_unit_id ? "Derived Unit" : "Primary Base Unit"}</span>
+              </div>
+              {selectedUnitDetails.base_unit_id && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-[var(--text-muted)]">Parent Base Unit:</span>
+                    <span>{getBaseUnitName(selectedUnitDetails.base_unit_id)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-[var(--text-muted)]">Conversion Multiplier:</span>
+                    <span className="font-mono font-bold">{selectedUnitDetails.conversion_factor}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between">
+                <span className="font-semibold text-[var(--text-muted)]">Created At:</span>
+                <span>{new Date(selectedUnitDetails.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[var(--border)] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedUnitDetails(null)}
+                className="px-4 py-2 text-sm font-semibold text-[var(--text-muted)] bg-[var(--page-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Unit Dialog */}
       <DeleteMasterItemDialog
@@ -462,7 +436,7 @@ export default function UnitsPage() {
         allItems={units}
         apiEndpoint="/api/master-data/units"
         targetQueryParam="target_unit_id"
-        onSuccess={fetchUnits}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["master-data", "units"] })}
       />
     </div>
   );

@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 import QueryProvider from "@/components/providers/QueryProvider";
 import "./globals.css";
 
-import { NavigationExperienceProvider, MotionProvider } from "@/components/experience";
+import { NavigationExperienceProvider, MotionProvider, ToasterWrapper } from "@/components/experience";
 import PWAInstaller from "@/components/layout/PWAInstaller";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -55,10 +55,10 @@ export default function RootLayout({
             <MotionProvider>
               {children}
               <PWAInstaller />
+              <ToasterWrapper />
             </MotionProvider>
           </NavigationExperienceProvider>
         </QueryProvider>
-        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

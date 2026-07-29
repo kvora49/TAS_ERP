@@ -29,9 +29,12 @@ export async function GET(request: Request) {
       query = query.eq("is_active", true);
     }
     if (search) {
-      query = query.or(
-        `name.ilike.%${search}%,worker_id.ilike.%${search}%,phone.ilike.%${search}%,specialization.ilike.%${search}%`
-      );
+      const s = search.trim();
+      if (s) {
+        query = query.or(
+          `name.ilike.%${s}%,worker_id.ilike.%${s}%,phone.ilike.%${s}%,specialization.ilike.%${s}%,address.ilike.%${s}%,city.ilike.%${s}%,state.ilike.%${s}%`
+        );
+      }
     }
 
     const { data: workers, error } = await query;

@@ -7,20 +7,17 @@ import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, HelpCircle, Percent } from "lucide-react";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Pencil, Trash2, Plus, HelpCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { useGstRatesList } from "@/hooks/queries/useMasterData";
+import { useQueryClient } from "@tanstack/react-query";
 
-// Form validation schema
 const gstRateSchema = z.object({
   hsn_code: z.string().min(2, "HSN Code must be at least 2 characters"),
   description: z.string().optional(),
@@ -49,8 +46,7 @@ interface GstRate {
 
 export default function GstRatesPage() {
   const router = useRouter();
-  const [gstRates, setGstRates] = useState<GstRate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -59,6 +55,9 @@ export default function GstRatesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingGst, setDeletingGst] = useState<GstRate | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const { data: gstRatesData, isLoading: loading, error, refetch } = useGstRatesList();
+  const gstRates: GstRate[] = gstRatesData?.gstRates || [];
 
   const {
     register,
@@ -82,24 +81,6 @@ export default function GstRatesPage() {
   });
 
   const autoTier = watch("auto_tier");
-
-  const fetchGstRates = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/master-data/gst-rates");
-      if (!res.ok) throw new Error("Failed to load GST rates");
-      const result = await res.json();
-      setGstRates(result.gstRates || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching GST rates list");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGstRates();
-  }, []);
 
   const handleOpenAdd = () => {
     setEditingGst(null);
@@ -158,7 +139,7 @@ export default function GstRatesPage() {
         editingGst ? "GST rate updated successfully" : "GST rate created successfully"
       );
       setModalOpen(false);
-      fetchGstRates();
+      queryClient.invalidateQueries({ queryKey: ["master-data", "gst-rates"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred");
     }
@@ -184,7 +165,7 @@ export default function GstRatesPage() {
 
       toast.success("GST rate deleted successfully");
       setDeleteOpen(false);
-      fetchGstRates();
+      queryClient.invalidateQueries({ queryKey: ["master-data", "gst-rates"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred during deletion");
     } finally {
@@ -202,7 +183,7 @@ export default function GstRatesPage() {
       key: "hsn_code",
       header: "HSN Code",
       render: (row) => (
-        <span className="font-bold font-mono text-sm text-[#6366F1] cursor-pointer">
+        <span className="font-bold font-mono text-sm text-[var(--primary)] cursor-pointer">
           {row.hsn_code}
         </span>
       ),
@@ -211,7 +192,7 @@ export default function GstRatesPage() {
       key: "description",
       header: "Description / Item Type",
       render: (row) => (
-        <span className="text-[#64748B] text-xs font-semibold max-w-xs block truncate">
+        <span className="text-[var(--text-muted)] text-xs font-semibold max-w-xs block truncate">
           {row.description || "—"}
         </span>
       ),
@@ -224,10 +205,10 @@ export default function GstRatesPage() {
           return (
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-[#374151]">Auto Tiering</span>
+                <span className="text-xs font-bold text-[var(--text-primary)]">Auto Tiering</span>
                 <Badge variant="purple" className="text-[9px] px-1.5">Tiered</Badge>
               </div>
-              <span className="text-[10px] text-[#64748B] font-semibold">
+              <span className="text-[10px] text-[var(--text-muted)] font-semibold">
                 Threshold: ₹{row.tier_threshold} · Low: {row.tier_low_gst}% · High: {row.tier_high_gst}%
               </span>
             </div>
@@ -235,7 +216,7 @@ export default function GstRatesPage() {
         } else {
           return (
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold text-[#1E293B]">{row.gst_percent}%</span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">{row.gst_percent}%</span>
               <Badge variant="gray" className="text-[9px] px-1.5">Flat</Badge>
             </div>
           );
@@ -258,7 +239,7 @@ export default function GstRatesPage() {
               e.stopPropagation();
               handleOpenEdit(row);
             }}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit GST Rate"
           >
             <Pencil size={15} />
@@ -268,7 +249,7 @@ export default function GstRatesPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-red-500/20 rounded-lg hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
             title="Delete GST Rate"
           >
             <Trash2 size={15} />
@@ -296,185 +277,194 @@ export default function GstRatesPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filteredRates}
+      <PageState
         isLoading={loading}
-        total={filteredRates.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        onRowClick={(row) => router.push(`/master-data/gst-rates/${row.id}`)}
-        emptyMessage="No GST rate configurations found. Click 'Add GST Rate' to create one."
-      />
+        isError={!!error}
+        error={error ? (error instanceof Error ? error.message : "Failed to load GST rates") : undefined}
+        onRetry={refetch}
+        isEmpty={filteredRates.length === 0}
+        emptyTitle="No GST Rates Found"
+        emptyMessage="No HSN tax codes configured yet. Click Add GST Rate to create tax rules."
+        emptyAction={
+          <AsyncButton onClick={handleOpenAdd} variant="primary">
+            + Add First GST Rate
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={6}
+        skeletonColumns={5}
+      >
+        <DataTable
+          columns={columns}
+          data={filteredRates}
+          isLoading={false}
+          total={filteredRates.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          onRowClick={(row) => router.push(`/master-data/gst-rates/${row.id}`)}
+          emptyMessage="No matching GST rate configurations found."
+        />
+      </PageState>
 
-      {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingGst ? "Edit Tax Configuration" : "Add Tax Configuration"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            {/* HSN Code */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                HSN Code *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 6203, 6204"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono"
-                {...register("hsn_code")}
-              />
-              {errors.hsn_code && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.hsn_code.message}
-                </p>
-              )}
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Description / Material Tag
-              </label>
-              <textarea
-                placeholder="e.g. Woven fabrics of cotton, Knitted shirts"
-                rows={2}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                {...register("description")}
-              />
-            </div>
-
-            {/* Flat Base GST percent */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Base GST Percent (%) *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 5, 12, 18"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...register("gst_percent")}
-              />
-              {errors.gst_percent && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.gst_percent.message}
-                </p>
-              )}
-            </div>
-
-            {/* Auto-tiering Toggle */}
-            <div className="flex items-center justify-between border border-[#E2E8F0] p-3 rounded-xl bg-[#F8FAFC]">
-              <div className="flex gap-2 items-start flex-1 pr-2">
-                <div className="mt-0.5">
-                  <h4 className="text-xs font-bold text-[#0F172A]">Enable Auto-Tier Slabs</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium leading-normal mt-0.5">
-                    For garments, check this to automatically switch tax percentage based on transaction value.
-                  </p>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                {...register("auto_tier")}
-              />
-            </div>
-
-            {/* Auto-tiering Sub-fields: render ONLY if auto_tier is checked */}
-            {autoTier && (
-              <div className="border border-[#E2E8F0] bg-white rounded-xl p-3.5 space-y-3 shadow-inner">
-                <div className="flex items-center gap-1.5 border-b border-[#F3F4F6] pb-1.5 mb-1.5">
-                  <HelpCircle size={14} className="text-[#6366F1]" />
-                  <span className="text-xs font-bold text-[#475569] uppercase tracking-wider">Configure Slabs</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
-                      Threshold Value (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="1000"
-                      className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
-                      {...register("tier_threshold")}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
-                      Below Threshold (%)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="5"
-                      className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
-                      {...register("tier_low_gst")}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
-                      Above Threshold (%)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="12"
-                      className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
-                      {...register("tier_high_gst")}
-                    />
-                  </div>
-                </div>
-              </div>
+      {/* Add/Edit Shared Modal */}
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingGst ? "Edit Tax Configuration" : "Add Tax Configuration"}
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          {/* HSN Code */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              HSN Code *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 6203, 6204"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono"
+              {...register("hsn_code")}
+            />
+            {errors.hsn_code && (
+              <p className="text-xs font-semibold text-red-500">
+                {errors.hsn_code.message}
+              </p>
             )}
+          </div>
 
-            {/* Active Status */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F3F4F6]">
-              <div>
-                <h4 className="text-xs font-bold text-[#0F172A]">Active Tax Option</h4>
-                <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                  Allows selection on bills and materials.
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Description / Material Tag
+            </label>
+            <textarea
+              placeholder="e.g. Woven fabrics of cotton, Knitted shirts"
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all resize-none"
+              {...register("description")}
+            />
+          </div>
+
+          {/* Flat Base GST percent */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Base GST Percent (%) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="e.g. 5, 12, 18"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+              {...register("gst_percent")}
+            />
+            {errors.gst_percent && (
+              <p className="text-xs font-semibold text-red-500">
+                {errors.gst_percent.message}
+              </p>
+            )}
+          </div>
+
+          {/* Auto-tiering Toggle */}
+          <div className="flex items-center justify-between border border-[var(--border)] p-3 rounded-xl bg-[var(--page-bg)]">
+            <div className="flex gap-2 items-start flex-1 pr-2">
+              <div className="mt-0.5">
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Enable Auto-Tier Slabs</h4>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium leading-normal mt-0.5">
+                  For garments, check this to automatically switch tax percentage based on transaction value.
                 </p>
               </div>
-              <input
-                type="checkbox"
-                className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                {...register("is_active")}
-              />
             </div>
+            <input
+              type="checkbox"
+              className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+              {...register("auto_tier")}
+            />
+          </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Config"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          {/* Auto-tiering Sub-fields */}
+          {autoTier && (
+            <div className="border border-[var(--border)] bg-[var(--card-bg)] rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center gap-1.5 border-b border-[var(--border)] pb-1.5 mb-1.5">
+                <HelpCircle size={14} className="text-[var(--primary)]" />
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Configure Slabs</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Threshold (₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="1000"
+                    className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-mono"
+                    {...register("tier_threshold")}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Below (%)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="5"
+                    className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-mono"
+                    {...register("tier_low_gst")}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Above (%)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="12"
+                    className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-mono"
+                    {...register("tier_high_gst")}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Status */}
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+            <div>
+              <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Tax Option</h4>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                Allows selection on bills and materials.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+              {...register("is_active")}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-muted)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={isSubmitting}
+              variant="primary"
+              className="h-10 px-4 text-sm font-semibold"
+            >
+              Save Config
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
 
       {/* Confirm Hard/Soft Delete */}
       <ConfirmDialog

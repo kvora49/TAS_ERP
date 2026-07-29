@@ -165,24 +165,24 @@ export default function ProcessSalaryPage() {
         {/* Period selector */}
         <div className="flex items-center gap-3 flex-wrap">
           <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold outline-none">
+            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none">
             {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold outline-none">
+            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none">
             {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
           <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold outline-none min-w-[200px]">
+            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none min-w-[200px]">
             <option value="">All Workers</option>
             {workers.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         </div>
 
         {/* Workers table */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-500">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--border-light)] bg-[var(--table-header-bg)]">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">
               Workers — {MONTHS[month - 1]} {year}
             </h3>
           </div>

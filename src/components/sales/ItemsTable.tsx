@@ -16,6 +16,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
   const [rate, setRate] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(5);
+  const [hsnCode, setHsnCode] = useState<string>("6204");
 
   // Size quantity matrix state: { "28": 10, "30": 15, "32": 20 }
   const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({});
@@ -199,24 +200,24 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
               <button
                 type="button"
                 onClick={() => setIsDesignDropdownOpen(!isDesignDropdownOpen)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold text-left flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-semibold text-left flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
               >
-                <span className="truncate text-slate-800">
+                <span className="truncate text-[var(--text-primary)]">
                   {selectedDesign
                     ? `${selectedDesign.design_number || selectedDesign.code} - ${selectedDesign.name}`
                     : "-- Select Design --"}
                 </span>
-                <span className="text-slate-400 text-[10px]">▼</span>
+                <span className="text-[var(--text-faint)] text-[10px]">▼</span>
               </button>
 
               {isDesignDropdownOpen && (
-                <div className="absolute z-50 top-11 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-2 max-h-64 overflow-y-auto">
+                <div className="absolute z-50 top-11 left-0 right-0 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xl p-2 space-y-2 max-h-64 overflow-y-auto">
                   <input
                     type="text"
                     placeholder="Search Design Code or Name..."
                     value={designSearch}
                     onChange={(e) => setDesignSearch(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full h-9 px-3 text-xs bg-[var(--page-bg)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                     autoFocus
                   />
                   <div className="space-y-1">
@@ -230,17 +231,17 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                           setDesignSearch("");
                         }}
                         className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between ${
-                          d.id === selectedDesignId ? "bg-indigo-50 text-indigo-700 font-bold" : "hover:bg-slate-100 text-slate-700"
+                          d.id === selectedDesignId ? "bg-[var(--primary-light)] text-[var(--primary)] font-bold" : "hover:bg-[var(--table-row-hover)] text-[var(--text-body)]"
                         }`}
                       >
-                        <span className="font-mono font-bold text-indigo-600">
+                        <span className="font-mono font-bold text-[var(--primary)]">
                           {d.design_number || d.code}
                         </span>
-                        <span className="truncate ml-2 text-slate-700">{d.name}</span>
+                        <span className="truncate ml-2 text-[var(--text-body)]">{d.name}</span>
                       </button>
                     ))}
                     {filteredDesigns.length === 0 && (
-                      <div className="p-3 text-center text-xs text-slate-400">
+                      <div className="p-3 text-center text-xs text-[var(--text-faint)]">
                         No designs found matching &quot;{designSearch}&quot;
                       </div>
                     )}
@@ -270,62 +271,62 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             <select
               value={selectedColourId}
               onChange={(e) => setSelectedColourId(e.target.value)}
-              disabled={autoFillAllColors}
-              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:opacity-75"
+              disabled={!selectedDesignId}
+              className="w-full h-10 px-3 bg-[var(--input-bg)] text-[var(--text-primary)] border border-[var(--input-border)] rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:bg-[var(--page-bg)] disabled:opacity-75"
             >
+              <option value="">-- Select Colour --</option>
               {colours.map((c: any) => (
                 <option key={c.id} value={c.id}>
                   {c.colour_name}
                 </option>
               ))}
-              {colours.length === 0 && <option value="">Default Colour</option>}
             </select>
           </div>
 
+          {/* Rate / Unit Price Input */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-              Rate (₹) <span className="text-red-500">*</span>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+              Unit Rate (₹) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
               min="0"
               step="0.01"
-              value={rate || ""}
+              value={rate}
               onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
               placeholder="0.00"
-              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-bold text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                Disc %
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={discountPercent || ""}
-                onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                placeholder="0%"
-                className="w-full h-10 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs text-center focus:outline-none"
-              />
-            </div>
+          {/* HSN Code */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+              HSN Code
+            </label>
+            <input
+              type="text"
+              value={hsnCode}
+              onChange={(e) => setHsnCode(e.target.value)}
+              placeholder="6204"
+              className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
+            />
+          </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                Tax %
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={taxPercent || ""}
-                onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
-                placeholder="5%"
-                className="w-full h-10 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs text-center focus:outline-none"
-              />
-            </div>
+          {/* GST % */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+              GST %
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="28"
+              value={taxPercent}
+              onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
+              placeholder="12"
+              className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
+            />
           </div>
         </div>
 
@@ -333,10 +334,10 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
         {selectedDesignId && (
           <div className="space-y-3 pt-2">
             {sizes.length > 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="px-4 py-2.5 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers size={13} className="text-indigo-600" />
+              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)]">
+                <div className="px-4 py-2.5 bg-[var(--table-header-bg)] border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers size={13} className="text-[var(--primary)]" />
                     Standard Size Quantities {autoFillAllColors ? "(Applies to ALL Colours)" : "(Applies to Selected Colour)"}
                   </span>
 

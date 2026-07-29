@@ -28,50 +28,47 @@ export function createClient() {
 import { headers } from "next/headers";
 
 export async function getSessionBusinessId(): Promise<string | null> {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
-
-  let candidateId: string | null = null;
-
-  // 1. Try to read the forwarded business ID from headers (middleware)
+  // 1. Fast path: Try to read forwarded business ID from middleware headers
   try {
     const headerBusinessId = headers().get("x-business-id");
     if (headerBusinessId) {
-      candidateId = headerBusinessId;
+      return headerBusinessId;
     }
   } catch (error) {
     // headers() may throw when called from static generation or non-request contexts
   }
 
-  // 2. Resolve from user profile if not in header
-  if (!candidateId && user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("business_id, is_active")
-      .eq("id", user.id)
-      .is("deleted_at", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (profile && profile.is_active !== false) {
-      candidateId = profile.business_id;
+  // 2. Fast path: Read from sb-business-id cookie set by middleware on page loads
+  try {
+    const cookieStore = cookies();
+    const businessIdCookie = cookieStore.get("sb-business-id")?.value;
+    if (businessIdCookie) {
+      return businessIdCookie;
     }
+  } catch (error) {
+    // Ignore
   }
 
-  // 3. Verify candidateId actually exists in public.businesses table to satisfy FK constraints
-  if (candidateId) {
-    const { data: validBus } = await supabase
-      .from("businesses")
-      .select("id")
-      .eq("id", candidateId)
-      .limit(1)
-      .maybeSingle();
+  // 3. Slow path: Authenticate and lookup user profile
+  const supabase = createClient();
 
-    if (validBus) return validBus.id;
+  // Use getUser() — authenticates via Supabase Auth server (reliable, not a local cookie read)
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return null;
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("business_id, is_active")
+    .eq("id", user.id)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (profile && profile.is_active !== false && profile.business_id) {
+    return profile.business_id;
   }
 
-  // 4. Fallback: if candidateId is invalid/missing, fetch the primary business record in DB
+  // 4. Fallback: fetch the first business this user owns
   const { data: firstBus } = await supabase
     .from("businesses")
     .select("id")
@@ -80,3 +77,4 @@ export async function getSessionBusinessId(): Promise<string | null> {
 
   return firstBus?.id || null;
 }
+

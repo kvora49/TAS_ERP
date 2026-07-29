@@ -100,10 +100,10 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
 
         {/* List of Added Charges */}
         {state.charges.length > 0 && (
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+          <div className="border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow-sm)] bg-[var(--card-bg)]">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
-                <tr className="border-b border-[#F3F4F6] bg-slate-50 font-bold text-slate-600">
+                <tr className="border-b border-[var(--border-light)] bg-[var(--table-header-bg)] font-bold text-[var(--text-muted)]">
                   <th className="p-3">Charge Name</th>
                   <th className="p-3">Type</th>
                   <th className="p-3 text-right">Rate/Amt</th>
@@ -111,20 +111,20 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
                   <th className="p-3 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
+              <tbody className="divide-y divide-[var(--border-light)]">
                 {state.charges.map((c: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-3 font-semibold text-slate-700">{c.charge_name}</td>
-                    <td className="p-3 capitalize text-slate-500">{c.charge_type.replace("_", " ")}</td>
-                    <td className="p-3 text-right font-mono text-slate-700">
+                  <tr key={idx} className="hover:bg-[var(--table-row-hover)]">
+                    <td className="p-3 font-semibold text-[var(--text-primary)]">{c.charge_name}</td>
+                    <td className="p-3 capitalize text-[var(--text-muted)]">{c.charge_type.replace("_", " ")}</td>
+                    <td className="p-3 text-right font-mono text-[var(--text-primary)]">
                       {c.charge_type === "percentage" ? `${c.amount}%` : `₹${c.amount}`}
                     </td>
-                    <td className="p-3 text-center text-slate-600 font-semibold">{c.is_taxable ? "Yes" : "No"}</td>
+                    <td className="p-3 text-center text-[var(--text-body)] font-semibold">{c.is_taxable ? "Yes" : "No"}</td>
                     <td className="p-3 text-center">
                       <button
                         type="button"
                         onClick={() => handleRemoveCharge(idx)}
-                        className="text-red-500 hover:bg-red-50 p-1 rounded transition-colors"
+                        className="text-red-500 hover:bg-red-500/10 p-1 rounded transition-colors"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -138,31 +138,31 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
       </div>
 
       {/* Totals Summary Panel */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-sm space-y-4 max-w-md ml-auto w-full">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 shadow-[var(--shadow-sm)] space-y-4 max-w-md ml-auto w-full">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] border-b border-[var(--border-light)] pb-2">
           Invoice Summary Calculations
         </h4>
 
         <div className="space-y-3 text-sm">
-          <div className="flex justify-between text-slate-600 font-medium">
+          <div className="flex justify-between text-[var(--text-muted)] font-medium">
             <span>Items Gross Total:</span>
-            <span className="font-semibold text-slate-800">₹{totals.item_total.toFixed(2)}</span>
+            <span className="font-semibold text-[var(--text-primary)]">₹{totals.item_total.toFixed(2)}</span>
           </div>
 
-          <div className="flex justify-between text-slate-600 font-medium">
+          <div className="flex justify-between text-[var(--text-muted)] font-medium">
             <span>Extra Charges:</span>
-            <span className="font-semibold text-slate-800">₹{totals.charges_total.toFixed(2)}</span>
+            <span className="font-semibold text-[var(--text-primary)]">₹{totals.charges_total.toFixed(2)}</span>
           </div>
 
           {/* Invoice Level Discount */}
-          <div className="border-t border-dashed border-slate-100 pt-3 space-y-2">
+          <div className="border-t border-dashed border-[var(--border-light)] pt-3 space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600 font-medium">Bill Discount:</span>
+              <span className="text-[var(--text-muted)] font-medium">Bill Discount:</span>
               <div className="flex gap-2 items-center">
                 <select
                   value={state.discountType || ""}
                   onChange={(e) => state.setDiscountType(e.target.value || null)}
-                  className="h-8 px-2 bg-white border border-slate-300 rounded text-xs focus:outline-none"
+                  className="h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded text-xs focus:outline-none"
                 >
                   <option value="">No Discount</option>
                   <option value="flat">Flat Amount (₹)</option>

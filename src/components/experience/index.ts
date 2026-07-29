@@ -3,6 +3,7 @@ export * from './Skeleton';
 export * from './PageState';
 export * from './NavigationExperienceProvider';
 export * from './MotionProvider';
+export * from './ToasterWrapper';
 export * from './state/LoadingState';
 export * from './state/ErrorState';
 export * from './state/EmptyState';

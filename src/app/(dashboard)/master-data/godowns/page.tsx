@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useERPQuery } from "@/hooks/useERPQuery";
+import { useGodownsList } from "@/hooks/queries/useMasterData";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, Warehouse } from "lucide-react";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Pencil, Trash2, Plus, Warehouse } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -54,7 +50,6 @@ export default function GodownsPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingGodown, setDeletingGodown] = useState<Godown | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const {
     register,
@@ -65,14 +60,9 @@ export default function GodownsPage() {
     resolver: zodResolver(godownSchema),
   });
 
-  const { data: godownsData, isLoading: loading } = useERPQuery<Godown[]>(["godowns-list"], async () => {
-    const res = await fetch("/api/master-data/godowns");
-    if (!res.ok) throw new Error("Failed to load godowns");
-    const result = await res.json();
-    return result.godowns || [];
-  }, { skeleton: "table" });
+  const { data: godownsData, isLoading: loading, error, refetch } = useGodownsList();
 
-  const godowns = godownsData || [];
+  const godowns: Godown[] = godownsData?.godowns || [];
 
   const handleOpenAdd = () => {
     setEditingGodown(null);
@@ -113,7 +103,7 @@ export default function GodownsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          updated_at: editingGodown?.updated_at, // Optimistic Lock Check
+          updated_at: editingGodown?.updated_at,
         }),
       });
 
@@ -129,14 +119,7 @@ export default function GodownsPage() {
           : "Godown created successfully"
       );
       setModalOpen(false);
-      queryClient.setQueryData(["godowns-list"], (old: Godown[] | undefined) => {
-        if (!old) return [data.godown];
-        if (editingGodown) {
-          return old.map((g) => (g.id === data.godown.id ? data.godown : g));
-        }
-        return [data.godown, ...old];
-      });
-      queryClient.invalidateQueries({ queryKey: ["godowns-list"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["master-data", "godowns"] });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An error occurred";
       toast.error(message);
@@ -146,30 +129,6 @@ export default function GodownsPage() {
   const handleOpenDelete = (godown: Godown) => {
     setDeletingGodown(godown);
     setDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingGodown) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`/api/master-data/godowns/${deletingGodown.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete godown");
-      }
-
-      toast.success("Godown deleted successfully");
-      setDeleteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["godowns-list"] });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "An error occurred during deletion";
-      toast.error(message);
-    } finally {
-      setDeleteLoading(false);
-    }
   };
 
   const filteredGodowns = godowns.filter((godown) =>
@@ -184,7 +143,7 @@ export default function GodownsPage() {
       header: "",
       width: "50px",
       render: () => (
-        <div className="w-9 h-9 rounded-lg bg-[#EEF2FF] flex items-center justify-center text-[#6366F1]">
+        <div className="w-9 h-9 rounded-lg bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)]">
           <Warehouse size={18} />
         </div>
       ),
@@ -194,7 +153,7 @@ export default function GodownsPage() {
       header: "Godown Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <span className="font-bold text-[#6366F1] cursor-pointer">
+          <span className="font-bold text-[var(--primary)] cursor-pointer">
             {row.name}
           </span>
           {row.is_primary && (
@@ -209,7 +168,7 @@ export default function GodownsPage() {
       key: "address",
       header: "Address",
       render: (row) => (
-        <span className="text-[#64748B] truncate max-w-xs block">
+        <span className="text-[var(--text-muted)] truncate max-w-xs block">
           {row.address || "—"}
         </span>
       ),
@@ -217,12 +176,12 @@ export default function GodownsPage() {
     {
       key: "contact",
       header: "Contact Person",
-      render: (row) => <span>{row.contact_person || "—"}</span>,
+      render: (row) => <span className="text-[var(--text-primary)]">{row.contact_person || "—"}</span>,
     },
     {
       key: "phone",
       header: "Phone",
-      render: (row) => <span className="font-mono text-xs">{row.phone || "—"}</span>,
+      render: (row) => <span className="font-mono text-xs text-[var(--text-primary)]">{row.phone || "—"}</span>,
     },
     {
       key: "status",
@@ -240,7 +199,7 @@ export default function GodownsPage() {
               e.stopPropagation();
               handleOpenEdit(row);
             }}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Godown"
           >
             <Pencil size={15} />
@@ -250,7 +209,7 @@ export default function GodownsPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-red-500/20 rounded-lg hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
             title="Delete Godown"
           >
             <Trash2 size={15} />
@@ -278,145 +237,152 @@ export default function GodownsPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filteredGodowns}
+      <PageState
         isLoading={loading}
-        total={filteredGodowns.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        onRowClick={(row) => router.push(`/master-data/godowns/${row.id}`)}
-        emptyMessage="No godowns configured yet. Click Add Godown to create one."
-      />
+        isError={!!error}
+        error={error ? (error instanceof Error ? error.message : "Failed to load godowns") : undefined}
+        onRetry={refetch}
+        isEmpty={filteredGodowns.length === 0}
+        emptyTitle="No Godowns Found"
+        emptyMessage="No godowns configured yet. Click Add Godown to create your primary warehouse location."
+        emptyAction={
+          <AsyncButton onClick={handleOpenAdd} variant="primary">
+            + Add First Godown
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={6}
+        skeletonColumns={6}
+      >
+        <DataTable
+          columns={columns}
+          data={filteredGodowns}
+          isLoading={false}
+          total={filteredGodowns.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          onRowClick={(row) => router.push(`/master-data/godowns/${row.id}`)}
+          emptyMessage="No matching godowns found."
+        />
+      </PageState>
 
-      {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingGodown ? "Edit Godown Location" : "Add New Godown"}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Add/Edit Shared Modal */}
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingGodown ? "Edit Godown Location" : "Add New Godown"}
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          {/* Godown Name */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Godown Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Main Warehouse"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+              {...register("name")}
+            />
+            {errors.name && (
+              <p className="text-xs font-semibold text-red-500">
+                {errors.name.message}
+              </p>
+            )}
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            {/* Godown Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Godown Name *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Main Warehouse"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...register("name")}
-              />
-              {errors.name && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.name.message}
+          {/* Address */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Address
+            </label>
+            <textarea
+              placeholder="Physical location address"
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all resize-none"
+              {...register("address")}
+            />
+          </div>
+
+          {/* Contact Person */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Contact Person
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Rajesh Kumar"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+              {...register("contact_person")}
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Contact Phone
+            </label>
+            <input
+              type="text"
+              placeholder="Contact number"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono"
+              {...register("phone")}
+            />
+          </div>
+
+          {/* Toggle options */}
+          <div className="flex flex-col gap-2.5 pt-2 border-t border-[var(--border)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Primary Godown</h4>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                  Sets as default destination for lot completion stock.
                 </p>
-              )}
-            </div>
-
-            {/* Address */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Address
-              </label>
-              <textarea
-                placeholder="Physical location address"
-                rows={2}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                {...register("address")}
-              />
-            </div>
-
-            {/* Contact Person */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Contact Person
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Rajesh Kumar"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...register("contact_person")}
-              />
-            </div>
-
-            {/* Phone */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Contact Phone
-              </label>
-              <input
-                type="text"
-                placeholder="Contact number"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...register("phone")}
-              />
-            </div>
-
-            {/* Toggle options */}
-            <div className="flex flex-col gap-2.5 pt-2 border-t border-[#F3F4F6]">
-              {/* Primary Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[#0F172A]">Primary Godown</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                    Sets as default destination for lot completion stock.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                  {...register("is_primary")}
-                />
               </div>
-
-              {/* Active Status Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[#0F172A]">Active Status</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                    Controls visibility in stock transfers and challans list.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                  {...register("is_active")}
-                />
-              </div>
+              <input
+                type="checkbox"
+                className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+                {...register("is_primary")}
+              />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Godown"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Status</h4>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                  Controls visibility in stock transfers and challans list.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+                {...register("is_active")}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-muted)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={isSubmitting}
+              variant="primary"
+              className="h-10 px-4 text-sm font-semibold"
+            >
+              Save Godown
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Godown Dialog */}
       <DeleteGodownDialog
@@ -424,7 +390,7 @@ export default function GodownsPage() {
         onOpenChange={setDeleteOpen}
         godown={deletingGodown}
         allGodowns={godowns}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["godowns-list"] })}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["master-data", "godowns"] })}
       />
     </div>
   );

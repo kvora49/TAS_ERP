@@ -16,7 +16,7 @@ export default function BalanceSheetPage() {
     setTo(filters.toDate);
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report-balance-sheet", from, to],
     queryFn: async () => {
       const res = await fetch(`/api/reports/balance-sheet?from=${from}&to=${to}`);
@@ -39,46 +39,31 @@ export default function BalanceSheetPage() {
     : 0;
 
   return (
-    <PageState isLoading={isLoading} error={error?.message}>
+    <PageState
+      isLoading={isLoading}
+      isError={!!error}
+      error={error?.message}
+      onRetry={refetch}
+      skeletonVariant="card"
+      skeletonCount={2}
+    >
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+        <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Balance Sheet</h1>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Reports / Financial Reports</p>
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Balance Sheet</h1>
+            <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Reports / Financial Reports</p>
           </div>
         </div>
 
         <FinancialYearDateFilters onApply={handleApply} onClear={() => { setFrom(`${currentYear}-04-01`); setTo(new Date().toISOString().split("T")[0]); }} />
 
-        {isLoading ? (
-          <div className="space-y-4 animate-pulse pt-2">
-            <div className="h-12 bg-slate-100 rounded-xl border border-slate-200" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-6">
-                <div className="h-8 bg-slate-100 rounded-lg w-1/2" />
-                <div className="space-y-4">
-                  <div className="h-6 bg-slate-50 rounded-lg" />
-                  <div className="h-6 bg-slate-55 rounded-lg" />
-                  <div className="h-6 bg-slate-50 rounded-lg" />
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-6">
-                <div className="h-8 bg-slate-100 rounded-lg w-1/2" />
-                <div className="space-y-4">
-                  <div className="h-6 bg-slate-50 rounded-lg" />
-                  <div className="h-6 bg-slate-55 rounded-lg" />
-                  <div className="h-6 bg-slate-50 rounded-lg" />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : data && (
+        {data && (
           <div className="space-y-4">
             {/* Balance check */}
             <div className={`rounded-xl p-4 border text-sm font-bold flex items-center gap-2 ${
               Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : "bg-amber-50 border-amber-200 text-amber-700"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                : "bg-amber-500/10 border-amber-500/20 text-amber-500"
             }`}>
               <Scale className="h-4 w-4" />
               {Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1
@@ -88,58 +73,58 @@ export default function BalanceSheetPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Assets */}
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-blue-50">
-                  <Building2 className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-blue-700">Assets</h3>
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-[var(--border)] bg-blue-500/10">
+                  <Building2 className="h-4 w-4 text-blue-500" />
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-blue-500">Assets</h3>
                 </div>
-                <div className="divide-y divide-slate-50 text-xs font-semibold">
+                <div className="divide-y divide-[var(--border)] text-xs font-semibold">
                   {Object.entries(data.assets || {}).map(([key, val]) => (
                     <div key={key} className="flex justify-between px-5 py-3">
-                      <span className="text-slate-600 capitalize">{key.replace(/_/g, " ")}</span>
-                      <span className="font-bold font-mono text-slate-900">{fmt(Number(val))}</span>
+                      <span className="text-[var(--text-muted)] capitalize">{key.replace(/_/g, " ")}</span>
+                      <span className="font-bold font-mono text-[var(--text-primary)]">{fmt(Number(val))}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between px-5 py-3 bg-blue-50/60 border-t border-blue-100">
-                    <span className="font-extrabold text-[10px] uppercase text-blue-700">Total Assets</span>
-                    <span className="font-extrabold font-mono text-blue-700">{fmt(totalAssets)}</span>
+                  <div className="flex justify-between px-5 py-3 bg-blue-500/5 border-t border-[var(--border)]">
+                    <span className="font-extrabold text-[10px] uppercase text-blue-500">Total Assets</span>
+                    <span className="font-extrabold font-mono text-blue-500">{fmt(totalAssets)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Liabilities + Equity */}
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-rose-50">
-                  <Scale className="h-4 w-4 text-rose-600" />
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-rose-700">Liabilities & Equity</h3>
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-[var(--border)] bg-rose-500/10">
+                  <Scale className="h-4 w-4 text-rose-500" />
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-rose-500">Liabilities & Equity</h3>
                 </div>
-                <div className="divide-y divide-slate-50 text-xs font-semibold">
-                  <div className="px-5 py-2 bg-rose-50/30">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Liabilities</span>
+                <div className="divide-y divide-[var(--border)] text-xs font-semibold">
+                  <div className="px-5 py-2 bg-rose-500/5">
+                    <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Liabilities</span>
                   </div>
                   {Object.entries(data.liabilities || {}).map(([key, val]) => (
                     <div key={key} className="flex justify-between px-5 py-3 pl-8">
-                      <span className="text-slate-600 capitalize">{key.replace(/_/g, " ")}</span>
-                      <span className="font-bold font-mono text-slate-900">{fmt(Number(val))}</span>
+                      <span className="text-[var(--text-muted)] capitalize">{key.replace(/_/g, " ")}</span>
+                      <span className="font-bold font-mono text-[var(--text-primary)]">{fmt(Number(val))}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between px-5 py-3 bg-rose-50/30 border-t border-rose-100">
-                    <span className="font-extrabold text-[10px] uppercase text-rose-700">Total Liabilities</span>
-                    <span className="font-extrabold font-mono text-rose-700">{fmt(totalLiabilities)}</span>
+                  <div className="flex justify-between px-5 py-3 bg-rose-500/5 border-t border-[var(--border)]">
+                    <span className="font-extrabold text-[10px] uppercase text-rose-500">Total Liabilities</span>
+                    <span className="font-extrabold font-mono text-rose-500">{fmt(totalLiabilities)}</span>
                   </div>
 
-                  <div className="px-5 py-2 bg-emerald-50/30">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Equity</span>
+                  <div className="px-5 py-2 bg-emerald-500/5">
+                    <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Equity</span>
                   </div>
                   {Object.entries(data.equity || {}).map(([key, val]) => (
                     <div key={key} className="flex justify-between px-5 py-3 pl-8">
-                      <span className="text-slate-600 capitalize">{key.replace(/_/g, " ")}</span>
-                      <span className="font-bold font-mono text-slate-900">{fmt(Number(val))}</span>
+                      <span className="text-[var(--text-muted)] capitalize">{key.replace(/_/g, " ")}</span>
+                      <span className="font-bold font-mono text-[var(--text-primary)]">{fmt(Number(val))}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between px-5 py-3 bg-slate-50 border-t-2 border-slate-200">
-                    <span className="font-extrabold text-[10px] uppercase text-slate-600">Total Liabilities + Equity</span>
-                    <span className="font-extrabold font-mono text-slate-900">{fmt(totalLiabilities + totalEquity)}</span>
+                  <div className="flex justify-between px-5 py-3 bg-[var(--table-header-bg)] border-t-2 border-[var(--border)]">
+                    <span className="font-extrabold text-[10px] uppercase text-[var(--text-muted)]">Total Liabilities + Equity</span>
+                    <span className="font-extrabold font-mono text-[var(--text-primary)]">{fmt(totalLiabilities + totalEquity)}</span>
                   </div>
                 </div>
               </div>

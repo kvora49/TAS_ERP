@@ -218,13 +218,13 @@ export default function AuditLogsSettingsPage() {
 
             {/* Filter 2 — Module */}
             <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+              <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
                 Module
               </label>
               <select
                 value={selectedModule}
                 onChange={(e) => setSelectedModule(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               >
                 <option value="All Modules">All Modules</option>
                 <option value="Brands">Brands</option>
@@ -238,13 +238,13 @@ export default function AuditLogsSettingsPage() {
 
             {/* Filter 3 — User */}
             <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+              <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
                 User
               </label>
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               >
                 <option value="All Users">All Users</option>
                 {users.map((u) => (
@@ -257,13 +257,13 @@ export default function AuditLogsSettingsPage() {
 
             {/* Filter 4 — Action */}
             <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+              <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
                 Action
               </label>
               <select
                 value={selectedAction}
                 onChange={(e) => setSelectedAction(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               >
                 <option value="All Actions">All Actions</option>
                 <option value="Create">Create</option>

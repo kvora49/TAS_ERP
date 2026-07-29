@@ -17,29 +17,29 @@ export function InfoBanner({
 }: InfoBannerProps) {
   const configs = {
     info: {
-      wrapper: "bg-[#EFF6FF] border border-[#DBEAFE]",
+      wrapper: "bg-blue-500/10 border border-blue-500/20",
       icon: Info,
-      iconColor: "text-[#6366F1]",
-      textColor: "text-[#374151]",
+      iconColor: "text-[var(--primary)]",
+      textColor: "text-[var(--text-body)]",
     },
     warning: {
-      wrapper: "bg-[#FEF9C3] border border-[#FDE68A]",
+      wrapper: "bg-amber-500/10 border border-amber-500/20",
       icon: AlertTriangle,
-      iconColor: "text-[#D97706]",
-      textColor: "text-[#92400E]",
+      iconColor: "text-amber-500",
+      textColor: "text-amber-700 dark:text-amber-300",
     },
     danger: {
-      wrapper: "bg-[#FEF2F2] border border-[#FECACA]",
+      wrapper: "bg-red-500/10 border border-red-500/20",
       icon: AlertCircle,
-      iconColor: "text-[#DC2626]",
-      textColor: "text-[#991B1B]",
+      iconColor: "text-red-500",
+      textColor: "text-red-700 dark:text-red-300",
     },
     about: {
-      wrapper: "bg-[#EDE9FE] border border-[#DDD6FE]",
+      wrapper: "bg-purple-500/10 border border-purple-500/20",
       icon: Info,
-      iconColor: "text-[#7C3AED]",
-      textColor: "text-[#5B21B6]",
-      titleColor: "text-[#6D28D9]",
+      iconColor: "text-purple-500",
+      textColor: "text-purple-700 dark:text-purple-300",
+      titleColor: "text-purple-600 dark:text-purple-400",
     },
   };
 
@@ -60,7 +60,7 @@ export function InfoBanner({
           <span
             className={cn(
               "font-semibold mb-0.5",
-              variant === "about" ? "text-[#6D28D9]" : "text-slate-800"
+              variant === "about" ? "text-purple-600 dark:text-purple-400" : "text-[var(--text-primary)]"
             )}
           >
             {title || "About"}

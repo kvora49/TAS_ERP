@@ -34,21 +34,21 @@ export function PageHeader({
     <div className="mb-6 select-none">
       {/* Breadcrumb Navigation */}
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex items-center gap-1.5 text-xs text-[#64748B] mb-2 font-semibold uppercase tracking-wider">
+        <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
           {breadcrumbs.map((bc, i) => (
             <React.Fragment key={i}>
               {bc.href ? (
                 <Link
                   href={bc.href}
-                  className="hover:text-[#6366F1] transition-colors"
+                  className="hover:text-[var(--primary)] transition-colors"
                 >
                   {bc.label}
                 </Link>
               ) : (
-                <span className="text-[#374151]">{bc.label}</span>
+                <span className="text-[var(--text-primary)]">{bc.label}</span>
               )}
               {i < breadcrumbs.length - 1 && (
-                <ChevronRight size={12} className="text-[#94A3B8]" />
+                <ChevronRight size={12} className="text-[var(--text-faint)]" />
               )}
             </React.Fragment>
           ))}
@@ -58,11 +58,11 @@ export function PageHeader({
       {/* Main Title Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[#0F172A] leading-tight tracking-tight">
+          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-[#64748B] mt-0.5 font-medium leading-relaxed">
+            <p className="text-sm text-[var(--text-muted)] mt-0.5 font-medium leading-relaxed">
               {subtitle}
             </p>
           )}
@@ -73,13 +73,13 @@ export function PageHeader({
           {/* Search bar */}
           {onSearch && (
             <div className="relative w-[280px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] h-4 w-4 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
               <input
                 type="text"
                 placeholder={searchPlaceholder}
                 value={searchValue}
                 onChange={(e) => onSearch(e.target.value)}
-                className="pl-9 pr-4 h-10 w-full rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               />
             </div>
           )}
@@ -89,7 +89,7 @@ export function PageHeader({
             <button
               type="button"
               onClick={onAction}
-              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
+              className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10"
             >
               {actionIcon}
               {actionLabel}

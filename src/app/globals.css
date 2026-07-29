@@ -21,6 +21,8 @@
   /* Layout */
   --page-bg: #F1F5F9;
   --card-bg: #FFFFFF;
+  --table-header-bg: #F9FAFB;
+  --table-row-hover: #F8FAFC;
   --border: oklch(0.922 0 0);
   --border-light: #F3F4F6;
 
@@ -47,6 +49,20 @@
   --input-bg: #FFFFFF;
   --input-border: #D1D5DB;
   --input-focus: #6366F1;
+
+  /* Modal & Overlay */
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+
+  /* Skeleton */
+  --skeleton-base: #E5E7EB;
+  --skeleton-shine: rgba(255, 255, 255, 0.6);
+
+  /* Charts */
+  --chart-grid: #E5E7EB;
+  --chart-axis-text: #64748B;
+  --chart-tooltip-bg: #FFFFFF;
+  --chart-tooltip-border: #E5E7EB;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -179,6 +195,34 @@
 
   /* Section header labels in sidebar */
   --sidebar-section-label: rgba(148, 163, 184, 0.5);
+
+  /* Ledger entry type badges (extends Phase 3 set) */
+  --badge-advance-bg: #DBEAFE;     --badge-advance-text: #1D4ED8;
+  --badge-writeoff-bg: #F1F5F9;    --badge-writeoff-text: #64748B;
+
+  /* Financial report trend indicators */
+  --trend-up-color: #15803D;
+  --trend-down-color: #DC2626;
+  --trend-neutral-color: #64748B;
+
+  /* Balance sheet section colors */
+  --bs-assets-color: #15803D;
+  --bs-liabilities-color: #DC2626;
+  --bs-equity-color: #1D4ED8;
+
+  /* GST status badges */
+  --gst-filed-bg: #DCFCE7;    --gst-filed-text: #15803D;
+  --gst-pending-bg: #FEF3C7;  --gst-pending-text: #D97706;
+  --gst-upcoming-bg: #F1F5F9; --gst-upcoming-text: #64748B;
+
+  /* Key Ratio benchmark indicator */
+  --ratio-good-bg: #DCFCE7;   --ratio-good-text: #15803D;
+  --ratio-warn-bg: #FEF3C7;   --ratio-warn-text: #D97706;
+  --ratio-poor-bg: #FEE2E2;   --ratio-poor-text: #DC2626;
+
+  /* Allocation table row states */
+  --alloc-fulfilled-color: #15803D;  /* balance after allocation = 0 */
+  --alloc-partial-color: #DC2626;    /* balance remains */
 
   /* Debit/Credit column colors in ledger */
   --ledger-debit: #374151;
@@ -434,7 +478,11 @@
 }
 
 .dark .bg-white,
-[data-theme="dark"] .bg-white {
+[data-theme="dark"] .bg-white,
+.dark [class*="bg-[#FFFFFF]"],
+[data-theme="dark"] [class*="bg-[#FFFFFF]"],
+.dark [class*="bg-[#fff]"],
+[data-theme="dark"] [class*="bg-[#fff]"] {
   background-color: #1E293B !important;
   border-color: #334155 !important;
   color: #F8FAFC !important;
@@ -444,73 +492,75 @@
 .dark .bg-slate-100,
 .dark .bg-gray-50,
 .dark .bg-gray-100,
-.dark \.bg-\[\#F8FAFC\],
-.dark \.bg-\[\#F1F5F9\],
+.dark [class*="bg-[#F8FAFC]"],
+.dark [class*="bg-[#F1F5F9]"],
+.dark [class*="bg-[#F9FAFB]"],
 [data-theme="dark"] .bg-slate-50,
 [data-theme="dark"] .bg-slate-100,
 [data-theme="dark"] .bg-gray-50,
 [data-theme="dark"] .bg-gray-100,
-[data-theme="dark"] \.bg-\[\#F8FAFC\],
-[data-theme="dark"] \.bg-\[\#F1F5F9\] {
+[data-theme="dark"] [class*="bg-[#F8FAFC]"],
+[data-theme="dark"] [class*="bg-[#F1F5F9]"],
+[data-theme="dark"] [class*="bg-[#F9FAFB]"] {
   background-color: #0F172A !important;
   border-color: #334155 !important;
 }
 
-/* Escaped Tailwind Arbitrary Class Overrides for Dark Mode */
-.dark \.text-\[\#0F172A\],
-.dark \.text-\[\#1E293B\],
-.dark \.text-\[\#374151\],
-.dark \.text-\[\#475569\],
-.dark \.text-slate-900,
-.dark \.text-slate-800,
-.dark \.text-slate-700,
-.dark \.text-gray-900,
-.dark \.text-gray-800,
-.dark \.text-gray-700,
-[data-theme="dark"] \.text-\[\#0F172A\],
-[data-theme="dark"] \.text-\[\#1E293B\],
-[data-theme="dark"] \.text-\[\#374151\],
-[data-theme="dark"] \.text-\[\#475569\],
-[data-theme="dark"] \.text-slate-900,
-[data-theme="dark"] \.text-slate-800,
-[data-theme="dark"] \.text-slate-700,
-[data-theme="dark"] \.text-gray-900,
-[data-theme="dark"] \.text-gray-800,
-[data-theme="dark"] \.text-gray-700 {
+/* Arbitrary Class Overrides for Dark Mode */
+.dark [class*="text-[#0F172A]"],
+.dark [class*="text-[#1E293B]"],
+.dark [class*="text-[#374151]"],
+.dark [class*="text-[#475569]"],
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+[data-theme="dark"] [class*="text-[#0F172A]"],
+[data-theme="dark"] [class*="text-[#1E293B]"],
+[data-theme="dark"] [class*="text-[#374151]"],
+[data-theme="dark"] [class*="text-[#475569]"],
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700 {
   color: #F8FAFC !important;
 }
 
-.dark \.text-\[\#64748B\],
-.dark \.text-\[\#94A3B8\],
-.dark \.text-slate-600,
-.dark \.text-slate-500,
-.dark \.text-gray-600,
-.dark \.text-gray-500,
-[data-theme="dark"] \.text-\[\#64748B\],
-[data-theme="dark"] \.text-\[\#94A3B8\],
-[data-theme="dark"] \.text-slate-600,
-[data-theme="dark"] \.text-slate-500,
-[data-theme="dark"] \.text-gray-600,
-[data-theme="dark"] \.text-gray-500 {
+.dark [class*="text-[#64748B]"],
+.dark [class*="text-[#94A3B8]"],
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-gray-600,
+.dark .text-gray-500,
+[data-theme="dark"] [class*="text-[#64748B]"],
+[data-theme="dark"] [class*="text-[#94A3B8]"],
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500 {
   color: #CBD5E1 !important;
 }
 
-.dark \.border-slate-200,
-.dark \.border-slate-100,
-.dark \.border-gray-200,
-.dark \.border-gray-300,
-.dark \.border-\[\#E5E7EB\],
-.dark \.border-\[\#D1D5DB\],
-.dark \.border-\[\#CBD5E1\],
-.dark \.border-\[\#F3F4F6\],
-[data-theme="dark"] \.border-slate-200,
-[data-theme="dark"] \.border-slate-100,
-[data-theme="dark"] \.border-gray-200,
-[data-theme="dark"] \.border-gray-300,
-[data-theme="dark"] \.border-\[\#E5E7EB\],
-[data-theme="dark"] \.border-\[\#D1D5DB\],
-[data-theme="dark"] \.border-\[\#CBD5E1\],
-[data-theme="dark"] \.border-\[\#F3F4F6\] {
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark [class*="border-[#E5E7EB]"],
+.dark [class*="border-[#D1D5DB]"],
+.dark [class*="border-[#CBD5E1]"],
+.dark [class*="border-[#F3F4F6]"],
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-slate-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] [class*="border-[#E5E7EB]"],
+[data-theme="dark"] [class*="border-[#D1D5DB]"],
+[data-theme="dark"] [class*="border-[#CBD5E1]"],
+[data-theme="dark"] [class*="border-[#F3F4F6]"] {
   border-color: #334155 !important;
 }
 

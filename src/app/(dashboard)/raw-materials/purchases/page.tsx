@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { RecordPaymentModal } from "@/components/forms/RecordPaymentModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, AlertCircle, Trash2, ArrowLeftRight, RotateCcw } from "lucide-react";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Plus, Search, Eye, Edit2, CreditCard, ShoppingBag, DollarSign, Trash2, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,11 +60,17 @@ export default function PurchasesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Fetch Purchases
-  const { data: purchasesData, isLoading: purchasesLoading } = useQuery<any[]>({
-    queryKey: ["purchases"],
+  const { data: purchasesData, isLoading: purchasesLoading, error: purchasesError, refetch: refetchPurchases } = useQuery<any[]>({
+    queryKey: ["raw-material-purchases", "list"],
+    staleTime: 30_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     queryFn: async () => {
       const res = await fetch("/api/raw-materials/purchases");
-      if (!res.ok) throw new Error("Failed to fetch purchases");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}: Failed to fetch purchases`);
+      }
       const data = await res.json();
       return data.purchases || [];
     },
@@ -71,29 +78,40 @@ export default function PurchasesPage() {
 
   // Fetch Purchase Returns
   const { data: returnsData, isLoading: returnsLoading } = useQuery<any[]>({
-    queryKey: ["purchase-returns"],
+    queryKey: ["raw-material-purchase-returns", "list"],
+    staleTime: 30_000,
     queryFn: async () => {
-      const res = await fetch("/api/raw-materials/purchase-returns");
-      if (!res.ok) throw new Error("Failed to fetch returns");
-      const data = await res.json();
-      return data.returns || [];
+      try {
+        const res = await fetch("/api/raw-materials/purchase-returns");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.returns || [];
+      } catch {
+        return [];
+      }
     },
   });
 
   // Fetch Stats
   const { data: statsData, isLoading: statsLoading } = useQuery<Stats | null>({
-    queryKey: ["purchases", "stats"],
+    queryKey: ["raw-material-purchases", "stats"],
+    staleTime: 60_000,
     queryFn: async () => {
-      const res = await fetch("/api/raw-materials/purchases/stats");
-      if (!res.ok) throw new Error("Failed to fetch stats");
-      const data = await res.json();
-      return data.stats || null;
+      try {
+        const res = await fetch("/api/raw-materials/purchases/stats");
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.stats || null;
+      } catch {
+        return null;
+      }
     },
   });
 
   const purchases = purchasesData || [];
   const returns = returnsData || [];
-  const loading = purchasesLoading || returnsLoading || statsLoading;
+  const loading = purchasesLoading;
+  const isError = !!purchasesError;
 
   // Unified stream mapping
   const unifiedLogs: PurchaseLog[] = [
@@ -126,7 +144,6 @@ export default function PurchasesPage() {
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Compute total returns sum
   const totalReturnsVal = returns.reduce((acc, r) => acc + Number(r.grand_total || 0), 0);
   const totalPurchasesVal = statsData?.totalPurchases || 0;
   const netProcurementVal = Math.max(0, totalPurchasesVal - totalReturnsVal);
@@ -157,8 +174,8 @@ export default function PurchasesPage() {
           : "Purchase Return cancelled successfully"
       );
       setDeleteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["raw-material-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["raw-material-purchase-returns"] });
       queryClient.invalidateQueries({ queryKey: ["purchases", "stats"] });
     } catch (err: any) {
       toast.error(err.message || "An error occurred");
@@ -206,7 +223,7 @@ export default function PurchasesPage() {
             <Link
               href={href}
               className={`font-mono font-bold text-xs hover:underline ${
-                row.record_type === "purchase" ? "text-indigo-600" : "text-purple-700 dark:text-purple-400"
+                row.record_type === "purchase" ? "text-[var(--primary)]" : "text-purple-500"
               }`}
             >
               {row.doc_number}
@@ -222,13 +239,13 @@ export default function PurchasesPage() {
       render: (row) => {
         if (row.record_type === "purchase") {
           return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60 uppercase tracking-wider">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--border)] uppercase tracking-wider">
               Purchase Bill
             </span>
           );
         }
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 shadow-xs uppercase tracking-wider">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/10 text-purple-500 border border-[var(--border)] uppercase tracking-wider">
             Purchase Return
           </span>
         );
@@ -238,7 +255,7 @@ export default function PurchasesPage() {
       key: "date",
       header: "Date",
       width: "110px",
-      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatDate(row.date)}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap text-[var(--text-primary)]">{formatDate(row.date)}</span>,
     },
     {
       key: "supplier",
@@ -246,8 +263,8 @@ export default function PurchasesPage() {
       width: "220px",
       render: (row) => (
         <div className="min-w-0 pr-2">
-          <span className="font-bold text-[#0F172A] block truncate">{row.supplier?.name || "—"}</span>
-          {row.supplier?.company_name && <span className="text-xs text-[#64748B] block truncate">{row.supplier.company_name}</span>}
+          <span className="font-bold text-[var(--text-primary)] block truncate">{row.supplier?.name || "—"}</span>
+          {row.supplier?.company_name && <span className="text-xs text-[var(--text-muted)] block truncate">{row.supplier.company_name}</span>}
         </div>
       ),
     },
@@ -255,7 +272,7 @@ export default function PurchasesPage() {
       key: "invoice_no",
       header: "Inv / Ref No.",
       width: "150px",
-      render: (row) => <span className="font-mono text-xs font-semibold text-[#1E293B] whitespace-nowrap">{row.invoice_no}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">{row.invoice_no}</span>,
     },
     {
       key: "grand_total",
@@ -264,7 +281,7 @@ export default function PurchasesPage() {
       render: (row) => (
         <span
           className={`font-mono text-xs font-bold whitespace-nowrap ${
-            row.record_type === "return" ? "text-purple-700 dark:text-purple-400" : "text-[#0F172A]"
+            row.record_type === "return" ? "text-purple-500" : "text-[var(--text-primary)]"
           }`}
         >
           {row.record_type === "return" ? `- ${formatCurrency(row.grand_total)}` : formatCurrency(row.grand_total)}
@@ -290,7 +307,7 @@ export default function PurchasesPage() {
         }
 
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 capitalize">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)] capitalize">
             {row.status}
           </span>
         );
@@ -318,7 +335,7 @@ export default function PurchasesPage() {
             <Link
               href={detailHref}
               onClick={(e) => e.stopPropagation()}
-              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+              className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent"
               title="View Details"
             >
               <Eye className="h-4 w-4" />
@@ -326,7 +343,7 @@ export default function PurchasesPage() {
             <Link
               href={editHref}
               onClick={(e) => e.stopPropagation()}
-              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
+              className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors border border-transparent"
               title="Edit"
             >
               <Edit2 className="h-4 w-4" />
@@ -338,7 +355,7 @@ export default function PurchasesPage() {
                   setPaymentPurchase(row.raw_purchase);
                   setPaymentModalOpen(true);
                 }}
-                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-100"
+                className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors border border-transparent cursor-pointer"
                 title="Record Payment"
               >
                 <CreditCard className="h-4 w-4" />
@@ -349,7 +366,7 @@ export default function PurchasesPage() {
                 e.stopPropagation();
                 handleOpenDelete(row);
               }}
-              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+              className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent cursor-pointer"
               title="Cancel / Delete Record"
             >
               <Trash2 className="h-4 w-4" />
@@ -365,129 +382,149 @@ export default function PurchasesPage() {
       {/* Header & Dual Action Buttons */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-[#0F172A]">Purchases</h1>
-          <p className="text-xs text-[#64748B] mt-0.5">
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Purchases</h1>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Manage purchase bills, debit notes, and inventory return transactions.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <button
+          <AsyncButton
             onClick={() => router.push("/raw-materials/purchases/new")}
-            className="flex-1 sm:flex-initial px-4 py-2 bg-[#6366F1] hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            variant="primary"
+            className="flex-1 sm:flex-initial text-xs font-bold flex items-center gap-1.5"
           >
             <Plus className="h-4 w-4" /> Record Purchase
-          </button>
-          <button
+          </AsyncButton>
+          <AsyncButton
             onClick={() => router.push("/raw-materials/purchase-returns/new")}
-            className="flex-1 sm:flex-initial px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            variant="outline"
+            className="flex-1 sm:flex-initial text-xs font-bold flex items-center gap-1.5"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Record Purchase Return
-          </button>
+          </AsyncButton>
         </div>
       </div>
 
-      {/* STAT CARDS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="p-3 bg-[#EEF2FF] rounded-lg text-[#6366F1] shrink-0">
-            <ShoppingBag className="h-6 w-6" />
+      <PageState
+        isLoading={loading}
+        isError={isError}
+        error={purchasesError ? (purchasesError instanceof Error ? purchasesError.message : "Failed to load raw material purchases") : undefined}
+        onRetry={refetchPurchases}
+        isEmpty={filteredLogs.length === 0}
+        emptyTitle="No Raw Material Purchases Found"
+        emptyMessage="No raw material inward bills or return logs match your search filter."
+        emptyAction={
+          <AsyncButton onClick={() => router.push("/raw-materials/purchases/new")} variant="primary">
+            + Record First Purchase
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={8}
+        skeletonColumns={8}
+      >
+        {/* STAT CARDS ROW */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+            <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
+              <ShoppingBag className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Purchases</span>
+              <p className="text-lg font-black text-[var(--text-primary)] mt-0.5">{formatCurrency(totalPurchasesVal)}</p>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Purchases</span>
-            <p className="text-lg font-black text-[#0F172A] mt-0.5">{formatCurrency(totalPurchasesVal)}</p>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+            <div className="p-3 bg-purple-500/10 text-purple-500 rounded-lg shrink-0">
+              <RotateCcw className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Returns / Debit Notes</span>
+              <p className="text-lg font-black text-purple-500 mt-0.5">{formatCurrency(totalReturnsVal)}</p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+            <div className="p-3 bg-green-500/10 text-green-500 rounded-lg shrink-0">
+              <DollarSign className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Net Procurement</span>
+              <p className="text-lg font-black text-green-500 mt-0.5">{formatCurrency(netProcurementVal)}</p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+            <div className="p-3 bg-amber-500/10 text-amber-500 rounded-lg shrink-0">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Outstanding Due</span>
+              <p className="text-lg font-black text-amber-500 mt-0.5">{statsData ? formatCurrency(statsData.totalDue) : "₹0.00"}</p>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="p-3 bg-purple-50 text-purple-700 rounded-lg shrink-0">
-            <RotateCcw className="h-6 w-6" />
+        {/* FILTER & TABS BAR */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+          {/* Tabs */}
+          <div className="flex bg-[var(--page-bg)] p-1 rounded-lg w-full md:w-auto overflow-x-auto">
+            {[
+              { id: "all", label: "All Logs" },
+              { id: "purchases", label: "Purchases" },
+              { id: "returns", label: "Purchase Returns" },
+              { id: "unpaid", label: "Unpaid" },
+              { id: "paid", label: "Paid" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Returns / Debit Notes</span>
-            <p className="text-lg font-black text-purple-700 mt-0.5">{formatCurrency(totalReturnsVal)}</p>
+
+          {/* Search */}
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
+            <input
+              type="text"
+              placeholder="Search PO, return #, supplier..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+            />
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="p-3 bg-[#F0FDF4] rounded-lg text-[#16A34A] shrink-0">
-            <DollarSign className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Net Procurement</span>
-            <p className="text-lg font-black text-[#16A34A] mt-0.5">{formatCurrency(netProcurementVal)}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="p-3 bg-[#FEF9C3] rounded-lg text-[#D97706] shrink-0">
-            <CreditCard className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Outstanding Due</span>
-            <p className="text-lg font-black text-[#D97706] mt-0.5">{statsData ? formatCurrency(statsData.totalDue) : "₹0.00"}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER & TABS BAR */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white border border-[#E2E8F0] p-4 rounded-xl shadow-sm">
-        {/* Tabs */}
-        <div className="flex bg-[#F1F5F9] p-1 rounded-lg w-full md:w-auto overflow-x-auto">
-          {[
-            { id: "all", label: "All Logs" },
-            { id: "purchases", label: "Purchases" },
-            { id: "returns", label: "Purchase Returns" },
-            { id: "unpaid", label: "Unpaid" },
-            { id: "paid", label: "Paid" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-white text-[#0F172A] shadow-sm"
-                  : "text-[#64748B] hover:text-[#0F172A]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]" />
-          <input
-            type="text"
-            placeholder="Search PO, return #, supplier..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+        {/* UNIFIED LOGS TABLE */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={filteredLogs}
+            isLoading={false}
+            total={filteredLogs.length}
+            page={1}
+            perPage={10000}
+            onPageChange={() => {}}
+            onRowClick={(row) => {
+              const href =
+                row.record_type === "purchase"
+                  ? `/raw-materials/purchases/${row.id}`
+                  : `/raw-materials/purchase-returns/${row.id}`;
+              router.push(href);
+            }}
+            emptyMessage="No purchases or returns found matching filters."
           />
         </div>
-      </div>
-
-      {/* UNIFIED LOGS TABLE */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={filteredLogs}
-          isLoading={loading}
-          total={filteredLogs.length}
-          page={1}
-          perPage={10000}
-          onPageChange={() => {}}
-          onRowClick={(row) => {
-            const href =
-              row.record_type === "purchase"
-                ? `/raw-materials/purchases/${row.id}`
-                : `/raw-materials/purchase-returns/${row.id}`;
-            router.push(href);
-          }}
-          emptyMessage="No purchases or returns found."
-        />
-      </div>
+      </PageState>
 
       {/* RECORD PAYMENT MODAL */}
       {paymentPurchase && (

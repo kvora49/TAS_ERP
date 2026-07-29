@@ -10,25 +10,24 @@ import {
   PauseCircle,
   XCircle,
   Play,
-  Bell,
   Plus,
   Eye,
   MoreVertical,
   Edit,
   Boxes,
-  SlidersHorizontal,
-  ChevronRight,
   Search,
   PlusCircle,
   ArrowRight,
-  Scissors,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import ProgressBar from "@/components/shared/ProgressBar";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { useChartTheme } from "@/hooks/useChartTheme";
 import { formatDate } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -72,6 +71,7 @@ interface Design {
 export default function ProductionLotsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const chartTheme = useChartTheme();
 
   // Filter States
   const [search, setSearch] = useState("");
@@ -86,7 +86,6 @@ export default function ProductionLotsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   // Queries
-  // React Query: Fetch dependencies
   const { data: brandsData } = useERPQuery(["brands-list"], async () => {
     const res = await fetch("/api/master-data/brands");
     if (!res.ok) throw new Error("Failed to fetch brands");
@@ -125,6 +124,8 @@ export default function ProductionLotsPage() {
 
   const lotsResult = lotsQuery.data;
   const isLoading = lotsQuery.isPending;
+  const isError = lotsQuery.isError;
+  const error = lotsQuery.error;
   const lots = lotsResult?.data || [];
   const meta = lotsResult?.meta || { page: 1, limit: 10, total: 0 };
   const startIndex = (meta.page - 1) * meta.limit;
@@ -150,10 +151,8 @@ export default function ProductionLotsPage() {
     }
   );
 
-  // Pagination logic
   const totalPages = Math.ceil(meta.total / pageSize) || 1;
 
-  // Clear filters
   const handleClearFilters = () => {
     setSearch("");
     setBrandFilter("all");
@@ -164,7 +163,6 @@ export default function ProductionLotsPage() {
     setCurrentPage(1);
   };
 
-  // Recharts Chart Data
   const chartData = [
     { name: "In Progress", value: stats.in_progress, color: "#6366F1" },
     { name: "Completed", value: stats.completed, color: "#15803D" },
@@ -177,10 +175,10 @@ export default function ProductionLotsPage() {
       {/* Header and Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[#0F172A] leading-tight tracking-tight">
+          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Production Lots
           </h1>
-          <p className="text-sm text-[#64748B] mt-0.5 font-medium">
+          <p className="text-sm text-[var(--text-muted)] mt-0.5 font-medium">
             View and manage all production lots
           </p>
         </div>
@@ -188,256 +186,247 @@ export default function ProductionLotsPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-[var(--card-bg)]"
             onClick={() => toast.info("Tutorial is coming soon!")}
           >
-            <Play size={14} className="fill-[#374151]" />
+            <Play size={14} className="fill-[var(--text-body)]" />
             Tutorial
           </button>
-          <button
-            type="button"
+          <AsyncButton
             onClick={() => router.push("/production/lots/new")}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
+            variant="primary"
+            className="h-10 px-4 text-sm font-semibold flex items-center gap-2"
           >
             <Plus className="h-4 w-4 text-white" />
             Create Lot
-          </button>
+          </AsyncButton>
         </div>
       </div>
 
-      {/* 5 Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {/* Total Lots */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#EEF2FF] rounded-lg text-[#6366F1] shrink-0">
-            <ClipboardList className="h-6 w-6" />
+      <PageState
+        isLoading={isLoading}
+        isError={isError}
+        error={error ? (error instanceof Error ? error.message : "Failed to load production lots") : undefined}
+        onRetry={lotsQuery.refetch}
+        isEmpty={lots.length === 0}
+        emptyTitle="No Production Lots Found"
+        emptyMessage="No production lots created yet. Click Create Lot to plan garment manufacturing runs."
+        emptyAction={
+          <AsyncButton onClick={() => router.push("/production/lots/new")} variant="primary">
+            + Create First Lot
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={8}
+        skeletonColumns={11}
+      >
+        {/* 5 Stat Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Lots</span>
+              <p className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{stats.total}</p>
+              <span className="text-[10px] text-[var(--text-muted)] font-medium block mt-0.5">All time</span>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Total Lots</span>
-            <p className="text-2xl font-bold text-[#0F172A] mt-0.5">{stats.total}</p>
-            <span className="text-[10px] text-[#64748B] font-medium block mt-0.5">All time</span>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 rounded-lg text-blue-500 shrink-0">
+              <Clock className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">In Progress</span>
+              <p className="text-2xl font-bold text-blue-500 mt-0.5">{stats.in_progress}</p>
+              <span className="text-[10px] text-blue-500 font-semibold block mt-0.5">
+                {percentages.in_progress}%
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-green-500/10 rounded-lg text-green-500 shrink-0">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Completed</span>
+              <p className="text-2xl font-bold text-green-500 mt-0.5">{stats.completed}</p>
+              <span className="text-[10px] text-green-500 font-semibold block mt-0.5">
+                {percentages.completed}%
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
+              <PauseCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">On Hold</span>
+              <p className="text-2xl font-bold text-amber-500 mt-0.5">{stats.on_hold}</p>
+              <span className="text-[10px] text-amber-500 font-semibold block mt-0.5">
+                {percentages.on_hold}%
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+            <div className="p-3 bg-red-500/10 rounded-lg text-red-500 shrink-0">
+              <XCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Cancelled</span>
+              <p className="text-2xl font-bold text-red-500 mt-0.5">{stats.cancelled}</p>
+              <span className="text-[10px] text-red-500 font-semibold block mt-0.5">
+                {percentages.cancelled}%
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* In Progress */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#DBEAFE] rounded-lg text-[#1D4ED8] shrink-0">
-            <Clock className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">In Progress</span>
-            <p className="text-2xl font-bold text-[#1D4ED8] mt-0.5">{stats.in_progress}</p>
-            <span className="text-[10px] text-[#1D4ED8] font-semibold block mt-0.5">
-              {percentages.in_progress}%
-            </span>
-          </div>
-        </div>
+        {/* Filter Bar */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by Lot No. or Design..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+              />
+            </div>
 
-        {/* Completed */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#DCFCE7] rounded-lg text-[#15803D] shrink-0">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Completed</span>
-            <p className="text-2xl font-bold text-[#15803D] mt-0.5">{stats.completed}</p>
-            <span className="text-[10px] text-[#15803D] font-semibold block mt-0.5">
-              {percentages.completed}%
-            </span>
-          </div>
-        </div>
-
-        {/* On Hold */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEF3C7] rounded-lg text-[#D97706] shrink-0">
-            <PauseCircle className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">On Hold</span>
-            <p className="text-2xl font-bold text-[#D97706] mt-0.5">{stats.on_hold}</p>
-            <span className="text-[10px] text-[#D97706] font-semibold block mt-0.5">
-              {percentages.on_hold}%
-            </span>
-          </div>
-        </div>
-
-        {/* Cancelled */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEE2E2] rounded-lg text-[#DC2626] shrink-0">
-            <XCircle className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Cancelled</span>
-            <p className="text-2xl font-bold text-[#DC2626] mt-0.5">{stats.cancelled}</p>
-            <span className="text-[10px] text-[#DC2626] font-semibold block mt-0.5">
-              {percentages.cancelled}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] h-4 w-4 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search by Lot No. or Design..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-            />
-          </div>
-
-          {/* Brand Dropdown */}
-          <select
-            value={brandFilter}
-            onChange={(e) => {
-              setBrandFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-10 w-[160px] rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-          >
-            <option value="all">All Brands</option>
-            {brandsData?.brands?.map((b: Brand) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Design Dropdown */}
-          <select
-            value={designFilter}
-            onChange={(e) => {
-              setDesignFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-10 w-[160px] rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-          >
-            <option value="all">All Designs</option>
-            {designsData?.designs?.map((d: Design) => (
-              <option key={d.id} value={d.id}>
-                {d.code} - {d.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Status Dropdown */}
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-10 w-[160px] rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-          >
-            <option value="all">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="on_hold">On Hold</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-
-          {/* Date Range Inputs */}
-          <div className="flex items-center gap-2 border border-[#E5E7EB] rounded-lg px-2 h-10 bg-white">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs border-0 p-0 focus:ring-0 w-[110px]"
-            />
-            <span className="text-[#94A3B8] text-xs font-semibold">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs border-0 p-0 focus:ring-0 w-[110px]"
-            />
-          </div>
-
-          {/* Clear Filters */}
-          {(brandFilter !== "all" || designFilter !== "all" || statusFilter !== "all" || search || startDate || endDate) && (
-            <button
-              onClick={handleClearFilters}
-              className="text-sm text-[#6366F1] font-semibold hover:underline shrink-0 cursor-pointer"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Production Lots Table */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
-          <span className="text-sm font-semibold text-[#374151]">Lots Directory</span>
-          <div className="flex items-center gap-4 text-xs text-[#64748B]">
-            <span>
-              Showing {lots.length === 0 ? 0 : startIndex + 1} to{" "}
-              {Math.min(startIndex + pageSize, lots.length)} of {lots.length} entries
-            </span>
             <select
-              value={pageSize}
+              value={brandFilter}
               onChange={(e) => {
-                setPageSize(parseInt(e.target.value, 10));
+                setBrandFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-8 rounded border border-[#E5E7EB] bg-white pl-2.5 pr-7 text-xs font-semibold text-[#1E293B] cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.4rem_center] bg-no-repeat"
+              className="h-10 w-[160px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
+              <option value="all">All Brands</option>
+              {brandsData?.brands?.map((b: Brand) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
             </select>
+
+            <select
+              value={designFilter}
+              onChange={(e) => {
+                setDesignFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 w-[160px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="all">All Designs</option>
+              {designsData?.designs?.map((d: Design) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} - {d.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 w-[160px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="on_hold">On Hold</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <div className="flex items-center gap-2 border border-[var(--input-border)] rounded-lg px-2 h-10 bg-[var(--input-bg)]">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="text-xs border-0 p-0 focus:ring-0 w-[110px] bg-transparent text-[var(--text-primary)]"
+              />
+              <span className="text-[var(--text-faint)] text-xs font-semibold">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="text-xs border-0 p-0 focus:ring-0 w-[110px] bg-transparent text-[var(--text-primary)]"
+              />
+            </div>
+
+            {(brandFilter !== "all" || designFilter !== "all" || statusFilter !== "all" || search || startDate || endDate) && (
+              <button
+                onClick={handleClearFilters}
+                className="text-sm text-[var(--primary)] font-semibold hover:underline shrink-0 cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
-                <th className="py-3 px-4 w-[160px] whitespace-nowrap">Lot No.</th>
-                <th className="py-3 px-4 whitespace-nowrap">Brand</th>
-                <th className="py-3 px-4">Design</th>
-                <th className="py-3 px-4">Colour</th>
-                <th className="py-3 px-4">Size Set</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">Total Qty</th>
-                <th className="py-3 px-4 w-48 whitespace-nowrap">Completed Qty</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
-                <th className="py-3 px-4 whitespace-nowrap">Start Date</th>
-                <th className="py-3 px-4 whitespace-nowrap">Due Date</th>
-                <th className="py-3 px-4 text-center w-28 whitespace-nowrap">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E5E7EB] text-sm">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={11} className="p-0">
-                    {lotsQuery.Skeleton || (
-                      <div className="py-8 text-center text-[#64748B]">Loading lots...</div>
-                    )}
-                  </td>
+        {/* Production Lots Table */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">Lots Directory</span>
+            <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
+              <span>
+                Showing {lots.length === 0 ? 0 : startIndex + 1} to{" "}
+                {Math.min(startIndex + pageSize, lots.length)} of {lots.length} entries
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(parseInt(e.target.value, 10));
+                  setCurrentPage(1);
+                }}
+                className="h-8 rounded border border-[var(--input-border)] bg-[var(--input-bg)] pl-2.5 pr-7 text-xs font-semibold text-[var(--text-primary)] cursor-pointer focus:ring-1 focus:ring-[var(--input-focus)]"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                  <th className="py-3 px-4 w-[160px] whitespace-nowrap">Lot No.</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Brand</th>
+                  <th className="py-3 px-4">Design</th>
+                  <th className="py-3 px-4">Colour</th>
+                  <th className="py-3 px-4">Size Set</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Total Qty</th>
+                  <th className="py-3 px-4 w-48 whitespace-nowrap">Completed Qty</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Start Date</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Due Date</th>
+                  <th className="py-3 px-4 text-center w-28 whitespace-nowrap">Actions</th>
                 </tr>
-              ) : lots.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-8 text-center text-[#64748B]">
-                    No lots found.
-                  </td>
-                </tr>
-              ) : (
-                lots.map((lot: Lot) => {
+              </thead>
+              <tbody className="divide-y divide-[var(--border)] text-sm">
+                {lots.map((lot: Lot) => {
                   const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
                   const sizesStr = effectiveSizeSet?.name
                     ? `${effectiveSizeSet.name}${effectiveSizeSet.sizes ? ` (${effectiveSizeSet.sizes.join(", ")})` : ""}`
@@ -452,9 +441,9 @@ export default function ProductionLotsPage() {
                     <tr
                       key={lot.id}
                       onClick={() => router.push(`/production/lots/${lot.id}`)}
-                      className="hover:bg-[#F9FAFB] transition-colors cursor-pointer"
+                      className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
                     >
-                      <td className="py-3.5 px-4 font-mono text-xs font-bold text-[#6366F1] whitespace-nowrap">
+                      <td className="py-3.5 px-4 font-mono text-xs font-bold text-[var(--primary)] whitespace-nowrap">
                         <Link
                           href={`/production/lots/${lot.id}`}
                           onClick={(e) => e.stopPropagation()}
@@ -463,22 +452,22 @@ export default function ProductionLotsPage() {
                           {lot.lot_number}
                         </Link>
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151]">
+                      <td className="py-3.5 px-5 text-[var(--text-body)]">
                         {lot.brand?.name || "—"}
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151] font-medium">
+                      <td className="py-3.5 px-5 text-[var(--text-body)] font-medium">
                         {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151]">
+                      <td className="py-3.5 px-5 text-[var(--text-body)]">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {activeColours.length === 0 ? (
                             <span>—</span>
                           ) : (
                             activeColours.map((c, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                              <span key={i} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-2 py-0.5 rounded-full border border-[var(--border)]">
                                 {c.hex_code && (
                                   <span
-                                    className="w-2.5 h-2.5 rounded-full border border-slate-300"
+                                    className="w-2.5 h-2.5 rounded-full border border-[var(--border)]"
                                     style={{ backgroundColor: c.hex_code }}
                                   />
                                 )}
@@ -488,10 +477,10 @@ export default function ProductionLotsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151] font-semibold text-xs truncate max-w-[140px]" title={sizesStr}>
+                      <td className="py-3.5 px-5 text-[var(--text-body)] font-semibold text-xs truncate max-w-[140px]" title={sizesStr}>
                         {sizesStr}
                       </td>
-                      <td className="py-3.5 px-5 text-right font-medium text-[#374151]">
+                      <td className="py-3.5 px-5 text-right font-medium text-[var(--text-primary)]">
                         {lot.total_quantity}
                       </td>
                       <td className="py-3.5 px-5">
@@ -501,23 +490,23 @@ export default function ProductionLotsPage() {
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
                             lot.status === "in_progress"
-                              ? "bg-[#DBEAFE] text-[#1D4ED8]"
+                              ? "bg-blue-500/10 text-blue-500"
                               : lot.status === "completed"
-                              ? "bg-[#DCFCE7] text-[#15803D]"
+                              ? "bg-green-500/10 text-green-500"
                               : lot.status === "on_hold"
-                              ? "bg-[#FEF3C7] text-[#D97706]"
+                              ? "bg-amber-500/10 text-amber-500"
                               : lot.status === "cancelled"
-                              ? "bg-[#FEE2E2] text-[#DC2626]"
-                              : "bg-[#F1F5F9] text-[#64748B]"
+                              ? "bg-red-500/10 text-red-500"
+                              : "bg-[var(--page-bg)] text-[var(--text-muted)]"
                           }`}
                         >
                           {lot.status.replace("_", " ")}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151] font-mono text-xs">
+                      <td className="py-3.5 px-5 text-[var(--text-body)] font-mono text-xs">
                         {formatDate(lot.target_start_date)}
                       </td>
-                      <td className="py-3.5 px-5 text-[#374151] font-mono text-xs">
+                      <td className="py-3.5 px-5 text-[var(--text-body)] font-mono text-xs">
                         {formatDate(lot.target_due_date)}
                       </td>
                       <td className="py-3.5 px-5 text-center">
@@ -525,7 +514,7 @@ export default function ProductionLotsPage() {
                           <Link
                             href={`/production/lots/${lot.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors"
+                            className="w-8 h-8 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-colors"
                             title="View Detail"
                           >
                             <Eye size={16} />
@@ -534,11 +523,11 @@ export default function ProductionLotsPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger
                               onClick={(e) => e.stopPropagation()}
-                              className="w-8 h-8 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:bg-[#F9FAFB] transition-colors cursor-pointer"
+                              className="w-8 h-8 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
                             >
                               <MoreVertical size={16} />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[150px]">
+                            <DropdownMenuContent align="end" className="w-[150px] bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-primary)]">
                               <DropdownMenuItem
                                 onClick={() => router.push(`/production/lots/${lot.id}/edit`)}
                               >
@@ -548,7 +537,7 @@ export default function ProductionLotsPage() {
                               {!lot.is_moved_to_stock && (
                                 <DropdownMenuItem
                                   onClick={() => router.push(`/production/lots/${lot.id}`)}
-                                  className="text-emerald-700 font-semibold"
+                                  className="text-emerald-500 font-semibold"
                                 >
                                   <Boxes size={14} className="mr-2" />
                                   Move to Finished Stock
@@ -580,7 +569,7 @@ export default function ProductionLotsPage() {
                                     });
                                   }
                                 }}
-                                className="text-red-600 hover:bg-red-50"
+                                className="text-red-500 hover:bg-red-500/10"
                               >
                                 <XCircle size={14} className="mr-2" />
                                 Cancel Lot
@@ -591,200 +580,206 @@ export default function ProductionLotsPage() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="bg-[#F9FAFB] border-t border-[#E5E7EB] px-5 py-3.5 flex items-center justify-between">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 border border-[#E5E7EB] rounded-md text-xs font-semibold text-[#374151] hover:bg-white disabled:opacity-50 disabled:hover:bg-[#F9FAFB] transition-colors"
-            >
-              Previous
-            </button>
-            <div className="flex items-center gap-1.5">
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`w-7 h-7 rounded text-xs font-bold transition-colors ${
-                    currentPage === i + 1
-                      ? "bg-[#6366F1] text-white"
-                      : "border border-[#E5E7EB] text-[#374151] hover:bg-white"
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 border border-[#E5E7EB] rounded-md text-xs font-semibold text-[#374151] hover:bg-white disabled:opacity-50 disabled:hover:bg-[#F9FAFB] transition-colors"
-            >
-              Next
-            </button>
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
 
-      {/* Bottom Section: Recharts Pie + Top Designs + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pie Chart: Lots by Status */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider mb-4">
-            Lots by Status
-          </h3>
-
-          <div className="h-44 w-full relative">
-            {chartData.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-xs text-[#94A3B8]">
-                No lots stats available.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={75}
-                    paddingAngle={4}
-                    dataKey="value"
+          {totalPages > 1 && (
+            <div className="bg-[var(--table-header-bg)] border-t border-[var(--border)] px-5 py-3.5 flex items-center justify-between">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 border border-[var(--border)] rounded-md text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--card-bg)] disabled:opacity-50 transition-colors"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-7 h-7 rounded text-xs font-bold transition-colors ${
+                      currentPage === i + 1
+                        ? "bg-[var(--primary)] text-white"
+                        : "border border-[var(--border)] text-[var(--text-body)] hover:bg-[var(--card-bg)]"
+                    }`}
                   >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} Lots`, "Count"]} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          {/* Legend */}
-          <div className="grid grid-cols-2 gap-2.5 mt-4 text-xs font-medium text-[#475569]">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#6366F1]" />
-              <span>In Progress ({stats.in_progress})</span>
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 border border-[var(--border)] rounded-md text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--card-bg)] disabled:opacity-50 transition-colors"
+              >
+                Next
+              </button>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#15803D]" />
-              <span>Completed ({stats.completed})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]" />
-              <span>On Hold ({stats.on_hold})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]" />
-              <span>Cancelled ({stats.cancelled})</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Top Designs (By Lots) */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider mb-3">
-              Top Designs (By Lots)
+        {/* Bottom Section: Recharts Pie + Top Designs + Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Pie Chart: Lots by Status */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider mb-4">
+              Lots by Status
             </h3>
-            {topDesigns.length === 0 ? (
-              <div className="py-8 text-center text-xs text-[#94A3B8]">
-                No design lot details logged yet.
+
+            <div className="h-44 w-full relative">
+              {chartData.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-xs text-[var(--text-faint)]">
+                  No lots stats available.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: chartTheme.tooltipBg,
+                        border: `1px solid ${chartTheme.tooltipBorder}`,
+                        color: chartTheme.text,
+                      }}
+                      formatter={(value) => [`${value} Lots`, "Count"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 mt-4 text-xs font-medium text-[var(--text-muted)]">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#6366F1]" />
+                <span>In Progress ({stats.in_progress})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#15803D]" />
+                <span>Completed ({stats.completed})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]" />
+                <span>On Hold ({stats.on_hold})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]" />
+                <span>Cancelled ({stats.cancelled})</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Designs (By Lots) */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider mb-3">
+                Top Designs (By Lots)
+              </h3>
+              {topDesigns.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[var(--text-faint)]">
+                  No design lot details logged yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {topDesigns.map((td: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center py-2.5">
+                      <span className="text-sm text-[var(--text-body)] font-semibold">
+                        {td.code} - {td.name}
+                      </span>
+                      <span className="text-sm font-bold text-[var(--text-primary)]">{td.count} Lots</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Link
+              href="/master-data/designs"
+              className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1 mt-3"
+            >
+              View all designs
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
+            <div className="flex justify-between items-center border-b border-[var(--border)] pb-3 mb-3">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                Recent Activity
+              </h3>
+              <Link href="/settings/audit-logs" className="text-xs font-bold text-[var(--primary)] hover:underline">
+                View All
+              </Link>
+            </div>
+
+            {recentActivity.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[var(--text-faint)]">
+                No recent activity recorded.
               </div>
             ) : (
-              <div className="divide-y divide-[#F3F4F6]">
-                {topDesigns.map((td: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center py-2.5">
-                    <span className="text-sm text-[#374151] font-semibold">
-                      {td.code} - {td.name}
+              <div className="divide-y divide-[var(--border)] max-h-[220px] overflow-y-auto pr-1">
+                {recentActivity.map((act: any) => (
+                  <div key={act.id} className="flex items-start gap-3 py-2.5">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                        act.icon === "completed"
+                          ? "bg-green-500/10 text-green-500"
+                          : act.icon === "stage_entry"
+                          ? "bg-blue-500/10 text-blue-500"
+                          : act.icon === "on_hold"
+                          ? "bg-amber-500/10 text-amber-500"
+                          : act.icon === "cancelled"
+                          ? "bg-red-500/10 text-red-500"
+                          : "bg-[var(--primary-light)] text-[var(--primary)]"
+                      }`}
+                    >
+                      {act.icon === "completed" ? (
+                        <CheckCircle2 size={14} />
+                      ) : act.icon === "stage_entry" ? (
+                        <ClipboardList size={14} />
+                      ) : act.icon === "on_hold" ? (
+                        <PauseCircle size={14} />
+                      ) : act.icon === "cancelled" ? (
+                        <XCircle size={14} />
+                      ) : (
+                        <PlusCircle size={14} />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-[var(--text-body)] leading-snug">
+                        {act.actionText}
+                      </p>
+                      <span className="text-[10px] text-[var(--text-muted)] font-medium block mt-0.5">
+                        by {act.userName}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[var(--text-faint)] font-medium shrink-0">
+                      {new Date(act.createdAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                      })}
                     </span>
-                    <span className="text-sm font-bold text-[#0F172A]">{td.count} Lots</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <Link
-            href="/master-data/designs"
-            className="text-xs font-bold text-[#6366F1] hover:underline flex items-center gap-1 mt-3"
-          >
-            View all designs
-            <ArrowRight size={12} />
-          </Link>
         </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
-          <div className="flex justify-between items-center border-b border-[#F3F4F6] pb-3 mb-3">
-            <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
-              Recent Activity
-            </h3>
-            <Link href="/settings/audit-logs" className="text-xs font-bold text-[#6366F1] hover:underline">
-              View All
-            </Link>
-          </div>
-
-          {recentActivity.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[#94A3B8]">
-              No recent activity recorded.
-            </div>
-          ) : (
-            <div className="divide-y divide-[#F3F4F6] max-h-[220px] overflow-y-auto pr-1">
-              {recentActivity.map((act: any) => (
-                <div key={act.id} className="flex items-start gap-3 py-2.5">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      act.icon === "completed"
-                        ? "bg-[#DCFCE7] text-[#15803D]"
-                        : act.icon === "stage_entry"
-                        ? "bg-[#DBEAFE] text-[#1D4ED8]"
-                        : act.icon === "on_hold"
-                        ? "bg-[#FEF3C7] text-[#D97706]"
-                        : act.icon === "cancelled"
-                        ? "bg-[#FEE2E2] text-[#DC2626]"
-                        : "bg-[#EEF2FF] text-[#6366F1]"
-                    }`}
-                  >
-                    {act.icon === "completed" ? (
-                      <CheckCircle2 size={14} />
-                    ) : act.icon === "stage_entry" ? (
-                      <ClipboardList size={14} />
-                    ) : act.icon === "on_hold" ? (
-                      <PauseCircle size={14} />
-                    ) : act.icon === "cancelled" ? (
-                      <XCircle size={14} />
-                    ) : (
-                      <PlusCircle size={14} />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-[#374151] leading-snug">
-                      {act.actionText}
-                    </p>
-                    <span className="text-[10px] text-[#64748B] font-medium block mt-0.5">
-                      by {act.userName}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#94A3B8] font-medium shrink-0">
-                    {new Date(act.createdAt).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      </PageState>
     </div>
   );
 }
