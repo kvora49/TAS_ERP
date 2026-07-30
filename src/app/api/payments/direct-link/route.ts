@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     // Fetch bank accounts
     const { data: banks } = await supabase
       .from("bank_accounts")
-      .select("id, account_name, bank_name")
+      .select("id, name, bank_name")
       .eq("business_id", businessId)
       .is("deleted_at", null);
 

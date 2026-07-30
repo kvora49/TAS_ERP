@@ -1,20 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Building2, ArrowDownLeft, ArrowUpRight, Scale, Calendar, UserCheck } from "lucide-react";
 import PageState from "@/components/shared/PageState";
-import FinancialYearDateFilters from "@/components/ui/FinancialYearDateFilters";
+import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
+import ReportKPICard from "@/components/reports/ReportKPICard";
+import { ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/components/reports/ReportChart";
+import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
+import { cn } from "@/lib/utils";
 
 export default function PartyStatementPage() {
-  const currentYear = new Date().getFullYear();
-  const [from, setFrom] = useState(`${currentYear}-04-01`);
-  const [to, setTo] = useState(new Date().toISOString().split("T")[0]);
+  const defaultDates = getPresetDates("this_fy");
+  const [from, setFrom] = useState(defaultDates.from);
+  const [to, setTo] = useState(defaultDates.to);
   const [partyId, setPartyId] = useState("");
 
-  const handleApply = (filters: { fromDate: string; toDate: string }) => {
-    setFrom(filters.fromDate);
-    setTo(filters.toDate);
-  };
+  const handleApply = useCallback((filters: ReportFilters) => {
+    setFrom(filters.from);
+    setTo(filters.to);
+  }, []);
 
   // Fetch parties list
   const { data: initData } = useQuery<{ parties: any[] }>({
@@ -24,10 +29,11 @@ export default function PartyStatementPage() {
       if (!res.ok) throw new Error("Failed to load parties");
       return res.json();
     },
+    staleTime: 300_000,
   });
 
   // Fetch selected party statement
-  const { data: statementData, isLoading, error } = useQuery({
+  const { data: statementData, isLoading, error, refetch } = useQuery({
     queryKey: ["party-statement", partyId, from, to],
     queryFn: async () => {
       if (!partyId) return null;
@@ -36,109 +42,197 @@ export default function PartyStatementPage() {
       return res.json();
     },
     enabled: !!partyId,
+    staleTime: 60_000,
   });
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n || 0);
+  const parties = initData?.parties ?? [];
+  const selectedParty = parties.find((p) => p.id === partyId);
 
-  const parties = initData?.parties || [];
-  const ledger = statementData?.ledger || [];
+  const handleExportExcel = useCallback(() => {
+    if (!statementData) return;
+    exportToExcel(
+      [
+        { key: "date", label: "Date", format: "date", width: 14 },
+        { key: "type", label: "Type", width: 16 },
+        { key: "reference", label: "Reference", width: 20 },
+        { key: "debit", label: "Debit (Dr ₹)", format: "currency", width: 18 },
+        { key: "credit", label: "Credit (Cr ₹)", format: "currency", width: 18 },
+        { key: "runningBalance", label: "Running Balance (₹)", format: "currency", width: 20 },
+      ],
+      statementData.rows ?? [],
+      `PartyStatement_${selectedParty?.name ?? partyId}_${from}_${to}`
+    );
+  }, [statementData, selectedParty, partyId, from, to]);
+
+  const summary = statementData?.summary ?? {};
+  const aging = statementData?.aging ?? {};
+  const agingChart = Object.entries(aging).map(([k, v], i) => ({
+    name: k + " days",
+    value: Number(v),
+    color: [CHART_COLORS[1], CHART_COLORS[2], CHART_COLORS[6], CHART_COLORS[3]][i],
+  })).filter(d => d.value > 0);
 
   return (
-    <PageState isLoading={false} error={undefined}>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <div className="border-b border-gray-200 pb-4">
-          <h1 className="text-xl font-bold text-slate-900">Party Statement</h1>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Reports / Account Statements</p>
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <select value={partyId} onChange={(e) => setPartyId(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold outline-none min-w-[240px]">
-            <option value="">-- Select Party --</option>
+    <ReportShell
+      title="Party Ledger Statement"
+      infoTooltip="Detailed transaction ledger, opening/closing balance, and aging analysis for any customer or supplier."
+      breadcrumbs={["Reports", "Party Statement"]}
+      onApply={handleApply}
+      onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Party</span>
+          <select
+            value={partyId}
+            onChange={(e) => setPartyId(e.target.value)}
+            className="h-8 px-3 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent font-semibold"
+          >
+            <option value="">-- Select Customer / Supplier --</option>
             {parties.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.company_name ? `${p.company_name} (${p.name})` : p.name}
+                {p.company_name ? `${p.company_name} (${p.name})` : p.name} — {p.party_type}
               </option>
             ))}
           </select>
-          <FinancialYearDateFilters onApply={handleApply} onClear={() => { setFrom(`${currentYear}-04-01`); setTo(new Date().toISOString().split("T")[0]); }} />
         </div>
+      }
+    >
+      {!partyId ? (
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-12 text-center text-[var(--text-muted)] space-y-3">
+          <UserCheck size={36} className="mx-auto text-[var(--text-faint)]" />
+          <p className="text-sm font-bold text-[var(--text-primary)]">Select a Party to View Statement</p>
+          <p className="text-xs max-w-sm mx-auto">Use the party dropdown in the filter bar above to select a customer or supplier.</p>
+        </div>
+      ) : (
+        <PageState
+          isLoading={isLoading}
+          isError={!!error}
+          error={(error as any)?.message}
+          onRetry={refetch}
+          skeletonVariant="table"
+          skeletonRows={8}
+          skeletonColumns={6}
+          isEmpty={!isLoading && (statementData?.rows ?? []).length === 0}
+          emptyTitle="No transactions found"
+          emptyDescription="No transactions found for this party during the selected date range."
+        >
+          {statementData && (
+            <div className="space-y-6">
+              {/* Party Header Info Card */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex flex-wrap justify-between items-center gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--text-primary)]">{selectedParty?.company_name || selectedParty?.name}</h2>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5 font-medium">
+                    Type: <span className="capitalize text-[var(--text-primary)] font-semibold">{selectedParty?.party_type}</span>
+                    {selectedParty?.gstin && <span className="ml-3 font-mono">GSTIN: {selectedParty.gstin}</span>}
+                    {selectedParty?.mobile && <span className="ml-3 font-mono">Ph: {selectedParty.mobile}</span>}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Closing Balance</p>
+                  <p className={cn(
+                    "text-2xl font-extrabold font-mono",
+                    summary.closingBalance >= 0 ? "text-emerald-500" : "text-rose-500"
+                  )}>
+                    {fmtINR(Math.abs(summary.closingBalance ?? 0))}
+                    <span className="text-xs ml-1 font-bold">{summary.closingBalance >= 0 ? "Dr (Receivable)" : "Cr (Payable)"}</span>
+                  </p>
+                </div>
+              </div>
 
-        {/* Party Info + Balances */}
-        {statementData?.party && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Party Details</span>
-              <p className="font-bold text-slate-900">{statementData.party.company_name || statementData.party.name}</p>
-              <p className="text-xs text-slate-500">{statementData.party.phone || "—"}</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {(statementData.party.type || []).map((t: string) => (
-                  <span key={t} className="text-[9px] font-bold uppercase bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{t}</span>
-                ))}
+              {/* KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <ReportKPICard label="Opening Balance" value={summary.openingBalance ?? 0} color="slate" />
+                <ReportKPICard label="Total Debits (Billed)" value={summary.totalDebit ?? 0} color="emerald" icon={<ArrowDownLeft size={16} />} />
+                <ReportKPICard label="Total Credits (Paid)" value={summary.totalCredit ?? 0} color="indigo" icon={<ArrowUpRight size={16} />} />
+                <ReportKPICard label="Net Closing Balance" value={summary.closingBalance ?? 0} color={summary.closingBalance >= 0 ? "emerald" : "rose"} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Ledger table */}
+                <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
+                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Ledger Entries</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                          {["Date", "Type", "Reference", "Debit (Dr ₹)", "Credit (Cr ₹)", "Balance (₹)"].map(h => (
+                            <th key={h} className={`py-2.5 px-4 ${["Debit (Dr ₹)","Credit (Cr ₹)","Balance (₹)"].includes(h) ? "text-right" : ""}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-light)]">
+                        {/* Opening balance row */}
+                        <tr className="bg-[var(--table-header-bg)]/50 font-bold">
+                          <td className="py-2.5 px-4 text-[var(--text-muted)]">{fmtDate(from)}</td>
+                          <td className="py-2.5 px-4 font-semibold text-[var(--text-primary)]" colSpan={2}>Opening Balance</td>
+                          <td className="py-2.5 px-4 text-right font-mono">—</td>
+                          <td className="py-2.5 px-4 text-right font-mono">—</td>
+                          <td className="py-2.5 px-4 text-right font-mono text-[var(--text-primary)]">{fmtINR(summary.openingBalance)}</td>
+                        </tr>
+
+                        {(statementData.rows ?? []).map((r: any, i: number) => (
+                          <tr key={i} className="hover:bg-[var(--table-row-hover)] h-10">
+                            <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
+                            <td className="py-2 px-4 font-semibold text-[var(--text-primary)] capitalize">{r.type?.replace(/_/g, " ")}</td>
+                            <td className="py-2 px-4 font-mono text-[var(--text-muted)]">{r.reference || "—"}</td>
+                            <td className="py-2 px-4 text-right font-mono text-emerald-500">{r.debit > 0 ? fmtINR(r.debit) : "—"}</td>
+                            <td className="py-2 px-4 text-right font-mono text-indigo-500">{r.credit > 0 ? fmtINR(r.credit) : "—"}</td>
+                            <td className="py-2 px-4 text-right font-mono font-bold text-[var(--text-primary)]">{fmtINR(r.runningBalance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {/* Closing balance row */}
+                      <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
+                        <tr>
+                          <td colSpan={3} className="py-3 px-4 uppercase tracking-wide text-[var(--text-muted)]">Totals / Closing Balance</td>
+                          <td className="py-3 px-4 text-right font-mono text-emerald-500">{fmtINR(summary.totalDebit)}</td>
+                          <td className="py-3 px-4 text-right font-mono text-indigo-500">{fmtINR(summary.totalCredit)}</td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(summary.closingBalance)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Aging chart sidebar */}
+                <div className="space-y-4">
+                  {agingChart.length > 0 && (
+                    <ChartCard title="Aging Breakdown">
+                      <ReportDonutChart data={agingChart} height={180} innerRadius={42} outerRadius={68} valueFormat="currency" />
+                      <div className="mt-3 space-y-1.5">
+                        {Object.entries(aging).map(([k, v]) => (
+                          <div key={k} className="flex justify-between text-xs">
+                            <span className="text-[var(--text-muted)]">{k} days</span>
+                            <span className="font-mono font-bold text-[var(--text-primary)]">{fmtINR(Number(v))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </ChartCard>
+                  )}
+
+                  <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2.5">
+                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Statement Summary</h3>
+                    {[
+                      { label: "Opening Balance", value: fmtINR(summary.openingBalance) },
+                      { label: "Total Debits", value: fmtINR(summary.totalDebit) },
+                      { label: "Total Credits", value: fmtINR(summary.totalCredit) },
+                      { label: "Closing Balance", value: fmtINR(summary.closingBalance) },
+                    ].map(r => (
+                      <div key={r.label} className="flex justify-between text-xs border-b border-[var(--border-light)] pb-2">
+                        <span className="text-[var(--text-muted)]">{r.label}</span>
+                        <span className="font-bold font-mono text-[var(--text-primary)]">{r.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Closing Balance</span>
-              <p className={`text-2xl font-extrabold mt-1 ${(statementData.closing_balance || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                {fmt(Math.abs(statementData.closing_balance || 0))}
-                <span className="text-sm ml-1">{(statementData.closing_balance || 0) >= 0 ? "Cr" : "Dr"}</span>
-              </p>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Total Transactions</span>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">{ledger.length}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Ledger Table */}
-        {isLoading && partyId ? (
-          <div className="text-center py-10 text-slate-400 text-sm font-semibold">Loading statement…</div>
-        ) : partyId && ledger.length > 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-gray-200 text-slate-400 font-bold uppercase tracking-wider">
-                    <th className="py-3 px-6">Date</th>
-                    <th className="py-3 px-6">Type</th>
-                    <th className="py-3 px-6">Reference</th>
-                    <th className="py-3 px-6 text-right">Debit (₹)</th>
-                    <th className="py-3 px-6 text-right">Credit (₹)</th>
-                    <th className="py-3 px-6 text-right">Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 font-medium text-slate-700">
-                  {ledger.map((entry: any, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50/50 h-12">
-                      <td className="py-3 px-6 font-mono text-slate-500">
-                        {new Date(entry.date || entry.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric", month: "short", year: "numeric"
-                        })}
-                      </td>
-                      <td className="py-3 px-6 font-bold">{entry.type || "—"}</td>
-                      <td className="py-3 px-6 font-mono">{entry.reference || entry.bill_number || "—"}</td>
-                      <td className="py-3 px-6 text-right font-mono text-rose-600">
-                        {entry.debit > 0 ? fmt(entry.debit) : "—"}
-                      </td>
-                      <td className="py-3 px-6 text-right font-mono text-emerald-600">
-                        {entry.credit > 0 ? fmt(entry.credit) : "—"}
-                      </td>
-                      <td className="py-3 px-6 text-right font-bold font-mono text-slate-900">{entry.balanceStr || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : partyId ? (
-          <div className="text-center py-10 text-slate-400 text-sm font-semibold">No transactions in selected date range.</div>
-        ) : (
-          <div className="text-center py-16 text-slate-400 text-sm font-semibold">Select a party to view their statement.</div>
-        )}
-      </div>
-    </PageState>
+          )}
+        </PageState>
+      )}
+    </ReportShell>
   );
 }

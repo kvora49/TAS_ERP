@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X, CheckCircle2, Clock, IndianRupee } from "lucide-react";
+import { Plus, X, CheckCircle2, Clock, IndianRupee, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
@@ -83,12 +84,21 @@ export default function EmployeeAdvancesPage() {
     <PageState isLoading={isLoading} error={error?.message}>
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Employee Advance Tracker</h1>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-              Payments & Finance / Salary
-            </p>
+        <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/expenses?tab=salary"
+              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] border border-[var(--border)] transition-colors"
+              title="Back to Salary & Expenses Hub"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-[var(--text-primary)]">Employee Advance Tracker</h1>
+              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
+                Payments & Finance / Salary Advances
+              </p>
+            </div>
           </div>
           <Button onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg">

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { getFutureProofYearOptions } from "@/lib/utils";
 
 interface DateFilters {
   financialYear: string;
@@ -31,6 +32,13 @@ export default function FinancialYearDateFilters({
   const [asOnDate, setAsOnDate] = useState(new Date().toISOString().split("T")[0]);
   const [compareWith, setCompareWith] = useState("none");
 
+  // Dynamic future-proof Financial Years
+  const fyYears = getFutureProofYearOptions(2020, 10);
+  const fyOptions = fyYears.map((y) => {
+    const nextShort = (y + 1).toString().slice(-2);
+    return { value: `${y}-${nextShort}`, label: `FY ${y}-${nextShort}` };
+  });
+
   const handleApply = () => {
     onApply({
       financialYear,
@@ -59,12 +67,11 @@ export default function FinancialYearDateFilters({
         <select
           value={financialYear}
           onChange={(e) => setFinancialYear(e.target.value)}
-          className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[120px]"
+          className="h-9 pl-3 pr-8 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] font-semibold text-xs focus:ring-1 focus:ring-[var(--primary)] outline-none min-w-[120px] cursor-pointer"
         >
-          <option value="2026-27">FY 2026-27</option>
-          <option value="2025-26">FY 2025-26</option>
-          <option value="2024-25">FY 2024-25</option>
-          <option value="2023-24">FY 2023-24</option>
+          {fyOptions.map((fy) => (
+            <option key={fy.value} value={fy.value}>{fy.label}</option>
+          ))}
         </select>
       </div>
 

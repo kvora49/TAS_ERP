@@ -12,6 +12,7 @@ interface PageStateProps {
   onRetry?: () => void;
   isEmpty?: boolean;
   emptyMessage?: string;
+  emptyDescription?: string;
   emptyTitle?: string;
   onEmptyAction?: () => void;
   emptyActionLabel?: string;
@@ -32,7 +33,8 @@ export default function PageState({
   error,
   onRetry,
   isEmpty = false,
-  emptyMessage = "No records found matching the query.",
+  emptyMessage: emptyMessageProp,
+  emptyDescription,
   emptyTitle = "No Data Available",
   onEmptyAction,
   emptyActionLabel,
@@ -43,6 +45,7 @@ export default function PageState({
   skeletonCount = 4,
   children,
 }: PageStateProps) {
+  const emptyMessage = emptyDescription || emptyMessageProp || "No records found matching the query.";
   const hasError = isError !== undefined ? isError : Boolean(error);
 
   if (isLoading) {

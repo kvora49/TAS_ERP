@@ -20,10 +20,16 @@ import {
   Image as ImageIcon,
   Edit,
   Sliders,
+  Calculator,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import ColourDot from "@/components/shared/ColourDot";
 import { cn } from "@/lib/utils";
+
+import DesignCostingSection from "../_components/DesignCostingSection";
+import DesignNotesSection from "../_components/DesignNotesSection";
+import DesignStockFiltersSection from "../_components/DesignStockFiltersSection";
 
 interface Godown {
   id: string;
@@ -78,7 +84,7 @@ export default function MasterDataDesignDetailPage({
 }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DesignDetailResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"matrix" | "specs" | "lots">("matrix");
+  const [activeTab, setActiveTab] = useState<"matrix" | "costing" | "notes" | "filters" | "specs" | "lots">("matrix");
 
   const fetchDetail = async () => {
     setLoading(true);
@@ -202,45 +208,71 @@ export default function MasterDataDesignDetailPage({
           </div>
         </div>
 
-        {/* 3 Main Workspace Navigation Tabs */}
-        <div className="border-t border-slate-100 pt-4 flex items-center gap-2">
+        {/* Workspace Navigation Tabs (Inline Buttons) */}
+        <div className="border-t border-slate-100 pt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab("matrix")}
             className={cn(
-              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border",
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border cursor-pointer",
               activeTab === "matrix"
                 ? "bg-[#5B63D3] text-white border-[#5B63D3] shadow-md"
                 : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
             )}
           >
             <Boxes size={15} />
-            <span>1. Godown Stock Matrix (Image 2)</span>
+            <span>1. Godown Stock Matrix</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("costing")}
+            className={cn(
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border cursor-pointer",
+              activeTab === "costing"
+                ? "bg-[#5B63D3] text-white border-[#5B63D3] shadow-md"
+                : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+            )}
+          >
+            <Calculator size={15} className={activeTab === "costing" ? "text-white" : "text-amber-600"} />
+            <span>2. Design Costing Calculator</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("notes")}
+            className={cn(
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border cursor-pointer",
+              activeTab === "notes"
+                ? "bg-[#5B63D3] text-white border-[#5B63D3] shadow-md"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+            )}
+          >
+            <Calendar size={15} className={activeTab === "notes" ? "text-white" : "text-emerald-600"} />
+            <span>3. Date Notes & Reminders</span>
           </button>
 
           <button
             onClick={() => setActiveTab("specs")}
             className={cn(
-              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border",
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border cursor-pointer",
               activeTab === "specs"
                 ? "bg-[#5B63D3] text-white border-[#5B63D3] shadow-md"
                 : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
             )}
           >
             <Tag size={15} />
-            <span>2. Design Specifications & Photos</span>
+            <span>4. Specifications & Photos</span>
           </button>
 
           <button
             onClick={() => setActiveTab("lots")}
             className={cn(
-              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border",
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border cursor-pointer",
               activeTab === "lots"
                 ? "bg-[#5B63D3] text-white border-[#5B63D3] shadow-md"
                 : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
             )}
           >
             <Factory size={15} />
-            <span>3. Production Lots & Runs</span>
+            <span>5. Production Lots & Runs</span>
             {productionLots.length > 0 && (
               <span className={cn(
                 "px-2 py-0.5 text-[10px] rounded-full font-black ml-1",
@@ -415,7 +447,17 @@ export default function MasterDataDesignDetailPage({
         </div>
       )}
 
-      {/* TAB 2: DESIGN SPECIFICATIONS */}
+      {/* TAB 2: DESIGN COSTING CALCULATOR */}
+      {activeTab === "costing" && (
+        <DesignCostingSection designId={params.id} />
+      )}
+
+      {/* TAB 3: DATE NOTES & REMINDERS */}
+      {activeTab === "notes" && (
+        <DesignNotesSection designId={params.id} />
+      )}
+
+      {/* TAB 4: DESIGN SPECIFICATIONS */}
       {activeTab === "specs" && (
         <div className="space-y-6">
           {/* Photo Gallery & Basic Attributes */}

@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, X, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { getFutureProofYearOptions } from "@/lib/utils";
 
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -31,7 +33,7 @@ export default function ProcessSalaryPage() {
   const [bankAccountId, setBankAccountId] = useState("");
   const [paymentMode, setPaymentMode] = useState("bank_transfer");
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  const yearOptions = getFutureProofYearOptions();
 
   // Fetch workers with pending salary
   const { data: workersData, isLoading } = useQuery({
@@ -153,27 +155,36 @@ export default function ProcessSalaryPage() {
     <PageState isLoading={isLoading} error={undefined}>
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Process Salary</h1>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-              Payments & Finance / Salary Management
-            </p>
+        <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/expenses?tab=salary"
+              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] border border-[var(--border)] transition-colors"
+              title="Back to Salary & Expenses Hub"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-[var(--text-primary)]">Process Salary</h1>
+              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
+                Payments & Finance / Bulk Payroll Processing
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Period selector */}
         <div className="flex items-center gap-3 flex-wrap">
           <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none">
+            className="h-9 pl-3 pr-8 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer">
             {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none">
+            className="h-9 pl-3 pr-8 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer">
             {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
           <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none min-w-[200px]">
+            className="h-9 pl-3 pr-8 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold outline-none min-w-[200px] cursor-pointer">
             <option value="">All Workers</option>
             {workers.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>

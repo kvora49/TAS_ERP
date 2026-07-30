@@ -9,6 +9,7 @@ import {
   Settings,
   Users,
   QrCode,
+  BarChart2,
 } from "lucide-react";
 import { QueryClient } from "@tanstack/react-query";
 
@@ -54,6 +55,11 @@ export const IMPLEMENTED_ROUTES = [
   "/production/job-work/list",
   "/production/job-work/record-payment",
   "/payments/supplier",
+  "/payments",
+  "/payments/receive",
+  "/payments/make",
+  "/payments/advances",
+  "/payments/direct-link",
   "/finished-stock",
   "/finished-stock/designs",
   "/finished-stock/adjustments",
@@ -231,31 +237,23 @@ export const navItems: NavItem[] = [
     name: "Payments & Finance",
     icon: Wallet,
     subItems: [
-      {
-        name: "Payments",
-        subItems: [
-          { name: "Receive Payment", href: "/payments/receive" },
-          { name: "Make Payment", href: "/payments/make" },
-          { name: "Advance Payments", href: "/payments/advances" },
-          { name: "Direct Payment Linking", href: "/payments/direct-link" },
-        ],
-      },
-      { name: "Write-offs", href: "/payments/write-offs" },
-      { name: "Expenses", href: "/expenses" },
-      { name: "Misc Income", href: "/misc-income" },
-      { name: "Salary", href: "/salary" },
-      {
-        name: "Reports",
-        subItems: [
-          { name: "Balance Sheet", href: "/reports/balance-sheet" },
-          { name: "Profit & Loss", href: "/reports/profit-loss" },
-          { name: "GST Summary", href: "/reports/gst-summary" },
-          { name: "Cash Flow", href: "/reports/cash-flow" },
-          { name: "Stock Valuation", href: "/reports/stock-valuation" },
-          { name: "Party Statement", href: "/reports/party-statement" },
-        ],
-      },
+      { name: "Payments", href: "/payments" },
+      { name: "Expenses & Adjustments", href: "/expenses" },
       { name: "Reminders & WhatsApp", href: "/reminders" },
+    ],
+  },
+  {
+    name: "Reports",
+    icon: BarChart2,
+    subItems: [
+      { name: "Financial Reports", href: "/reports/financial" },
+      { name: "Sales Reports", href: "/reports/sales" },
+      { name: "Purchase Reports", href: "/reports/purchases" },
+      { name: "Payment Reports", href: "/reports/payments" },
+      { name: "Inventory & Stock", href: "/reports/inventory" },
+      { name: "Production & Workers", href: "/reports/production" },
+      { name: "Party Statement", href: "/reports/party-statement" },
+      { name: "Analysis", href: "/reports/analysis" },
     ],
   },
   {

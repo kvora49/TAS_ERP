@@ -16,11 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown, Calculator, Calendar } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import MainDesignStockFiltersPanel from "./_components/MainDesignStockFiltersPanel";
 
 // Validation schema for sub-colour modal
 const colorSchema = z.object({
@@ -102,6 +103,7 @@ export default function DesignsPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [sizeSets, setSizeSets] = useState<SizeSet[]>([]);
+  const [godowns, setGodowns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -109,6 +111,18 @@ export default function DesignsPage() {
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>("all");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
+  const [selectedGodownFilter, setSelectedGodownFilter] = useState<string>("all");
+  const [panelFilters, setPanelFilters] = useState<any>({
+    selectedGodown: "all",
+    selectedDesign: "all",
+    selectedColour: "all",
+    selectedSize: "all",
+    selectedLot: "all",
+    stockType: "all",
+    movementType: "all",
+    viewMode: "design_wise",
+    searchQuery: "",
+  });
   const [viewMode, setViewMode] = useState<"grouped" | "grid">("grouped");
 
   // Editor screen toggle
@@ -154,14 +168,15 @@ export default function DesignsPage() {
   const colorImageUrl = watchColor("image_url");
   const colorHexValue = watchColor("colour_hex");
 
-  // Fetch designs, brands, size sets
+  // Fetch designs, brands, size sets, godowns
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resDesigns, resBrands, resSizeSets] = await Promise.all([
+      const [resDesigns, resBrands, resSizeSets, resGodowns] = await Promise.all([
         fetch("/api/finished-stock/designs"),
         fetch("/api/master-data/brands"),
         fetch("/api/master-data/size-sets"),
+        fetch("/api/master-data/godowns"),
       ]);
 
       if (!resDesigns.ok) throw new Error("Failed to load designs");
@@ -171,10 +186,12 @@ export default function DesignsPage() {
       const dData = await resDesigns.json();
       const bData = await resBrands.json();
       const sData = await resSizeSets.json();
+      const gData = resGodowns.ok ? await resGodowns.json() : { godowns: [] };
 
       setDesigns(dData.designs || []);
       setBrands(bData.brands || []);
       setSizeSets(sData.sizeSets || []);
+      setGodowns(gData.godowns || []);
     } catch (err: any) {
       toast.error(err.message || "Error loading page assets");
     } finally {
@@ -346,8 +363,8 @@ export default function DesignsPage() {
     }
   });
 
-  const filteredDesigns = designs.filter((d) => {
-    const s = search.trim().toLowerCase();
+  const filteredDesigns = designs.filter((d: any) => {
+    const s = (panelFilters?.searchQuery || search || "").trim().toLowerCase();
     const matchesSearch =
       !s ||
       d.name?.toLowerCase().includes(s) ||
@@ -364,7 +381,32 @@ export default function DesignsPage() {
       selectedStatusFilter === "all" ||
       (selectedStatusFilter === "active" ? d.is_active : !d.is_active);
 
-    return matchesSearch && matchesBrand && matchesCategory && matchesStatus;
+    const matchesDesign =
+      !panelFilters?.selectedDesign ||
+      panelFilters.selectedDesign === "all" ||
+      d.id === panelFilters.selectedDesign;
+
+    const matchesColour =
+      !panelFilters?.selectedColour ||
+      panelFilters.selectedColour === "all" ||
+      d.design_colours?.some(
+        (c: any) => c.colour_name?.toLowerCase() === panelFilters.selectedColour.toLowerCase()
+      );
+
+    const matchesSize =
+      !panelFilters?.selectedSize ||
+      panelFilters.selectedSize === "all" ||
+      d.size_set?.sizes?.includes(panelFilters.selectedSize);
+
+    return (
+      matchesSearch &&
+      matchesBrand &&
+      matchesCategory &&
+      matchesStatus &&
+      matchesDesign &&
+      matchesColour &&
+      matchesSize
+    );
   });
 
   // Group designs by Brand for the brand-wise section view
@@ -510,8 +552,8 @@ export default function DesignsPage() {
             <div className="flex items-center gap-1">
               <Link
                 href={`/master-data/designs/${design.id}`}
-                className="w-7 h-7 rounded-lg border border-[var(--border)] bg-[var(--primary-light)] hover:bg-[var(--primary)] hover:text-white text-[var(--primary)] flex items-center justify-center cursor-pointer transition-all"
-                title="View Stock Matrix & Details"
+                className="w-7 h-7 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--card-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
+                title="View Design Details & Stock"
               >
                 <Eye size={13} />
               </Link>
@@ -553,133 +595,8 @@ export default function DesignsPage() {
             actionIcon={<Plus size={16} className="text-white" />}
           />
 
-          {/* BRAND TABS BAR */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-[var(--border)]">
-            <button
-              onClick={() => setSelectedBrandFilter("all")}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                selectedBrandFilter === "all"
-                  ? "bg-[var(--primary)] text-white shadow-sm font-bold"
-                  : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--page-bg)] border border-[var(--border)]"
-              }`}
-            >
-              <span>All Brands</span>
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  selectedBrandFilter === "all"
-                    ? "bg-white/20 text-white"
-                    : "bg-[var(--page-bg)] text-[var(--text-muted)]"
-                }`}
-              >
-                {designs.length}
-              </span>
-            </button>
-
-            {brands.map((b) => {
-              const count = brandCounts[b.id] || 0;
-              const isSelected = selectedBrandFilter === b.id;
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => setSelectedBrandFilter(b.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                    isSelected
-                      ? "bg-[var(--primary)] text-white shadow-sm font-bold"
-                      : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--page-bg)] border border-[var(--border)]"
-                  }`}
-                >
-                  <span>{b.name}</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      isSelected
-                        ? "bg-white/20 text-white"
-                        : "bg-[var(--page-bg)] text-[var(--text-muted)]"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* FILTER CONTROL TOOLBAR */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Category Filter */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[var(--text-muted)]">Category:</span>
-                <select
-                  value={selectedCategoryFilter}
-                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                  className="h-9 pl-3 pr-8 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer transition-all"
-                >
-                  <option value="all">All Categories</option>
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[var(--text-muted)]">Status:</span>
-                <select
-                  value={selectedStatusFilter}
-                  onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                  className="h-9 pl-3 pr-8 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer transition-all"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="active">Active Only</option>
-                  <option value="inactive">Inactive Only</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex bg-[var(--page-bg)] p-1 rounded-lg border border-[var(--border)]">
-                <button
-                  onClick={() => setViewMode("grouped")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-                    viewMode === "grouped"
-                      ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm font-bold"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                  title="Group designs brand-wise"
-                >
-                  <Layers size={14} />
-                  <span className="hidden sm:inline">Brand Sections</span>
-                </button>
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-                    viewMode === "grid"
-                      ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm font-bold"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                  title="View as single grid"
-                >
-                  <LayoutGrid size={14} />
-                  <span className="hidden sm:inline">Grid View</span>
-                </button>
-              </div>
-
-              {/* Search Input */}
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
-                <input
-                  type="text"
-                  placeholder="Search design name, SKU, brand..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
-                />
-              </div>
-            </div>
-          </div>
+          {/* 10-DIMENSIONAL DESIGN STOCK FILTERS & ANALYSIS PANEL */}
+          <MainDesignStockFiltersPanel onFilterChange={setPanelFilters} />
 
           {/* CONTENT AREA */}
           {loading ? (

@@ -22,3 +22,15 @@ export function formatCurrency(val: number): string {
     maximumFractionDigits: 2,
   }).format(val || 0);
 }
+
+/**
+ * Generates a future-proof list of years starting from a baseline year (e.g. 2020)
+ * dynamically extending up to currentYear + futureBuffer (default 10 years).
+ * Automatically rolls forward over time without requiring code changes in future years.
+ */
+export function getFutureProofYearOptions(startYear = 2020, futureBuffer = 10): number[] {
+  const currentYear = new Date().getFullYear();
+  const maxYear = Math.max(currentYear + futureBuffer, currentYear);
+  const length = maxYear - startYear + 1;
+  return Array.from({ length }, (_, i) => maxYear - i);
+}

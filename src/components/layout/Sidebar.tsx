@@ -74,21 +74,15 @@ export default function Sidebar() {
       pathname.startsWith("/expenses") ||
       pathname.startsWith("/misc-income") ||
       pathname.startsWith("/salary") ||
-      pathname.startsWith("/reminders") ||
-      pathname.startsWith("/reports/balance-sheet") ||
-      pathname.startsWith("/reports/profit-loss") ||
-      pathname.startsWith("/reports/gst-summary") ||
-      pathname.startsWith("/reports/cash-flow") ||
-      pathname.startsWith("/reports/stock-valuation") ||
-      pathname.startsWith("/reports/party-statement")
+      pathname.startsWith("/reminders")
     ) {
       setExpandedMenus((prev) => ({ ...prev, "Payments & Finance": true }));
       if (pathname.startsWith("/payments/")) {
         setExpandedMenus((prev) => ({ ...prev, Payments: true }));
       }
-      if (pathname.startsWith("/reports/")) {
-        setExpandedMenus((prev) => ({ ...prev, Reports: true }));
-      }
+    }
+    if (pathname.startsWith("/reports")) {
+      setExpandedMenus((prev) => ({ ...prev, Reports: true }));
     }
   }, [pathname, setNavigatingTo]);
 
