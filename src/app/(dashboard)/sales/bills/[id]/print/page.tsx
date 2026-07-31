@@ -66,6 +66,8 @@ export default function SaleBillPrintPage() {
   const [brandConfig, setBrandConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const { getEffectiveLogo, business } = useCompanyProfile();
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -341,7 +343,6 @@ export default function SaleBillPrintPage() {
   const showDiscountVal = brandConfig?.show_discount_column !== false;
   const showTransportVal = brandConfig?.show_transport_details !== false;
 
-  const { getEffectiveLogo, business } = useCompanyProfile();
   const effectiveLogo = getEffectiveLogo(brand?.logo_url);
   const showLogo = !!effectiveLogo;
   const sellerGstin = brand?.gstin || business?.gstin || "";
