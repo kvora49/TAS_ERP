@@ -123,7 +123,11 @@ export class SalesBillRepository {
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);
     if (error) throw error;
-    const normalized = (data || []).map((b) => ({ ...b, is_sales_return: false }));
+    const normalized = (data || []).map((b) => ({
+      ...b,
+      is_sales_return: false,
+      is_temporary: (b.bill_number?.startsWith("TEMP-") || b.remarks?.includes("[TEMPORARY]")) ?? false,
+    }));
     return { data: normalized, total: count || 0 };
   }
 
@@ -133,7 +137,7 @@ export class SalesBillRepository {
       .select(`
         *,
         party:parties(*),
-        items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name)),
+        items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category), rolls:sale_rolls(*)),
         charges:sale_bill_charges(*)
       `)
       .eq("id", id)
@@ -142,6 +146,9 @@ export class SalesBillRepository {
       .maybeSingle();
 
     if (error) throw error;
+    if (bill) {
+      bill.is_temporary = (bill.bill_number?.startsWith("TEMP-") || bill.remarks?.includes("[TEMPORARY]")) ?? false;
+    }
     return bill;
   }
 
@@ -153,7 +160,7 @@ export class SalesBillRepository {
         .select(`
           *,
           party:parties(*),
-          items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name)),
+          items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category), rolls:sale_rolls(*)),
           charges:sale_bill_charges(*)
         `)
         .eq("id", id)
@@ -172,6 +179,7 @@ export class SalesBillRepository {
     if (billResult.error) throw billResult.error;
     const bill = billResult.data;
     if (!bill) return null;
+    bill.is_temporary = (bill.bill_number?.startsWith("TEMP-") || bill.remarks?.includes("[TEMPORARY]")) ?? false;
 
     const brand = brandResult.data || null;
 
@@ -208,7 +216,7 @@ export class SalesBillRepository {
 
   async create(billData: any, items: any[], charges: any[]) {
     // Strip non-existing columns and map transporter details to eway columns
-    const { gstin, phone, transporter_name, vehicle_no, ...cleanData } = billData;
+    const { gstin, phone, transporter_name, vehicle_no, is_temporary, ...cleanData } = billData;
     const insertableData = {
       ...cleanData,
       eway_transporter: transporter_name || null,
@@ -226,16 +234,53 @@ export class SalesBillRepository {
     if (billErr) throw billErr;
 
     // 2. Insert items
+    let insertedItems: any[] = [];
     if (items.length > 0) {
-      const itemsToInsert = items.map(it => ({
-        ...it,
-        bill_id: bill.id,
-        business_id: billData.business_id,
-      }));
-      const { error: itemsErr } = await this.supabase
+      const itemsToInsert = items.map((it) => {
+        const { rolls, item_name, cost_per_piece, ...cleanItem } = it;
+        const payload: Record<string, any> = {
+          ...cleanItem,
+          bill_id: bill.id,
+          business_id: billData.business_id,
+        };
+
+        // Omit optional fields if undefined/null or default
+        if (!payload.item_type || payload.item_type === "finished_goods") {
+          delete payload.item_type;
+        }
+        if (!payload.material_type_id) {
+          delete payload.material_type_id;
+        }
+        if (!payload.design_id) {
+          delete payload.design_id;
+        }
+        if (!payload.colour_id) {
+          delete payload.colour_id;
+        }
+
+        return payload;
+      });
+
+      const { data: inserted, error: itemsErr } = await this.supabase
         .from("sale_bill_items")
-        .insert(itemsToInsert);
-      if (itemsErr) throw itemsErr;
+        .insert(itemsToInsert)
+        .select();
+
+      if (itemsErr) {
+        const errMsg = itemsErr.message || "";
+        if (
+          errMsg.includes("schema cache") ||
+          errMsg.includes("column") ||
+          errMsg.includes("design_id") ||
+          errMsg.includes("not-null")
+        ) {
+          throw new Error(
+            `Database schema update required. Please run 'supabase/master_schema_patch.sql' in your Supabase SQL Editor to allow selling Fabric Rolls without a garment design_id.`
+          );
+        }
+        throw itemsErr;
+      }
+      insertedItems = inserted || [];
     }
 
     // 3. Insert charges
@@ -251,11 +296,67 @@ export class SalesBillRepository {
       if (chargesErr) throw chargesErr;
     }
 
-    // 4. Deduct finished stock and record stock_ledger entries
+    // 4. Process item type specific stock deductions and roll tracking
     if (items.length > 0) {
-      for (const item of items) {
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const insertedItem = insertedItems[idx];
         const qty = Number(item.quantity || 0);
         if (qty <= 0) continue;
+
+        const isFabric = item.item_type === "fabric" || !!item.material_type_id;
+
+        if (isFabric && insertedItem) {
+          // A) Insert fabric rolls into sale_rolls
+          if (item.rolls && Array.isArray(item.rolls) && item.rolls.length > 0) {
+            const rollsToInsert = item.rolls.map((r: any) => ({
+              business_id: billData.business_id,
+              sale_item_id: insertedItem.id,
+              purchase_roll_id: r.purchase_roll_id || null,
+              roll_number: r.roll_number,
+              meters: Number(r.meters || 0),
+              shade: r.shade || null,
+              width: r.width ? Number(r.width) : null,
+              comment: r.comment || null,
+            }));
+            await this.supabase.from("sale_rolls").insert(rollsToInsert);
+
+            // B) Deduct remaining_meters from purchase_rolls
+            for (const r of item.rolls) {
+              if (r.purchase_roll_id) {
+                const { data: pRoll } = await this.supabase
+                  .from("purchase_rolls")
+                  .select("remaining_meters")
+                  .eq("id", r.purchase_roll_id)
+                  .maybeSingle();
+
+                if (pRoll) {
+                  const newRem = Math.max(0, Number(pRoll.remaining_meters || 0) - Number(r.meters || 0));
+                  await this.supabase
+                    .from("purchase_rolls")
+                    .update({ remaining_meters: newRem })
+                    .eq("id", r.purchase_roll_id);
+                }
+              }
+            }
+          }
+
+          // C) Record raw material stock ledger entry
+          if (!billData.is_temporary && item.material_type_id) {
+            await this.supabase.from("stock_ledger").insert({
+              business_id: billData.business_id,
+              item_type: "raw_material",
+              item_id: item.material_type_id,
+              godown_id: billData.godown_id,
+              transaction_type: "sale",
+              quantity_delta: -qty,
+              value_delta: -Number(item.amount || 0),
+              reference_table: "sale_bills",
+              reference_id: bill.id,
+              created_by: billData.created_by || null,
+            });
+          }
+        } else if (!billData.is_temporary && item.design_id) {
 
         // Fetch fresh finished_stock row to prevent stale overwrites across multiple size items
         let { data: fsRows } = await this.supabase
@@ -321,11 +422,12 @@ export class SalesBillRepository {
         }
       }
     }
-
-    return bill;
   }
 
-  async updateAtomic(billId: string, businessId: string, billData: any, items: any[], charges: any[]) {
+  return bill;
+}
+
+async updateAtomic(billId: string, businessId: string, billData: any, items: any[], charges: any[]) {
     const { gstin, phone, transporter_name, vehicle_no, ...cleanData } = billData;
     const updateData = {
       ...cleanData,

@@ -26,11 +26,16 @@ export function NavigationExperienceProvider({ children }: { children: React.Rea
   const [isNavigating, setIsNavigating] = useState(false);
 
   const setMotionProfile = (level: ExperienceLevel) => {
-    if (EXPERIENCE_PROFILES[level]) {
-      setProfileState(EXPERIENCE_PROFILES[level]);
+    try {
+      const targetProfile = EXPERIENCE_PROFILES[level] || EXPERIENCE_PROFILES.balanced;
+      React.startTransition(() => {
+        setProfileState(targetProfile);
+      });
       if (typeof document !== 'undefined') {
-        document.cookie = `tas-motion-profile=${level}; path=/; max-age=31536000; SameSite=Lax`;
+        document.cookie = `tas-motion-profile=${targetProfile.level}; path=/; max-age=31536000; SameSite=Lax`;
       }
+    } catch (err) {
+      console.error("Failed to update motion profile:", err);
     }
   };
 
@@ -54,11 +59,18 @@ export function NavigationExperienceProvider({ children }: { children: React.Rea
   }, []);
 
   useEffect(() => {
-    const tokens = buildCSSTokens(profile);
-    const root = document.documentElement;
-    Object.entries(tokens).forEach(([key, val]) => {
-      root.style.setProperty(key, val);
-    });
+    try {
+      const currentProfile = profile || EXPERIENCE_PROFILES.balanced;
+      const tokens = buildCSSTokens(currentProfile);
+      const root = document.documentElement;
+      if (root) {
+        Object.entries(tokens).forEach(([key, val]) => {
+          root.style.setProperty(key, val);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to apply CSS tokens for motion profile:", err);
+    }
   }, [profile]);
 
   useEffect(() => {

@@ -204,6 +204,38 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         </span>
       ),
     },
+    {
+      label: "Days in Working Stage",
+      value: (
+        <span className="font-semibold text-blue-600">
+          ⏱️ {lot.days_in_working_stage || 1} {lot.days_in_working_stage === 1 ? "day" : "days"}
+        </span>
+      ),
+    },
+    {
+      label: "Worker Completion Time",
+      value: (
+        <span className="font-semibold text-emerald-600">
+          🏁 {lot.status === "completed" ? `${lot.days_taken_to_complete || lot.days_in_working_stage || 1} days` : "In Progress"}
+        </span>
+      ),
+    },
+    {
+      label: "Labor Payment Status",
+      value: (
+        <span
+          className={`font-bold uppercase text-xs px-2 py-0.5 rounded-full ${
+            lot.lot_payment_status === "paid"
+              ? "bg-emerald-100 text-emerald-700"
+              : lot.lot_payment_status === "partial"
+              ? "bg-amber-100 text-amber-700"
+              : "bg-rose-100 text-rose-700"
+          }`}
+        >
+          {lot.lot_payment_status || "paid"}
+        </span>
+      ),
+    },
     { label: "Total Stages", value: totalStagesCount },
     { label: "Completed Stages", value: completedStagesCount },
     { label: "In Progress Stages", value: inProgressStagesCount },

@@ -5,22 +5,61 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(dateString: string | Date | null | undefined): string {
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function formatDate(dateString: string | Date | null | undefined, customFormat?: string): string {
   if (!dateString) return "—";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "—";
   const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+  const monthName = MONTH_NAMES[date.getMonth()];
   const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+
+  const fmt = customFormat || "";
+  if (fmt.includes("DD MMM YYYY")) {
+    return `${day} ${monthName} ${year}`;
+  }
+  if (fmt.includes("YYYY-MM-DD")) {
+    return `${year}-${monthNum}-${day}`;
+  }
+  if (fmt.includes("MM/DD/YYYY")) {
+    return `${monthNum}/${day}/${year}`;
+  }
+  // Default fallback: DD/MM/YYYY
+  return `${day}/${monthNum}/${year}`;
 }
 
-export function formatCurrency(val: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(val || 0);
+export function formatCurrency(val: number, currencyStr?: string): string {
+  let currencyCode = "INR";
+  let locale = "en-IN";
+
+  if (currencyStr) {
+    if (currencyStr.includes("USD")) {
+      currencyCode = "USD";
+      locale = "en-US";
+    } else if (currencyStr.includes("EUR")) {
+      currencyCode = "EUR";
+      locale = "de-DE";
+    } else if (currencyStr.includes("GBP")) {
+      currencyCode = "GBP";
+      locale = "en-GB";
+    }
+  }
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 2,
+    }).format(val || 0);
+  } catch {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(val || 0);
+  }
 }
 
 /**

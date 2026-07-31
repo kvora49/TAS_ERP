@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowLeft, Loader2, Search, Check, ChevronDown } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -78,9 +79,9 @@ function numberToWords(num: number): string {
 }
 
 const purchaseRollSchema = z.object({
-  roll_number: z.string().min(1, "Roll number is required"),
-  meters: z.coerce.number().min(0.01, "Meters must be greater than 0"),
-  shade: z.string().min(1, "Shade is required"),
+  roll_number: z.string().optional(),
+  meters: z.coerce.number().optional(),
+  shade: z.string().optional().nullable(),
   comment: z.string().optional(),
   width: z.coerce.number().optional().nullable(),
   weight_unit: z.string().optional().nullable(),
@@ -97,8 +98,8 @@ const purchaseItemSchema = z.object({
   asset_tag: z.string().optional().nullable(),
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
-  quantity: z.coerce.number().min(0.01, "Quantity must be greater than 0"),
-  rate: z.coerce.number().min(0.01, "Rate must be greater than 0"),
+  quantity: z.coerce.number().min(0.001, "Quantity must be greater than 0"),
+  rate: z.coerce.number().min(0, "Rate must be 0 or greater"),
   discount_percent: z.coerce.number().min(0).max(100),
   taxable_value: z.coerce.number(),
   gst_percent: z.coerce.number().min(0).max(100),
@@ -512,6 +513,7 @@ interface PurchaseFormProps {
 
 export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const [godowns, setGodowns] = useState<any[]>([]);
@@ -958,23 +960,43 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to save invoice");
+      queryClient.invalidateQueries({ queryKey: ["raw-material-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["raw-material-purchase-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
 
       toast.success(id ? "Purchase invoice updated successfully" : "Purchase invoice recorded successfully");
-      router.push("/raw-materials/purchases");
+      router.push("/purchases");
       router.refresh();
     } catch (err: any) {
-      toast.error(err.message || "Failed to submit purchase");
+      toast.error(err.message || "An unexpected error occurred");
+    }
+  };
+
+  const onInvalid = (errors: any) => {
+    console.error("Purchase form validation errors:", errors);
+    if (errors.supplier_id) {
+      toast.error("Please select a Supplier");
+    } else if (errors.godown_id) {
+      toast.error("Please select a Godown Location");
+    } else if (errors.invoice_no) {
+      toast.error("Please enter the Supplier Invoice Number");
+    } else if (errors.invoice_date) {
+      toast.error("Please select the Invoice Date");
+    } else if (errors.items) {
+      toast.error("Please check line items (ensure material/item selected and quantity > 0)");
+    } else {
+      const firstKey = Object.keys(errors)[0];
+      const msg = errors[firstKey]?.message || "Please fill in all required fields";
+      toast.error(msg);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Top Bar Action */}
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="max-w-[1400px] mx-auto space-y-6 pb-20 select-none">
+      {/* Top Header */}
       <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
         <div className="flex items-center gap-3">
-          <Link href="/raw-materials/purchases" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
+          <Link href="/purchases" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
             <ArrowLeft className="h-5 w-5 text-[#64748B]" />
           </Link>
           <div>
@@ -982,13 +1004,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               {id ? "Edit Purchase Invoice" : "Record Purchase Invoice"}
             </h1>
             <p className="text-xs text-[#64748B]">
-              Input supplier details, line items, and upload invoice attachments.
+              Inward raw material invoice entry with GST, fabric roll tracking, and party ledger posting.
             </p>
           </div>
         </div>
+
         <div className="flex items-center gap-3">
           <Link
-            href="/raw-materials/purchases"
+            href="/purchases"
             className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
           >
             Cancel
@@ -996,7 +1019,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2"
+            onClick={handleSubmit(onSubmit, onInvalid)}
+            className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2 cursor-pointer"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {id ? "Save Changes" : "Submit Invoice"}

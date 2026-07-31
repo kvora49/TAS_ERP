@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ThemeToggle from "./ThemeToggle";
+import { cn } from "@/lib/utils";
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+
+// Header component with collapsible sidebar support
 
 interface BrandItem {
   id: string;
@@ -24,11 +28,13 @@ interface BrandItem {
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const filters = useAppStore((state) => state.filters);
   const setFilters = useAppStore((state) => state.setFilters);
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
+  const { logoUrl, companyName } = useCompanyProfile();
 
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [notificationCount, setNotificationCount] = useState(3); // placeholder
@@ -70,17 +76,54 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-[232px] h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-6 lg:px-8 select-none transition-colors duration-200 print:hidden">
-      {/* Left: Hamburger + Breadcrumb */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--page-bg)] md:hidden cursor-pointer"
-        >
-          <Menu size={20} />
-        </button>
+    <header className="fixed top-0 right-0 left-0 h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-4 select-none transition-all duration-200 print:hidden">
+      {/* Left: Logo block + Hamburger + Breadcrumb */}
+      <div className="flex items-center gap-3 min-w-0">
 
+        {/* Branding block — always visible in header */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Hamburger toggle */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+          >
+            <Menu size={18} />
+          </button>
+
+          {/* Logo */}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={companyName || "Company Logo"}
+              className="w-9 h-9 rounded-xl object-contain bg-white p-0.5 shadow-md shrink-0"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-lg shadow-[#6366F1]/30 shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 11.51l3.17 3.17a1 1 0 001.42 0L20 8M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 16H3a1 1 0 01-1-1v-2.5a1 1 0 011-1h1M21 16h1a1 1 0 001-1v-2.5a1 1 0 00-1-1h-1M4 16h16M4 12V8a4 4 0 018 0v4M12 2v2" />
+              </svg>
+            </div>
+          )}
+
+          {/* App title + company name */}
+          <div className="flex flex-col justify-center leading-tight">
+            <span className="font-extrabold text-[var(--text-primary)] tracking-wide text-sm leading-none">
+              TAS ERP
+            </span>
+            {companyName && (
+              <span className="text-[10px] font-bold text-[var(--primary)] tracking-wider uppercase leading-tight mt-0.5 whitespace-nowrap">
+                {companyName}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="h-5 w-px bg-[var(--border)] hidden md:block" />
+
+        {/* Breadcrumb */}
         <div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)]">
           {getBreadcrumbs().map((part, idx, arr) => (
             <div key={idx} className="flex items-center gap-1.5">

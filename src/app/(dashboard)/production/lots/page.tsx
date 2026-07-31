@@ -55,6 +55,11 @@ interface Lot {
   colours?: Array<{ id?: string; colour_name: string; hex_code: string | null }>;
   size_set?: { id?: string; name?: string; sizes: string[] };
   is_moved_to_stock?: boolean;
+  days_in_working_stage?: number;
+  days_taken_to_complete?: number | null;
+  lot_payment_status?: "paid" | "unpaid" | "partial" | "none";
+  total_labor_cost?: number;
+  total_paid_amount?: number;
 }
 
 interface Brand {
@@ -68,6 +73,12 @@ interface Design {
   code: string;
 }
 
+interface Worker {
+  id: string;
+  name: string;
+  worker_id: string;
+}
+
 export default function ProductionLotsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -79,6 +90,9 @@ export default function ProductionLotsPage() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [designFilter, setDesignFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [workerFilter, setWorkerFilter] = useState("all");
+  const [workerLotStatusFilter, setWorkerLotStatusFilter] = useState("all"); // 'all' | 'working' | 'completed'
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all"); // 'all' | 'paid' | 'unpaid'
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -98,6 +112,12 @@ export default function ProductionLotsPage() {
     return res.json();
   });
 
+  const { data: workersData } = useERPQuery(["workers-list-active"], async () => {
+    const res = await fetch("/api/workers?active=true");
+    if (!res.ok) throw new Error("Failed to fetch workers");
+    return res.json();
+  });
+
   const { data: statsData } = useERPQuery(["lots-stats"], async () => {
     const res = await fetch("/api/production/lots/stats");
     if (!res.ok) throw new Error("Failed to fetch stats");
@@ -105,17 +125,35 @@ export default function ProductionLotsPage() {
   });
 
   const lotsQuery = useERPQuery(
-    ["lots-list", brandFilter, designFilter, statusFilter, debouncedSearch, startDate, endDate, currentPage],
+    [
+      "lots-list",
+      brandFilter,
+      designFilter,
+      statusFilter,
+      workerFilter,
+      workerLotStatusFilter,
+      paymentStatusFilter,
+      debouncedSearch,
+      startDate,
+      endDate,
+      currentPage,
+      pageSize,
+    ],
     async () => {
       const bParam = brandFilter !== "all" ? `&brand_id=${brandFilter}` : "";
       const dParam = designFilter !== "all" ? `&design_id=${designFilter}` : "";
       const sParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
+      const wParam = workerFilter !== "all" ? `&worker_id=${workerFilter}` : "";
+      const wlsParam = workerLotStatusFilter !== "all" ? `&worker_lot_status=${workerLotStatusFilter}` : "";
+      const pParam = paymentStatusFilter !== "all" ? `&payment_status=${paymentStatusFilter}` : "";
       const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : "";
       const sdParam = startDate ? `&startDate=${startDate}` : "";
       const edParam = endDate ? `&endDate=${endDate}` : "";
       const pgParam = `&page=${currentPage}&limit=${pageSize}`;
 
-      const res = await fetch(`/api/production/lots?${bParam}${dParam}${sParam}${searchParam}${sdParam}${edParam}${pgParam}`);
+      const res = await fetch(
+        `/api/production/lots?${bParam}${dParam}${sParam}${wParam}${wlsParam}${pParam}${searchParam}${sdParam}${edParam}${pgParam}`
+      );
       if (!res.ok) throw new Error("Failed to fetch lots");
       return res.json();
     },
@@ -158,6 +196,9 @@ export default function ProductionLotsPage() {
     setBrandFilter("all");
     setDesignFilter("all");
     setStatusFilter("all");
+    setWorkerFilter("all");
+    setWorkerLotStatusFilter("all");
+    setPaymentStatusFilter("all");
     setStartDate("");
     setEndDate("");
     setCurrentPage(1);
@@ -203,23 +244,6 @@ export default function ProductionLotsPage() {
         </div>
       </div>
 
-      <PageState
-        isLoading={isLoading}
-        isError={isError}
-        error={error ? (error instanceof Error ? error.message : "Failed to load production lots") : undefined}
-        onRetry={lotsQuery.refetch}
-        isEmpty={lots.length === 0}
-        emptyTitle="No Production Lots Found"
-        emptyMessage="No production lots created yet. Click Create Lot to plan garment manufacturing runs."
-        emptyAction={
-          <AsyncButton onClick={() => router.push("/production/lots/new")} variant="primary">
-            + Create First Lot
-          </AsyncButton>
-        }
-        skeletonVariant="table"
-        skeletonRows={8}
-        skeletonColumns={11}
-      >
         {/* 5 Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
@@ -341,7 +365,7 @@ export default function ProductionLotsPage() {
                 setStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-10 w-[160px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              className="h-10 w-[140px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
               <option value="all">All Status</option>
               <option value="draft">Draft</option>
@@ -349,6 +373,48 @@ export default function ProductionLotsPage() {
               <option value="completed">Completed</option>
               <option value="on_hold">On Hold</option>
               <option value="cancelled">Cancelled</option>
+            </select>
+
+            <select
+              value={workerFilter}
+              onChange={(e) => {
+                setWorkerFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 w-[150px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="all">All Workers</option>
+              {workersData?.workers?.map((w: Worker) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.worker_id})
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={workerLotStatusFilter}
+              onChange={(e) => {
+                setWorkerLotStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 w-[165px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="all">All Worker Lots</option>
+              <option value="working">Currently Working</option>
+              <option value="completed">Completed by Worker</option>
+            </select>
+
+            <select
+              value={paymentStatusFilter}
+              onChange={(e) => {
+                setPaymentStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 w-[140px] rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            >
+              <option value="all">All Payments</option>
+              <option value="paid">Paid Lots</option>
+              <option value="unpaid">Unpaid Lots</option>
             </select>
 
             <div className="flex items-center gap-2 border border-[var(--input-border)] rounded-lg px-2 h-10 bg-[var(--input-bg)]">
@@ -373,7 +439,15 @@ export default function ProductionLotsPage() {
               />
             </div>
 
-            {(brandFilter !== "all" || designFilter !== "all" || statusFilter !== "all" || search || startDate || endDate) && (
+            {(brandFilter !== "all" ||
+              designFilter !== "all" ||
+              statusFilter !== "all" ||
+              workerFilter !== "all" ||
+              workerLotStatusFilter !== "all" ||
+              paymentStatusFilter !== "all" ||
+              search ||
+              startDate ||
+              endDate) && (
               <button
                 onClick={handleClearFilters}
                 className="text-sm text-[var(--primary)] font-semibold hover:underline shrink-0 cursor-pointer"
@@ -385,7 +459,41 @@ export default function ProductionLotsPage() {
         </div>
 
         {/* Production Lots Table */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+        <PageState
+          isLoading={isLoading}
+          isError={isError}
+          error={error ? (error instanceof Error ? error.message : "Failed to load production lots") : undefined}
+          onRetry={lotsQuery.refetch}
+          isEmpty={lots.length === 0}
+          emptyTitle="No Production Lots Found"
+          emptyMessage="No production lots match the selected filters or search terms."
+          emptyAction={
+            (brandFilter !== "all" ||
+              designFilter !== "all" ||
+              statusFilter !== "all" ||
+              workerFilter !== "all" ||
+              workerLotStatusFilter !== "all" ||
+              paymentStatusFilter !== "all" ||
+              search ||
+              startDate ||
+              endDate) ? (
+              <button
+                onClick={handleClearFilters}
+                className="px-4 h-9 bg-[var(--primary)] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            ) : (
+              <AsyncButton onClick={() => router.push("/production/lots/new")} variant="primary">
+                + Create First Lot
+              </AsyncButton>
+            )
+          }
+          skeletonVariant="table"
+          skeletonRows={8}
+          skeletonColumns={13}
+        >
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
             <span className="text-sm font-semibold text-[var(--text-primary)]">Lots Directory</span>
             <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
@@ -412,17 +520,14 @@ export default function ProductionLotsPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                  <th className="py-3 px-4 w-[160px] whitespace-nowrap">Lot No.</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Brand</th>
-                  <th className="py-3 px-4">Design</th>
-                  <th className="py-3 px-4">Colour</th>
-                  <th className="py-3 px-4">Size Set</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Total Qty</th>
-                  <th className="py-3 px-4 w-48 whitespace-nowrap">Completed Qty</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Start Date</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Due Date</th>
-                  <th className="py-3 px-4 text-center w-28 whitespace-nowrap">Actions</th>
+                  <th className="py-3 px-4 w-[130px]">Lot No.</th>
+                  <th className="py-3 px-4">Brand & Design</th>
+                  <th className="py-3 px-4">Colour & Size Set</th>
+                  <th className="py-3 px-4 w-44">Progress & Qty</th>
+                  <th className="py-3 px-4 text-center">Status & Duration</th>
+                  <th className="py-3 px-4 text-center">Payment</th>
+                  <th className="py-3 px-4 text-center">Timeline</th>
+                  <th className="py-3 px-4 text-center w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)] text-sm">
@@ -452,22 +557,22 @@ export default function ProductionLotsPage() {
                           {lot.lot_number}
                         </Link>
                       </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)]">
-                        {lot.brand?.name || "—"}
+                      <td className="py-3.5 px-4 text-[var(--text-body)]">
+                        <div className="font-semibold text-xs text-[var(--text-primary)]">{lot.brand?.name || "—"}</div>
+                        <div className="text-xs text-[var(--text-muted)] font-medium mt-0.5 truncate max-w-[180px]" title={lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : undefined}>
+                          {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
+                        </div>
                       </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)] font-medium">
-                        {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
-                      </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)]">
-                        <div className="flex flex-wrap items-center gap-1.5">
+                      <td className="py-3.5 px-4 text-[var(--text-body)]">
+                        <div className="flex flex-wrap items-center gap-1">
                           {activeColours.length === 0 ? (
-                            <span>—</span>
+                            <span className="text-xs text-[var(--text-faint)]">—</span>
                           ) : (
                             activeColours.map((c, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-2 py-0.5 rounded-full border border-[var(--border)]">
+                              <span key={i} className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded-full border border-[var(--border)]">
                                 {c.hex_code && (
                                   <span
-                                    className="w-2.5 h-2.5 rounded-full border border-[var(--border)]"
+                                    className="w-2 h-2 rounded-full border border-[var(--border)]"
                                     style={{ backgroundColor: c.hex_code }}
                                   />
                                 )}
@@ -476,38 +581,66 @@ export default function ProductionLotsPage() {
                             ))
                           )}
                         </div>
+                        <div className="text-[11px] text-[var(--text-muted)] font-medium mt-1 truncate max-w-[140px]" title={sizesStr}>
+                          {sizesStr}
+                        </div>
                       </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)] font-semibold text-xs truncate max-w-[140px]" title={sizesStr}>
-                        {sizesStr}
-                      </td>
-                      <td className="py-3.5 px-5 text-right font-medium text-[var(--text-primary)]">
-                        {lot.total_quantity}
-                      </td>
-                      <td className="py-3.5 px-5">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-between text-xs font-semibold text-[var(--text-primary)] mb-1">
+                          <span>{lot.total_quantity} Pcs</span>
+                          <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                            {Math.min(Math.round((lot.completed_quantity / (lot.total_quantity || 1)) * 100), 100)}%
+                          </span>
+                        </div>
                         <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
                       </td>
-                      <td className="py-3.5 px-5 text-center">
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              lot.status === "in_progress"
+                                ? "bg-blue-500/10 text-blue-500"
+                                : lot.status === "completed"
+                                ? "bg-green-500/10 text-green-500"
+                                : lot.status === "on_hold"
+                                ? "bg-amber-500/10 text-amber-500"
+                                : lot.status === "cancelled"
+                                ? "bg-red-500/10 text-red-500"
+                                : "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                            }`}
+                          >
+                            {lot.status.replace("_", " ")}
+                          </span>
+
+                          {lot.status === "completed" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-500" title="Days taken to complete">
+                              🏁 {lot.days_taken_to_complete || lot.days_in_working_stage || 1}d completed
+                            </span>
+                          ) : lot.status === "in_progress" || lot.status === "on_hold" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-500" title="Days in working stage">
+                              ⏱️ {lot.days_in_working_stage || 1}d in stage
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                            lot.status === "in_progress"
-                              ? "bg-blue-500/10 text-blue-500"
-                              : lot.status === "completed"
-                              ? "bg-green-500/10 text-green-500"
-                              : lot.status === "on_hold"
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            lot.lot_payment_status === "paid"
+                              ? "bg-emerald-500/10 text-emerald-500"
+                              : lot.lot_payment_status === "partial"
                               ? "bg-amber-500/10 text-amber-500"
-                              : lot.status === "cancelled"
-                              ? "bg-red-500/10 text-red-500"
+                              : lot.lot_payment_status === "unpaid"
+                              ? "bg-rose-500/10 text-rose-500"
                               : "bg-[var(--page-bg)] text-[var(--text-muted)]"
                           }`}
                         >
-                          {lot.status.replace("_", " ")}
+                          {lot.lot_payment_status || "paid"}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)] font-mono text-xs">
-                        {formatDate(lot.target_start_date)}
-                      </td>
-                      <td className="py-3.5 px-5 text-[var(--text-body)] font-mono text-xs">
-                        {formatDate(lot.target_due_date)}
+                      <td className="py-3.5 px-4 text-center text-[11px] font-mono text-[var(--text-body)]">
+                        <div>Start: {formatDate(lot.target_start_date)}</div>
+                        <div className="text-[var(--text-muted)] mt-0.5">Due: {formatDate(lot.target_due_date)}</div>
                       </td>
                       <td className="py-3.5 px-5 text-center">
                         <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -619,8 +752,9 @@ export default function ProductionLotsPage() {
             </div>
           )}
         </div>
+      </PageState>
 
-        {/* Bottom Section: Recharts Pie + Top Designs + Recent Activity */}
+      {/* Bottom Section: Recharts Pie + Top Designs + Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Pie Chart: Lots by Status */}
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
@@ -779,7 +913,6 @@ export default function ProductionLotsPage() {
             )}
           </div>
         </div>
-      </PageState>
     </div>
   );
 }

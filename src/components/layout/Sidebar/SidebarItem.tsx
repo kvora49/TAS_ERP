@@ -14,6 +14,7 @@ interface SidebarItemProps {
   toggleSubMenu: (name: string) => void;
   queryClient: QueryClient;
   toast: any;
+  sidebarOpen?: boolean;
 }
 
 export function SidebarItem({
@@ -24,6 +25,7 @@ export function SidebarItem({
   toggleSubMenu,
   queryClient,
   toast,
+  sidebarOpen = true,
 }: SidebarItemProps) {
   const pathname = usePathname();
 
@@ -65,7 +67,7 @@ export function SidebarItem({
   };
 
   const Icon = item.icon;
-  const isExpandable = !!item.subItems;
+  const isExpandable = !!item.subItems && item.subItems.length > 0;
   const isMenuOpen = expandedMenus[item.name];
 
   return (
@@ -74,8 +76,12 @@ export function SidebarItem({
         <button
           type="button"
           onClick={() => toggleSubMenu(item.name)}
+          title={!sidebarOpen ? item.name : undefined}
           className={cn(
-            "w-[calc(100%-16px)] flex items-center justify-between px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer text-left",
+            "flex items-center transition-all duration-200 cursor-pointer text-left rounded-lg mx-2 text-sm font-medium",
+            sidebarOpen
+              ? "w-[calc(100%-16px)] justify-between px-3 py-2.5"
+              : "w-10 h-10 justify-center p-0 mx-auto",
             isItemActive
               ? item.name === "Settings"
                 ? "text-white bg-[#312E81]"
@@ -84,13 +90,15 @@ export function SidebarItem({
           )}
         >
           <div className="flex items-center gap-3">
-            {Icon && <Icon className="h-[18px] w-[18px]" />}
-            <span>{item.name}</span>
+            {Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
+            {sidebarOpen && <span>{item.name}</span>}
           </div>
-          {item.name === "Settings" ? (
-            isMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-          ) : (
-            isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+          {sidebarOpen && (
+            item.name === "Settings" ? (
+              isMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+            ) : (
+              isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+            )
           )}
         </button>
       ) : (
@@ -98,24 +106,30 @@ export function SidebarItem({
           href={item.href || "#"}
           onClick={(e) => handleNavigation(e as any, item.href)}
           onMouseEnter={() => item.href && handlePrefetch(item.href, queryClient)}
+          title={!sidebarOpen ? item.name : undefined}
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
+            "flex items-center transition-all duration-200 cursor-pointer rounded-lg text-sm font-medium",
+            sidebarOpen
+              ? "gap-3 px-3 py-2.5 mx-2"
+              : "w-10 h-10 justify-center p-0 mx-auto",
             isPathActive(item.href) || navigatingTo === item.href
               ? "bg-[#312E81] text-white"
               : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
           )}
         >
-          {Icon && <Icon className="h-[18px] w-[18px]" />}
-          <span>
-            {item.name}
-            {item.href && (item.href === "/dispatch-soon" || item.href === "/stock-soon") && " (Soon)"}
-            {navigatingTo === item.href ? " (Loading...)" : ""}
-          </span>
+          {Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
+          {sidebarOpen && (
+            <span>
+              {item.name}
+              {item.href && (item.href === "/dispatch-soon" || item.href === "/stock-soon") && " (Soon)"}
+              {navigatingTo === item.href ? " (Loading...)" : ""}
+            </span>
+          )}
         </a>
       )}
 
       {/* Subitems container */}
-      {isExpandable && isMenuOpen && (
+      {isExpandable && isMenuOpen && sidebarOpen && (
         <div className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}>
           {item.subItems?.map((sub, sIdx) => {
             const hasSubSub = !!sub.subItems;

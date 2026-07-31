@@ -5,12 +5,16 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { useAppStore } from "@/store";
+import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const sidebarOpen = useAppStore((state) => state.sidebarOpen);
+
   return (
     <AuthProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--page-bg)] text-[var(--text-body)]">
@@ -18,7 +22,10 @@ export default function DashboardLayout({
         <Sidebar />
 
         {/* Main Layout Area */}
-        <div className="flex flex-col flex-1 overflow-hidden ml-0 md:ml-[232px] print:ml-0 print:block print:overflow-visible">
+        <div className={cn(
+          "flex flex-col flex-1 overflow-hidden transition-all duration-200 ml-0 print:ml-0 print:block print:overflow-visible",
+          sidebarOpen ? "md:ml-[240px]" : "md:ml-[68px]"
+        )}>
           {/* Navigation Header */}
           <Header />
 

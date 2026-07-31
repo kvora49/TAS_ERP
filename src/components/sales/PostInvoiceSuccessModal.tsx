@@ -10,13 +10,18 @@ import {
   ListOrdered,
   PlusCircle,
   FileText,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import { Modal } from "@/components/shared/Modal";
+import { openWhatsApp, shareInvoiceWithWhatsApp } from "@/lib/utils/whatsapp";
+import { getPublicBillUrl } from "@/lib/utils/baseUrl";
 
 export interface CreatedInvoiceInfo {
   id: string;
   bill_number: string;
   party_name?: string;
+  phone?: string;
   grand_total?: number;
   bill_type?: "pakka" | "kacha";
 }
@@ -50,6 +55,19 @@ export function PostInvoiceSuccessModal({
 
   const handlePrint = () => {
     window.open(`/sales/bills/${invoice.id}/print`, "_blank");
+  };
+
+  const handleWhatsAppShare = () => {
+    const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const billUrl = getPublicBillUrl(invoice.id);
+    const partyName = (invoice.party_name || "Customer").trim();
+    const msg = `Dear ${partyName},\n\nPlease find your invoice ${invoice.bill_number} for ₹${formattedTotal} dated ${today}.\n\nView/Download Invoice:\n${billUrl}\n\nThank you for your business!`;
+    shareInvoiceWithWhatsApp({
+      phone: invoice.phone || "",
+      text: msg,
+      billId: invoice.id,
+      fileName: `Invoice-${invoice.bill_number}.pdf`,
+    });
   };
 
   const handleDownload = () => {
@@ -103,20 +121,38 @@ export function PostInvoiceSuccessModal({
         </div>
 
         {/* Primary Action Buttons Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Share WhatsApp Button */}
+          <button
+            onClick={handleWhatsAppShare}
+            className="p-3.5 rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 hover:bg-[#25D366]/15 hover:border-[#25D366] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
+          >
+            <div className="p-2.5 rounded-lg bg-[#25D366] text-white shadow-sm group-hover:scale-110 transition-transform">
+              <MessageSquare size={18} />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-[var(--text-primary)] block">
+                Share WhatsApp
+              </span>
+              <span className="text-[9px] text-[#128C7E] font-extrabold">
+                Send Bill Link
+              </span>
+            </div>
+          </button>
+
           {/* Preview Button */}
           <button
             onClick={handlePreview}
-            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
+            className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
           >
             <div className="p-2.5 rounded-lg bg-indigo-500/10 text-[var(--primary)] group-hover:scale-110 transition-transform">
-              <Eye size={20} />
+              <Eye size={18} />
             </div>
             <div>
               <span className="text-xs font-bold text-[var(--text-primary)] block">
                 Preview Bill
               </span>
-              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+              <span className="text-[9px] text-[var(--text-muted)] font-medium">
                 View full invoice
               </span>
             </div>
@@ -125,16 +161,16 @@ export function PostInvoiceSuccessModal({
           {/* Print Button */}
           <button
             onClick={handlePrint}
-            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
+            className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
           >
             <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500 group-hover:scale-110 transition-transform">
-              <Printer size={20} />
+              <Printer size={18} />
             </div>
             <div>
               <span className="text-xs font-bold text-[var(--text-primary)] block">
                 Print Bill
               </span>
-              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+              <span className="text-[9px] text-[var(--text-muted)] font-medium">
                 Print A4 / Thermal
               </span>
             </div>
@@ -143,16 +179,16 @@ export function PostInvoiceSuccessModal({
           {/* Download PDF Button */}
           <button
             onClick={handleDownload}
-            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
+            className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:border-[var(--primary)] hover:bg-[var(--page-bg)] transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer text-center"
           >
             <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
-              <Download size={20} />
+              <Download size={18} />
             </div>
             <div>
               <span className="text-xs font-bold text-[var(--text-primary)] block">
                 Download PDF
               </span>
-              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+              <span className="text-[9px] text-[var(--text-muted)] font-medium">
                 Save to disk
               </span>
             </div>

@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Printer, FileText, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
@@ -339,7 +340,12 @@ export default function SaleBillPrintPage() {
   const showHsnVal = brandConfig?.show_hsn !== false;
   const showDiscountVal = brandConfig?.show_discount_column !== false;
   const showTransportVal = brandConfig?.show_transport_details !== false;
-  const showLogo = !!brand?.logo_url;
+
+  const { getEffectiveLogo, business } = useCompanyProfile();
+  const effectiveLogo = getEffectiveLogo(brand?.logo_url);
+  const showLogo = !!effectiveLogo;
+  const sellerGstin = brand?.gstin || business?.gstin || "";
+  const sellerPan = business?.pan || "";
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center p-0 md:p-6 print:p-0 print:bg-white select-none">
@@ -378,12 +384,15 @@ export default function SaleBillPrintPage() {
             <div className="flex justify-between items-start">
               <div className="flex flex-col gap-1">
                 {showLogo && (
-                  <img src={brand.logo_url} alt={brand.name} className="h-12 w-auto object-contain self-start mb-2" />
+                  <img src={effectiveLogo!} alt={brand?.name || "Logo"} className="h-12 w-auto object-contain self-start mb-2" />
                 )}
-                <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{brand?.name || "Tax Invoice"}</h1>
+                <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{brand?.name || business?.name || "Tax Invoice"}</h1>
                 <span className="text-xs text-slate-500 italic">{brandConfig?.header_text || "Premium Quality Clothing"}</span>
-                <span className="text-xs text-slate-500">{brand?.address}</span>
-                {brand?.gstin && <span className="text-xs font-semibold text-slate-700">GSTIN: {brand.gstin}</span>}
+                <span className="text-xs text-slate-500">{brand?.address || business?.address}</span>
+                <div className="flex items-center gap-3 text-xs font-mono font-semibold text-slate-700">
+                  {sellerGstin && <span>GSTIN: {sellerGstin}</span>}
+                  {sellerPan && <span>PAN: {sellerPan}</span>}
+                </div>
               </div>
               <div className="text-right flex flex-col gap-1">
                 <span style={{ color: primaryColorVal }} className="text-lg font-extrabold tracking-wider uppercase">INVOICE</span>

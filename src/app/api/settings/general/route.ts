@@ -55,9 +55,14 @@ export async function GET(request: Request) {
       }
     }
 
+    const enableKachaBilling = settings ? settings.job_work_default_bill_type !== "kacha_disabled" : true;
+
     return NextResponse.json({
       business,
-      settings: settings || {},
+      settings: {
+        ...(settings || {}),
+        enable_kacha_billing: enableKachaBilling,
+      },
     });
   } catch (err: any) {
     console.error("GET /api/settings/general exception:", err);
@@ -86,6 +91,7 @@ export async function PUT(request: Request) {
       enable_gst,
       enable_batch_tracking,
       enable_serial_numbers,
+      enable_kacha_billing,
       low_stock_alerts,
       allow_negative_stock,
       motion_profile,
@@ -143,6 +149,8 @@ export async function PUT(request: Request) {
       .eq("business_id", businessId)
       .maybeSingle();
 
+    const kachaSettingValue = enable_kacha_billing === false ? "kacha_disabled" : "kacha_enabled";
+
     if (existingSettings) {
       const { error: setUpdateError } = await supabase
         .from("business_settings")
@@ -150,6 +158,7 @@ export async function PUT(request: Request) {
           enable_batch_tracking: !!enable_batch_tracking,
           allow_negative_stock: !!allow_negative_stock,
           enable_serial_numbers: !!enable_serial_numbers,
+          job_work_default_bill_type: kachaSettingValue,
           motion_profile: validMotionProfile,
           updated_at: new Date().toISOString(),
         })
@@ -166,6 +175,7 @@ export async function PUT(request: Request) {
           enable_batch_tracking: !!enable_batch_tracking,
           allow_negative_stock: !!allow_negative_stock,
           enable_serial_numbers: !!enable_serial_numbers,
+          job_work_default_bill_type: kachaSettingValue,
           motion_profile: validMotionProfile,
         });
 

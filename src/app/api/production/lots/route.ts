@@ -16,6 +16,9 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const workerId = searchParams.get("worker_id");
+  const workerLotStatus = searchParams.get("worker_lot_status"); // 'all' | 'working' | 'completed'
+  const paymentStatus = searchParams.get("payment_status"); // 'all' | 'paid' | 'unpaid'
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "10", 10);
   const offset = (page - 1) * limit;
@@ -59,16 +62,187 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Filter in-memory if the search hits design code or name
-    let filteredLots = lots || [];
-    if (search && lots) {
+    let allLots = lots || [];
+
+    // Load related data for lot calculation & worker/payment filtering across all lots
+    const allLotIds = allLots.map((l) => l.id);
+    let stageEntriesMap = new Map<string, any[]>();
+    let lotStagesMap = new Map<string, any[]>();
+    let lotStageWorkersMap = new Map<string, any[]>(); // lot_stage_id -> workerIds
+
+    if (allLotIds.length > 0) {
+      const [{ data: seData }, { data: lpsData }] = await Promise.all([
+        supabase
+          .from("stage_entries")
+          .select("id, lot_id, lot_stage_id, worker_id, status, payment_status, total_job_work_amount, paid_amount, entry_date, created_at")
+          .in("lot_id", allLotIds)
+          .eq("business_id", businessId),
+        supabase
+          .from("lot_production_stages")
+          .select("id, lot_id, status, started_at, completed_at, created_at")
+          .in("lot_id", allLotIds)
+          .eq("business_id", businessId),
+      ]);
+
+      (seData || []).forEach((se) => {
+        if (!stageEntriesMap.has(se.lot_id)) stageEntriesMap.set(se.lot_id, []);
+        stageEntriesMap.get(se.lot_id)!.push(se);
+      });
+
+      const allStageIds: string[] = [];
+      (lpsData || []).forEach((lps) => {
+        if (!lotStagesMap.has(lps.lot_id)) lotStagesMap.set(lps.lot_id, []);
+        lotStagesMap.get(lps.lot_id)!.push(lps);
+        allStageIds.push(lps.id);
+      });
+
+      if (allStageIds.length > 0) {
+        const { data: lswData } = await supabase
+          .from("lot_stage_workers")
+          .select("lot_stage_id, worker_id")
+          .in("lot_stage_id", allStageIds)
+          .eq("business_id", businessId);
+
+        (lswData || []).forEach((lsw) => {
+          if (!lotStageWorkersMap.has(lsw.lot_stage_id)) lotStageWorkersMap.set(lsw.lot_stage_id, []);
+          lotStageWorkersMap.get(lsw.lot_stage_id)!.push(lsw.worker_id);
+        });
+      }
+    }
+
+    // Attach calculated duration metrics & payment status to each lot
+    const lotsWithCalculations = allLots.map((lot) => {
+      const entries = stageEntriesMap.get(lot.id) || [];
+      const stages = lotStagesMap.get(lot.id) || [];
+
+      // Workers associated with this lot
+      const workerIdsSet = new Set<string>();
+      entries.forEach((e) => { if (e.worker_id) workerIdsSet.add(e.worker_id); });
+      stages.forEach((s) => {
+        const sws = lotStageWorkersMap.get(s.id) || [];
+        sws.forEach((wId) => workerIdsSet.add(wId));
+      });
+
+      // 1. Payment status calculation
+      const totalLaborCost = entries.reduce((sum, e) => sum + (Number(e.total_job_work_amount) || 0), 0);
+      const totalPaidAmount = entries.reduce((sum, e) => sum + (Number(e.paid_amount) || 0), 0);
+
+      let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "paid";
+      if (entries.length > 0 && totalLaborCost > 0) {
+        if (totalPaidAmount >= totalLaborCost) {
+          lotPaymentStatus = "paid";
+        } else if (totalPaidAmount > 0) {
+          lotPaymentStatus = "partial";
+        } else {
+          lotPaymentStatus = "unpaid";
+        }
+      }
+
+      // 2. Duration Tracking Calculation
+      // Find work start timestamp
+      let startTimestamps: number[] = [];
+      stages.forEach((s) => {
+        if (s.started_at) startTimestamps.push(new Date(s.started_at).getTime());
+        if (s.created_at) startTimestamps.push(new Date(s.created_at).getTime());
+      });
+      entries.forEach((e) => {
+        if (e.entry_date) startTimestamps.push(new Date(e.entry_date).getTime());
+        else if (e.created_at) startTimestamps.push(new Date(e.created_at).getTime());
+      });
+      if (lot.target_start_date) startTimestamps.push(new Date(lot.target_start_date).getTime());
+      if (lot.lot_date) startTimestamps.push(new Date(lot.lot_date).getTime());
+      if (lot.created_at) startTimestamps.push(new Date(lot.created_at).getTime());
+
+      const earliestStart = startTimestamps.length > 0 ? Math.min(...startTimestamps) : new Date(lot.created_at).getTime();
+
+      let daysInWorkingStage = 0;
+      let daysTakenToComplete: number | null = null;
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+
+      if (lot.status === "in_progress" || lot.status === "on_hold") {
+        const diffMs = Math.max(0, Date.now() - earliestStart);
+        daysInWorkingStage = Math.max(1, Math.ceil(diffMs / msPerDay));
+      } else if (lot.status === "completed") {
+        let endTimestamps: number[] = [];
+        if (lot.completed_at) endTimestamps.push(new Date(lot.completed_at).getTime());
+        stages.forEach((s) => {
+          if (s.completed_at) endTimestamps.push(new Date(s.completed_at).getTime());
+        });
+        entries.forEach((e) => {
+          if (e.created_at) endTimestamps.push(new Date(e.created_at).getTime());
+        });
+        const completionTime = endTimestamps.length > 0 ? Math.max(...endTimestamps) : Date.now();
+        const diffMs = Math.max(0, completionTime - earliestStart);
+        const days = Math.max(1, Math.ceil(diffMs / msPerDay));
+        daysInWorkingStage = days;
+        daysTakenToComplete = days;
+      }
+
+      return {
+        ...lot,
+        days_in_working_stage: daysInWorkingStage,
+        days_taken_to_complete: daysTakenToComplete,
+        lot_payment_status: lotPaymentStatus,
+        total_labor_cost: totalLaborCost,
+        total_paid_amount: totalPaidAmount,
+        worker_ids: Array.from(workerIdsSet),
+        entries_summary: entries,
+        stages_summary: stages,
+      };
+    });
+
+    // Apply search filter
+    let filteredLots = lotsWithCalculations;
+    if (search) {
       const searchLower = search.toLowerCase();
-      filteredLots = lots.filter(
+      filteredLots = filteredLots.filter(
         (lot) =>
           lot.lot_number.toLowerCase().includes(searchLower) ||
           (lot.design?.name && lot.design.name.toLowerCase().includes(searchLower)) ||
           (lot.design?.code && lot.design.code.toLowerCase().includes(searchLower))
       );
+    }
+
+    // Apply Worker Filter
+    if (workerId && workerId !== "all") {
+      filteredLots = filteredLots.filter((lot) => lot.worker_ids.includes(workerId));
+    }
+
+    // Apply Worker Lot Status Filter
+    if (workerLotStatus && workerLotStatus !== "all") {
+      if (workerLotStatus === "working") {
+        filteredLots = filteredLots.filter((lot) => {
+          if (lot.status !== "in_progress") return false;
+          if (!workerId || workerId === "all") return true;
+          // Check if selected worker is actively working
+          const activeEntry = lot.entries_summary.some((e: any) => e.worker_id === workerId && e.status !== "completed");
+          const activeStage = lot.stages_summary.some((s: any) => {
+            const sws = lotStageWorkersMap.get(s.id) || [];
+            return sws.includes(workerId) && s.status !== "completed";
+          });
+          return activeEntry || activeStage || lot.worker_ids.includes(workerId);
+        });
+      } else if (workerLotStatus === "completed") {
+        filteredLots = filteredLots.filter((lot) => {
+          if (!workerId || workerId === "all") return lot.status === "completed";
+          const workerCompletedEntry = lot.entries_summary.some((e: any) => e.worker_id === workerId && e.status === "completed");
+          const workerCompletedStage = lot.stages_summary.some((s: any) => {
+            const sws = lotStageWorkersMap.get(s.id) || [];
+            return sws.includes(workerId) && s.status === "completed";
+          });
+          return lot.status === "completed" || workerCompletedEntry || workerCompletedStage;
+        });
+      }
+    }
+
+    // Apply Payment Status Filter
+    if (paymentStatus && paymentStatus !== "all") {
+      if (paymentStatus === "paid") {
+        filteredLots = filteredLots.filter((lot) => lot.lot_payment_status === "paid");
+      } else if (paymentStatus === "unpaid") {
+        filteredLots = filteredLots.filter((lot) => lot.lot_payment_status === "unpaid" || lot.lot_payment_status === "partial");
+      }
     }
 
     const total = filteredLots.length;
@@ -111,8 +285,10 @@ export async function GET(request: Request) {
           ? (lot.completed_quantity || lot.total_quantity || 0)
           : (lot.completed_quantity || 0);
 
+      const { entries_summary, stages_summary, worker_ids, ...lotClean } = lot;
+
       return {
-        ...lot,
+        ...lotClean,
         completed_quantity: effectiveCompletedQty,
         size_set: effectiveSizeSet,
         colours,

@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Layers } from "lucide-react";
+import { Plus, Trash2, Layers, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { SelectFabricRollsModal, SelectedRollInfo } from "./SelectFabricRollsModal";
 
 interface ItemsTableProps {
   state: any;
@@ -29,6 +30,46 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
 
   // Auto-fill states
   const [autoFillAllColors, setAutoFillAllColors] = useState(false);
+  const [rollModalOpen, setRollModalOpen] = useState(false);
+
+  const handleAddFabricRolls = (selectedRolls: SelectedRollInfo[]) => {
+    const grouped: Record<string, SelectedRollInfo[]> = {};
+    selectedRolls.forEach((r) => {
+      if (!grouped[r.material_type_id]) grouped[r.material_type_id] = [];
+      grouped[r.material_type_id].push(r);
+    });
+
+    const newItems: any[] = [];
+    Object.entries(grouped).forEach(([matId, rollList]) => {
+      const matName = rollList[0].material_name;
+      const totalQty = rollList.reduce((sum, r) => sum + r.meters, 0);
+      const avgRate = rollList[0].rate || rate || 0;
+      const gross = totalQty * avgRate;
+      const taxPct = taxPercent || 5;
+      const netTaxable = gross;
+      const gstAmt = netTaxable * (taxPct / 100);
+
+      newItems.push({
+        item_type: "fabric",
+        material_type_id: matId,
+        item_name: matName,
+        hsn_sac: hsnCode || "5208",
+        unit: "Meters",
+        quantity: totalQty,
+        rate: avgRate,
+        discount_percent: 0,
+        taxable_value: netTaxable,
+        tax_percent: taxPct,
+        gst_percent: taxPct,
+        gst_amount: gstAmt,
+        amount: netTaxable + gstAmt,
+        rolls: rollList,
+      });
+    });
+
+    state.setItems((prev: any[]) => [...prev, ...newItems]);
+    toast.success(`Added ${selectedRolls.length} fabric rolls to invoice`);
+  };
 
   const selectedDesign = designs.find((d) => d.id === selectedDesignId);
   const colours = selectedDesign?.design_colours || [];
@@ -239,11 +280,78 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
     state.setItems((prev: any[]) => prev.filter((_, i) => i !== index));
   };
 
+  // Item Category switch state: "finished_goods" vs "fabric"
+  const [itemCategory, setItemCategory] = useState<"finished_goods" | "fabric">("finished_goods");
+  const [selectedMaterialId, setSelectedMaterialId] = useState("");
+  const [rawMaterials, setRawMaterials] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/master-data/raw-materials")
+      .then((res) => res.json())
+      .then((data) => setRawMaterials(data.materials || []))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-6 select-none">
       {/* 1. Design & Configuration Selection Header */}
       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+        {/* Item Category Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Item Category:</span>
+            <div className="flex items-center bg-slate-200/60 p-1 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setItemCategory("finished_goods")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                  itemCategory === "finished_goods"
+                    ? "bg-[#6366F1] text-white shadow-md shadow-indigo-500/20"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                👔 Finished Goods (Garments)
+              </button>
+              <button
+                type="button"
+                onClick={() => setItemCategory("fabric")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  itemCategory === "fabric"
+                    ? "bg-[#6366F1] text-white shadow-md shadow-indigo-500/20"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Scissors className="h-3.5 w-3.5" />
+                🧵 Fabric Rolls (Raw Material)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {itemCategory === "fabric" ? (
+          /* Fabric Roll Fast Action Box */
+          <div className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Scissors className="h-4 w-4 text-[#6366F1]" />
+                <h4 className="text-xs font-bold text-slate-900">Sell Fabric Rolls from Inventory</h4>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Click below to browse available rolls in stock, pick roll numbers, and enter meters to sell.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRollModalOpen(true)}
+              className="w-full sm:w-auto px-5 py-2.5 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20 cursor-pointer flex-shrink-0"
+            >
+              <Scissors className="h-4 w-4" />
+              <span>+ Select Fabric Rolls</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           {/* SEARCHABLE DESIGN COMBOBOX DROPDOWN */}
           <div className="md:col-span-2 space-y-1 relative">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
@@ -488,7 +596,9 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             </div>
           </div>
         )}
-      </div>
+      </>
+    )}
+  </div>
 
       {/* 3. Added Line Items Table */}
       <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
@@ -509,29 +619,56 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {state.items.map((it: any, index: number) => {
+              const isFabric = it.item_type === "fabric" || !!it.material_type_id;
               const matchedDesign = designs.find((d) => d.id === it.design_id);
-              const designCode = (it.design_code && it.design_code !== "—") ? it.design_code : (matchedDesign?.design_number || matchedDesign?.code || "—");
-              const designName = (it.design_name && it.design_name !== "—") ? it.design_name : (matchedDesign?.name || "—");
-              const colourName = (it.colour_name && it.colour_name !== "Default") ? it.colour_name : (matchedDesign?.design_colours?.find((c: any) => c.id === it.colour_id)?.colour_name || "Default");
+              const designCode = isFabric
+                ? "FABRIC"
+                : (it.design_code && it.design_code !== "—")
+                ? it.design_code
+                : matchedDesign?.design_number || matchedDesign?.code || "—";
+              const designName = isFabric
+                ? it.item_name || "Raw Material Fabric"
+                : (it.design_name && it.design_name !== "—")
+                ? it.design_name
+                : matchedDesign?.name || "—";
+              const colourName = isFabric
+                ? "—"
+                : (it.colour_name && it.colour_name !== "Default")
+                ? it.colour_name
+                : matchedDesign?.design_colours?.find((c: any) => c.id === it.colour_id)?.colour_name || "Default";
 
               return (
                 <tr key={it.id || index} className="hover:bg-slate-50/80 transition-colors">
                   <td className="p-3 pl-4 font-mono font-bold text-indigo-600">{designCode}</td>
-                  <td className="p-3 font-semibold text-slate-800">{designName}</td>
+                  <td className="p-3 font-semibold text-slate-800">
+                    <div>
+                      <span>{designName}</span>
+                      {isFabric && it.rolls && it.rolls.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {it.rolls.map((r: any, rIdx: number) => (
+                            <span key={rIdx} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[10px] font-mono font-bold text-indigo-700">
+                              Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 text-slate-600">{colourName}</td>
                   <td className="p-3 font-bold text-slate-700">
                     <span className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      {it.size}
+                      {isFabric ? "Meters" : it.size || "Pcs"}
                     </span>
                   </td>
                   <td className="p-2 text-right">
                     <input
                       type="number"
-                      min="1"
+                      min="0.01"
+                      step="0.01"
                       value={it.quantity}
                       onFocus={(e) => e.target.select()}
-                      onChange={(e) => handleItemQtyChange(index, parseInt(e.target.value, 10) || 1)}
-                      className="w-16 h-8 px-2 text-right border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                      onChange={(e) => handleItemQtyChange(index, parseFloat(e.target.value) || 1)}
+                      className="w-20 h-8 px-2 text-right border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                     />
                   </td>
                   <td className="p-2 text-right">
@@ -563,14 +700,21 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             })}
             {state.items.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-slate-400 font-semibold">
-                  No items added yet. Select a design and enter quantities in the size matrix above.
+                <td colSpan={10} className="p-8 text-center text-slate-400 italic">
+                  No items added yet. Select a design or click &quot;+ Sell Fabric Rolls&quot; above to add invoice items.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Fabric Rolls Picker Modal */}
+      <SelectFabricRollsModal
+        open={rollModalOpen}
+        onOpenChange={setRollModalOpen}
+        onConfirm={handleAddFabricRolls}
+      />
     </div>
   );
 }

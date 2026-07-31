@@ -255,24 +255,45 @@ export async function POST(request: Request) {
       }
     }
 
-    // If status is 'completed' and godown_id is specified, update inventory stock
-    if ((status === "completed") && godown_id) {
+    // Determine effective godown_id (fallback to parent purchase godown if not provided)
+    let effectiveGodownId = godown_id || null;
+    if (!effectiveGodownId && purchase_id) {
+      const { data: parentPurchase } = await supabase
+        .from("raw_material_purchases")
+        .select("godown_id")
+        .eq("id", purchase_id)
+        .single();
+      if (parentPurchase?.godown_id) {
+        effectiveGodownId = parentPurchase.godown_id;
+        // Update purchase return record with resolved godown_id
+        await supabase
+          .from("purchase_returns")
+          .update({ godown_id: effectiveGodownId })
+          .eq("id", pReturn.id);
+      }
+    }
+
+    // Always update inventory stock for purchase returns if godown_id is available
+    if (effectiveGodownId) {
       const { data: { user } } = await supabase.auth.getUser();
       const ledgerEntries: any[] = [];
 
       for (const item of items) {
-        if (item.item_type === "finished_goods") {
+        const returnedQty = Number(item.returned_qty || 0);
+        const returnedVal = Number(item.taxable_value || 0);
+
+        if (item.item_type === "finished_goods" && item.design_id) {
           // Deduct from finished_stock for godown
           await supabase.from("finished_stock").insert({
             business_id: businessId,
             design_id: item.design_id,
             colour_id: item.colour_id || null,
-            godown_id: godown_id,
+            godown_id: effectiveGodownId,
             entry_type: "return",
             size_quantities: item.size_quantities || {},
-            total_quantity: -Number(item.returned_qty),
-            cost_per_piece: Number(item.rate),
-            total_value: -Number(item.taxable_value),
+            total_quantity: -returnedQty,
+            cost_per_piece: Number(item.rate || 0),
+            total_value: -returnedVal,
             notes: `Purchase Return ${returnNumber}`,
           });
 
@@ -280,23 +301,45 @@ export async function POST(request: Request) {
             business_id: businessId,
             item_type: 'finished_good',
             item_id: item.design_id,
-            godown_id: godown_id,
+            godown_id: effectiveGodownId,
             transaction_type: 'purchase_return',
-            quantity_delta: -Number(item.returned_qty),
-            value_delta: -Number(item.taxable_value),
+            quantity_delta: -returnedQty,
+            value_delta: -returnedVal,
             reference_table: 'purchase_returns',
             reference_id: pReturn.id,
             created_by: user?.id || null,
           });
         } else if (item.material_type_id) {
+          // Deduct from raw_material_current_stock
+          const { data: existingStock } = await supabase
+            .from("raw_material_current_stock")
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("material_type_id", item.material_type_id)
+            .eq("godown_id", effectiveGodownId)
+            .maybeSingle();
+
+          if (existingStock) {
+            const newQty = Math.max(0, Number(existingStock.current_stock || 0) - returnedQty);
+            const newValue = Math.max(0, Number(existingStock.stock_value || 0) - returnedVal);
+            await supabase
+              .from("raw_material_current_stock")
+              .update({
+                current_stock: newQty,
+                stock_value: newValue,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingStock.id);
+          }
+
           ledgerEntries.push({
             business_id: businessId,
             item_type: 'raw_material',
             item_id: item.material_type_id,
-            godown_id: godown_id,
+            godown_id: effectiveGodownId,
             transaction_type: 'purchase_return',
-            quantity_delta: -Number(item.returned_qty),
-            value_delta: -Number(item.taxable_value),
+            quantity_delta: -returnedQty,
+            value_delta: -returnedVal,
             reference_table: 'purchase_returns',
             reference_id: pReturn.id,
             created_by: user?.id || null,
@@ -310,13 +353,11 @@ export async function POST(request: Request) {
           .insert(ledgerEntries);
 
         if (ledgerError) {
-          await supabase.from("purchase_return_items").delete().eq("return_id", pReturn.id);
-          await supabase.from("purchase_returns").delete().eq("id", pReturn.id);
-          return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
+          console.error("Stock ledger insertion error:", ledgerError);
         }
       }
 
-      // Generate stock entry for raw material items
+      // Generate legacy stock entry for raw material items
       const rmItems = items.filter((i: any) => i.item_type !== "finished_goods" && i.material_type_id);
       if (rmItems.length > 0) {
         const { data: stockEntry, error: seError } = await supabase
@@ -329,8 +370,8 @@ export async function POST(request: Request) {
             reference_id: pReturn.id,
             reference_no: returnNumber,
             reference_date: return_date,
-            godown_id,
-            posting_date: return_date,
+            godown_id: effectiveGodownId,
+            posting_date: new Date().toISOString().split("T")[0],
             remarks: `Auto-generated from Purchase Return ${returnNumber}`,
             total_items_value: Number(total_taxable_value || 0),
             grand_total: Number(grand_total || 0),
@@ -351,7 +392,6 @@ export async function POST(request: Request) {
             amount: Number(item.taxable_value),
           }));
 
-          await supabase.from("raw_material_stock_entry_items").insert(seItems);
         }
       }
     }

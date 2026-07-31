@@ -346,7 +346,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         }
       }
 
-      router.push("/raw-materials/purchase-returns");
+      router.push("/purchases?tab=returns");
       router.refresh();
     } catch (err: any) {
       toast.error(err.message || "Failed to record return");
@@ -360,7 +360,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
       {/* Action Header */}
       <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
         <div className="flex items-center gap-3">
-          <Link href="/raw-materials/purchase-returns" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
+          <Link href="/purchases?tab=returns" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
             <ArrowLeft className="h-5 w-5 text-[#64748B]" />
           </Link>
           <div>
@@ -376,7 +376,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href="/raw-materials/purchase-returns"
+            href="/purchases?tab=returns"
             className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
           >
             Cancel

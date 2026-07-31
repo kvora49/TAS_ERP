@@ -74,6 +74,16 @@ export async function POST(request: Request) {
       body.idempotency_key = idempotencyKey;
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    if (body.type === "kacha" && !serverSettings.enable_kacha_billing) {
+      return NextResponse.json(
+        { error: "Kaacha (Estimate) billing is currently disabled in system settings." },
+        { status: 400 }
+      );
+    }
+
     const repo = new SalesBillRepository(supabase);
     const service = new SalesBillService(repo);
 

@@ -69,6 +69,7 @@ interface SaleBill {
   paid_amount: number;
   payment_status: "unpaid" | "partial" | "paid" | "overdue" | "settled";
   status: "draft" | "active" | "cancelled";
+  is_temporary?: boolean;
   is_sales_return?: boolean;
   party: {
     name: string;
@@ -76,9 +77,13 @@ interface SaleBill {
   };
 }
 
+import { useGeneralSettings } from "@/hooks/useGeneralSettings";
+
 export default function SalesBillsListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const { enableKachaBilling, itemsPerPage } = useGeneralSettings();
 
   // Active Tab: 'pakka', 'kacha', 'return', 'all'
   const [activeTab, setActiveTab] = useState<"pakka" | "kacha" | "return" | "all">("pakka");
@@ -89,6 +94,10 @@ export default function SalesBillsListPage() {
   const [status, setStatus] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  // Convert Temporary Bill States
+  const [convertTargetBill, setConvertTargetBill] = useState<SaleBill | null>(null);
+  const [converting, setConverting] = useState(false);
 
   // Import Modal States
   const [importOpen, setImportOpen] = useState(false);
@@ -312,6 +321,33 @@ export default function SalesBillsListPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleConvertClick = (e: React.MouseEvent, bill: SaleBill) => {
+    e.stopPropagation();
+    setConvertTargetBill(bill);
+  };
+
+  const handleConfirmConvert = async (targetType: "pakka" | "kacha") => {
+    if (!convertTargetBill) return;
+    setConverting(true);
+    try {
+      const res = await fetch(`/api/sales/bills/${convertTargetBill.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_bill_type: targetType }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to convert bill");
+
+      toast.success(json.message || "Converted to official invoice!");
+      setConvertTargetBill(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const queryKey = ["sales-bills", activeTab, page, limit, search, partyId, status, startDate, endDate];
 
   const { data: billsData, isPending: loading, isError, error, refetch } = useERPQuery(
@@ -399,41 +435,51 @@ export default function SalesBillsListPage() {
             <span>Record Sales Return</span>
           </Link>
 
-          {/* Split Dropdown Button */}
-          <div className="relative flex">
+          {/* Create Bill Button */}
+          {enableKachaBilling ? (
+            <div className="relative flex">
+              <Link
+                href={`/sales/bills/new?type=${activeTab === "all" || activeTab === "return" ? "pakka" : activeTab}`}
+                className="px-4 py-2 rounded-l-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2 border-r border-[var(--primary-dark)]"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Sale Bill</span>
+              </Link>
+              <button
+                onClick={() => setIsCreateOpen(!isCreateOpen)}
+                className="px-2 py-2 rounded-r-lg text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors cursor-pointer"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {isCreateOpen && (
+                <div className="absolute right-0 top-11 w-48 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-md)] z-30 overflow-hidden">
+                  <Link
+                    href="/sales/bills/new?type=pakka"
+                    onClick={() => setIsCreateOpen(false)}
+                    className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
+                  >
+                    Create Pakka Bill
+                  </Link>
+                  <Link
+                    href="/sales/bills/new?type=kacha"
+                    onClick={() => setIsCreateOpen(false)}
+                    className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
+                  >
+                    Create Kacha Bill
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
             <Link
-              href={`/sales/bills/new?type=${activeTab === "all" || activeTab === "return" ? "pakka" : activeTab}`}
-              className="px-4 py-2 rounded-l-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2 border-r border-[var(--primary-dark)]"
+              href="/sales/bills/new?type=pakka"
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
               <span>Create Sale Bill</span>
             </Link>
-            <button
-              onClick={() => setIsCreateOpen(!isCreateOpen)}
-              className="px-2 py-2 rounded-r-lg text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors cursor-pointer"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-
-            {isCreateOpen && (
-              <div className="absolute right-0 top-11 w-48 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-md)] z-30 overflow-hidden">
-                <Link
-                  href="/sales/bills/new?type=pakka"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
-                >
-                  Create Pakka Bill
-                </Link>
-                <Link
-                  href="/sales/bills/new?type=kacha"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
-                >
-                  Create Kacha Bill
-                </Link>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -454,20 +500,22 @@ export default function SalesBillsListPage() {
           >
             Pakka Bills
           </button>
-          <button
-            onClick={() => {
-              setActiveTab("kacha");
-              setPage(1);
-            }}
-            className={cn(
-              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "kacha"
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            )}
-          >
-            Kacha Bills
-          </button>
+          {enableKachaBilling && (
+            <button
+              onClick={() => {
+                setActiveTab("kacha");
+                setPage(1);
+              }}
+              className={cn(
+                "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+                activeTab === "kacha"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
+                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              Kacha Bills
+            </button>
+          )}
           <button
             onClick={() => {
               setActiveTab("return");
@@ -706,12 +754,18 @@ export default function SalesBillsListPage() {
                             "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
                             isReturn
                               ? "bg-rose-500/10 text-rose-500"
+                              : bill.is_temporary
+                              ? "bg-purple-500/10 text-purple-600 border border-purple-200 font-extrabold"
                               : bill.bill_type === "pakka"
                               ? "bg-green-500/10 text-green-500"
                               : "bg-amber-500/10 text-amber-500"
                           )}
                         >
-                          {isReturn ? "RETURN" : bill.bill_type}
+                          {isReturn
+                            ? "RETURN"
+                            : bill.is_temporary
+                            ? `${bill.bill_type.toUpperCase()} (TEMPORARY)`
+                            : bill.bill_type}
                         </span>
                       </td>
                       <td className={cn("px-6 py-4 whitespace-nowrap font-medium", isReturn ? "text-rose-500 font-bold" : "text-[var(--text-primary)]")}>
@@ -733,6 +787,10 @@ export default function SalesBillsListPage() {
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">
                             CREDITED
                           </span>
+                        ) : bill.is_temporary ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600">
+                            TEMPORARY
+                          </span>
                         ) : (
                           <Badge variant={getStatusVariant(bill.payment_status)}>
                             {bill.payment_status}
@@ -741,6 +799,19 @@ export default function SalesBillsListPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {/* Convert Action Button for Temporary Bills */}
+                          {bill.is_temporary && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleConvertClick(e, bill)}
+                              className="px-2.5 py-1 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                              title="Convert Temporary Bill to Official Invoice"
+                            >
+                              <CheckCircle2 size={13} className="text-purple-600" />
+                              <span>Convert</span>
+                            </button>
+                          )}
+
                           {/* Edit */}
                           <Link
                             href={editHref}
@@ -1013,6 +1084,65 @@ export default function SalesBillsListPage() {
             >
               Delete Sales Bill
             </AsyncButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Convert Temporary Bill Modal */}
+      <Modal
+        open={!!convertTargetBill}
+        onOpenChange={(open) => !open && setConvertTargetBill(null)}
+        title="Convert Temporary Bill to Official Invoice"
+        description="Select the official invoice type to assign a sequential bill number and trigger stock & account ledgers."
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 pt-2">
+          <p className="text-xs text-[var(--text-body)]">
+            Converting temporary bill <strong className="font-mono text-[var(--primary)]">{convertTargetBill?.bill_number}</strong> will convert it into a posted official bill.
+          </p>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[var(--text-primary)]">Select Official Bill Type:</label>
+            <div className={cn("grid gap-3", enableKachaBilling ? "grid-cols-2" : "grid-cols-1")}>
+              <button
+                type="button"
+                onClick={() => handleConfirmConvert("pakka")}
+                disabled={converting}
+                className="p-3 border border-green-200 bg-green-50/50 hover:bg-green-100 rounded-xl text-left font-bold text-xs text-green-800 transition-all cursor-pointer flex flex-col gap-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span>PAKKA (Tax Invoice)</span>
+                  {converting && <Loader2 className="h-3 w-3 animate-spin text-green-600" />}
+                </div>
+                <span className="text-[10px] font-normal text-green-600">Assigns INV-YYYY-MM-XXX</span>
+              </button>
+
+              {enableKachaBilling && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmConvert("kacha")}
+                  disabled={converting}
+                  className="p-3 border border-amber-200 bg-amber-50/50 hover:bg-amber-100 rounded-xl text-left font-bold text-xs text-amber-800 transition-all cursor-pointer flex flex-col gap-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>KACHA (Estimate)</span>
+                    {converting && <Loader2 className="h-3 w-3 animate-spin text-amber-600" />}
+                  </div>
+                  <span className="text-[10px] font-normal text-amber-600">Assigns KAC-YYYY-MM-XXX</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-2">
+            <button
+              type="button"
+              disabled={converting}
+              onClick={() => setConvertTargetBill(null)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-body)] hover:bg-[var(--page-bg)] cursor-pointer"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </Modal>

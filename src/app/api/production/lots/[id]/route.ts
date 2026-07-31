@@ -121,12 +121,70 @@ export async function GET(
         ? (lot.completed_quantity || lot.total_quantity || 0)
         : (lot.completed_quantity || 0);
 
+    // Calculate Payment & Duration metrics for detail response
+    const totalLaborCost = (rawStageEntries || []).reduce((sum: number, e: any) => sum + (Number(e.total_job_work_amount) || 0), 0);
+    const totalPaidAmount = (rawStageEntries || []).reduce((sum: number, e: any) => sum + (Number(e.paid_amount) || 0), 0);
+
+    let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "paid";
+    if (rawStageEntries && rawStageEntries.length > 0 && totalLaborCost > 0) {
+      if (totalPaidAmount >= totalLaborCost) {
+        lotPaymentStatus = "paid";
+      } else if (totalPaidAmount > 0) {
+        lotPaymentStatus = "partial";
+      } else {
+        lotPaymentStatus = "unpaid";
+      }
+    }
+
+    let startTimestamps: number[] = [];
+    (stages || []).forEach((s: any) => {
+      if (s.started_at) startTimestamps.push(new Date(s.started_at).getTime());
+      if (s.created_at) startTimestamps.push(new Date(s.created_at).getTime());
+    });
+    (rawStageEntries || []).forEach((e: any) => {
+      if (e.entry_date) startTimestamps.push(new Date(e.entry_date).getTime());
+      else if (e.created_at) startTimestamps.push(new Date(e.created_at).getTime());
+    });
+    if (lot.target_start_date) startTimestamps.push(new Date(lot.target_start_date).getTime());
+    if (lot.lot_date) startTimestamps.push(new Date(lot.lot_date).getTime());
+    if (lot.created_at) startTimestamps.push(new Date(lot.created_at).getTime());
+
+    const earliestStart = startTimestamps.length > 0 ? Math.min(...startTimestamps) : new Date(lot.created_at).getTime();
+
+    let daysInWorkingStage = 0;
+    let daysTakenToComplete: number | null = null;
+    const msPerDay = 1000 * 60 * 60 * 24;
+
+    if (lot.status === "in_progress" || lot.status === "on_hold") {
+      const diffMs = Math.max(0, Date.now() - earliestStart);
+      daysInWorkingStage = Math.max(1, Math.ceil(diffMs / msPerDay));
+    } else if (lot.status === "completed") {
+      let endTimestamps: number[] = [];
+      if (lot.completed_at) endTimestamps.push(new Date(lot.completed_at).getTime());
+      (stages || []).forEach((s: any) => {
+        if (s.completed_at) endTimestamps.push(new Date(s.completed_at).getTime());
+      });
+      (rawStageEntries || []).forEach((e: any) => {
+        if (e.created_at) endTimestamps.push(new Date(e.created_at).getTime());
+      });
+      const completionTime = endTimestamps.length > 0 ? Math.max(...endTimestamps) : Date.now();
+      const diffMs = Math.max(0, completionTime - earliestStart);
+      const days = Math.max(1, Math.ceil(diffMs / msPerDay));
+      daysInWorkingStage = days;
+      daysTakenToComplete = days;
+    }
+
     const lotWithImageUrl = {
       ...lot,
       completed_quantity: effectiveCompletedQty,
       size_set: effectiveSizeSet,
       colours,
       is_moved_to_stock: isMovedToStock,
+      days_in_working_stage: daysInWorkingStage,
+      days_taken_to_complete: daysTakenToComplete,
+      lot_payment_status: lotPaymentStatus,
+      total_labor_cost: totalLaborCost,
+      total_paid_amount: totalPaidAmount,
       design: lot.design ? {
         ...lot.design,
         image_url: imageUrl
@@ -321,6 +379,7 @@ export async function PUT(
         target_due_date: target_due_date || null,
         priority: priority || "normal",
         status: status || "draft",
+        completed_at: status === "completed" ? (oldLot?.completed_at || new Date().toISOString()) : undefined,
         completed_quantity: completed_quantity !== undefined ? parseInt(completed_quantity, 10) : undefined,
         total_quantity: total_quantity !== undefined ? parseInt(total_quantity, 10) : undefined,
         allow_rework: allow_rework !== undefined ? !!allow_rework : undefined,

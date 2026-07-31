@@ -19,20 +19,29 @@ import {
   Loader2,
   FileText,
   Copy,
-  Check
+  Check,
+  CheckCircle2,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
+import { Modal } from "@/components/shared/Modal";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { openWhatsApp, shareInvoiceWithWhatsApp } from "@/lib/utils/whatsapp";
+import { getPublicBillUrl } from "@/lib/utils/baseUrl";
 import { numberToWords } from "@/lib/utils/numberToWords";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 interface BillItem {
   id: string;
-  design_id: string;
-  design_code: string;
-  size: string;
-  colour_id: string | null;
-  colour_name: string;
+  item_type?: string;
+  material_type_id?: string | null;
+  item_name?: string | null;
+  design_id?: string | null;
+  design_code?: string;
+  size?: string;
+  colour_id?: string | null;
+  colour_name?: string;
   quantity: number;
   rate: number;
   discount_percent: number;
@@ -48,6 +57,17 @@ interface BillItem {
     id: string;
     colour_name: string;
   };
+  material_type?: {
+    id: string;
+    name: string;
+    unit?: string;
+  };
+  rolls?: Array<{
+    id?: string;
+    roll_number: string;
+    meters: number;
+    shade?: string;
+  }>;
 }
 
 interface BillCharge {
@@ -85,6 +105,7 @@ interface SaleBill {
   grand_total: number;
   payment_status: "unpaid" | "partial" | "paid" | "overdue";
   status: "draft" | "active" | "cancelled";
+  is_temporary?: boolean;
   party: {
     name: string;
     company_name: string | null;
@@ -109,7 +130,7 @@ export default function SaleBillDetailPage() {
   const [copied, setCopied] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
 
-  const { data, isPending: loading } = useERPQuery(
+  const { data, isPending: loading, refetch } = useERPQuery(
     ["sales-bill-detail", id as string],
     async () => {
       const res = await fetch(`/api/sales/bills/${id}`);
@@ -118,6 +139,18 @@ export default function SaleBillDetailPage() {
     },
     { enabled: !!id }
   );
+
+  const { data: generalSettingsData } = useERPQuery(
+    ["general-settings"],
+    async () => {
+      const res = await fetch("/api/settings/general");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    { staleTime: 60_000 }
+  );
+
+  const enableKachaBilling = generalSettingsData?.settings?.enable_kacha_billing ?? true;
 
   const bill: SaleBill | null = data?.bill ?? null;
   const profit: ProfitData | null = data?.profit ?? null;
@@ -158,6 +191,30 @@ export default function SaleBillDetailPage() {
   };
 
   const cancelling = cancelMutation.isPending;
+
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [converting, setConverting] = useState(false);
+
+  const handleConfirmConvert = async (targetType: "pakka" | "kacha") => {
+    setConverting(true);
+    try {
+      const res = await fetch(`/api/sales/bills/${id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_bill_type: targetType }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to convert bill");
+
+      toast.success(json.message || "Converted to official invoice!");
+      setConvertModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setConverting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -203,6 +260,22 @@ export default function SaleBillDetailPage() {
 
   const amountInWords = numberToWords(bill.grand_total);
 
+  const handleWhatsAppShare = () => {
+    if (!bill) return;
+    const formattedTotal = bill.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 });
+    const billDate = new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const billUrl = getPublicBillUrl(bill.id);
+    const partyName = (bill.party?.company_name || bill.party?.name || "Customer").trim();
+    const msg = `Dear ${partyName},\n\nPlease find your invoice ${bill.bill_number} for ₹${formattedTotal} dated ${billDate}.\n\nView/Download Invoice:\n${billUrl}\n\nThank you for your business!`;
+    const targetPhone = (bill as any).phone || (bill.party as any)?.phone || "";
+    shareInvoiceWithWhatsApp({
+      phone: targetPhone,
+      text: msg,
+      billId: bill.id,
+      fileName: `Invoice-${bill.bill_number}.pdf`,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Top Header Navigation & Actions */}
@@ -220,12 +293,18 @@ export default function SaleBillDetailPage() {
               <Badge variant={getStatusColor(bill.status)} className="uppercase tracking-wider">
                 {bill.status}
               </Badge>
-              <Badge
-                variant={bill.bill_type === "pakka" ? "green" : "orange"}
-                className="uppercase tracking-wider text-[10px]"
-              >
-                {bill.bill_type}
-              </Badge>
+              {bill.is_temporary ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-purple-500/10 text-purple-600 border border-purple-200">
+                  TEMPORARY BILL
+                </span>
+              ) : (
+                <Badge
+                  variant={bill.bill_type === "pakka" ? "green" : "orange"}
+                  className="uppercase tracking-wider text-[10px]"
+                >
+                  {bill.bill_type}
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-[#64748B]">Created on {new Date(bill.bill_date).toLocaleDateString("en-IN")}</p>
           </div>
@@ -233,9 +312,27 @@ export default function SaleBillDetailPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 select-none">
+          {bill.is_temporary && (
+            <button
+              onClick={() => setConvertModalOpen(true)}
+              className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Convert to Official Invoice</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleWhatsAppShare}
+            className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>Share on WhatsApp</span>
+          </button>
+
           <button
             onClick={() => window.print()}
-            className="px-3.5 py-2 border border-[#D1D5DB] rounded-lg text-xs font-semibold text-[#374151] bg-white hover:bg-[#F9FAFB] transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 border border-[#D1D5DB] rounded-lg text-xs font-semibold text-[#374151] bg-white hover:bg-[#F9FAFB] transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Printer className="h-4 w-4" />
             <span>Print Invoice</span>
@@ -262,6 +359,29 @@ export default function SaleBillDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Temporary Bill Banner Notice */}
+      {bill.is_temporary && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 shrink-0 font-bold">
+              ⚡
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wider">Temporary Bill / Estimate Notice</h4>
+              <p className="text-xs text-purple-700 font-medium">
+                This bill exists purely for reference/quotation. It has not affected inventory stock, sales revenue, or customer ledgers.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setConvertModalOpen(true)}
+            className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer shrink-0 shadow-sm"
+          >
+            Convert to Official Invoice
+          </button>
+        </div>
+      )}
 
       {/* Main Grid Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -375,11 +495,30 @@ export default function SaleBillDetailPage() {
                         <td className="px-5 py-4 text-xs text-[#64748B] font-semibold">{idx + 1}</td>
                         <td className="px-5 py-4">
                           <div className="flex flex-col">
-                            <span className="font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</span>
-                            <span className="text-[10px] text-[#64748B] font-mono">Colour: {it.colour?.colour_name || it.colour_name || "—"}</span>
+                            {it.item_type === "fabric" || it.material_type_id || it.material_type ? (
+                              <>
+                                <span className="font-semibold text-slate-900">
+                                  {it.material_type?.name || it.item_name || "Raw Material Fabric"}
+                                </span>
+                                {it.rolls && it.rolls.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {it.rolls.map((r: any, rIdx: number) => (
+                                      <span key={rIdx} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[10px] font-mono font-bold text-indigo-700">
+                                        Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</span>
+                                <span className="text-[10px] text-[#64748B] font-mono">Colour: {it.colour?.colour_name || it.colour_name || "—"}</span>
+                              </>
+                            )}
                           </div>
                         </td>
-                        <td className="px-5 py-4 text-center">{it.quantity} Pcs</td>
+                        <td className="px-5 py-4 text-center">{it.quantity} {it.item_type === "fabric" || it.material_type_id ? "Meters" : "Pcs"}</td>
                         <td className="px-5 py-4 text-right">₹{it.rate.toFixed(2)}</td>
                         <td className="px-5 py-4 text-center">{it.discount_percent}%</td>
                         <td className="px-5 py-4 text-center">
@@ -1112,6 +1251,65 @@ export default function SaleBillDetailPage() {
         confirmText="Yes, Cancel Bill"
         cancelText="Keep Bill"
       />
+
+      {/* Convert Temporary Bill Modal */}
+      <Modal
+        open={convertModalOpen}
+        onOpenChange={setConvertModalOpen}
+        title="Convert Temporary Bill to Official Invoice"
+        description="Select the official invoice type to assign a sequential bill number and trigger stock & account ledgers."
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 pt-2">
+          <p className="text-xs text-[var(--text-body)]">
+            Converting temporary bill <strong className="font-mono text-[var(--primary)]">{bill?.bill_number}</strong> will convert it into a posted official bill.
+          </p>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-[var(--text-primary)]">Select Official Bill Type:</label>
+            <div className={cn("grid gap-3", enableKachaBilling ? "grid-cols-2" : "grid-cols-1")}>
+              <button
+                type="button"
+                onClick={() => handleConfirmConvert("pakka")}
+                disabled={converting}
+                className="p-3 border border-green-200 bg-green-50/50 hover:bg-green-100 rounded-xl text-left font-bold text-xs text-green-800 transition-all cursor-pointer flex flex-col gap-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span>PAKKA (Tax Invoice)</span>
+                  {converting && <Loader2 className="h-3 w-3 animate-spin text-green-600" />}
+                </div>
+                <span className="text-[10px] font-normal text-green-600">Assigns INV-YYYY-MM-XXX</span>
+              </button>
+
+              {enableKachaBilling && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmConvert("kacha")}
+                  disabled={converting}
+                  className="p-3 border border-amber-200 bg-amber-50/50 hover:bg-amber-100 rounded-xl text-left font-bold text-xs text-amber-800 transition-all cursor-pointer flex flex-col gap-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>KACHA (Estimate)</span>
+                    {converting && <Loader2 className="h-3 w-3 animate-spin text-amber-600" />}
+                  </div>
+                  <span className="text-[10px] font-normal text-amber-600">Assigns KAC-YYYY-MM-XXX</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-2">
+            <button
+              type="button"
+              disabled={converting}
+              onClick={() => setConvertModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-body)] hover:bg-[var(--page-bg)] cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

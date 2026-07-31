@@ -10,6 +10,7 @@ import {
   Users,
   QrCode,
   BarChart2,
+  Bell,
 } from "lucide-react";
 import { QueryClient } from "@tanstack/react-query";
 
@@ -46,9 +47,9 @@ export const IMPLEMENTED_ROUTES = [
   "/master-data/units",
   "/master-data/garment-types",
   "/parties",
-  "/raw-materials/purchases",
-  "/raw-materials/purchase-returns",
-  "/raw-materials/stock",
+  "/purchases",
+  "/purchases/returns",
+  "/stock/raw-materials",
   "/production/lots",
   "/production/stage-entries",
   "/production/job-work",
@@ -96,6 +97,7 @@ export const isWhitelisted = (href: string): boolean => {
     href.startsWith("/finished-stock/adjustments/") ||
     href.startsWith("/finished-stock/transfers/") ||
     href.startsWith("/finished-stock/challans/") ||
+    href.startsWith("/stock") ||
     href.startsWith("/parties") ||
     href.startsWith("/sales") ||
     href.startsWith("/purchases") ||
@@ -198,14 +200,7 @@ export const navItems: NavItem[] = [
     ],
   },
   { name: "Parties", href: "/parties", icon: Users },
-  {
-    name: "Raw Materials",
-    icon: Package,
-    subItems: [
-      { name: "Purchases", href: "/raw-materials/purchases" },
-      { name: "Raw Material Stock", href: "/raw-materials/stock" },
-    ],
-  },
+  { name: "Purchases", href: "/purchases", icon: Package },
   {
     name: "Production",
     icon: Factory,
@@ -216,10 +211,11 @@ export const navItems: NavItem[] = [
     ],
   },
   {
-    name: "Finished Stock",
+    name: "Stock",
     icon: Boxes,
     subItems: [
-      { name: "Overview", href: "/finished-stock" },
+      { name: "Finished Stock", href: "/finished-stock" },
+      { name: "Raw Material Stock", href: "/stock/raw-materials" },
       { name: "Stock Operations", href: "/finished-stock/operations" },
     ],
   },
@@ -230,7 +226,6 @@ export const navItems: NavItem[] = [
     subItems: [
       { name: "Sales", href: "/sales/bills" },
       { name: "Orders", href: "/sales/orders" },
-      { name: "Cheques / PDC", href: "/finance/cheques" },
     ],
   },
   {
@@ -239,9 +234,10 @@ export const navItems: NavItem[] = [
     subItems: [
       { name: "Payments", href: "/payments" },
       { name: "Expenses & Adjustments", href: "/expenses" },
-      { name: "Reminders & WhatsApp", href: "/reminders" },
+      { name: "Cheques / PDC", href: "/finance/cheques" },
     ],
   },
+  { name: "Reminders & WhatsApp", href: "/reminders", icon: Bell },
   {
     name: "Reports",
     icon: BarChart2,

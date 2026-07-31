@@ -13,6 +13,7 @@ import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
 import { PostInvoiceSuccessModal, CreatedInvoiceInfo } from "./PostInvoiceSuccessModal";
+import { useGeneralSettings } from "@/hooks/useGeneralSettings";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -65,6 +66,9 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     return (await res.json()).users || [];
   });
 
+  const { enableKachaBilling, enableGst } = useGeneralSettings();
+  const effectiveType = (!enableKachaBilling && type === "kacha") ? "pakka" : type;
+
   const parties = partiesData || [];
   const designs = designsData || [];
   const salesmen = (salesmenData || []).filter((u: any) => u.role === "staff" || u.role === "admin" || u.role === "owner");
@@ -88,20 +92,23 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     checkInterstate();
   }, [state.gstin]);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Create / Update mutations
   const saveMutation = useERPMutation(
     async (payload: any) => {
-      const url = mode === "create" ? "/api/sales/bills" : `/api/sales/bills/${billId}`;
+      const endpoint = mode === "create" ? "/api/sales/bills" : `/api/sales/bills/${billId}`;
       const method = mode === "create" ? "POST" : "PUT";
-      const res = await fetch(url, {
+
+      const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save invoice");
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to save invoice");
       }
       return res.json();
     },
@@ -109,28 +116,36 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       successMessage: mode === "create" ? "Invoice generated successfully!" : "Invoice updated successfully!",
       invalidates: [["sales-bills"], ["sales-bill-detail", billId]],
       onSuccess: (data: any) => {
+        setIsSubmitting(false);
         const billObj = data?.data || data?.bill || data;
         const selectedParty = parties.find((p: any) => p.id === state.partyId);
         setCreatedInvoice({
           id: billObj?.id || billId || "",
           bill_number: billObj?.bill_number || "INV-SUCCESS",
           party_name: selectedParty?.name || selectedParty?.company_name || state.phone || undefined,
+          phone: selectedParty?.phone || state.phone || undefined,
           grand_total: billObj?.grand_total ?? totals?.grand_total ?? 0,
-          bill_type: type,
+          bill_type: effectiveType,
         });
         setSuccessModalOpen(true);
+      },
+      onError: () => {
+        setIsSubmitting(false);
       },
     }
   );
 
-  const handleSaveBill = (saveStatus: "active" | "draft") => {
+  const handleSaveBill = (saveStatus: "active" | "draft", isTemporary: boolean = false) => {
+    if (isSubmitting || saveMutation.isPending) return;
     if (state.items.length === 0) {
       toast.error("Please add at least one item to proceed");
       return;
     }
 
+    setIsSubmitting(true);
+
     const payload = {
-      bill_type: type,
+      bill_type: effectiveType,
       party_id: state.partyId,
       bill_date: state.billDate,
       due_date: state.dueDate || null,
@@ -144,6 +159,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       vehicle_no: showEway ? (state.vehicleNo || null) : null,
       salesman: state.salesman || null,
       remarks: state.remarks || null,
+      is_temporary: isTemporary,
       items: state.items.map((it: any) => ({
         design_id: it.design_id,
         colour_id: it.colour_id,
@@ -375,10 +391,10 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
               </div>
             </div>
 
-            <div className="flex gap-4 p-4 border border-[#E2E8F0] rounded-xl bg-slate-50">
+            <div className="flex gap-4 p-4 border border-[var(--border)] rounded-xl bg-[var(--page-bg)]">
               <div className="flex-1 space-y-1">
-                <span className="text-xs font-bold text-slate-700 block">Save as Draft</span>
-                <p className="text-xs text-slate-500 leading-normal">
+                <span className="text-xs font-bold text-[var(--text-primary)] block">Save as Draft</span>
+                <p className="text-xs text-[var(--text-muted)] leading-normal">
                   Keeps the invoice in draft status so it won&apos;t impact general ledgers or statistics yet.
                 </p>
               </div>
@@ -386,29 +402,47 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 onClick={() => handleSaveBill("draft")}
                 disabled={saveMutation.isPending}
                 variant="outline"
-                className="self-center border-slate-300 hover:bg-slate-100 font-bold"
+                className="self-center border-[var(--border)] hover:bg-[var(--table-row-hover)] font-bold text-[var(--text-primary)]"
               >
                 Save Draft
               </Button>
             </div>
 
-            <div className="flex gap-4 p-4 border border-indigo-100 rounded-xl bg-indigo-50/50">
+            <div className="flex gap-4 p-4 border border-[var(--border)] rounded-xl bg-[var(--page-bg)]">
               <div className="flex-1 space-y-1">
-                <span className="text-xs font-bold text-slate-800 block">
+                <span className="text-xs font-bold text-[var(--text-primary)] block">Save as Temporary Bill (Dummy Bill)</span>
+                <p className="text-xs text-[var(--text-muted)] leading-normal">
+                  Creates a temporary invoice (TEMP-2026-07-XXX) for reference/quotation. Does NOT affect stock, customer accounts, or sales statistics.
+                </p>
+              </div>
+              <Button
+                onClick={() => handleSaveBill("active", true)}
+                disabled={isSubmitting || saveMutation.isPending || !state.partyId || state.items.length === 0}
+                variant="outline"
+                className="self-center border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] font-bold"
+              >
+                {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <span>Save as Temporary Bill</span>
+              </Button>
+            </div>
+
+            <div className="flex gap-4 p-4 border border-[var(--primary-light)] rounded-xl bg-[var(--primary-light)]/30">
+              <div className="flex-1 space-y-1">
+                <span className="text-xs font-bold text-[var(--text-primary)] block">
                   {mode === "edit" ? "Save & Update Sales Bill" : "Finalize & Generate Invoice"}
                 </span>
-                <p className="text-xs text-slate-500 leading-normal">
+                <p className="text-xs text-[var(--text-muted)] leading-normal">
                   {mode === "edit"
                     ? "Saves all updated items, charges, totals, and customer details for this invoice."
                     : "Publishes the invoice. This generates a sequential bill number and registers financial entries."}
                 </p>
               </div>
               <Button
-                onClick={() => handleSaveBill("active")}
-                disabled={saveMutation.isPending || !state.partyId || state.items.length === 0}
-                className="self-center bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold"
+                onClick={() => handleSaveBill("active", false)}
+                disabled={isSubmitting || saveMutation.isPending || !state.partyId || state.items.length === 0}
+                className="self-center bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold"
               >
-                {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <span>{mode === "edit" ? "Update Sales Bill" : "Generate Invoice"}</span>
               </Button>
             </div>
@@ -417,25 +451,59 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       </div>
 
       {/* Footer Navigation Buttons */}
-      <div className="flex justify-between items-center pt-6 border-t border-slate-100 mt-6 select-none">
+      <div className="flex flex-wrap justify-between items-center pt-6 border-t border-[var(--border-light)] mt-6 select-none gap-3">
         <Button
           variant="outline"
           disabled={step === 1}
           onClick={() => setStep((s) => Math.max(s - 1, 1))}
-          className="border-slate-200 text-slate-600 font-bold"
+          className="border-[var(--border)] text-[var(--text-body)] font-bold"
         >
           Previous Step
         </Button>
 
-        {step < 4 ? (
-          <Button
-            onClick={() => setStep((s) => Math.min(s + 1, 4))}
-            disabled={step === 1 && !state.partyId}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold"
-          >
-            Next Step
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {step === 4 && (
+            <>
+              <Button
+                onClick={() => handleSaveBill("draft")}
+                disabled={isSubmitting || saveMutation.isPending}
+                variant="outline"
+                className="border-[var(--border)] text-[var(--text-body)] font-bold"
+              >
+                Save Draft
+              </Button>
+
+              <Button
+                onClick={() => handleSaveBill("active", true)}
+                disabled={isSubmitting || saveMutation.isPending || !state.partyId || state.items.length === 0}
+                variant="outline"
+                className="border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] font-bold"
+              >
+                {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <span>Save as Temporary Bill</span>
+              </Button>
+
+              <Button
+                onClick={() => handleSaveBill("active", false)}
+                disabled={isSubmitting || saveMutation.isPending || !state.partyId || state.items.length === 0}
+                className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold"
+              >
+                {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <span>{mode === "edit" ? "Update Sales Bill" : "Generate Invoice"}</span>
+              </Button>
+            </>
+          )}
+
+          {step < 4 && (
+            <Button
+              onClick={() => setStep((s) => Math.min(s + 1, 4))}
+              disabled={step === 1 && !state.partyId}
+              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold"
+            >
+              Next Step
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Success Modal with Preview, Print, Download options */}

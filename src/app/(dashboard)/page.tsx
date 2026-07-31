@@ -61,10 +61,13 @@ interface DashboardData {
   bankBalances: any[];
 }
 
+import { useGeneralSettings } from "@/hooks/useGeneralSettings";
+
 export default function DashboardPage() {
   const user = useAppStore((state) => state.user);
   const filters = useAppStore((state) => state.filters);
   const queryClient = useQueryClient();
+  const { lowStockAlerts: isLowStockAlertsEnabled, formatAppCurrency } = useGeneralSettings();
 
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardData | null>({
     queryKey: ["dashboard", filters.brandId, filters.dateRange],
@@ -106,11 +109,7 @@ export default function DashboardPage() {
   }, [user, queryClient]);
 
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(val);
+    return formatAppCurrency(val);
   };
 
   if (loading || !data) {
@@ -271,29 +270,35 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)] space-y-3">
-            {lowStockAlerts.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
-                <div className="flex items-start gap-2.5 overflow-hidden">
-                  <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] dark:bg-[#451A03] text-[#D97706] dark:text-[#FBBF24] flex items-center justify-center shrink-0">
-                    <AlertTriangle size={15} />
+            {isLowStockAlertsEnabled && Array.isArray(lowStockAlerts) && lowStockAlerts.length > 0 ? (
+              lowStockAlerts.map((item: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
+                  <div className="flex items-start gap-2.5 overflow-hidden">
+                    <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] dark:bg-[#451A03] text-[#D97706] dark:text-[#FBBF24] flex items-center justify-center shrink-0">
+                      <AlertTriangle size={15} />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
+                        {item.category}
+                      </p>
+                    </div>
                   </div>
-                  <div className="overflow-hidden">
-                    <p className="text-xs font-bold text-[var(--text-primary)] truncate">
-                      {item.name}
-                    </p>
-                    <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
-                      {item.category}
+                  <div className="text-right whitespace-nowrap shrink-0">
+                    <p className="text-xs font-bold text-[#DC2626] dark:text-[#FCA5A5]">{item.qty}</p>
+                    <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                      Limit: {item.reorder}
                     </p>
                   </div>
                 </div>
-                <div className="text-right whitespace-nowrap shrink-0">
-                  <p className="text-xs font-bold text-[#DC2626] dark:text-[#FCA5A5]">{item.qty}</p>
-                  <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
-                    Limit: {item.reorder}
-                  </p>
-                </div>
+              ))
+            ) : (
+              <div className="py-6 text-center text-xs text-[var(--text-muted)] italic">
+                {!isLowStockAlertsEnabled ? "Low stock alerts are disabled in general settings" : "No low stock alerts"}
               </div>
-            ))}
+            )}
           </div>
         </div>
 

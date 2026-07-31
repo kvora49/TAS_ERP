@@ -134,75 +134,128 @@ export async function DELETE(
       }
     }
 
-    // 3. Reverse finished stock & record stock_ledger entries
+    // 3. Reverse stock & record stock_ledger entries
     if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
       for (const item of bill.items) {
         const qty = Number(item.quantity || 0);
         if (qty <= 0) continue;
 
-        // Fetch corresponding finished_stock row
-        let { data: fsRows } = await supabase
-          .from("finished_stock")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("design_id", item.design_id);
+        // A. Finished Goods stock reversal
+        if (item.design_id) {
+          let { data: fsRows } = await supabase
+            .from("finished_stock")
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("design_id", item.design_id);
 
-        if (item.colour_id && fsRows && fsRows.length > 0) {
-          const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
-          if (matchCol.length > 0) fsRows = matchCol;
-        }
-
-        if (bill.godown_id && fsRows && fsRows.length > 0) {
-          const matchGodown = fsRows.filter((r) => r.godown_id === bill.godown_id);
-          if (matchGodown.length > 0) fsRows = matchGodown;
-        }
-
-        const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
-        const godownId = existingFs?.godown_id || bill.godown_id;
-
-        // Insert stock_ledger entry for reversal
-        if (godownId) {
-          await supabase.from("stock_ledger").insert({
-            business_id: businessId,
-            item_type: "finished_good",
-            item_id: item.design_id,
-            godown_id: godownId,
-            transaction_type: "sale_bill_cancellation_inflow",
-            quantity_delta: qty,
-            value_delta: Number(item.amount || 0),
-            reference_table: "sale_bills",
-            reference_id: bill.id,
-            created_by: bill.created_by || null,
-          });
-        }
-
-        // Add back quantities to finished_stock
-        if (existingFs) {
-          const currentSizeQty = existingFs.size_quantities || {};
-          const sz = item.size || "all";
-          const currentSzQty = Number(currentSizeQty[sz] || 0);
-          const newSzQty = currentSzQty + qty;
-          const newTotalQty = Number(existingFs.total_quantity || 0) + qty;
-          const costPerPiece = Number(
-            existingFs.cost_per_piece ||
-              (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
-          );
-          const newTotalValue = newTotalQty * costPerPiece;
-
-          const updatedSizes = { ...currentSizeQty };
-          if (sz !== "all") {
-            updatedSizes[sz] = newSzQty;
+          if (item.colour_id && fsRows && fsRows.length > 0) {
+            const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
+            if (matchCol.length > 0) fsRows = matchCol;
           }
 
-          await supabase
-            .from("finished_stock")
-            .update({
-              size_quantities: updatedSizes,
-              total_quantity: newTotalQty,
-              total_value: newTotalValue,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingFs.id);
+          if (bill.godown_id && fsRows && fsRows.length > 0) {
+            const matchGodown = fsRows.filter((r) => r.godown_id === bill.godown_id);
+            if (matchGodown.length > 0) fsRows = matchGodown;
+          }
+
+          const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
+          const godownId = existingFs?.godown_id || bill.godown_id;
+
+          if (godownId) {
+            await supabase.from("stock_ledger").insert({
+              business_id: businessId,
+              item_type: "finished_good",
+              item_id: item.design_id,
+              godown_id: godownId,
+              transaction_type: "sale_bill_cancellation_inflow",
+              quantity_delta: qty,
+              value_delta: Number(item.amount || 0),
+              reference_table: "sale_bills",
+              reference_id: bill.id,
+              created_by: bill.created_by || null,
+            });
+          }
+
+          if (existingFs) {
+            const currentSizeQty = existingFs.size_quantities || {};
+            const sz = item.size || "all";
+            const currentSzQty = Number(currentSizeQty[sz] || 0);
+            const newSzQty = currentSzQty + qty;
+            const newTotalQty = Number(existingFs.total_quantity || 0) + qty;
+            const costPerPiece = Number(
+              existingFs.cost_per_piece ||
+                (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
+            );
+            const newTotalValue = newTotalQty * costPerPiece;
+
+            const updatedSizes = { ...currentSizeQty };
+            if (sz !== "all") {
+              updatedSizes[sz] = newSzQty;
+            }
+
+            await supabase
+              .from("finished_stock")
+              .update({
+                size_quantities: updatedSizes,
+                total_quantity: newTotalQty,
+                total_value: newTotalValue,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingFs.id);
+          }
+        }
+
+        // B. Fabric & Raw Material stock reversal
+        if (item.material_type_id || item.item_type === "fabric") {
+          // Restore sold fabric rolls if any
+          const { data: saleRolls } = await supabase
+            .from("sale_rolls")
+            .select("*")
+            .eq("sale_item_id", item.id);
+
+          if (saleRolls && saleRolls.length > 0) {
+            for (const sr of saleRolls) {
+              if (sr.purchase_roll_id) {
+                const { data: pRoll } = await supabase
+                  .from("purchase_rolls")
+                  .select("remaining_meters")
+                  .eq("id", sr.purchase_roll_id)
+                  .maybeSingle();
+
+                if (pRoll) {
+                  const restoredMeters = Number(pRoll.remaining_meters || 0) + Number(sr.meters || 0);
+                  await supabase
+                    .from("purchase_rolls")
+                    .update({ remaining_meters: restoredMeters })
+                    .eq("id", sr.purchase_roll_id);
+                }
+              }
+            }
+          }
+
+          // Restore raw_material_current_stock if material_type_id exists
+          if (item.material_type_id && bill.godown_id) {
+            const { data: existingStock } = await supabase
+              .from("raw_material_current_stock")
+              .select("*")
+              .eq("business_id", businessId)
+              .eq("material_type_id", item.material_type_id)
+              .eq("godown_id", bill.godown_id)
+              .maybeSingle();
+
+            if (existingStock) {
+              const newQty = Number(existingStock.current_stock || 0) + qty;
+              const newValue = Number(existingStock.stock_value || 0) + Number(item.amount || 0);
+              await supabase
+                .from("raw_material_current_stock")
+                .update({
+                  current_stock: newQty,
+                  stock_value: newValue,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingStock.id);
+            }
+          }
         }
       }
     }

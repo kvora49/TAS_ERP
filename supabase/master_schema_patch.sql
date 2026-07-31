@@ -39,5 +39,30 @@ ALTER TABLE finished_stock ADD CONSTRAINT finished_stock_entry_type_check
 ALTER TABLE finished_stock
   ADD COLUMN IF NOT EXISTS qr_uuid UUID DEFAULT gen_random_uuid();
 
--- 6. Reload PostgREST Schema Cache
+-- 6. Update sale_bill_items to support Fabric Rolls & Raw Material Sales
+ALTER TABLE sale_bill_items ALTER COLUMN design_id DROP NOT NULL;
+
+ALTER TABLE sale_bill_items
+  ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'finished_goods',
+  ADD COLUMN IF NOT EXISTS material_type_id UUID REFERENCES raw_material_types(id);
+
+-- 7. Create sale_rolls table for tracking sold fabric rolls
+CREATE TABLE IF NOT EXISTS sale_rolls (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  sale_item_id UUID NOT NULL REFERENCES sale_bill_items(id) ON DELETE CASCADE,
+  purchase_roll_id UUID REFERENCES purchase_rolls(id) ON DELETE SET NULL,
+  roll_number TEXT NOT NULL,
+  meters NUMERIC NOT NULL DEFAULT 0,
+  shade TEXT,
+  width NUMERIC,
+  comment TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for fast lookup
+CREATE INDEX IF NOT EXISTS idx_sale_rolls_sale_item_id ON sale_rolls(sale_item_id);
+CREATE INDEX IF NOT EXISTS idx_sale_rolls_purchase_roll_id ON sale_rolls(purchase_roll_id);
+
+-- 8. Reload PostgREST Schema Cache
 NOTIFY pgrst, 'reload schema';

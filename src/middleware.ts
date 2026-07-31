@@ -49,7 +49,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password");
 
-  const isPublicPage = isAuthPage || pathname.startsWith("/reset-password");
+  const isPublicPage =
+    isAuthPage ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/p/");
 
   if (!user && !isPublicPage) {
     return NextResponse.redirect(new URL("/login", request.url));

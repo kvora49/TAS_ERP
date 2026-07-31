@@ -59,6 +59,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Source and destination godowns must be different" }, { status: 400 });
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    // If negative stock is disallowed, verify stock availability in source godown
+    if (!serverSettings.allow_negative_stock) {
+      for (const item of items) {
+        if (!item.design_id || !item.quantity || Number(item.quantity) <= 0) continue;
+        const { data: stockRow } = await supabase
+          .from("finished_stock")
+          .select("quantity")
+          .eq("business_id", businessId)
+          .eq("godown_id", from_godown_id)
+          .eq("design_id", item.design_id)
+          .maybeSingle();
+
+        const currentQty = Number(stockRow?.quantity || 0);
+        const reqQty = Number(item.quantity);
+        if (currentQty < reqQty) {
+          return NextResponse.json(
+            { error: `Insufficient stock in source godown. Available: ${currentQty}, Required: ${reqQty}` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Auto-generate transfer number (TRF-YYYY-XXXX)
     const year = new Date(transfer_date).getFullYear() || new Date().getFullYear();
     const { data: lastTrf } = await supabase

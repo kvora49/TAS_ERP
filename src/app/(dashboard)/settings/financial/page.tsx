@@ -3,16 +3,13 @@
 import { useEffect, useState } from "react";
 import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
-import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
 import { Switch } from "@/components/ui/switch";
 import { InfoBanner } from "@/components/shared/InfoBanner";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { usePermissions } from "@/hooks/usePermissions";
+import { TDS_SECTIONS } from "@/lib/utils/financialCalculations";
 import {
   FileText,
   Calendar,
@@ -24,6 +21,7 @@ import {
   Info,
   Save,
   Check,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,8 +36,10 @@ interface Brand {
 }
 
 export default function FinancialSettingsPage() {
+  const { canEdit } = usePermissions();
+
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Financial general preference states
   const [defaultCreditDays, setDefaultCreditDays] = useState(0);
@@ -61,11 +61,12 @@ export default function FinancialSettingsPage() {
 
   const fetchFinancialSettings = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/settings/financial");
       if (!res.ok) throw new Error("Failed to load financial settings");
       const data = await res.json();
-      
+
       if (data.settings) {
         setDefaultCreditDays(data.settings.default_credit_days || 0);
         setDefaultPaymentTerms(data.settings.default_payment_terms || "30_days");
@@ -76,6 +77,7 @@ export default function FinancialSettingsPage() {
 
       setBrands(data.brands || []);
     } catch (err: any) {
+      setError(err.message || "Error fetching financial settings");
       toast.error(err.message || "Error fetching financial settings");
     } finally {
       setLoading(false);
@@ -87,7 +89,6 @@ export default function FinancialSettingsPage() {
   }, []);
 
   const handleSaveAll = async () => {
-    setSaving(true);
     try {
       const res = await fetch("/api/settings/financial", {
         method: "PUT",
@@ -98,7 +99,7 @@ export default function FinancialSettingsPage() {
           default_tds_type: defaultTdsType,
           round_off_method: roundOffMethod,
           enable_cash_rounding: enableCashRounding,
-          brands, // Save any local updates to brands
+          brands,
         }),
       });
 
@@ -109,8 +110,7 @@ export default function FinancialSettingsPage() {
       fetchFinancialSettings();
     } catch (err: any) {
       toast.error(err.message || "Error saving financial settings");
-    } finally {
-      setSaving(false);
+      throw err;
     }
   };
 
@@ -149,313 +149,366 @@ export default function FinancialSettingsPage() {
     const pakka = brand.bill_prefix_pakka || "PK";
     const separator = brand.design_separator || "/";
     const digits = brand.design_digits || 5;
-    const yearSuffix = "26-27"; // static standard representation for mockup preview
+    const yearSuffix = "26-27";
     const nextVal = "1".padStart(Number(digits), "0");
     return `${pakka}${separator}${yearSuffix}${separator}${nextVal}`;
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <span className="text-sm font-semibold text-slate-500 animate-pulse">
-          Loading financial preferences...
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6 text-left">
       <SettingsPageHeader
         section="Financial"
         title="Settings > Financial"
-        subtitle="Configure financial preferences and defaults"
-        actionLabel="Save Changes"
-        onAction={handleSaveAll}
+        subtitle="Configure financial preferences, bill series and context-aware TDS rules"
+        actionLabel={canEdit("Settings") ? "Save Changes" : undefined}
+        onAction={canEdit("Settings") ? handleSaveAll : undefined}
         actionIcon={<Save className="size-4 text-white" />}
-        actionLoading={saving}
       />
 
-      {/* CARD 1 — Bill Series Configuration */}
-      <SettingsCard
-        icon={FileText}
-        title="Bill Series Configuration"
-        subtitle="Configure bill numbering series for each brand"
-        headerRight={
-          <button
-            type="button"
-            onClick={() => toast.info("To add a new series, please create a new Brand in Master Data.")}
-            className="border border-[#E5E7EB] bg-white h-9 px-3 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm cursor-pointer inline-flex items-center gap-1.5"
-          >
-            <Plus className="size-4" /> Add Series
-          </button>
-        }
+      <PageState
+        isLoading={loading}
+        isError={!!error}
+        error={error || undefined}
+        onRetry={fetchFinancialSettings}
+        skeletonVariant="form"
       >
-        <div className="overflow-x-auto border border-[#E5E7EB] rounded-lg">
-          <table className="w-full text-sm text-[#374151]">
-            <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider h-10">
-              <tr>
-                <th className="px-4 py-2 text-left">Brand</th>
-                <th className="px-4 py-2 text-left">Series Type</th>
-                <th className="px-4 py-2 text-left">Prefix (Pakka)</th>
-                <th className="px-4 py-2 text-left">Prefix (Kacha)</th>
-                <th className="px-4 py-2 text-left">Separator</th>
-                <th className="px-4 py-2 text-center">Digits</th>
-                <th className="px-4 py-2 text-left">Reset Frequency</th>
-                <th className="px-4 py-2 text-left">Next Number</th>
-                <th className="px-4 py-2 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E5E7EB]">
-              {brands.map((b) => (
-                <tr key={b.id} className="hover:bg-[#F8FAFC] h-14">
-                  <td className="px-4 py-2 font-semibold text-[#374151]">{b.name}</td>
-                  <td className="px-4 py-2">Invoice</td>
-                  <td className="px-4 py-2 font-mono">{b.bill_prefix_pakka || "PK"}</td>
-                  <td className="px-4 py-2 font-mono">{b.bill_prefix_kacha || "KC"}</td>
-                  <td className="px-4 py-2">{b.design_separator || "/"}</td>
-                  <td className="px-4 py-2 text-center">{b.design_digits || 5}</td>
-                  <td className="px-4 py-2">Every Financial Year</td>
-                  <td className="px-4 py-2 font-mono">{getNextNumberPreview(b)}</td>
-                  <td className="px-4 py-2 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleOpenEditBrand(b)}
-                        className="w-8 h-8 border border-[#E5E7EB] hover:bg-slate-100 rounded-lg inline-flex items-center justify-center transition-colors"
-                      >
-                        <Pencil className="size-4 text-[#64748B]" />
-                      </button>
-                      <button
-                        onClick={() => toast.warning("To delete, deactivate the Brand in Master Data.")}
-                        className="w-8 h-8 border border-[#FEE2E2] hover:bg-red-50 rounded-lg inline-flex items-center justify-center transition-colors"
-                      >
-                        <Trash2 className="size-4 text-[#EF4444]" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {brands.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="text-center py-6 text-slate-400 italic">
-                    No brands available. Please add brands in Master Data first.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-3 select-none">
-          <Info className="size-4 text-[#94A3B8]" />
-          <span className="text-xs text-[#64748B]">
-            Next number indicates the next document number that will be generated.
-          </span>
-        </div>
-      </SettingsCard>
-
-      {/* ROW 2 — Two side-by-side cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Default Credit Days */}
+        {/* CARD 1 — Bill Series Configuration */}
         <SettingsCard
-          icon={Calendar}
-          title="Default Credit Days"
-          subtitle="Set default credit period for customers"
+          icon={FileText}
+          title="Bill Series Configuration"
+          subtitle="Configure bill numbering series for each brand"
+          headerRight={
+            <button
+              type="button"
+              onClick={() => toast.info("To add a new series, please create a new Brand in Master Data.")}
+              className="border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] h-9 px-3 rounded-lg text-sm font-semibold shadow-sm cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Plus className="size-4" /> Add Series
+            </button>
+          }
         >
-          <div className="flex flex-col gap-3">
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Default Credit Days <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="flex w-full">
-                <input
-                  type="number"
-                  min="0"
-                  value={defaultCreditDays}
-                  onChange={(e) => setDefaultCreditDays(Number(e.target.value))}
-                  className="flex-1 h-10 px-3 rounded-l-lg border border-r-0 border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  placeholder="e.g. 30"
-                />
-                <span className="h-10 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded-r-lg text-sm text-[#64748B] flex items-center justify-center font-medium">
-                  days
-                </span>
-              </div>
-            </div>
-            <InfoBanner
-              variant="info"
-              text="This credit period will be used in sales invoices if customer specific credit days is not set."
-            />
+          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+            <table className="w-full text-sm text-[var(--text-body)]">
+              <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-10">
+                <tr>
+                  <th className="px-4 py-2 text-left">Brand</th>
+                  <th className="px-4 py-2 text-left">Series Type</th>
+                  <th className="px-4 py-2 text-left">Prefix (Pakka)</th>
+                  <th className="px-4 py-2 text-left">Prefix (Kacha)</th>
+                  <th className="px-4 py-2 text-left">Separator</th>
+                  <th className="px-4 py-2 text-center">Digits</th>
+                  <th className="px-4 py-2 text-left">Reset Frequency</th>
+                  <th className="px-4 py-2 text-left">Next Number</th>
+                  <th className="px-4 py-2 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {brands.map((b) => (
+                  <tr key={b.id} className="hover:bg-[var(--table-row-hover)] h-14 transition-colors">
+                    <td className="px-4 py-2 font-semibold text-[var(--text-primary)]">{b.name}</td>
+                    <td className="px-4 py-2">Invoice</td>
+                    <td className="px-4 py-2 font-mono">{b.bill_prefix_pakka || "PK"}</td>
+                    <td className="px-4 py-2 font-mono">{b.bill_prefix_kacha || "KC"}</td>
+                    <td className="px-4 py-2">{b.design_separator || "/"}</td>
+                    <td className="px-4 py-2 text-center">{b.design_digits || 5}</td>
+                    <td className="px-4 py-2">Every Financial Year</td>
+                    <td className="px-4 py-2 font-mono">{getNextNumberPreview(b)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBrand(b)}
+                          className="w-8 h-8 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toast.warning("To delete, deactivate the Brand in Master Data.")}
+                          className="w-8 h-8 border border-red-500/20 hover:bg-red-500/10 text-red-500 rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {brands.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="text-center py-6 text-[var(--text-faint)] italic">
+                      No brands available. Please add brands in Master Data first.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-3 select-none">
+            <Info className="size-4 text-[var(--text-faint)]" />
+            <span className="text-xs text-[var(--text-muted)]">
+              Next number indicates the next document number that will be generated.
+            </span>
           </div>
         </SettingsCard>
 
-        {/* Default Payment Terms */}
+        {/* ROW 2 — Two side-by-side cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Default Credit Days */}
+          <SettingsCard
+            icon={Calendar}
+            title="Default Credit Days"
+            subtitle="Set default credit period for customers"
+          >
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+                  Default Credit Days <span className="text-red-500">*</span>
+                </label>
+                <div className="flex w-full">
+                  <input
+                    type="number"
+                    min="0"
+                    value={defaultCreditDays}
+                    onChange={(e) => setDefaultCreditDays(Number(e.target.value))}
+                    className="flex-1 h-10 px-3 rounded-l-lg border border-r-0 border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                    placeholder="e.g. 30"
+                  />
+                  <span className="h-10 px-4 bg-[var(--table-header-bg)] border border-[var(--input-border)] rounded-r-lg text-sm text-[var(--text-muted)] flex items-center justify-center font-medium">
+                    days
+                  </span>
+                </div>
+              </div>
+              <InfoBanner
+                variant="info"
+                text="This credit period will be used in sales invoices if customer specific credit days is not set."
+              />
+            </div>
+          </SettingsCard>
+
+          {/* Default Payment Terms */}
+          <SettingsCard
+            icon={Receipt}
+            title="Default Payment Terms"
+            subtitle="Set default payment terms for purchases"
+          >
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+                  Default Payment Terms <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={defaultPaymentTerms}
+                  onChange={(e) => setDefaultPaymentTerms(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+                >
+                  <option value="immediate">Immediate</option>
+                  <option value="15_days">15 Days</option>
+                  <option value="30_days">30 Days</option>
+                  <option value="45_days">45 Days</option>
+                  <option value="60_days">60 Days</option>
+                  <option value="90_days">90 Days</option>
+                </select>
+              </div>
+              <InfoBanner
+                variant="info"
+                text="This payment term will be used in purchase invoices if vendor specific terms is not set."
+              />
+            </div>
+          </SettingsCard>
+        </div>
+
+        {/* CARD 3 — Context-Aware TDS Engine & Rounding Preferences */}
         <SettingsCard
-          icon={Receipt}
-          title="Default Payment Terms"
-          subtitle="Set default payment terms for purchases"
+          icon={Settings2}
+          title="TDS Engine & Rounding Preferences"
+          subtitle="Configure default TDS section defaults and round off rules"
         >
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center mb-6">
             <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Default Payment Terms <span className="text-[#DC2626]">*</span>
+              <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+                Fallback Default TDS Type
               </label>
               <select
-                value={defaultPaymentTerms}
-                onChange={(e) => setDefaultPaymentTerms(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+                value={defaultTdsType}
+                onChange={(e) => setDefaultTdsType(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
               >
-                <option value="immediate">Immediate</option>
-                <option value="15_days">15 Days</option>
-                <option value="30_days">30 Days</option>
-                <option value="45_days">45 Days</option>
-                <option value="60_days">60 Days</option>
-                <option value="90_days">90 Days</option>
+                {Object.values(TDS_SECTIONS).map((sec) => (
+                  <option key={sec.code} value={sec.code}>
+                    {sec.name}
+                  </option>
+                ))}
               </select>
             </div>
-            <InfoBanner
-              variant="info"
-              text="This payment term will be used in purchase invoices if vendor specific terms is not set."
-            />
+
+            <div>
+              <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+                Round Off Option
+              </label>
+              <select
+                value={roundOffMethod}
+                onChange={(e) => setRoundOffMethod(e.target.value as any)}
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
+              >
+                <option value="two_decimals">Round to 2 Decimal Places</option>
+                <option value="nearest_rupee">Round to Nearest Rupee</option>
+                <option value="no_rounding">No Round Off</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between border border-[var(--border)] rounded-xl p-4 mt-1 bg-[var(--table-header-bg)]">
+              <div>
+                <span className="text-sm font-semibold text-[var(--text-primary)] block leading-none">
+                  Enable Cash Rounding
+                </span>
+                <span className="text-xs text-[var(--text-muted)] block mt-1.5 leading-none">
+                  Round off cash transactions to nearest rupee
+                </span>
+              </div>
+              <Switch
+                checked={enableCashRounding}
+                onCheckedChange={setEnableCashRounding}
+              />
+            </div>
+          </div>
+
+          {/* Section 194 Reference & Module Rules Table */}
+          <div className="border border-[var(--border)] rounded-xl p-4 bg-[var(--table-header-bg)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Percent className="size-4 text-[var(--primary)]" />
+              <h4 className="text-sm font-bold text-[var(--text-primary)]">
+                Context-Aware Income Tax TDS Rules (Section 194 Reference)
+              </h4>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card-bg)]">
+              <table className="w-full text-xs text-[var(--text-body)]">
+                <thead className="bg-[var(--table-header-bg)] text-[var(--text-muted)] font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Module / Context</th>
+                    <th className="px-3 py-2 text-left">TDS Section</th>
+                    <th className="px-3 py-2 text-center">Individual Rate</th>
+                    <th className="px-3 py-2 text-center">Company Rate</th>
+                    <th className="px-3 py-2 text-center">No PAN Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)] font-mono">
+                  <tr>
+                    <td className="px-3 py-2 font-sans font-medium text-[var(--text-primary)]">Job Work & Tailors</td>
+                    <td className="px-3 py-2 font-semibold">194C - Contracts</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">1%</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">2%</td>
+                    <td className="px-3 py-2 text-center text-red-500 font-bold">20%</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-sans font-medium text-[var(--text-primary)]">Raw Material Purchases</td>
+                    <td className="px-3 py-2 font-semibold">194Q - Purchase of Goods</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">0.1%</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">0.1%</td>
+                    <td className="px-3 py-2 text-center text-red-500 font-bold">5%</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-sans font-medium text-[var(--text-primary)]">Audit & Legal Fees</td>
+                    <td className="px-3 py-2 font-semibold">194J - Professional Services</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">10%</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">10%</td>
+                    <td className="px-3 py-2 text-center text-red-500 font-bold">20%</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-sans font-medium text-[var(--text-primary)]">Factory & Office Rent</td>
+                    <td className="px-3 py-2 font-semibold">194I - Rent</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">10%</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">10%</td>
+                    <td className="px-3 py-2 text-center text-red-500 font-bold">20%</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-sans font-medium text-[var(--text-primary)]">Sales Agents & Brokers</td>
+                    <td className="px-3 py-2 font-semibold">194H - Commission</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">5%</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">5%</td>
+                    <td className="px-3 py-2 text-center text-red-500 font-bold">20%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </SettingsCard>
-      </div>
+      </PageState>
 
-      {/* CARD 3 — Other Financial Preferences */}
-      <SettingsCard
-        icon={Settings2}
-        title="Other Financial Preferences"
-        subtitle="Configure additional financial preferences"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+      {/* EDIT BRAND BILL PREFIX MODAL */}
+      <Modal open={editDialogOpen} onOpenChange={setEditDialogOpen} title={`Edit Series Config: ${editingBrand?.name}`} maxWidth="max-w-md">
+        <div className="flex flex-col gap-4 mt-2">
           <div>
-            <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
-              Default TDS Type
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Prefix (Pakka)
             </label>
-            <select
-              value={defaultTdsType}
-              onChange={(e) => setDefaultTdsType(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-            >
-              <option value="194C">194C - Contractor</option>
-              <option value="194H">194H - Commission</option>
-              <option value="194I">194I - Rent</option>
-              <option value="194J">194J - Professional</option>
-              <option value="none">None</option>
-            </select>
+            <input
+              type="text"
+              value={editPakka}
+              onChange={(e) => setEditPakka(e.target.value.toUpperCase())}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] font-mono"
+              placeholder="PK"
+            />
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-[var(--text-body)] block mb-1.5">
-              Round Off Option
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Prefix (Kacha)
             </label>
-            <select
-              value={roundOffMethod}
-              onChange={(e) => setRoundOffMethod(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-            >
-              <option value="two_decimals">Round to 2 Decimal Places</option>
-              <option value="nearest_rupee">Round to Nearest Rupee</option>
-              <option value="no_rounding">No Round Off</option>
-            </select>
+            <input
+              type="text"
+              value={editKacha}
+              onChange={(e) => setEditKacha(e.target.value.toUpperCase())}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] font-mono"
+              placeholder="KC"
+            />
           </div>
 
-          <div className="flex items-center justify-between border border-[#F3F4F6] rounded-xl p-4 mt-5 bg-slate-50/50">
-            <div>
-              <span className="text-sm font-semibold text-[#374151] block leading-none">
-                Enable Cash Rounding
-              </span>
-              <span className="text-xs text-[#94A3B8] block mt-1.5 leading-none">
-                Round off cash transactions to nearest rupee
-              </span>
-            </div>
-            <Switch
-              checked={enableCashRounding}
-              onCheckedChange={setEnableCashRounding}
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Separator
+            </label>
+            <input
+              type="text"
+              maxLength={1}
+              value={editSeparator}
+              onChange={(e) => setEditSeparator(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              placeholder="/"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Digits Length
+            </label>
+            <input
+              type="number"
+              min="3"
+              max="8"
+              value={editDigits}
+              onChange={(e) => setEditDigits(Number(e.target.value))}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             />
           </div>
         </div>
-      </SettingsCard>
 
-      {/* EDIT BRAND BILL PREFIX DIALOG */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md w-full bg-white rounded-2xl p-6 text-left shadow-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              Edit Series Config: {editingBrand?.name}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4 mt-4">
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Prefix (Pakka)
-              </label>
-              <input
-                type="text"
-                value={editPakka}
-                onChange={(e) => setEditPakka(e.target.value.toUpperCase())}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-mono"
-                placeholder="PK"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Prefix (Kacha)
-              </label>
-              <input
-                type="text"
-                value={editKacha}
-                onChange={(e) => setEditKacha(e.target.value.toUpperCase())}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-mono"
-                placeholder="KC"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Separator
-              </label>
-              <input
-                type="text"
-                maxLength={1}
-                value={editSeparator}
-                onChange={(e) => setEditSeparator(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                placeholder="/"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Digits Length
-              </label>
-              <input
-                type="number"
-                min="3"
-                max="8"
-                value={editDigits}
-                onChange={(e) => setEditDigits(Number(e.target.value))}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={() => setEditDialogOpen(false)}
-              className="h-10 px-4 border border-[#E5E7EB] hover:bg-slate-50 rounded-lg text-sm font-semibold"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveBrandEdit}
-              className="h-10 px-4 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg text-sm font-semibold"
-            >
-              Stage Changes
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[var(--border)] pt-4">
+          <button
+            type="button"
+            onClick={() => setEditDialogOpen(false)}
+            className="h-10 px-4 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveBrandEdit}
+            className="h-10 px-4 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+          >
+            Stage Changes
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -7,24 +7,18 @@ import { RoleBadge } from "@/components/shared/RoleBadge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { InfoBanner } from "@/components/shared/InfoBanner";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
+import AsyncButton from "@/components/shared/AsyncButton";
+import PageState from "@/components/shared/PageState";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   UserCircle,
   Settings2,
   UserPlus,
   Search,
   MoreVertical,
-  ChevronRight,
   Eye,
   EyeOff,
-  Shield,
-  Trash2,
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,13 +56,16 @@ const MODULES = [
 ];
 
 export default function UsersRolesSettingsPage() {
+  const { canAdd, canEdit } = usePermissions();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  
+  const [userError, setUserError] = useState<string | null>(null);
+
   // Search & Filter
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  
+
   // Modal states
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newUserName, setNewUserName] = useState("");
@@ -78,7 +75,6 @@ export default function UsersRolesSettingsPage() {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
-  const [addingUser, setAddingUser] = useState(false);
 
   // Edit / Dropdown actions
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -87,11 +83,11 @@ export default function UsersRolesSettingsPage() {
   const [selectedRole, setSelectedRole] = useState("manager");
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loadingPermissions, setLoadingPermissions] = useState(true);
-  const [savingPermissions, setSavingPermissions] = useState(false);
 
   // Fetch Users
   const fetchUsers = async () => {
     setLoadingUsers(true);
+    setUserError(null);
     try {
       const query = new URLSearchParams();
       if (roleFilter !== "all") query.append("role", roleFilter);
@@ -102,6 +98,7 @@ export default function UsersRolesSettingsPage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load users`);
       setUsers(data.users || []);
     } catch (err: any) {
+      setUserError(err.message || "Error loading users");
       toast.error(err.message || "Error loading users");
     } finally {
       setLoadingUsers(false);
@@ -132,14 +129,12 @@ export default function UsersRolesSettingsPage() {
   }, []);
 
   // Add User
-  const handleAddUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddUser = async () => {
     if (!newUserName || !newUserEmail || !newUserPassword) {
       toast.error("Please fill in all required fields (*)");
       return;
     }
 
-    setAddingUser(true);
     try {
       const res = await fetch("/api/settings/users", {
         method: "POST",
@@ -158,19 +153,18 @@ export default function UsersRolesSettingsPage() {
 
       toast.success("User added successfully");
       setAddModalOpen(false);
-      
+
       // Reset form
       setNewUserName("");
       setNewUserEmail("");
       setNewUserPhone("");
       setNewUserRole("manager");
       setNewUserPassword("");
-      
+
       fetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Error creating user");
-    } finally {
-      setAddingUser(false);
+      throw err;
     }
   };
 
@@ -178,7 +172,7 @@ export default function UsersRolesSettingsPage() {
   const handleToggleStatus = async (user: User) => {
     setActiveMenuId(null);
     const action = user.is_active ? "deactivate" : "activate";
-    
+
     try {
       const res = await fetch(`/api/settings/users/${user.id}/deactivate`, {
         method: "PATCH",
@@ -210,7 +204,6 @@ export default function UsersRolesSettingsPage() {
 
   // Save Permissions Matrix
   const handleSavePermissions = async () => {
-    setSavingPermissions(true);
     try {
       const res = await fetch("/api/settings/permissions", {
         method: "PUT",
@@ -225,8 +218,7 @@ export default function UsersRolesSettingsPage() {
       fetchPermissions();
     } catch (err: any) {
       toast.error(err.message || "Error saving permissions matrix");
-    } finally {
-      setSavingPermissions(false);
+      throw err;
     }
   };
 
@@ -249,18 +241,18 @@ export default function UsersRolesSettingsPage() {
   };
 
   const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase() || "US";
+    return (
+      name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase() || "US"
+    );
   };
 
-  // Get active role matrix permissions rows
   const filteredPermissions = permissions.filter((p) => p.role === selectedRole);
 
-  // Helper to get permission value safely
   const getPermVal = (moduleName: string, field: keyof Permission): boolean => {
     const row = filteredPermissions.find((p) => p.module === moduleName);
     return row ? !!row[field] : false;
@@ -272,8 +264,8 @@ export default function UsersRolesSettingsPage() {
         section="Users & Roles"
         title="Settings > Users & Roles"
         subtitle="Manage users, roles and permissions"
-        actionLabel="Add User"
-        onAction={() => setAddModalOpen(true)}
+        actionLabel={canAdd("Settings") ? "Add User" : undefined}
+        onAction={canAdd("Settings") ? () => setAddModalOpen(true) : undefined}
         actionIcon={<UserPlus className="size-4 text-white" />}
       />
 
@@ -286,19 +278,19 @@ export default function UsersRolesSettingsPage() {
         {/* Search & Filter row */}
         <div className="flex flex-col sm:flex-row items-center gap-3 mb-4 select-none">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] h-4 w-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4" />
             <input
               type="text"
               placeholder="Search by name, email or role..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             />
           </div>
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+            className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
           >
             <option value="all">All Roles</option>
             <option value="owner">Owner</option>
@@ -311,35 +303,34 @@ export default function UsersRolesSettingsPage() {
         </div>
 
         {/* Users Table */}
-        <div className="overflow-x-auto border border-[#F3F4F6] rounded-lg">
-          <table className="w-full text-sm text-[#374151]">
-            <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Email</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-left">Last Login</th>
-                <th className="px-4 py-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F3F4F6]">
-              {loadingUsers ? (
+        <PageState
+          isLoading={loadingUsers}
+          isError={!!userError}
+          error={userError || undefined}
+          onRetry={fetchUsers}
+          isEmpty={users.length === 0}
+          skeletonVariant="table"
+          skeletonRows={4}
+          skeletonColumns={6}
+          emptyTitle="No users found"
+          emptyDescription="No system users match the current search or role filters."
+        >
+          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+            <table className="w-full text-sm text-[var(--text-body)]">
+              <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-slate-400 font-semibold">
-                    Loading users list...
-                  </td>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Email</th>
+                  <th className="px-4 py-3 text-left">Role</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-left">Last Login</th>
+                  <th className="px-4 py-3 text-center">Action</th>
                 </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-6 text-slate-400 italic">
-                    No users found matching filters
-                  </td>
-                </tr>
-              ) : (
-                users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-medium text-[#0F172A]">
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {users.map((u) => (
+                  <tr key={u.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${getAvatarBg(
@@ -351,14 +342,14 @@ export default function UsersRolesSettingsPage() {
                         <span>{u.full_name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">{u.email}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{u.email}</td>
                     <td className="px-4 py-3">
                       <RoleBadge role={u.role} />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <StatusBadge active={u.is_active} />
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
                       {u.last_login_at
                         ? new Date(u.last_login_at).toLocaleString("en-IN", {
                             day: "2-digit",
@@ -371,33 +362,41 @@ export default function UsersRolesSettingsPage() {
                         : "Never"}
                     </td>
                     <td className="px-4 py-3 text-center relative">
-                      <button
-                        onClick={() => setActiveMenuId(activeMenuId === u.id ? null : u.id)}
-                        className="w-8 h-8 rounded-lg border border-[#E5E7EB] hover:bg-slate-50 inline-flex items-center justify-center transition-colors"
-                      >
-                        <MoreVertical className="size-4 text-[#64748B]" />
-                      </button>
-                      {activeMenuId === u.id && (
-                        <div className="absolute right-4 mt-1 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-10 w-36 py-1">
+                      {canEdit("Settings") ? (
+                        <>
                           <button
-                            onClick={() => handleToggleStatus(u)}
-                            className={`w-full text-left px-3 py-2 text-xs font-semibold ${
-                              u.is_active
-                                ? "text-[#DC2626] hover:bg-red-50"
-                                : "text-green-600 hover:bg-green-50"
-                            }`}
+                            type="button"
+                            onClick={() => setActiveMenuId(activeMenuId === u.id ? null : u.id)}
+                            className="w-8 h-8 rounded-lg border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] inline-flex items-center justify-center transition-colors cursor-pointer"
                           >
-                            {u.is_active ? "Deactivate" : "Activate"}
+                            <MoreVertical className="size-4" />
                           </button>
-                        </div>
+                          {activeMenuId === u.id && (
+                            <div className="absolute right-4 mt-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-lg z-10 w-36 py-1 select-none">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStatus(u)}
+                                className={`w-full text-left px-3 py-2 text-xs font-semibold cursor-pointer ${
+                                  u.is_active
+                                    ? "text-red-500 hover:bg-red-500/10"
+                                    : "text-green-600 hover:bg-green-500/10"
+                                }`}
+                              >
+                                {u.is_active ? "Deactivate" : "Activate"}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-[var(--text-faint)]">—</span>
                       )}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PageState>
       </SettingsCard>
 
       {/* CARD 2 — Role Permissions Matrix */}
@@ -407,11 +406,11 @@ export default function UsersRolesSettingsPage() {
         subtitle="Define permissions for the selected role"
         headerRight={
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-[#64748B]">Select Role</span>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Select Role</span>
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-[#E5E7EB] bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+              className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
             >
               <option value="owner">Owner</option>
               <option value="admin">Admin</option>
@@ -423,30 +422,29 @@ export default function UsersRolesSettingsPage() {
           </div>
         }
       >
-        <div className="overflow-x-auto border border-[#F3F4F6] rounded-lg mb-4">
-          <table className="w-full text-sm text-[#374151]">
-            <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider h-11">
-              <tr>
-                <th className="px-4 py-3 text-left w-[200px]">Module</th>
-                <th className="px-4 py-3 text-center">View</th>
-                <th className="px-4 py-3 text-center">Add</th>
-                <th className="px-4 py-3 text-center">Edit</th>
-                <th className="px-4 py-3 text-center">Delete</th>
-                <th className="px-4 py-3 text-center">Approve</th>
-                <th className="px-4 py-3 text-center">Export</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F3F4F6]">
-              {loadingPermissions ? (
+        <PageState
+          isLoading={loadingPermissions}
+          skeletonVariant="table"
+          skeletonRows={7}
+          skeletonColumns={7}
+        >
+          <div className="overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
+            <table className="w-full text-sm text-[var(--text-body)]">
+              <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-slate-400">
-                    Loading permissions matrix...
-                  </td>
+                  <th className="px-4 py-3 text-left w-[200px]">Module</th>
+                  <th className="px-4 py-3 text-center">View</th>
+                  <th className="px-4 py-3 text-center">Add</th>
+                  <th className="px-4 py-3 text-center">Edit</th>
+                  <th className="px-4 py-3 text-center">Delete</th>
+                  <th className="px-4 py-3 text-center">Approve</th>
+                  <th className="px-4 py-3 text-center">Export</th>
                 </tr>
-              ) : (
-                MODULES.map((module) => (
-                  <tr key={module} className="hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3.5 font-medium text-[#374151] text-left">
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {MODULES.map((module) => (
+                  <tr key={module} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                    <td className="px-4 py-3.5 font-medium text-[var(--text-primary)] text-left">
                       {module}
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -456,7 +454,7 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_view", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
@@ -467,7 +465,7 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_add", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
@@ -478,7 +476,7 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_edit", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
@@ -489,7 +487,7 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_delete", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
@@ -500,7 +498,7 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_approve", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
@@ -511,28 +509,30 @@ export default function UsersRolesSettingsPage() {
                           onCheckedChange={(val) =>
                             handlePermissionChange(module, "can_export", !!val)
                           }
-                          className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
+                          className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
                         />
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PageState>
 
-        {/* Action Button inside card */}
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={handleSavePermissions}
-            disabled={savingPermissions}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-xs h-9 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-[var(--shadow-sm)] disabled:opacity-50"
-          >
-            <Check className="size-4 shrink-0" />
-            {savingPermissions ? "Saving Matrix..." : "Save Permissions Matrix"}
-          </button>
-        </div>
+        {/* Save Button inside card */}
+        {canEdit("Settings") && (
+          <div className="flex justify-end mb-4">
+            <AsyncButton
+              onClick={handleSavePermissions}
+              variant="primary"
+              className="h-9 px-4 text-xs"
+            >
+              <Check className="size-4 shrink-0 mr-1.5" />
+              Save Permissions Matrix
+            </AsyncButton>
+          </div>
+        )}
 
         <InfoBanner
           variant="info"
@@ -541,134 +541,126 @@ export default function UsersRolesSettingsPage() {
         />
       </SettingsCard>
 
-      {/* ADD USER DIALOG MODAL */}
-      <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-        <DialogContent className="max-w-lg w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 text-left shadow-[var(--shadow-md)]">
-          <DialogHeader>
-            <div className="w-12 h-12 rounded-full bg-[var(--primary-light)] flex items-center justify-center">
-              <UserPlus className="size-6 text-[var(--primary)]" />
-            </div>
-            <DialogTitle className="text-xl font-bold text-[var(--text-primary)] mt-4">
-              Add New User
-            </DialogTitle>
-            <p className="text-sm text-[var(--text-muted)] mt-1">
-              Invite a team member to join TAS ERP
-            </p>
-          </DialogHeader>
+      {/* ADD USER MODAL */}
+      <Modal open={addModalOpen} onOpenChange={setAddModalOpen} title="Add New User" maxWidth="max-w-lg">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAddUser();
+          }}
+          className="flex flex-col gap-4 mt-2"
+        >
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={newUserName}
+              onChange={(e) => setNewUserName(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              placeholder="e.g. John Doe"
+            />
+          </div>
 
-          <form onSubmit={handleAddUser} className="flex flex-col gap-4 mt-4">
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Full Name <span className="text-[#DC2626]">*</span>
-              </label>
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              placeholder="e.g. john@company.com"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Phone Number
+            </label>
+            <input
+              type="text"
+              value={newUserPhone}
+              onChange={(e) => setNewUserPhone(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              placeholder="e.g. +91 9999999999"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Role <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={newUserRole}
+              onChange={(e) => setNewUserRole(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+            >
+              <option value="owner">Owner</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="accountant">Accountant</option>
+              <option value="staff">Store Incharge</option>
+              <option value="intern">Production User</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Temporary Password <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
               <input
-                type="text"
+                type={showPassword ? "text" : "password"}
                 required
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                placeholder="e.g. John Doe"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                className="w-full h-10 pl-3 pr-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                placeholder="Min 6 characters"
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Email Address <span className="text-[#DC2626]">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                placeholder="e.g. john@company.com"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                value={newUserPhone}
-                onChange={(e) => setNewUserPhone(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                placeholder="e.g. +91 9999999999"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Role <span className="text-[#DC2626]">*</span>
-              </label>
-              <select
-                value={newUserRole}
-                onChange={(e) => setNewUserRole(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              >
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="accountant">Accountant</option>
-                <option value="staff">Store Incharge</option>
-                <option value="intern">Production User</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Temporary Password <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={newUserPassword}
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-                  className="w-full h-10 pl-3 pr-10 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                  placeholder="Min 6 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-t border-[#F3F4F6] mt-2">
-              <span className="text-sm font-semibold text-[#374151]">
-                Send Welcome Email
-              </span>
-              <Checkbox
-                checked={sendWelcomeEmail}
-                onCheckedChange={(val) => setSendWelcomeEmail(!!val)}
-                className="w-5 h-5 rounded data-[state=checked]:bg-[#6366F1] data-[state=checked]:border-[#6366F1]"
-              />
-            </div>
-
-            <DialogFooter className="border-t border-[#F3F4F6] pt-4 mt-2 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setAddModalOpen(false)}
-                className="h-10 px-4 border border-[#E5E7EB] hover:bg-slate-50 rounded-lg text-sm font-semibold cursor-pointer"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                Cancel
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-              <button
-                type="submit"
-                disabled={addingUser}
-                className="h-10 px-4 bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white rounded-lg text-sm font-semibold cursor-pointer flex items-center justify-center"
-              >
-                {addingUser ? "Adding User..." : "Add User"}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-[var(--border)] mt-2">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              Send Welcome Email
+            </span>
+            <Checkbox
+              checked={sendWelcomeEmail}
+              onCheckedChange={(val) => setSendWelcomeEmail(!!val)}
+              className="w-5 h-5 rounded border-[var(--border)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
+            />
+          </div>
+
+          <div className="border-t border-[var(--border)] pt-4 mt-2 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(false)}
+              className="h-10 px-4 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              onClick={handleAddUser}
+              variant="primary"
+              className="h-10 px-4 text-sm"
+            >
+              Add User
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

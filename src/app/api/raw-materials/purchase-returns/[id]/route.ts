@@ -135,6 +135,32 @@ export async function PUT(
           return NextResponse.json({ error: "Failed to create stock ledger entries: " + ledgerError.message }, { status: 500 });
         }
 
+        // Update raw_material_current_stock levels
+        for (const item of returnItems) {
+          if (item.material_type_id) {
+            const { data: existingStock } = await supabase
+              .from("raw_material_current_stock")
+              .select("*")
+              .eq("business_id", businessId)
+              .eq("material_type_id", item.material_type_id)
+              .eq("godown_id", existingReturn.godown_id)
+              .maybeSingle();
+
+            if (existingStock) {
+              const newQty = Math.max(0, Number(existingStock.current_stock || 0) - Number(item.returned_qty || 0));
+              const newValue = Math.max(0, Number(existingStock.stock_value || 0) - Number(item.taxable_value || 0));
+              await supabase
+                .from("raw_material_current_stock")
+                .update({
+                  current_stock: newQty,
+                  stock_value: newValue,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingStock.id);
+            }
+          }
+        }
+
         // 2. Generate legacy stock entry
         const { data: stockEntry, error: seError } = await supabase
           .from("raw_material_stock_entries")

@@ -123,13 +123,16 @@ export class SalesBillService {
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const prefix = rest.bill_type === "kacha" ? `KAC-${yyyy}-${mm}` : `INV-${yyyy}-${mm}`;
+    const prefix = rest.is_temporary
+      ? `TEMP-${yyyy}-${mm}`
+      : rest.bill_type === "kacha"
+      ? `KAC-${yyyy}-${mm}`
+      : `INV-${yyyy}-${mm}`;
 
     const { data: bills } = await this.repository.supabase
       .from("sale_bills")
       .select("bill_number")
       .eq("business_id", businessId)
-      .eq("bill_type", rest.bill_type)
       .like("bill_number", `${prefix}-%`);
 
     let nextNum = 1;
@@ -154,10 +157,17 @@ export class SalesBillService {
       isInterstate,
     });
 
+    const finalRemarks = rest.is_temporary
+      ? `[TEMPORARY] ${rest.remarks || ""}`.trim()
+      : rest.remarks;
+
+    const { is_temporary, ...cleanRest } = rest;
+
     return this.repository.create({
-      ...rest,
+      ...cleanRest,
       ...calculated,
       bill_number: billNumber,
+      remarks: finalRemarks,
       business_id: businessId,
       created_by: userId,
     }, items, charges || []);

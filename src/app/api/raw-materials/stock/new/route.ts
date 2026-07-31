@@ -44,6 +44,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 });
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    // If negative stock is disallowed, check stock for stock deductions/issues
+    if (!serverSettings.allow_negative_stock && (entry_type === 'issue' || entry_type === 'damage' || entry_type === 'adjustment_out')) {
+      for (const item of items) {
+        if (!item.material_type_id || !item.quantity || Number(item.quantity) <= 0) continue;
+        const { data: rmRow } = await supabase
+          .from("raw_materials")
+          .select("current_stock, name")
+          .eq("business_id", businessId)
+          .eq("id", item.material_type_id)
+          .maybeSingle();
+
+        const currentQty = Number(rmRow?.current_stock || 0);
+        const reqQty = Number(item.quantity);
+        if (currentQty < reqQty) {
+          return NextResponse.json(
+            { error: `Insufficient stock for raw material ${rmRow?.name || ''}. Available: ${currentQty}, Required: ${reqQty}` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Auto-generate Stock Entry Number (Format: STK-YYYY-XXXX)
     const year = new Date(posting_date).getFullYear() || new Date().getFullYear();
     const { data: lastStk } = await supabase
