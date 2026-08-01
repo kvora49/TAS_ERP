@@ -90,7 +90,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
 
   const filteredLedger = filterType === "all"
     ? ledger
-    : ledger.filter((entry) => entry.voucherType.toLowerCase() === filterType.toLowerCase());
+    : ledger.filter((entry) => (entry.voucherType || "").toLowerCase() === filterType.toLowerCase());
 
   if (loading) {
     return (

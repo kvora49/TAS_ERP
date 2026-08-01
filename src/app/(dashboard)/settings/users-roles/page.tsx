@@ -233,10 +233,13 @@ export default function UsersRolesSettingsPage() {
     return colors[idx];
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
+    if (!name || typeof name !== "string") return "US";
     return (
       name
-        .split(" ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
         .map((n) => n[0])
         .join("")
         .substring(0, 2)

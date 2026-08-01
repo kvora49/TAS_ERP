@@ -26,11 +26,11 @@ export function AttachmentDropzone({
   const processFiles = (fileList: FileList) => {
     const validFiles: File[] = [];
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
-    const acceptedExtensions = accept.split(",").map(ext => ext.trim().toLowerCase());
+    const acceptedExtensions = (accept || "").split(",").map(ext => ext.trim().toLowerCase());
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      const extension = "." + file.name.split(".").pop()?.toLowerCase();
+      const extension = "." + (file.name || "").split(".").pop()?.toLowerCase();
 
       const isValidExtension = acceptedExtensions.some(ext => {
         if (ext === "*") return true;

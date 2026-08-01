@@ -667,3 +667,29 @@ html, body {
     overscroll-behavior-y: none;
   }
 }
+
+/* Html5Qrcode Scanner Video Preview Styling */
+#pwa-qr-reader {
+  width: 100% !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+#pwa-qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 380px !important;
+  object-fit: cover !important;
+  border-radius: 12px !important;
+}
+
+#pwa-qr-reader__scan_region {
+  background: transparent !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+#pwa-qr-reader__dashboard {
+  display: none !important;
+}

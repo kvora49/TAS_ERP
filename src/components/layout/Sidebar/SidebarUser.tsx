@@ -17,13 +17,16 @@ export function SidebarUser({ user, sidebarOpen = true }: SidebarUserProps) {
 
   if (!user) return null;
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
+    if (!name || typeof name !== "string") return "U";
     return name
-      .split(" ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
       .map((n) => n[0])
       .join("")
       .substring(0, 2)
-      .toUpperCase();
+      .toUpperCase() || "U";
   };
 
   return (

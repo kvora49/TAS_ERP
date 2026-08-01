@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { AlertCircle, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
-export default function ErrorBoundary({
+export default function GlobalError({
   error,
   reset,
 }: {
@@ -12,38 +11,62 @@ export default function ErrorBoundary({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Application boundary caught crash error:", error);
+    // Log error internally
+    console.error("Global Application Error:", error);
   }, [error]);
 
+  const isChunkError =
+    error.message?.includes("Loading chunk") ||
+    error.message?.includes("missing") ||
+    error.name === "ChunkLoadError";
+
+  const handleRefresh = () => {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    } else {
+      reset();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6 select-none">
-      <div className="max-w-md w-full bg-white rounded-2xl border border-[#E2E8F0] p-8 shadow-xl text-center space-y-6">
-        <div className="w-16 h-16 rounded-full bg-[#FEF2F2] text-[#EF4444] flex items-center justify-center mx-auto shadow-lg shadow-[#EF4444]/10">
-          <AlertCircle size={32} />
+    <html lang="en">
+      <body className="bg-[var(--page-bg)] text-[var(--text-primary)] min-h-screen flex items-center justify-center p-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-sm">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h2 className="text-xl font-extrabold text-[var(--text-primary)] tracking-tight">
+              {isChunkError ? "App Updated / Cache Reset" : "Something Went Wrong"}
+            </h2>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              {isChunkError
+                ? "A new version of TAS ERP is available or cache was refreshed. Tap reload to update."
+                : error.message || "An unexpected system error occurred. Please try reloading."}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[var(--primary)]/20"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>{isChunkError ? "Reload Application" : "Try Again"}</span>
+            </button>
+
+            <a
+              href="/"
+              className="w-full h-10 border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all"
+            >
+              <Home className="w-4 h-4" />
+              <span>Go to Home</span>
+            </a>
+          </div>
         </div>
-        <div className="space-y-2">
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Something went wrong</h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            An unexpected error occurred in this workspace view. Details: {error.message || "Unknown error"}
-          </p>
-        </div>
-        <div className="flex gap-4 justify-center">
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-            className="flex items-center gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
-          >
-            Reload Page
-          </Button>
-          <Button
-            onClick={reset}
-            className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#4F46E5] text-white"
-          >
-            <RotateCcw size={16} />
-            <span>Try Again</span>
-          </Button>
-        </div>
-      </div>
-    </div>
+      </body>
+    </html>
   );
 }

@@ -31,31 +31,17 @@ export default function MobileScanPWAPage() {
   const [cameraState, setCameraState] = useState<"idle" | "requesting" | "permission_denied" | "active" | "error">("idle");
   const [cameraErrorMsg, setCameraErrorMsg] = useState("");
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [availableCameras, setAvailableCameras] = useState<{ id: string; label: string }[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
   const [torchOn, setTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
 
-  const startCameraScanner = async () => {
+  const startCameraScanner = async (overrideDeviceId?: string) => {
     setCameraState("requesting");
     setCameraErrorMsg("");
 
     try {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
-
-      // Check camera permission first
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode },
-        });
-        // Stop temporary stream used for permission prompt
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (permErr: any) {
-        if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
-          setCameraState("permission_denied");
-          setCameraErrorMsg("Camera access was denied. Please allow camera permissions in your browser settings.");
-          toast.error("Camera permission denied.");
-          return;
-        }
-      }
 
       if (scannerRef.current) {
         try {
@@ -63,12 +49,21 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
+      // Enumerate available cameras
+      let devices: { id: string; label: string }[] = [];
+      try {
+        devices = await Html5Qrcode.getCameras();
+        if (devices && devices.length > 0) {
+          setAvailableCameras(devices);
+        }
+      } catch (_) {}
+
       const html5QrCode = new Html5Qrcode("pwa-qr-reader");
       scannerRef.current = html5QrCode;
 
       const config = {
-        fps: 10,
-        qrbox: { width: 280, height: 160 }, // Wide rectangular reticle for 1D barcodes & 2D QR codes
+        fps: 15,
+        qrbox: { width: 280, height: 160 },
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
@@ -77,25 +72,115 @@ export default function MobileScanPWAPage() {
         ],
       };
 
-      await html5QrCode.start(
-        { facingMode: facingMode },
-        config,
-        (decodedText: string) => {
-          // Scan callback
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-          handleScanSubmit(decodedText);
-        },
-        () => {
-          // Frame failure callback (ignore noisy frame errors)
+      // Progressive 4-tier camera initialization strategy
+      let started = false;
+      const targetId = overrideDeviceId || selectedCameraId;
+
+      // Tier 1: Explicitly selected or cached device ID
+      if (targetId) {
+        try {
+          await html5QrCode.start(
+            targetId,
+            config,
+            (decodedText: string) => {
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              handleScanSubmit(decodedText);
+            },
+            () => {}
+          );
+          started = true;
+        } catch (_) {}
+      }
+
+      // Tier 2: Enumerated device list (rear camera preference > first available webcam)
+      if (!started && devices && devices.length > 0) {
+        const backCam = devices.find(
+          (d) =>
+            d.label.toLowerCase().includes("back") ||
+            d.label.toLowerCase().includes("rear") ||
+            d.label.toLowerCase().includes("environment")
+        );
+        const chosenCam = facingMode === "environment" && backCam ? backCam : devices[0];
+        try {
+          await html5QrCode.start(
+            chosenCam.id,
+            config,
+            (decodedText: string) => {
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              handleScanSubmit(decodedText);
+            },
+            () => {}
+          );
+          setSelectedCameraId(chosenCam.id);
+          started = true;
+        } catch (_) {}
+      }
+
+      // Tier 3: Ideal facingMode constraint (mobile phones)
+      if (!started) {
+        try {
+          await html5QrCode.start(
+            { facingMode: { ideal: facingMode } },
+            config,
+            (decodedText: string) => {
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              handleScanSubmit(decodedText);
+            },
+            () => {}
+          );
+          started = true;
+        } catch (_) {}
+      }
+
+      // Tier 4: User facing / default webcam (laptops & desktops)
+      if (!started) {
+        await html5QrCode.start(
+          { facingMode: "user" },
+          config,
+          (decodedText: string) => {
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            handleScanSubmit(decodedText);
+          },
+          () => {}
+        );
+        started = true;
+      }
+
+      // Refresh camera devices list now that permission is granted
+      try {
+        const freshDevices = await Html5Qrcode.getCameras();
+        if (freshDevices && freshDevices.length > 0) {
+          setAvailableCameras(freshDevices);
         }
-      );
+      } catch (_) {}
+
+      // Force inline video playback for mobile browsers (iOS Safari & Android Chrome)
+      setTimeout(() => {
+        const videoElement = document.querySelector("#pwa-qr-reader video") as HTMLVideoElement;
+        if (videoElement) {
+          videoElement.setAttribute("playsinline", "true");
+          videoElement.setAttribute("webkit-playsinline", "true");
+          videoElement.setAttribute("autoplay", "true");
+          videoElement.setAttribute("muted", "true");
+          videoElement.play().catch(() => {});
+        }
+      }, 100);
 
       setCameraState("active");
-      toast.success("Camera scanner active. Position barcode or QR code in frame.");
+      toast.success("Camera scanner active!");
     } catch (err: any) {
       console.error("Camera init error:", err);
-      setCameraState("error");
-      setCameraErrorMsg(err.message || "Failed to initialize camera scanner.");
+      if (
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError" ||
+        err?.message?.includes("Permission")
+      ) {
+        setCameraState("permission_denied");
+        setCameraErrorMsg("Camera access was denied. Please allow camera permissions in your browser settings.");
+      } else {
+        setCameraState("error");
+        setCameraErrorMsg(err?.message || "Failed to initialize camera scanner.");
+      }
       toast.error("Could not start camera scanner.");
     }
   };
@@ -113,12 +198,21 @@ export default function MobileScanPWAPage() {
   const toggleCameraFacing = async () => {
     const newMode = facingMode === "environment" ? "user" : "environment";
     setFacingMode(newMode);
-    if (cameraState === "active") {
+    setSelectedCameraId("");
+    if (cameraState === "active" || scannerRef.current) {
       await stopCameraScanner();
       setTimeout(() => {
         startCameraScanner();
-      }, 200);
+      }, 300);
     }
+  };
+
+  const handleSelectCamera = async (deviceId: string) => {
+    setSelectedCameraId(deviceId);
+    await stopCameraScanner();
+    setTimeout(() => {
+      startCameraScanner(deviceId);
+    }, 300);
   };
 
   const toggleTorch = async () => {
@@ -220,13 +314,13 @@ export default function MobileScanPWAPage() {
         </div>
 
         {/* Camera Scanner Container */}
-        <div className="relative rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-800 shadow-lg min-h-[260px] flex flex-col items-center justify-center p-2">
-          {/* HTML5 QR Scanner DOM element */}
-          <div id="pwa-qr-reader" className={`w-full ${cameraState === "active" ? "block" : "hidden"}`} />
+        <div className="relative rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-800 shadow-lg min-h-[280px] w-full flex flex-col items-center justify-center p-2">
+          {/* HTML5 QR Scanner DOM element - ALWAYS VISIBLE for dimension calculation */}
+          <div id="pwa-qr-reader" className="w-full block" />
 
-          {/* Idle / Pre-permission State Modal Card */}
+          {/* Idle / Pre-permission State Modal Overlay */}
           {cameraState === "idle" && (
-            <div className="p-6 text-center space-y-4">
+            <div className="absolute inset-0 bg-slate-900 z-10 p-6 text-center flex flex-col items-center justify-center space-y-4">
               <div className="w-16 h-16 bg-[#6366F1]/20 rounded-2xl flex items-center justify-center mx-auto text-[#818CF8]">
                 <Camera className="w-8 h-8" />
               </div>
@@ -237,7 +331,7 @@ export default function MobileScanPWAPage() {
                 </p>
               </div>
               <button
-                onClick={startCameraScanner}
+                onClick={() => startCameraScanner()}
                 className="w-full py-3 px-4 rounded-xl bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Camera className="w-4 h-4" />
@@ -246,26 +340,26 @@ export default function MobileScanPWAPage() {
             </div>
           )}
 
-          {/* Requesting State */}
+          {/* Requesting State Overlay */}
           {cameraState === "requesting" && (
-            <div className="p-8 text-center space-y-3">
+            <div className="absolute inset-0 bg-slate-900 z-10 p-8 text-center flex flex-col items-center justify-center space-y-3">
               <Loader2 className="w-8 h-8 text-[#818CF8] animate-spin mx-auto" />
-              <p className="text-xs text-slate-300 font-medium">Requesting camera permissions...</p>
+              <p className="text-xs text-slate-300 font-medium">Requesting camera permissions & initializing stream...</p>
             </div>
           )}
 
-          {/* Permission Denied / Error State */}
+          {/* Permission Denied / Error State Overlay */}
           {(cameraState === "permission_denied" || cameraState === "error") && (
-            <div className="p-6 text-center space-y-3">
+            <div className="absolute inset-0 bg-slate-900 z-10 p-6 text-center flex flex-col items-center justify-center space-y-3">
               <div className="w-12 h-12 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white">Camera Permission Denied</h4>
+                <h4 className="text-xs font-bold text-white">Camera Access Error</h4>
                 <p className="text-[11px] text-slate-400 mt-1 leading-normal">{cameraErrorMsg}</p>
               </div>
               <button
-                onClick={startCameraScanner}
+                onClick={() => startCameraScanner()}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all border border-slate-700 cursor-pointer"
               >
                 Try Again
@@ -273,6 +367,27 @@ export default function MobileScanPWAPage() {
             </div>
           )}
         </div>
+
+        {/* Camera Selector Dropdown */}
+        {availableCameras.length > 0 && (
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
+            <span className="font-semibold text-[var(--text-muted)] flex items-center gap-1.5 shrink-0">
+              <Camera size={14} className="text-[var(--primary)]" />
+              Active Camera:
+            </span>
+            <select
+              value={selectedCameraId}
+              onChange={(e) => handleSelectCamera(e.target.value)}
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--primary)] flex-1 truncate cursor-pointer"
+            >
+              {availableCameras.map((cam, idx) => (
+                <option key={cam.id} value={cam.id}>
+                  {cam.label || `Camera ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Manual Input Fallback */}
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 shadow-sm space-y-2">
