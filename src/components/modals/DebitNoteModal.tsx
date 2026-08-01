@@ -103,7 +103,7 @@ export function DebitNoteModal({ open, onClose, pReturn }: DebitNoteModalProps) 
           </div>
 
           {/* Supplier & Ref Details Grid */}
-          <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
             <div className="space-y-1">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Debit Issued To (Supplier)</span>
               <p className="font-extrabold text-slate-900 text-sm">{pReturn.supplier?.name || "—"}</p>
@@ -115,7 +115,7 @@ export function DebitNoteModal({ open, onClose, pReturn }: DebitNoteModalProps) 
               )}
             </div>
 
-            <div className="space-y-1 text-right">
+            <div className="space-y-1 sm:text-right">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Reference Information</span>
               <p className="font-semibold text-slate-700">Return Voucher: <span className="font-bold text-slate-900 font-mono">{pReturn.return_number}</span></p>
               <p className="font-semibold text-slate-700">Orig. Invoice: <span className="font-bold text-slate-900 font-mono">{pReturn.purchase?.invoice_no || pReturn.purchase?.purchase_number || "—"}</span></p>

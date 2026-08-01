@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { RecordPaymentModal } from "@/components/forms/RecordPaymentModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import PageState from "@/components/shared/PageState";
@@ -20,6 +21,7 @@ interface PurchaseLog {
   doc_number: string;
   invoice_no: string;
   date: string;
+  due_date?: string | null;
   grand_total: number;
   paid_amount: number;
   payment_status?: "unpaid" | "partial" | "paid" | "cancelled";
@@ -311,6 +313,24 @@ export default function PurchasesPage() {
             {row.status}
           </span>
         );
+      },
+    },
+    {
+      key: "due_date",
+      header: "Due Counter",
+      width: "140px",
+      render: (row) => {
+        if (row.record_type === "purchase") {
+          const dueDate = row.raw_purchase?.due_date || row.due_date;
+          return (
+            <DueDateBadge
+              dueDate={dueDate}
+              isCompleted={row.payment_status === "paid"}
+              type="purchase"
+            />
+          );
+        }
+        return null;
       },
     },
     {

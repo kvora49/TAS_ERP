@@ -139,6 +139,36 @@ export async function POST(request: Request) {
       );
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    // 1. Check lock_completed_lots
+    const { data: parentLot } = await supabase
+      .from("production_lots")
+      .select("status, total_quantity")
+      .eq("id", lot_id)
+      .maybeSingle();
+
+    if (parentLot?.status === "completed" && serverSettings.lock_completed_lots) {
+      return NextResponse.json(
+        { error: "Completed production lots are locked and stage entries cannot be added per system settings." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Check allow_back_date_production
+    if (!serverSettings.allow_back_date_production) {
+      const inputDate = new Date(entry_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (inputDate < today) {
+        return NextResponse.json(
+          { error: "Back-dated production stage entries are disabled in system settings." },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id || null;
 
@@ -341,8 +371,8 @@ export async function POST(request: Request) {
               current_stage_id: nextStage.stage_id,
             })
             .eq("id", lot_id);
-        } else {
-          // If there is no next stage, it means this was the FINAL stage!
+        } else if (serverSettings.auto_complete_lot) {
+          // If there is no next stage and auto_complete_lot setting is enabled, mark lot status as completed
           const { data: targetLot } = await supabase
             .from("production_lots")
             .select("total_quantity")
@@ -351,7 +381,6 @@ export async function POST(request: Request) {
 
           const lotTotalQty = targetLot?.total_quantity || qty_out;
 
-          // Mark lot status as completed so supervisor can click "Move Lot to Stock" to select Godown & calculate exact piece costing
           await supabase
             .from("production_lots")
             .update({

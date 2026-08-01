@@ -28,6 +28,17 @@ export async function GET(request: Request) {
     const today = new Date().toISOString().split("T")[0];
     const todayMs = new Date(today).getTime();
 
+    // Fetch reminder schedule rules (snooze & recurring settings)
+    const { data: schedulesData } = await supabase
+      .from("bill_reminder_schedules")
+      .select("*")
+      .eq("business_id", businessId);
+
+    const scheduleMap = new Map<string, any>();
+    (schedulesData || []).forEach((s) => {
+      scheduleMap.set(`${s.bill_type}_${s.bill_id}`, s);
+    });
+
     if (type === "cheques") {
       const [chequesRes, templatesRes] = await Promise.all([
         supabase
@@ -49,6 +60,8 @@ export async function GET(request: Request) {
       const cheques = (chequesRes.data || []).map((c: any) => {
         const dueMs = new Date(c.cheque_date).getTime();
         const daysOverdue = Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24));
+        const schedule = scheduleMap.get(`cheque_${c.id}`);
+
         return {
           id: c.id,
           bill_number: c.cheque_number ? `PDC #${c.cheque_number}` : `Cheque`,
@@ -60,6 +73,8 @@ export async function GET(request: Request) {
           party: Array.isArray(c.party) ? c.party[0] : c.party,
           days_overdue: daysOverdue,
           cheque_status: c.status,
+          snoozed_until: schedule?.snoozed_until || null,
+          recurring_interval_days: schedule?.recurring_interval_days || 2,
         };
       });
 
@@ -77,6 +92,68 @@ export async function GET(request: Request) {
       });
     }
 
+    if (type === "payables") {
+      // Vendor Purchase Invoices to Pay
+      const [purchasesRes, templatesRes] = await Promise.all([
+        supabase
+          .from("purchases")
+          .select(`
+            id, invoice_no, doc_number, invoice_date, due_date, payment_terms, grand_total, paid_amount,
+            payment_status, status, supplier:parties(id, name, company_name, phone)
+          `)
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .neq("payment_status", "paid")
+          .order("invoice_date", { ascending: false }),
+        supabase
+          .from("whatsapp_templates")
+          .select("*")
+          .eq("business_id", businessId),
+      ]);
+
+      const pendingPayables = (purchasesRes.data || [])
+        .map((p: any) => {
+          const grandTotal = Number(p.grand_total || 0);
+          const paidAmount = Number(p.paid_amount || 0);
+          const outstandingAmount = Math.max(0, grandTotal - paidAmount);
+          const effectiveDueDate = computeDueDate(p.invoice_date, p.due_date, p.payment_terms);
+          const dueMs = new Date(effectiveDueDate).getTime();
+          const daysOverdue = Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24));
+          const schedule = scheduleMap.get(`payable_${p.id}`);
+
+          return {
+            id: p.id,
+            bill_number: p.doc_number || p.invoice_no || "Purchase Bill",
+            bill_date: p.invoice_date,
+            due_date: effectiveDueDate,
+            grand_total: grandTotal,
+            paid_amount: paidAmount,
+            payment_status: p.payment_status || "unpaid",
+            outstanding_amount: outstandingAmount,
+            party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+            days_overdue: daysOverdue,
+            snoozed_until: schedule?.snoozed_until || null,
+            recurring_interval_days: schedule?.recurring_interval_days || 2,
+          };
+        })
+        .filter((p) => p.outstanding_amount > 0);
+
+      pendingPayables.sort((a, b) => b.days_overdue - a.days_overdue);
+      const overdueOnly = pendingPayables.filter((p) => p.days_overdue >= 0);
+
+      return NextResponse.json({
+        type: "payables",
+        overdue_bills: pendingPayables,
+        templates: templatesRes.data || [],
+        stats: {
+          total_overdue: overdueOnly.length,
+          total_outstanding: pendingPayables.reduce((s, p) => s + p.outstanding_amount, 0),
+          critical: pendingPayables.filter((p) => p.days_overdue > 30).length,
+        },
+      });
+    }
+
+    // Default: Receivables (Sale Bills)
     const [billsRes, templatesRes] = await Promise.all([
       supabase
         .from("sale_bills")
@@ -103,6 +180,7 @@ export async function GET(request: Request) {
         const effectiveDueDate = computeDueDate(b.bill_date, b.due_date, b.payment_terms);
         const dueMs = new Date(effectiveDueDate).getTime();
         const daysOverdue = Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24));
+        const schedule = scheduleMap.get(`receivable_${b.id}`);
 
         return {
           ...b,
@@ -110,12 +188,13 @@ export async function GET(request: Request) {
           outstanding_amount: outstandingAmount,
           party: Array.isArray(b.party) ? b.party[0] : b.party,
           days_overdue: daysOverdue,
+          snoozed_until: schedule?.snoozed_until || null,
+          recurring_interval_days: schedule?.recurring_interval_days || 2,
         };
       })
       .filter((b) => b.outstanding_amount > 0);
 
     pendingBills.sort((a, b) => b.days_overdue - a.days_overdue);
-
     const overdueOnly = pendingBills.filter((b) => b.days_overdue >= 0);
 
     return NextResponse.json({
@@ -140,19 +219,87 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { action, template_type, template_text, bill_ids, target_type } = body;
+    const { action, template_type, template_text, bill_ids, target_type, bill_id, bill_type, snoozed_until, recurring_interval_days } = body;
+
+    if (action === "snooze_bill") {
+      if (!bill_id) return NextResponse.json({ error: "Missing bill_id" }, { status: 400 });
+      const bType = bill_type || "receivable";
+
+      const { data, error } = await supabase
+        .from("bill_reminder_schedules")
+        .upsert(
+          {
+            business_id: businessId,
+            bill_id,
+            bill_type: bType,
+            snoozed_until: snoozed_until || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "business_id,bill_id,bill_type" }
+        )
+        .select()
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, schedule: data });
+    }
+
+    if (action === "set_recurring_interval") {
+      if (!bill_id) return NextResponse.json({ error: "Missing bill_id" }, { status: 400 });
+      const bType = bill_type || "receivable";
+      const interval = Math.max(1, Number(recurring_interval_days || 2));
+
+      const { data, error } = await supabase
+        .from("bill_reminder_schedules")
+        .upsert(
+          {
+            business_id: businessId,
+            bill_id,
+            bill_type: bType,
+            recurring_interval_days: interval,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "business_id,bill_id,bill_type" }
+        )
+        .select()
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, schedule: data });
+    }
 
     if (action === "save_template") {
+      const normalizedType = (template_type || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+
       const { data, error } = await supabase
         .from("whatsapp_templates")
         .upsert(
-          { business_id: businessId, template_type, template_text, updated_at: new Date().toISOString() },
+          { business_id: businessId, template_type: normalizedType, template_text, updated_at: new Date().toISOString() },
           { onConflict: "business_id,template_type" }
         )
         .select()
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, template: data });
+    }
+
+    if (action === "delete_template") {
+      const normalizedType = (template_type || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+
+      const { error } = await supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("business_id", businessId)
+        .or(`template_type.eq.${normalizedType},template_type.eq.${template_type}`);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
     }
 
     if (action === "send_reminders") {
@@ -225,21 +372,40 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, links });
       }
 
-      const [billsRes, templateRes] = await Promise.all([
-        supabase
+      const isPayable = target_type === "payables";
+
+      const templateRes = await supabase
+        .from("whatsapp_templates")
+        .select("template_text")
+        .eq("business_id", businessId)
+        .eq("template_type", selectedTemplateType)
+        .maybeSingle();
+
+      let bills: any[] = [];
+      if (isPayable) {
+        const res = await supabase
+          .from("purchases")
+          .select("id, invoice_no, doc_number, grand_total, paid_amount, invoice_date, due_date, payment_terms, supplier:parties(id, name, company_name, phone)")
+          .in("id", bill_ids)
+          .eq("business_id", businessId);
+        bills = (res.data || []).map((p: any) => ({
+          ...p,
+          bill_number: p.doc_number || p.invoice_no || "Purchase Bill",
+          bill_date: p.invoice_date,
+          party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+        }));
+      } else {
+        const res = await supabase
           .from("sale_bills")
           .select("id, bill_number, grand_total, paid_amount, bill_date, due_date, payment_terms, party:parties(id, name, company_name, phone)")
           .in("id", bill_ids)
-          .eq("business_id", businessId),
-        supabase
-          .from("whatsapp_templates")
-          .select("template_text")
-          .eq("business_id", businessId)
-          .eq("template_type", selectedTemplateType)
-          .maybeSingle(),
-      ]);
+          .eq("business_id", businessId);
+        bills = (res.data || []).map((b: any) => ({
+          ...b,
+          party: Array.isArray(b.party) ? b.party[0] : b.party,
+        }));
+      }
 
-      const bills = billsRes.data || [];
       const defaultTemplates: Record<string, string> = {
         payment_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is due on {{due_date}}. Kindly make payment at earliest. Thank you.",
         overdue_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is overdue by {days} days. Please clear your dues immediately.",
@@ -253,23 +419,23 @@ export async function POST(request: Request) {
       const todayMs = new Date(todayStr).getTime();
       const origin = request.headers.get("origin") || request.headers.get("referer")?.split("/sales")[0] || "";
 
-      // Group bills by party (customer)
+      // Group bills by party (customer or vendor)
       const groupedByParty: Record<string, { party: any; bills: any[] }> = {};
 
       for (const b of bills) {
-        const party = Array.isArray(b.party) ? b.party[0] : b.party;
-        const key = party?.id || party?.phone || party?.name || "unknown";
+        const partyObj = b.party;
+        const key = partyObj?.id || partyObj?.phone || partyObj?.name || "unknown";
         if (!groupedByParty[key]) {
-          groupedByParty[key] = { party, bills: [] };
+          groupedByParty[key] = { party: partyObj, bills: [] };
         }
         groupedByParty[key].bills.push(b);
       }
 
       const links = Object.values(groupedByParty).map(({ party, bills: partyBills }) => {
-        const partyName = (party?.company_name || party?.name || "Customer").trim();
+        const partyName = (party?.company_name || party?.name || (isPayable ? "Supplier" : "Customer")).trim();
         const phone = (party?.phone || "").replace(/\D/g, "");
 
-        const billNumbers = partyBills.map((b) => b.bill_number).join(", ");
+        const billNumbers = partyBills.map((b) => isPayable ? (b.doc_number || b.invoice_no) : b.bill_number).join(", ");
         const totalOutstanding = partyBills.reduce((sum, b) => {
           const grandTotal = Number(b.grand_total || 0);
           const paidAmount = Number(b.paid_amount || 0);
@@ -277,18 +443,21 @@ export async function POST(request: Request) {
         }, 0);
 
         const dueDates = partyBills.map((b) => {
-          const effDueDate = computeDueDate(b.bill_date, b.due_date, b.payment_terms);
+          const dateVal = isPayable ? b.invoice_date : b.bill_date;
+          const effDueDate = computeDueDate(dateVal, b.due_date, b.payment_terms);
           return new Date(effDueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" });
         });
         const uniqueDueDates = Array.from(new Set(dueDates)).join(", ");
 
         const billDates = partyBills.map((b) => {
-          return b.bill_date ? new Date(b.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "";
+          const dateVal = isPayable ? b.invoice_date : b.bill_date;
+          return dateVal ? new Date(dateVal).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "";
         }).filter(Boolean);
         const uniqueBillDates = Array.from(new Set(billDates)).join(", ");
 
         const daysOverdueList = partyBills.map((b) => {
-          const effDueDate = computeDueDate(b.bill_date, b.due_date, b.payment_terms);
+          const dateVal = isPayable ? b.invoice_date : b.bill_date;
+          const effDueDate = computeDueDate(dateVal, b.due_date, b.payment_terms);
           const dueMs = new Date(effDueDate).getTime();
           return Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24));
         });
@@ -297,7 +466,7 @@ export async function POST(request: Request) {
         const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "") : origin;
 
         const billUrl = partyBills.length > 0 && appBaseUrl
-          ? `${appBaseUrl}/p/bill/${partyBills[0].id}`
+          ? `${appBaseUrl}/${isPayable ? "purchases" : "p/bill"}/${partyBills[0].id}`
           : "";
 
         let msg = rawTemplateText

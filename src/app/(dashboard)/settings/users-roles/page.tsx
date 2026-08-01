@@ -11,6 +11,7 @@ import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
 import PageState from "@/components/shared/PageState";
 import { usePermissions } from "@/hooks/usePermissions";
+import { APP_MODULES } from "@/components/layout/Sidebar/navigation.config";
 import {
   UserCircle,
   Settings2,
@@ -45,15 +46,7 @@ interface Permission {
   can_export: boolean;
 }
 
-const MODULES = [
-  "Dashboard",
-  "Master Data",
-  "Raw Materials",
-  "Production",
-  "Sales & Billing",
-  "Reports",
-  "Expenses",
-];
+const MODULES = APP_MODULES;
 
 export default function UsersRolesSettingsPage() {
   const { canAdd, canEdit } = usePermissions();
@@ -191,10 +184,10 @@ export default function UsersRolesSettingsPage() {
   };
 
   // Checkbox matrix toggle handler
-  const handlePermissionChange = (module: string, field: keyof Permission, checked: boolean) => {
+  const handlePermissionChange = (moduleName: string, field: keyof Permission, checked: boolean) => {
     setPermissions((prev) =>
       prev.map((p) => {
-        if (p.role === selectedRole && p.module === module) {
+        if (p.role === selectedRole && p.module.toLowerCase() === moduleName.toLowerCase()) {
           return { ...p, [field]: checked };
         }
         return p;
@@ -254,7 +247,9 @@ export default function UsersRolesSettingsPage() {
   const filteredPermissions = permissions.filter((p) => p.role === selectedRole);
 
   const getPermVal = (moduleName: string, field: keyof Permission): boolean => {
-    const row = filteredPermissions.find((p) => p.module === moduleName);
+    const row = filteredPermissions.find(
+      (p) => p.module.toLowerCase() === moduleName.toLowerCase()
+    );
     return row ? !!row[field] : false;
   };
 

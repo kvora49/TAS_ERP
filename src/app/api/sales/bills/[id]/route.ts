@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -70,6 +71,14 @@ export async function PUT(
     const service = new SalesBillService(repo);
 
     await service.validateAndUpdate(params.id, body, businessId);
+
+    // Fire-and-forget audit log
+    void logAudit(businessId, "update", "sale_bills", params.id, {
+      bill_number: body.bill_number,
+      grand_total: body.grand_total,
+      updated_at: new Date().toISOString(),
+    });
+
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal Server Error";
@@ -309,22 +318,11 @@ export async function DELETE(
       return NextResponse.json({ error: cancelErr.message }, { status: 500 });
     }
 
-    // 5. Audit Log Record
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "cancel_sales_bill",
-      table_name: "sale_bills",
-      record_id: id,
-      old_values: { bill_number: bill.bill_number, grand_total: bill.grand_total, status: bill.status },
-      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    // Fire-and-forget audit log
+    void logAudit(businessId, "cancel", "sale_bills", id, {
+      status: "cancelled",
+      deleted_at: new Date().toISOString(),
+    }, { bill_number: bill.bill_number, grand_total: bill.grand_total, status: bill.status });
 
     return NextResponse.json({
       success: true,

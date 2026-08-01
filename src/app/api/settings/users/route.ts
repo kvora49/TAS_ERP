@@ -1,6 +1,7 @@
 import { createClient as createServerClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const supabase = createServerClient();
@@ -108,6 +109,13 @@ export async function POST(request: Request) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
+
+    // Fire-and-forget audit log
+    void logAudit(businessId, "create", "users", userId, {
+      full_name: name,
+      email,
+      role: role.toLowerCase(),
+    });
 
     return NextResponse.json({ success: true, userId });
   } catch (err: any) {

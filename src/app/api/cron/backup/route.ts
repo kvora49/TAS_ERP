@@ -28,10 +28,52 @@ export async function GET(request: Request) {
     const results = [];
 
     for (const biz of businesses) {
+      // 1. Fetch business_settings for this tenant
+      const { data: bSet } = await supabase
+        .from("business_settings")
+        .select("auto_backup_enabled, backup_frequency, backup_time, backup_retention_days")
+        .eq("business_id", biz.id)
+        .maybeSingle();
+
+      const autoEnabled = bSet?.auto_backup_enabled ?? true;
+      if (!autoEnabled) continue;
+
+      const frequency = bSet?.backup_frequency || "daily";
+      const retentionDays = Number(bSet?.backup_retention_days || 30);
+
+      // Determine frequency interval in ms
+      const FREQUENCY_MS_MAP: Record<string, number> = {
+        daily: 24 * 60 * 60 * 1000,
+        alternate_days: 2 * 24 * 60 * 60 * 1000,
+        weekly: 7 * 24 * 60 * 60 * 1000,
+        "10_days": 10 * 24 * 60 * 60 * 1000,
+        monthly: 30 * 24 * 60 * 60 * 1000,
+      };
+      const intervalMs = FREQUENCY_MS_MAP[frequency] || FREQUENCY_MS_MAP.daily;
+
+      // 2. Fetch last automatic backup date
+      const { data: lastBackup } = await supabase
+        .from("backup_history")
+        .select("created_at")
+        .eq("business_id", biz.id)
+        .eq("backup_type", "automatic")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastBackup?.created_at) {
+        const lastTime = new Date(lastBackup.created_at).getTime();
+        if (Date.now() - lastTime < intervalMs - 5 * 60 * 1000) {
+          // Backup not due yet for this frequency
+          continue;
+        }
+      }
+
       const fileName = `auto_backup_${biz.id}_${timestamp}.sql`;
 
       let sqlDump = `-- TAS ERP Automated Backup\n`;
       sqlDump += `-- Business: ${biz.name} (${biz.id})\n`;
+      sqlDump += `-- Frequency: ${frequency}\n`;
       sqlDump += `-- Date: ${new Date().toUTCString()}\n\n`;
 
       const { data: brands } = await supabase.from("brands").select("*").eq("business_id", biz.id);
@@ -52,28 +94,28 @@ export async function GET(request: Request) {
       try {
         await supabase.from("backup_history").insert({
           business_id: biz.id,
-          file_name: fileName,
-          file_size: `${(fileSize / 1024).toFixed(1)} KB`,
+          backup_type: "automatic",
+          file_key: `backups/${biz.id}/${fileName}`,
           file_url: publicUrl,
-          type: "automatic",
+          file_size_bytes: fileSize,
           status: "completed",
         });
       } catch (e) {}
 
-      // Enforce 30-day retention: delete local files older than 30 days
-      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      // Enforce retention policy: delete local files older than retentionDays
+      const retentionCutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
       try {
         const files = fs.readdirSync(localDir);
         files.forEach((f) => {
           const filePath = path.join(localDir, f);
           const stat = fs.statSync(filePath);
-          if (stat.mtimeMs < thirtyDaysAgo) {
+          if (stat.mtimeMs < retentionCutoff) {
             fs.unlinkSync(filePath);
           }
         });
       } catch (e) {}
 
-      results.push({ businessId: biz.id, fileName, publicUrl });
+      results.push({ businessId: biz.id, fileName, publicUrl, frequency });
     }
 
     return NextResponse.json({

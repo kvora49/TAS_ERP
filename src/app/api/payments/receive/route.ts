@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -128,6 +129,15 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Fire-and-forget audit log
+    void logAudit(businessId, "create", "payments", String(paymentId || ""), {
+      party_id,
+      amount: Number(amount),
+      payment_date,
+      payment_mode,
+      direction: "received",
+    });
 
     // Process bill allocations and update sale_bills paid_amount & payment_status
     if (paymentId && allocations && Array.isArray(allocations) && allocations.length > 0) {

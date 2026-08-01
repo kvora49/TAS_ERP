@@ -5,6 +5,7 @@ import { Plus, Trash2, Layers, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { SelectFabricRollsModal, SelectedRollInfo } from "./SelectFabricRollsModal";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 interface ItemsTableProps {
   state: any;
@@ -495,77 +496,15 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
         {selectedDesignId && (
           <div className="space-y-3 pt-2">
             {sizes.length > 0 ? (
-              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)]">
-                <div className="px-4 py-2.5 bg-[var(--table-header-bg)] border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers size={13} className="text-[var(--primary)]" />
-                    Standard Size Quantities {autoFillAllColors ? "(Applies to ALL Colours)" : "(Applies to Selected Colour)"}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const firstQty = Number(sizeQuantities[sizes[0]] || 0);
-                        applyAutoFillAllSizes(firstQty);
-                        toast.info(`Filled all sizes with ${firstQty} Pcs`);
-                      }}
-                      className="h-7 px-2.5 rounded bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                      title="Copy first size quantity to all sizes"
-                    >
-                      <span>⚡ Auto-Fill All Sizes</span>
-                    </button>
-
-                    {selectedDesign?.size_set?.name && (
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                        {selectedDesign.size_set.name}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-center border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 font-bold text-slate-700">
-                        <th className="py-2.5 px-4 text-left font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200 min-w-[100px]">
-                          SIZE
-                        </th>
-                        {sizes.map((s) => (
-                          <th key={s} className="py-2.5 px-3 border-r border-slate-200 min-w-[84px] text-slate-800 font-bold">
-                            {s}
-                          </th>
-                        ))}
-                        <th className="py-2.5 px-4 font-bold text-slate-900 bg-slate-100 min-w-[90px]">
-                          TOTAL / COLOUR
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="py-3 px-4 text-left font-bold text-slate-600 border-r border-slate-200">
-                          Qty (Pcs)
-                        </td>
-                        {sizes.map((s) => (
-                          <td key={s} className="p-2 border-r border-slate-200">
-                            <input
-                              type="number"
-                              min="0"
-                              value={sizeQuantities[s] ?? 0}
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => handleSizeQtyChange(s, parseInt(e.target.value, 10) || 0)}
-                              className="w-20 h-9 px-2 text-center border border-slate-200 rounded-md font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </td>
-                        ))}
-                        <td className="py-3 px-4 font-extrabold text-indigo-700 text-sm bg-indigo-50/50">
-                          {totalMatrixQty}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <SizeQuantityMatrix
+                sizes={sizes}
+                sizeQuantities={sizeQuantities}
+                onChange={(updated) => setSizeQuantities(updated)}
+                autoFillAllColors={autoFillAllColors}
+                onAutoFillAllColorsChange={setAutoFillAllColors}
+                showAllColorsOption={true}
+                sizeSetName={selectedDesign?.size_set?.name}
+              />
             ) : (
               <div className="bg-white p-3 rounded-lg border border-slate-200 flex items-center justify-between gap-4">
                 <span className="text-xs font-bold text-slate-600 uppercase">Quantity (Pcs)</span>

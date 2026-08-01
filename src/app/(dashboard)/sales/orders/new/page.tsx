@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 import CreateDesignModal from "@/app/(dashboard)/production/lots/new/_components/CreateDesignModal";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -495,28 +496,56 @@ export default function NewSalesOrderPage() {
                         </div>
                       </div>
 
-                      {/* Size Matrix */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block">
-                          Size Set Quantities (Pcs)
-                        </label>
-                        <div className="flex flex-wrap gap-2.5">
-                          {sizes.map((sz) => (
-                            <div key={sz} className="flex flex-col gap-1 w-16">
-                              <span className="text-[10px] font-bold text-slate-600 text-center uppercase bg-white border border-[#E2E8F0] py-0.5 rounded">
-                                {sz}
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={it.size_quantities[sz] || ""}
-                                onChange={(e) => handleSizeQtyChange(it.key, sz, e.target.value)}
-                                className="w-full h-8 text-center border border-[#D1D5DB] rounded text-xs bg-white focus:ring-1 focus:ring-[#6366F1] outline-none font-semibold"
-                              />
-                            </div>
-                          ))}
-                        </div>
+                      {/* Size Matrix with Autofill */}
+                      <div className="pt-1">
+                        <SizeQuantityMatrix
+                          sizes={sizes}
+                          sizeQuantities={it.size_quantities}
+                          sizeSetName={currentDesign?.size_set?.name}
+                          showAllColorsOption={true}
+                          autoFillAllColors={(it as any).apply_all_colors || false}
+                          onAutoFillAllColorsChange={(checked) => {
+                            if (checked && availableColours.length > 0) {
+                              // Duplicate this line item for all available colours of this design
+                              const newLines: any[] = [];
+                              availableColours.forEach((col: any) => {
+                                if (col.id !== it.colour_id) {
+                                  newLines.push({
+                                    key: `item-${Date.now()}-${Math.random()}`,
+                                    design_id: it.design_id,
+                                    colour_id: col.id,
+                                    size_quantities: { ...it.size_quantities },
+                                    total_qty: it.total_qty,
+                                    unit_rate: it.unit_rate,
+                                    line_amount: it.line_amount,
+                                    apply_all_colors: true,
+                                  });
+                                }
+                              });
+                              setItems((prev) =>
+                                prev.map((item) => (item.key === it.key ? { ...item, apply_all_colors: true } : item)).concat(newLines)
+                              );
+                              toast.success(`Applied order item to all ${availableColours.length} colours`);
+                            }
+                          }}
+                          onChange={(updatedSizes) => {
+                            const newTotalQty = Object.values(updatedSizes).reduce((sum, v) => sum + (Number(v) || 0), 0);
+                            const newAmount = newTotalQty * Number(it.unit_rate || 0);
+
+                            setItems((prev) =>
+                              prev.map((item) =>
+                                item.key === it.key
+                                  ? {
+                                      ...item,
+                                      size_quantities: updatedSizes,
+                                      total_qty: newTotalQty,
+                                      line_amount: newAmount,
+                                    }
+                                  : item
+                              )
+                            );
+                          }}
+                        />
                       </div>
 
                       {/* Line Summary (Rate & Amount) */}

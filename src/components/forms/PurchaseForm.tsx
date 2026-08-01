@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { QuickAddDesignModal } from "@/components/forms/QuickAddDesignModal";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -1544,28 +1545,46 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             const currentSizeQs = watchItems[index]?.size_quantities || {};
 
                             return (
-                              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                {sizes.map((sz: string) => (
-                                  <div key={sz} className="space-y-1">
-                                    <label className="text-[10px] font-bold text-[#64748B] uppercase block text-center bg-white py-0.5 rounded border border-slate-200">
-                                      {sz}
-                                    </label>
-                                    <NumericInput
-                                      placeholder="0"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-center font-bold"
-                                      value={currentSizeQs[sz] || ""}
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value || 0);
-                                        const updated = { ...currentSizeQs, [sz]: val };
-                                        setValue(`items.${index}.size_quantities`, updated);
-                                        const total = Object.values(updated).reduce((a, b) => Number(a) + Number(b), 0);
-                                        setValue(`items.${index}.quantity`, total);
-                                        recalcItem(index);
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
+                              <SizeQuantityMatrix
+                                sizes={sizes}
+                                sizeQuantities={currentSizeQs}
+                                sizeSetName={selectedDes?.size_set?.name}
+                                showAllColorsOption={true}
+                                autoFillAllColors={(watchItems[index] as any)?.apply_all_colors || false}
+                                onAutoFillAllColorsChange={(checked) => {
+                                  setValue(`items.${index}.apply_all_colors` as any, checked);
+                                  if (checked && selectedDes?.design_colours?.length) {
+                                    const allColours = selectedDes.design_colours;
+                                    const currentItem = watchItems[index];
+                                    // Add remaining colours for this design with same size quantities
+                                    allColours.forEach((col: any) => {
+                                      if (col.id !== currentItem.colour_id) {
+                                        const total = Object.values(currentSizeQs).reduce((a, b) => Number(a) + Number(b), 0);
+                                        append({
+                                          item_type: "finished_goods",
+                                          design_id: currentItem.design_id,
+                                          colour_id: col.id,
+                                          size_quantities: { ...currentSizeQs },
+                                          quantity: total,
+                                          rate: currentItem.rate || 0,
+                                          amount: total * (currentItem.rate || 0),
+                                          hsn_sac: currentItem.hsn_sac || "",
+                                          unit: "Pcs",
+                                          discount_percent: currentItem.discount_percent || 0,
+                                          gst_percent: currentItem.gst_percent || 0,
+                                        } as any);
+                                      }
+                                    });
+                                    toast.success(`Applied size breakdown to all ${allColours.length} colours of design`);
+                                  }
+                                }}
+                                onChange={(updated) => {
+                                  setValue(`items.${index}.size_quantities`, updated);
+                                  const total = Object.values(updated).reduce((a, b) => Number(a) + Number(b), 0);
+                                  setValue(`items.${index}.quantity`, total);
+                                  recalcItem(index);
+                                }}
+                              />
                             );
                           })()}
                         </div>

@@ -26,6 +26,10 @@ export async function GET(request: Request) {
 
     const uniqueItemTypes = new Set<string>();
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+    const defaultLowStockThreshold = serverSettings.low_stock_threshold || 10;
+
     if (stock) {
       stock.forEach((s) => {
         uniqueItemTypes.add(s.material_type_id);
@@ -33,7 +37,7 @@ export async function GET(request: Request) {
         const val = Number(s.stock_value || 0);
         totalValue += val;
 
-        const minLevel = Number(s.material_type?.reorder_level || 0);
+        const minLevel = Number(s.material_type?.reorder_level) || defaultLowStockThreshold;
         if (qty <= 0) {
           outOfStockCount++;
         } else if (qty < minLevel) {

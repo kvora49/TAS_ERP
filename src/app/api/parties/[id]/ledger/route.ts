@@ -14,7 +14,7 @@ export async function GET(
   const { id } = params;
 
   try {
-    // 1. Fetch Party Details and Transactions in Parallel
+    // 1. Fetch Party/Worker Details and Transactions in Parallel
     const [
       partyResult,
       purchasesResult,
@@ -27,10 +27,14 @@ export async function GET(
       allocationsResult,
       creditNotesResult,
       debitNotesResult,
+      stageEntriesResult,
+      jobWorkPaymentsResult,
+      salaryAdvancesResult,
+      salaryEntriesResult,
     ] = await Promise.all([
       supabase
         .from("parties")
-        .select("type, opening_balance, opening_balance_date, created_at")
+        .select("id, name, type, opening_balance, opening_balance_date, created_at")
         .eq("id", id)
         .eq("business_id", businessId)
         .single(),
@@ -91,11 +95,49 @@ export async function GET(
         .select("id, dn_number, dn_date, amount, reason")
         .eq("party_id", id)
         .eq("business_id", businessId),
+      supabase
+        .from("stage_entries")
+        .select("id, entry_number, entry_date, qty_out, job_work_rate, total_job_work_amount")
+        .eq("worker_id", id)
+        .eq("business_id", businessId),
+      supabase
+        .from("job_work_payments")
+        .select("id, payment_number, payment_date, paid_amount, payment_mode, reference_no, status")
+        .eq("worker_id", id)
+        .eq("business_id", businessId)
+        .eq("status", "success"),
+      supabase
+        .from("salary_advances")
+        .select("id, advance_date, amount, payment_mode, notes")
+        .or(`worker_id.eq.${id},party_id.eq.${id}`)
+        .eq("business_id", businessId),
+      supabase
+        .from("salary_entries")
+        .select("id, salary_month, salary_year, net_salary, payment_mode, payment_date, reference_no, remarks")
+        .or(`worker_id.eq.${id},party_id.eq.${id}`)
+        .eq("business_id", businessId),
     ]);
 
-    const party = partyResult.data;
+    let party: any = partyResult.data;
     if (!party) {
-      return NextResponse.json({ error: "Party not found" }, { status: 404 });
+      const { data: workerParty } = await supabase
+        .from("workers")
+        .select("id, name, opening_balance, created_at")
+        .eq("id", id)
+        .eq("business_id", businessId)
+        .single();
+
+      if (workerParty) {
+        party = {
+          ...workerParty,
+          type: ["worker"],
+          opening_balance_date: workerParty.created_at ? workerParty.created_at.split("T")[0] : null,
+        };
+      }
+    }
+
+    if (!party) {
+      return NextResponse.json({ error: "Party/Worker not found" }, { status: 404 });
     }
 
     const purchases = purchasesResult.data || [];
@@ -108,6 +150,10 @@ export async function GET(
     const allocations = allocationsResult.data || [];
     const creditNotes = creditNotesResult.data || [];
     const debitNotes = debitNotesResult.data || [];
+    const stageEntries = stageEntriesResult.data || [];
+    const jobWorkPayments = jobWorkPaymentsResult.data || [];
+    const salaryAdvances = salaryAdvancesResult.data || [];
+    const salaryEntries = salaryEntriesResult.data || [];
 
     // Helper map to find bill/invoice numbers by ID
     const billMap: Record<string, string> = {};
@@ -115,7 +161,7 @@ export async function GET(
     purchaseBills.forEach((p) => (billMap[p.id] = p.bill_number));
     saleBills.forEach((s) => (billMap[s.id] = s.bill_number));
 
-    const isCustomerOnly = party.type?.includes("customer") && !party.type?.includes("supplier");
+    const isCustomerOnly = party.type?.includes("customer") && !party.type?.includes("supplier") && !party.type?.includes("worker");
 
     // 2. Build Ledger Entries
     const entries: any[] = [];
@@ -123,7 +169,7 @@ export async function GET(
     // Add Opening Balance
     const obDate = party.opening_balance_date 
       ? party.opening_balance_date 
-      : party.created_at.split("T")[0];
+      : (party.created_at ? party.created_at.split("T")[0] : new Date().toISOString().split("T")[0]);
     const obVal = Number(party.opening_balance || 0);
     entries.push({
       date: obDate,
@@ -174,6 +220,22 @@ export async function GET(
       });
     });
 
+    // Add Production Stage Entries (Worker Job Work Piece-Rate Earnings -> Credit)
+    stageEntries.forEach((se: any) => {
+      const qty = Number(se.qty_out || 0);
+      const rate = Number(se.job_work_rate || 0);
+      const total = Number(se.total_job_work_amount || qty * rate);
+      entries.push({
+        date: se.entry_date,
+        particulars: `Production Job Work #${se.entry_number || se.id.substring(0, 8)} (${qty} Pcs @ ₹${rate.toFixed(2)})`,
+        voucherType: "Job Work",
+        voucherNo: se.entry_number || "-",
+        debit: 0,
+        credit: total,
+        sortOrder: 1,
+      });
+    });
+
     // Add Purchase Returns
     returns.forEach((r) => {
       entries.push({
@@ -187,7 +249,7 @@ export async function GET(
       });
     });
 
-    // Add Credit Notes (Sales Returns / Customer Credits -> Credit entry reducing receivable)
+    // Add Credit Notes
     creditNotes.forEach((cn: any) => {
       entries.push({
         date: cn.cn_date,
@@ -200,7 +262,7 @@ export async function GET(
       });
     });
 
-    // Add Debit Notes (Purchase Returns / Vendor/Worker Debits -> Debit entry reducing payable or increasing receivable)
+    // Add Debit Notes
     debitNotes.forEach((dn: any) => {
       entries.push({
         date: dn.dn_date,
@@ -227,12 +289,54 @@ export async function GET(
       });
     });
 
+    // Add Job Work Payments (Payouts to Worker -> Debit)
+    jobWorkPayments.forEach((jp: any) => {
+      const mode = jp.payment_mode ? jp.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
+      entries.push({
+        date: jp.payment_date,
+        particulars: `Job Work Payment (${mode}) ${jp.reference_no ? "(" + jp.reference_no + ")" : ""}`,
+        voucherType: "Payment",
+        voucherNo: jp.payment_number || jp.reference_no || "-",
+        debit: Number(jp.paid_amount || 0),
+        credit: 0,
+        sortOrder: 3,
+      });
+    });
+
+    // Add Salary Advances (Advances paid to Worker -> Debit)
+    salaryAdvances.forEach((sa: any) => {
+      const mode = sa.payment_mode ? sa.payment_mode.replace(/_/g, " ").toUpperCase() : "ADVANCE";
+      entries.push({
+        date: sa.advance_date,
+        particulars: `Salary Advance (${mode}) ${sa.notes ? "— " + sa.notes : ""}`,
+        voucherType: "Advance",
+        voucherNo: "-",
+        debit: Number(sa.amount || 0),
+        credit: 0,
+        sortOrder: 3,
+      });
+    });
+
+    // Add Salary Entries (Salary Payouts to Worker -> Debit)
+    salaryEntries.forEach((se: any) => {
+      const mode = se.payment_mode ? se.payment_mode.toUpperCase() : "PAID";
+      const dateStr = se.payment_date || `${se.salary_year}-${String(se.salary_month).padStart(2, "0")}-01`;
+      entries.push({
+        date: dateStr,
+        particulars: `Salary Payout ${se.salary_month}/${se.salary_year} (${mode}) ${se.remarks ? "— " + se.remarks : ""}`,
+        voucherType: "Salary",
+        voucherNo: se.reference_no || "-",
+        debit: Number(se.net_salary || 0),
+        credit: 0,
+        sortOrder: 3,
+      });
+    });
+
     // Add Unified Payments (both paid & received)
     newPayments.forEach((py) => {
       const mode = py.payment_mode ? py.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
       const isAdvance = py.is_advance || Number(py.unallocated_amount) > 0;
       
-      // Get allocations for this payment
       const paymentAllocs = allocations
         .filter((a) => a.payment_id === py.id)
         .map((a) => ({
@@ -240,9 +344,6 @@ export async function GET(
           amount: Number(a.allocated_amount),
         }));
 
-      // Directional math:
-      // received (from customer): reduces customer receivable (Credit)
-      // paid (to supplier/worker): reduces supplier payable (Debit)
       const debit = py.direction === "paid" ? Number(py.amount) : 0;
       const credit = py.direction === "received" ? Number(py.amount) : 0;
 
@@ -262,12 +363,9 @@ export async function GET(
     });
 
     // Add Write-offs
-    // Match write-offs that affect this party's bills
     writeOffs.forEach((wo) => {
       const affectedBillNo = billMap[wo.bill_id];
       if (affectedBillNo) {
-        // If it's a customer bill (sale_bill), write-off (Loss) reduces receivable (Credit)
-        // If it's a supplier bill (purchase_bill/raw_material_purchase), write-off (Gain) reduces payable (Debit)
         const isCustomerBill = wo.bill_type === "sale_bill";
         const debit = isCustomerBill ? 0 : Number(wo.amount);
         const credit = isCustomerBill ? Number(wo.amount) : 0;
@@ -296,7 +394,6 @@ export async function GET(
     let runningBalance = 0;
     const ledger = entries.map((entry) => {
       if (isCustomerOnly) {
-        // Customer: Debit (Invoices) increases, Credit (Payments/Write-offs) decreases
         runningBalance += entry.debit - entry.credit;
         return {
           ...entry,
@@ -305,7 +402,6 @@ export async function GET(
           balanceStr: `₹${Math.abs(runningBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} ${runningBalance >= 0 ? "Dr" : "Cr"}`,
         };
       } else {
-        // Supplier / Other: Credit (Purchases) increases, Debit (Payments/Returns/Write-offs) decreases
         runningBalance += entry.credit - entry.debit;
         return {
           ...entry,
@@ -326,7 +422,7 @@ export async function GET(
     
     const remainingAdvance = advanceData?.reduce((sum, curr) => sum + Number(curr.remaining_amount), 0) || 0;
 
-    return NextResponse.json({ ledger, remainingAdvance });
+    return NextResponse.json({ party, ledger, remainingAdvance });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

@@ -237,7 +237,7 @@ export async function PUT(
   const body = await request.json();
 
   try {
-    const { return_date, return_reason, grand_total, items } = body;
+    const { return_date, return_reason, original_bill_id, grand_total, items } = body;
 
     // 1. Fetch current sales return to compare old values
     const { data: sReturn } = await supabase
@@ -261,6 +261,7 @@ export async function PUT(
       .update({
         ...(return_date && { return_date }),
         ...(return_reason !== undefined && { return_reason }),
+        ...(original_bill_id !== undefined && { original_bill_id: original_bill_id || null }),
         grand_total: newGrandTotal,
         updated_at: new Date().toISOString(),
       })

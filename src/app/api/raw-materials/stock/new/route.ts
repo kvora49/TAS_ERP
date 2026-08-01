@@ -31,21 +31,23 @@ export async function POST(request: Request) {
       items,
     } = body;
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    const effectiveGodownId = godown_id || serverSettings.default_godown_id;
+
     if (!entry_type) {
       return NextResponse.json({ error: "Entry Type is required" }, { status: 400 });
     }
     if (!posting_date) {
       return NextResponse.json({ error: "Posting Date is required" }, { status: 400 });
     }
-    if (!godown_id) {
+    if (!effectiveGodownId) {
       return NextResponse.json({ error: "Godown is required" }, { status: 400 });
     }
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 });
     }
-
-    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
-    const serverSettings = await getBusinessServerSettings(supabase, businessId);
 
     // If negative stock is disallowed, check stock for stock deductions/issues
     if (!serverSettings.allow_negative_stock && (entry_type === 'issue' || entry_type === 'damage' || entry_type === 'adjustment_out')) {
@@ -97,7 +99,7 @@ export async function POST(request: Request) {
         stock_entry_number: stockEntryNumber,
         entry_type,
         posting_date,
-        godown_id,
+        godown_id: effectiveGodownId,
         remarks: remarks || null,
         notes: notes || null,
         reference_type: reference_type || 'manual',

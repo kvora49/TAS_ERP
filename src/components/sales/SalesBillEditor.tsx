@@ -40,6 +40,54 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     }
   }, [mode, type]);
 
+  // Pre-fill scanned SKU line item from URL parameters
+  useEffect(() => {
+    if (mode === "create" && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const stockId = params.get("stock_id");
+      const size = params.get("size");
+      const price = params.get("price");
+      const designId = params.get("design_id");
+
+      if (stockId || designId) {
+        const fetchInitialItem = async () => {
+          try {
+            const lookupId = stockId || designId;
+            const res = await fetch("/api/finished-stock/barcode/scan", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ qr_uuid: lookupId }),
+            });
+            const json = await res.json();
+            if (res.ok && json.found && json.stock) {
+              const stk = json.stock;
+              const newItem = {
+                id: crypto.randomUUID(),
+                finished_stock_id: stk.id,
+                design_id: stk.design_id,
+                design_code: stk.designs?.design_number || "DES-001",
+                design_name: stk.designs?.name || "Garment Item",
+                colour_id: stk.colour_id,
+                colour_name: stk.design_colours?.colour_name || "Standard",
+                size: size || stk.size || "Free Size",
+                quantity: 1,
+                rate: Number(price || stk.designs?.sale_price || 0),
+                unit: "Pcs",
+                discount_percent: 0,
+                tax_percent: 0,
+              };
+              state.setItems([newItem]);
+              toast.success(`Scanned item pre-filled: ${stk.designs?.name || "Item"} (Size: ${size || stk.size || "Free Size"})`);
+            }
+          } catch (err) {
+            console.error("Error pre-filling invoice item from scan:", err);
+          }
+        };
+        fetchInitialItem();
+      }
+    }
+  }, [mode]);
+
   // Sync showEway check if editing and transporter/vehicle exists
   useEffect(() => {
     if (state.transporterName || state.vehicleNo) {
@@ -254,7 +302,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
               {/* Invoice Overview */}
               <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
                 <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest block font-mono">Invoice Overview</span>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Customer</span>
                     <span className="text-xs font-bold text-[var(--text-primary)] capitalize">
@@ -324,7 +372,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
               {/* Totals Summary */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Financial Summary</span>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-semibold">
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">Sub Total</span>
                     <span className="text-xs font-bold text-slate-800 font-mono">₹{totals.sub_total.toFixed(2)}</span>

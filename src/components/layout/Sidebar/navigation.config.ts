@@ -46,6 +46,7 @@ export const IMPLEMENTED_ROUTES = [
   "/master-data/workers",
   "/master-data/units",
   "/master-data/garment-types",
+  "/master-data/barcode-qr",
   "/parties",
   "/purchases",
   "/purchases/returns",
@@ -76,6 +77,7 @@ export const IMPLEMENTED_ROUTES = [
 export const isWhitelisted = (href: string): boolean => {
   return (
     IMPLEMENTED_ROUTES.includes(href) ||
+    href.startsWith("/master-data") ||
     href.startsWith("/production/job-work/ledger") ||
     href === "/settings/general" ||
     href === "/settings/company-profile" ||
@@ -263,9 +265,10 @@ export const navItems: NavItem[] = [
       { name: "Inventory", href: "/settings/inventory" },
       { name: "Production", href: "/settings/production" },
       { name: "Notifications", href: "/settings/notifications" },
-      { name: "Backup & Restore", href: "/settings/backup-restore" },
       { name: "Audit Logs", href: "/settings/audit-logs" },
-      { name: "Communication", href: "/settings/communication" },
     ],
   },
 ];
+
+export const APP_MODULES = navItems.map((item) => item.name);
+

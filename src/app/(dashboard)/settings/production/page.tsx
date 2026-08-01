@@ -52,7 +52,7 @@ export default function ProductionSettingsPage() {
   const [autoCompleteLot, setAutoCompleteLot] = useState(true);
   const [allowBackDateProduction, setAllowBackDateProduction] = useState(false);
   const [lockCompletedLots, setLockCompletedLots] = useState(true);
-  const [defaultGodownId, setDefaultGodownId] = useState(""); // Default Work Center
+  const [defaultWorkCenterId, setDefaultWorkCenterId] = useState(""); // Default Work Center
 
   const fetchProductionSettings = async () => {
     setLoading(true);
@@ -66,7 +66,7 @@ export default function ProductionSettingsPage() {
         setAutoCompleteLot(data.settings.auto_complete_lot ?? true);
         setAllowBackDateProduction(data.settings.allow_back_date_production ?? false);
         setLockCompletedLots(data.settings.lock_completed_lots ?? true);
-        setDefaultGodownId(data.settings.default_godown_id || "");
+        setDefaultWorkCenterId(data.settings.default_work_center_id || "");
       }
 
       setStages(data.stages && data.stages.length > 0 ? data.stages : MOCK_STAGES);
@@ -94,7 +94,7 @@ export default function ProductionSettingsPage() {
           auto_complete_lot: autoCompleteLot,
           allow_back_date_production: allowBackDateProduction,
           lock_completed_lots: lockCompletedLots,
-          default_godown_id: defaultGodownId,
+          default_work_center_id: defaultWorkCenterId,
           // Staging sort orders of stages if they were reordered (currently static in UI)
           stages: stages.map((s, idx) => ({ id: s.id, sort_order: idx + 1 })),
         }),
@@ -118,7 +118,7 @@ export default function ProductionSettingsPage() {
   };
 
   const getWorkCenterName = () => {
-    const center = godowns.find((g) => g.id === defaultGodownId);
+    const center = godowns.find((g) => g.id === defaultWorkCenterId);
     return center ? center.name : "Main Production Unit";
   };
 
@@ -267,8 +267,8 @@ export default function ProductionSettingsPage() {
                   Default Work Center
                 </label>
                 <select
-                  value={defaultGodownId}
-                  onChange={(e) => setDefaultGodownId(e.target.value)}
+                  value={defaultWorkCenterId}
+                  onChange={(e) => setDefaultWorkCenterId(e.target.value)}
                   className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Main Production Unit</option>

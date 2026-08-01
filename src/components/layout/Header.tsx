@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { NotificationPopover } from "@/components/notifications/NotificationPopover";
 import ThemeToggle from "./ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
@@ -139,18 +140,18 @@ export default function Header() {
       </div>
 
       {/* Right: Filters & Quick Actions */}
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 shrink-0">
         {/* Brand Filter */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-colors cursor-pointer outline-none">
-            <Sliders size={13} className="text-[var(--text-muted)]" />
-            <span>
+          <DropdownMenuTrigger className="h-9 px-2 sm:px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer outline-none">
+            <Sliders size={13} className="text-[var(--text-muted)] shrink-0" />
+            <span className="hidden sm:inline truncate max-w-[100px]">
               {filters.brandId === "all"
                 ? "All Brands"
                 : brands.find((b) => b.id === filters.brandId)?.name || "Select Brand"}
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1">
+          <DropdownMenuContent align="end" className="w-48 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1 z-50">
             <DropdownMenuLabel className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider p-2">
               Filter by Brand
             </DropdownMenuLabel>
@@ -175,13 +176,13 @@ export default function Header() {
 
         {/* Date Filter */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="h-9 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-colors cursor-pointer outline-none">
-            <Calendar size={13} className="text-[var(--text-muted)]" />
-            <span className="capitalize">
+          <DropdownMenuTrigger className="h-9 px-2 sm:px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer outline-none">
+            <Calendar size={13} className="text-[var(--text-muted)] shrink-0" />
+            <span className="capitalize hidden sm:inline truncate max-w-[110px]">
               {filters.dateRange.replace("_", " ")}
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1">
+          <DropdownMenuContent align="end" className="w-44 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1 z-50">
             <DropdownMenuLabel className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider p-2">
               Select Period
             </DropdownMenuLabel>
@@ -205,21 +206,10 @@ export default function Header() {
         </DropdownMenu>
 
         {/* Divider */}
-        <div className="h-5 w-px bg-[var(--border)]" />
+        <div className="h-5 w-px bg-[var(--border)] hidden sm:block" />
 
-        {/* Notification Bell */}
-        <button
-          type="button"
-          onClick={() => setNotificationCount(0)}
-          className="relative w-9 h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
-        >
-          <Bell size={18} />
-          {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#DC2626] text-white text-[9px] font-bold flex items-center justify-center">
-              {notificationCount}
-            </span>
-          )}
-        </button>
+        {/* Notification Bell Popover */}
+        <NotificationPopover />
 
         {/* Theme Toggle */}
         <ThemeToggle />

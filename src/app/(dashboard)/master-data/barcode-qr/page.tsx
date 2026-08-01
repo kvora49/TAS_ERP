@@ -37,8 +37,36 @@ export default function MasterDataBarcodeQRPage() {
   const [generatedLabels, setGeneratedLabels] = useState<any[]>([]);
   const [singlePrintLabel, setSinglePrintLabel] = useState<any | null>(null);
 
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setSinglePrintLabel(null);
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
+  const isSelectedForIndividualPrint = (lbl: any) => {
+    if (!singlePrintLabel) return false;
+    if (singlePrintLabel.id && lbl.id) {
+      return singlePrintLabel.id === lbl.id;
+    }
+    if (singlePrintLabel.qr_uuid && lbl.qr_uuid) {
+      return singlePrintLabel.qr_uuid === lbl.qr_uuid;
+    }
+    return false;
+  };
+
   const handlePrintIndividual = (lbl: any) => {
     setSinglePrintLabel(lbl);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  const handlePrintAll = () => {
+    setSinglePrintLabel(null);
     setTimeout(() => {
       window.print();
     }, 150);
@@ -119,9 +147,9 @@ export default function MasterDataBarcodeQRPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-0 print:m-0 print:max-w-none print:w-full">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
+      <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B] print:hidden">
         <Link href="/" className="hover:text-[#6366F1] transition-colors">
           Dashboard
         </Link>
@@ -181,7 +209,7 @@ export default function MasterDataBarcodeQRPage() {
 
       {/* Main Content View */}
       {activeTab === "generator" ? (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-6 print:p-0 print:border-none print:shadow-none">
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-6 print:p-0 print:border-none print:shadow-none print:bg-transparent">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] pb-4 print:hidden">
             <div>
               <h2 className="text-base font-bold text-[#0F172A]">SKU Stock Label Generator</h2>
@@ -212,7 +240,7 @@ export default function MasterDataBarcodeQRPage() {
               </div>
 
               <button
-                onClick={() => window.print()}
+                onClick={handlePrintAll}
                 className="h-9 px-4 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
               >
                 <Printer className="h-4 w-4" />
@@ -234,14 +262,23 @@ export default function MasterDataBarcodeQRPage() {
               <p className="text-xs text-slate-500 mt-0.5">Post stock entries or production lots to generate printable tags.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 print:grid-cols-2 print:gap-4">
-              {generatedLabels.map((lbl) => {
+            <div
+              className={
+                singlePrintLabel !== null
+                  ? "flex justify-center items-center w-full pt-8 print:w-full print:pt-8 print:flex print:justify-center print:items-center print:overflow-visible"
+                  : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 print:grid print:grid-cols-2 print:gap-4 print:justify-items-center print:w-full print:overflow-visible"
+              }
+            >
+              {generatedLabels.map((lbl, idx) => {
                 const barcodeImg = generate1DBarcode(lbl.qr_uuid);
+                const isHiddenInPrint = singlePrintLabel !== null && !isSelectedForIndividualPrint(lbl);
 
                 return (
                   <div
-                    key={lbl.id}
-                    className="border-2 border-dashed border-slate-300 rounded-xl p-4 bg-white space-y-3 relative group hover:border-[#6366F1] transition-all print:border-solid print:border-slate-400 print:rounded-none"
+                    key={lbl.id || lbl.stock_id || lbl.qr_uuid || idx}
+                    className={`border-2 border-dashed border-slate-300 rounded-xl p-4 bg-white space-y-3 relative group hover:border-[#6366F1] transition-all print:border-solid print:border-slate-400 print:rounded-lg print:w-[85mm] print:mx-auto print:break-inside-avoid break-inside-avoid ${
+                      isHiddenInPrint ? "print:hidden" : ""
+                    }`}
                   >
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <div>
@@ -256,11 +293,19 @@ export default function MasterDataBarcodeQRPage() {
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase block">Design Code</span>
-                        <span className="font-extrabold text-slate-800">{lbl.design_number}</span>
+                        <span className="font-extrabold text-slate-800">{lbl.design_code || lbl.design_number || "—"}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase block">Colour</span>
-                        <span className="font-bold text-slate-800">{lbl.colour_name}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {lbl.colour_hex && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-slate-400 inline-block print:border-black"
+                              style={{ backgroundColor: lbl.colour_hex }}
+                            />
+                          )}
+                          <span className="font-extrabold text-slate-800 capitalize">{lbl.colour_name}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -277,8 +322,12 @@ export default function MasterDataBarcodeQRPage() {
                           </div>
                         )
                       ) : (
-                        <div className="w-14 h-14 bg-white p-1 rounded border border-slate-300 flex items-center justify-center">
-                          <QrCode className="w-12 h-12 text-slate-900" />
+                        <div className="w-16 h-16 bg-white p-1 rounded border border-slate-300 flex items-center justify-center">
+                          {lbl.qr_data_url ? (
+                            <img src={lbl.qr_data_url} alt="2D QR Code" className="w-14 h-14 object-contain" />
+                          ) : (
+                            <QrCode className="w-12 h-12 text-slate-900" />
+                          )}
                         </div>
                       )}
                       <span className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[200px]">
@@ -287,7 +336,7 @@ export default function MasterDataBarcodeQRPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 pt-1">
-                      <span>PRICE: ₹{lbl.sale_price?.toFixed(2) || "0.00"}</span>
+                      <span>PRICE: ₹{Number(lbl.sale_price || 0).toFixed(2)}</span>
                       <button
                         onClick={() => handlePrintIndividual(lbl)}
                         className="p-1 text-[#6366F1] hover:bg-indigo-50 rounded transition-colors print:hidden flex items-center gap-1"
@@ -370,16 +419,51 @@ export default function MasterDataBarcodeQRPage() {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Size</span>
-                    <span className="font-extrabold text-slate-900">{scannedStock.size || "—"}</span>
+                    <span className="font-extrabold text-slate-900">{scannedStock.size || scannedStock.resolved_size || "—"}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Storage Godown</span>
                     <span className="font-bold text-slate-800">{scannedStock.godowns?.name || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
-                    <span className="font-extrabold text-emerald-600">{scannedStock.total_quantity || 1} Pcs</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Available Stock</span>
+                    <span className="font-extrabold text-emerald-600">{scannedStock.resolved_quantity ?? scannedStock.total_quantity ?? 1} Pcs</span>
                   </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Sale Price</span>
+                    <span className="font-extrabold text-indigo-600">₹{Number(scannedStock.designs?.sale_price || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Quick ERP Action Buttons */}
+                <div className="pt-3 border-t border-emerald-100 flex flex-wrap gap-2">
+                  <Link
+                    href={`/sales/bills/new?stock_id=${scannedStock.id}&design_id=${scannedStock.design_id || ""}&size=${encodeURIComponent(scannedStock.size || "")}&price=${scannedStock.designs?.sale_price || 0}`}
+                    className="px-3.5 py-2 rounded-xl bg-[#5B63D3] hover:bg-[#4F55C3] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🛒 Create Sales Bill</span>
+                  </Link>
+
+                  <Link
+                    href={`/sales/returns/new?stock_id=${scannedStock.id}&design_id=${scannedStock.design_id || ""}&size=${encodeURIComponent(scannedStock.size || "")}`}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>↩️ Create Sales Return</span>
+                  </Link>
+
+                  <Link
+                    href={`/finished-stock/operations?tab=transfer&stock_id=${scannedStock.id}&size=${encodeURIComponent(scannedStock.size || "")}`}
+                    className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🚚 Godown Transfer</span>
+                  </Link>
+
+                  <Link
+                    href={`/finished-stock/operations?tab=adjustment&stock_id=${scannedStock.id}&size=${encodeURIComponent(scannedStock.size || "")}`}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>⚡ Stock Adjustment</span>
+                  </Link>
                 </div>
               </div>
             )}

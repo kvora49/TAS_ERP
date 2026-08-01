@@ -71,7 +71,7 @@ export async function PUT(request: Request) {
       auto_complete_lot,
       allow_back_date_production,
       lock_completed_lots,
-      default_godown_id, // Default Work Center
+      default_work_center_id, // Default Work Center
       stages, // Optional array of stages with their IDs and new sort_order values
     } = body;
 
@@ -85,7 +85,7 @@ export async function PUT(request: Request) {
           auto_complete_lot: !!auto_complete_lot,
           allow_back_date_production: !!allow_back_date_production,
           lock_completed_lots: !!lock_completed_lots,
-          default_godown_id: default_godown_id || null,
+          default_work_center_id: default_work_center_id || null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "business_id" }

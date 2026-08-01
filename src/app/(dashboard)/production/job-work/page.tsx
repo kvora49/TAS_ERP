@@ -36,6 +36,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import WorkerAvatar from "@/components/shared/WorkerAvatar";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Dialog,
@@ -61,6 +62,7 @@ interface JobWorkEntry {
   id: string;
   entry_number: string;
   entry_date: string;
+  due_date?: string | null;
   qty_out: number;
   job_work_rate: number;
   total_job_work_amount: number;
@@ -764,6 +766,7 @@ export default function UnifiedJobWorkPage() {
                       <th className="py-3 px-4 text-right">Total Amount</th>
                       <th className="py-3 px-4 text-right">Paid Amount</th>
                       <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-center">Due Counter</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -804,6 +807,13 @@ export default function UnifiedJobWorkPage() {
                             >
                               {e.payment_status}
                             </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <DueDateBadge
+                              dueDate={e.due_date}
+                              isCompleted={isPaid}
+                              type="job_work"
+                            />
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">

@@ -364,6 +364,28 @@ export async function PUT(
       return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    if (oldLot.status === "completed" && serverSettings.lock_completed_lots) {
+      return NextResponse.json(
+        { error: "Completed production lots are locked and cannot be edited per system settings." },
+        { status: 400 }
+      );
+    }
+
+    if (lot_date && !serverSettings.allow_back_date_production) {
+      const inputDate = new Date(lot_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (inputDate < today) {
+        return NextResponse.json(
+          { error: "Back-dated production entries are disabled in system settings." },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: lot, error } = await supabase
       .from("production_lots")
       .update({

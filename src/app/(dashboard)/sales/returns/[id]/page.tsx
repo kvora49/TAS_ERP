@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Loader2, FileText, RefreshCw, Printer, Trash2,
-  CheckCircle2, Building2, Calendar, ReceiptText, Download, ExternalLink,
+  ArrowLeft, Loader2, FileText, Printer, Trash2, Edit2,
+  Building2, ReceiptText, Download, ExternalLink,
   Package, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { Badge } from "@/components/shared/Badge";
+import { CreditNoteModal } from "@/components/modals/CreditNoteModal";
 
 interface CreditNote {
   id: string;
@@ -73,6 +73,7 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [cnModalOpen, setCnModalOpen] = useState(false);
 
   const fetchDetails = async () => {
     setLoading(true);
@@ -121,7 +122,7 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#6366F1]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
       </div>
     );
   }
@@ -137,41 +138,47 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
-          <Link href="/sales/returns" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
-            <ArrowLeft className="h-5 w-5 text-[#64748B]" />
+          <Link href="/sales/returns" className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors text-[var(--text-muted)]">
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-[#0F172A]">
-                Return Details: {sReturn.return_number}
+              <h1 className="text-xl font-bold text-[var(--text-primary)]">
+                Sales Return: {sReturn.return_number}
               </h1>
-              <span className="px-2.5 py-0.5 bg-[#DCFCE7] text-[#15803D] rounded-full text-[10px] font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
                 {sReturn.status}
               </span>
             </div>
-            <p className="text-xs text-[#64748B] mt-0.5">
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               Processed on {sReturn.return_date} · Customer:{" "}
-              <span className="font-semibold text-[#0F172A]">{sReturn.party?.name}</span>
+              <span className="font-semibold text-[var(--text-primary)]">{sReturn.party?.name}</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {creditNote && (
-            <Link
-              href={`/sales/credit-notes/${creditNote.id}/print`}
-              target="_blank"
-              className="px-3.5 py-1.5 text-xs font-bold text-[#6366F1] bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg hover:bg-[#E0E7FF] flex items-center gap-1.5 transition-all"
+            <button
+              onClick={() => setCnModalOpen(true)}
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
             >
-              <Printer className="h-3.5 w-3.5" />
-              Print Credit Note
-            </Link>
+              <FileText className="h-3.5 w-3.5" />
+              Credit Note Voucher
+            </button>
           )}
+          <Link
+            href={`/sales/returns/${id}/edit`}
+            className="px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] flex items-center gap-1.5 transition-all"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+            Edit Return
+          </Link>
           <button
             onClick={() => setDeleteOpen(true)}
-            className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 flex items-center gap-1.5 transition-all"
+            className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-[var(--card-bg)] border border-red-200 rounded-lg hover:bg-red-500/10 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Delete Return
@@ -185,56 +192,64 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
 
           {/* Original Bill Reference */}
           {sReturn.bill ? (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-3 flex items-center gap-2">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3 flex items-center gap-2">
                 <ReceiptText className="h-4 w-4" />
-                Original Sales Bill
+                Original Sales Bill Reference
               </h2>
               <div className="flex items-center justify-between">
                 <div>
                   <Link
                     href={`/sales/bills/${sReturn.bill.id}`}
-                    className="text-[#6366F1] font-bold text-sm font-mono hover:underline flex items-center gap-1.5"
+                    className="text-[var(--primary)] font-bold text-sm font-mono hover:underline flex items-center gap-1.5"
                   >
                     {sReturn.bill.bill_number}
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
-                  <p className="text-xs text-[#64748B] mt-0.5">Dated: {sReturn.bill.bill_date}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Dated: {sReturn.bill.bill_date}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-[#64748B]">Bill Value</p>
-                  <p className="font-bold text-[#0F172A] font-mono">{formatCurrency(sReturn.bill.grand_total)}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Bill Value</p>
+                  <p className="font-bold text-[var(--text-primary)] font-mono">{formatCurrency(sReturn.bill.grand_total)}</p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-2.5">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-              <p className="text-xs font-semibold text-amber-700">
-                No original sales bill linked to this return.
-              </p>
+            <div className="bg-amber-500/10 border border-amber-200/60 rounded-xl p-4 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  No original sales bill linked (Direct Return).
+                </p>
+              </div>
+              <Link
+                href={`/sales/returns/${id}/edit`}
+                className="text-xs font-bold text-[var(--primary)] hover:underline"
+              >
+                Link Original Bill
+              </Link>
             </div>
           )}
 
           {/* Customer Info */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-3 flex items-center gap-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3 flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               Customer Details
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-extrabold text-[#0F172A]">{sReturn.party?.name}</p>
+                <p className="text-sm font-extrabold text-[var(--text-primary)]">{sReturn.party?.name}</p>
                 {sReturn.party?.company_name && (
-                  <p className="text-xs text-[#64748B]">{sReturn.party.company_name}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{sReturn.party.company_name}</p>
                 )}
                 {sReturn.party?.gstin && (
-                  <p className="text-xs font-mono font-bold text-[#1E293B] mt-1">
+                  <p className="text-xs font-mono font-bold text-[var(--text-secondary)] mt-1">
                     GSTIN: {sReturn.party.gstin}
                   </p>
                 )}
               </div>
-              <div className="text-xs text-[#64748B] space-y-0.5">
+              <div className="text-xs text-[var(--text-muted)] space-y-0.5">
                 {sReturn.party?.phone && <p>📞 {sReturn.party.phone}</p>}
                 {sReturn.party?.email && <p>✉️ {sReturn.party.email}</p>}
                 {sReturn.party?.billing_city && (
@@ -248,42 +263,42 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
           </div>
 
           {/* Returned Items from stock ledger */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-[#F1F5F9]">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Items Returned to Stock
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+            <div className="p-5 border-b border-[var(--border)]">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] flex items-center gap-2">
+                <Package className="h-4 w-4 text-[var(--primary)]" />
+                Items Returned to Inventory Stock
               </h2>
             </div>
             {ledgerEntries.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400 italic">
+              <div className="p-8 text-center text-xs text-[var(--text-faint)] italic">
                 No stock movement entries found for this return.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-[#E2E8F0] text-[#64748B] font-bold">
-                      <th className="p-3">Design</th>
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold">
+                      <th className="p-3">Design / Product</th>
                       <th className="p-3 text-right">Qty Returned</th>
                       <th className="p-3 text-right">Credit Value (₹)</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[var(--border)]">
                     {ledgerEntries.map((entry) => (
-                      <tr key={entry.id} className="border-b border-[#F1F5F9] last:border-0">
+                      <tr key={entry.id} className="hover:bg-[var(--table-row-hover)]">
                         <td className="p-3">
-                          <p className="font-bold text-[#0F172A]">
+                          <p className="font-bold text-[var(--text-primary)]">
                             {entry.design?.name || "—"}
                           </p>
                           {entry.design?.design_number && (
-                            <p className="text-[10px] text-[#64748B] font-mono">{entry.design.design_number}</p>
+                            <p className="text-[10px] text-[var(--text-muted)] font-mono">{entry.design.design_number}</p>
                           )}
                         </td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-700">
+                        <td className="p-3 text-right font-mono font-bold text-emerald-600">
                           +{Math.abs(entry.quantity_delta)} pcs
                         </td>
-                        <td className="p-3 text-right font-mono font-bold text-[#0F172A]">
+                        <td className="p-3 text-right font-mono font-bold text-[var(--text-primary)]">
                           {formatCurrency(Math.abs(entry.value_delta))}
                         </td>
                       </tr>
@@ -296,11 +311,11 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
 
           {/* Return Reason */}
           {sReturn.return_reason && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-2">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)]">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">
                 Reason for Return
               </h2>
-              <p className="text-sm text-[#0F172A] font-medium">{sReturn.return_reason}</p>
+              <p className="text-sm text-[var(--text-primary)] font-medium">{sReturn.return_reason}</p>
             </div>
           )}
         </div>
@@ -308,19 +323,19 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
         {/* Right Column */}
         <div className="space-y-6">
           {/* Financial Summary */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
               Financial Summary
             </h2>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-[#64748B] font-semibold">Return Date:</span>
-                <span className="font-mono font-bold text-[#0F172A]">{sReturn.return_date}</span>
+                <span className="text-[var(--text-muted)] font-semibold">Return Date:</span>
+                <span className="font-mono font-bold text-[var(--text-primary)]">{sReturn.return_date}</span>
               </div>
-              <div className="border-t border-[#E2E8F0] my-2" />
-              <div className="flex justify-between items-center bg-rose-50 border border-rose-100 p-3 rounded-lg">
-                <span className="font-bold text-[#DC2626] text-sm">Total Return Value:</span>
-                <span className="font-mono font-black text-[#DC2626] text-lg">
+              <div className="border-t border-[var(--border)] my-2" />
+              <div className="flex justify-between items-center bg-rose-500/10 border border-rose-200/50 p-3 rounded-lg">
+                <span className="font-bold text-rose-600 text-sm">Total Return Value:</span>
+                <span className="font-mono font-black text-rose-600 text-lg">
                   {formatCurrency(sReturn.grand_total)}
                 </span>
               </div>
@@ -328,69 +343,76 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
           </div>
 
           {/* Credit Note Panel */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Credit Note
             </h2>
             {creditNote ? (
               <div className="space-y-3">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-[#64748B]">CN Number:</span>
-                  <span className="font-mono font-bold text-[#6366F1]">{creditNote.cn_number}</span>
+                  <span className="text-[var(--text-muted)]">CN Number:</span>
+                  <span className="font-mono font-bold text-[var(--primary)]">{creditNote.cn_number}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-[#64748B]">Date:</span>
-                  <span className="font-mono text-[#0F172A]">{creditNote.cn_date}</span>
+                  <span className="text-[var(--text-muted)]">Date:</span>
+                  <span className="font-mono text-[var(--text-primary)]">{creditNote.cn_date}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-[#64748B]">Amount:</span>
-                  <span className="font-mono font-bold text-[#16A34A]">{formatCurrency(creditNote.amount)}</span>
+                  <span className="text-[var(--text-muted)]">Amount:</span>
+                  <span className="font-mono font-bold text-emerald-600">{formatCurrency(creditNote.amount)}</span>
                 </div>
                 {creditNote.reason && (
-                  <div className="bg-slate-50 p-2.5 rounded border border-[#E2E8F0] text-[10px] text-[#64748B]">
+                  <div className="bg-[var(--page-bg)] p-2.5 rounded border border-[var(--border)] text-[10px] text-[var(--text-muted)]">
                     {creditNote.reason}
                   </div>
                 )}
-                <div className="border-t border-[#E2E8F0] pt-3">
+                <div className="border-t border-[var(--border)] pt-3 space-y-2">
+                  <button
+                    onClick={() => setCnModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Open Credit Note Voucher
+                  </button>
                   <Link
                     href={`/sales/credit-notes/${creditNote.id}/print`}
                     target="_blank"
-                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-sm"
+                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[var(--text-primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] rounded-lg transition-all"
                   >
-                    <Download className="h-3.5 w-3.5" />
-                    Download / Print Credit Note
+                    <Printer className="h-3.5 w-3.5" />
+                    Print / Download A4 PDF
                   </Link>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-400 italic text-center py-3">
+              <p className="text-xs text-[var(--text-faint)] italic text-center py-3">
                 No credit note linked to this return.
               </p>
             )}
           </div>
 
           {/* Timeline */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Activity</h2>
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Activity</h2>
             <div className="space-y-2.5 text-xs">
               <div className="flex items-center gap-2.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="text-[#64748B]">Return recorded on</span>
-                <span className="font-semibold text-[#0F172A]">{sReturn.return_date}</span>
+                <span className="text-[var(--text-muted)]">Return recorded on</span>
+                <span className="font-semibold text-[var(--text-primary)]">{sReturn.return_date}</span>
               </div>
               {creditNote && (
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[#6366F1] shrink-0"></span>
-                  <span className="text-[#64748B]">Credit Note</span>
-                  <span className="font-mono font-semibold text-[#6366F1]">{creditNote.cn_number}</span>
-                  <span className="text-[#64748B]">issued</span>
+                  <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0"></span>
+                  <span className="text-[var(--text-muted)]">Credit Note</span>
+                  <span className="font-mono font-semibold text-[var(--primary)]">{creditNote.cn_number}</span>
+                  <span className="text-[var(--text-muted)]">issued</span>
                 </div>
               )}
               {ledgerEntries.length > 0 && (
                 <div className="flex items-center gap-2.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                  <span className="text-[#64748B]">
+                  <span className="text-[var(--text-muted)]">
                     {ledgerEntries.length} stock entries restored to inventory
                   </span>
                 </div>
@@ -410,6 +432,27 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
         loading={deleting}
         onConfirm={handleDelete}
       />
+
+      {/* Credit Note Voucher Modal */}
+      {creditNote && (
+        <CreditNoteModal
+          open={cnModalOpen}
+          onClose={() => setCnModalOpen(false)}
+          creditNote={{
+            cn_number: creditNote.cn_number,
+            cn_date: creditNote.cn_date,
+            amount: creditNote.amount,
+            reason: creditNote.reason,
+            party: sReturn.party,
+            return: {
+              return_number: sReturn.return_number,
+              return_date: sReturn.return_date,
+              bill: sReturn.bill ? { bill_number: sReturn.bill.bill_number, bill_date: sReturn.bill.bill_date } : null,
+            },
+          }}
+          items={ledgerEntries}
+        />
+      )}
     </div>
   );
 }

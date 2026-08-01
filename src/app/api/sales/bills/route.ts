@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -88,6 +89,14 @@ export async function POST(request: Request) {
     const service = new SalesBillService(repo);
 
     const bill = await service.validateAndCreate(body, businessId, user?.id || null);
+
+    // Fire-and-forget audit log
+    void logAudit(businessId, "create", "sale_bills", bill.id, {
+      bill_number: bill.bill_number,
+      grand_total: bill.grand_total,
+      party_id: bill.party_id,
+      type: bill.type,
+    });
 
     return NextResponse.json({ data: bill });
   } catch (err: any) {

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import Link from "next/link";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
 
 interface Party {
   id: string;
@@ -364,7 +365,16 @@ export default function SalesOrdersPage() {
                           )}
                         </div>
                       </td>
-                      <td className="p-4 text-slate-500 font-medium">{o.expected_delivery || "—"}</td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-slate-700 font-semibold">{o.expected_delivery || "—"}</span>
+                          <DueDateBadge
+                            dueDate={o.expected_delivery}
+                            isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
+                            type="order"
+                          />
+                        </div>
+                      </td>
                       <td className="p-4 text-right font-bold text-slate-800">
                         ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>

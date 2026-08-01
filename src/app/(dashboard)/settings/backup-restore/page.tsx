@@ -46,6 +46,27 @@ export default function BackupRestoreSettingsPage() {
   // Dropdown menu state
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
+  // Backup Schedule Settings state
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [backupFrequency, setBackupFrequency] = useState("daily");
+  const [backupTime, setBackupTime] = useState("23:45");
+  const [backupRetentionDays, setBackupRetentionDays] = useState(30);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const fetchBackupSettings = async () => {
+    try {
+      const res = await fetch("/api/settings/backup");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.settings) {
+        setAutoBackupEnabled(data.settings.auto_backup_enabled ?? true);
+        setBackupFrequency(data.settings.backup_frequency || "daily");
+        setBackupTime(data.settings.backup_time || "23:45");
+        setBackupRetentionDays(data.settings.backup_retention_days || 30);
+      }
+    } catch (_err) {}
+  };
+
   const fetchBackupHistory = async () => {
     setLoading(true);
     try {
@@ -61,8 +82,45 @@ export default function BackupRestoreSettingsPage() {
   };
 
   useEffect(() => {
+    fetchBackupSettings();
     fetchBackupHistory();
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/settings/backup", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auto_backup_enabled: autoBackupEnabled,
+          backup_frequency: backupFrequency,
+          backup_time: backupTime,
+          backup_retention_days: backupRetentionDays,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save backup settings");
+      toast.success("Backup schedule settings updated successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Error saving backup settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const getNextScheduledLabel = () => {
+    if (!autoBackupEnabled) return "Disabled";
+    const FREQ_LABELS: Record<string, string> = {
+      daily: "Daily",
+      alternate_days: "Alternate Days",
+      weekly: "Weekly",
+      "10_days": "Every 10 Days",
+      monthly: "Monthly",
+    };
+    const freqName = FREQ_LABELS[backupFrequency] || "Daily";
+    return `${freqName} at ${backupTime}`;
+  };
 
   const handleCreateBackup = async () => {
     setCreating(true);
@@ -180,11 +238,7 @@ export default function BackupRestoreSettingsPage() {
                   Next Scheduled
                 </span>
                 <span className="text-xs font-semibold text-[#374151] mt-1 block">
-                  {lastBackup
-                    ? new Date(
-                        new Date(lastBackup.created_at).getTime() + 24 * 60 * 60 * 1000
-                      ).toLocaleString("en-IN")
-                    : "Daily at 11:45 PM"}
+                  {getNextScheduledLabel()}
                 </span>
               </div>
             </div>
@@ -200,9 +254,83 @@ export default function BackupRestoreSettingsPage() {
 
             <InfoBanner
               variant="info"
-              text="Daily automated backups are created at 11:45 PM."
-              className="mt-2"
+              text={`Automated backups schedule: ${getNextScheduledLabel()}`}
+              className="mt-1"
             />
+
+            {/* Schedule Configuration Controls */}
+            <div className="border-t border-[var(--border-light)] pt-4 mt-1 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[var(--text-primary)]">
+                  Enable Automated Backups
+                </label>
+                <input
+                  type="checkbox"
+                  checked={autoBackupEnabled}
+                  onChange={(e) => setAutoBackupEnabled(e.target.checked)}
+                  className="size-4 rounded border-gray-300 text-[#6366F1] focus:ring-[#6366F1] cursor-pointer"
+                />
+              </div>
+
+              {autoBackupEnabled && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">
+                      Backup Frequency
+                    </label>
+                    <select
+                      value={backupFrequency}
+                      onChange={(e) => setBackupFrequency(e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg border border-[var(--input-border)] text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="alternate_days">Alternate Days (Every 2 Days)</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="10_days">Every 10 Days</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">
+                        Scheduled Time
+                      </label>
+                      <input
+                        type="time"
+                        value={backupTime}
+                        onChange={(e) => setBackupTime(e.target.value)}
+                        className="w-full h-9 px-2 rounded-lg border border-[var(--input-border)] text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">
+                        Retention (Days)
+                      </label>
+                      <select
+                        value={backupRetentionDays}
+                        onChange={(e) => setBackupRetentionDays(Number(e.target.value))}
+                        className="w-full h-9 px-2 rounded-lg border border-[var(--input-border)] text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                      >
+                        <option value={7}>7 Days</option>
+                        <option value={14}>14 Days</option>
+                        <option value={30}>30 Days</option>
+                        <option value={60}>60 Days</option>
+                        <option value={90}>90 Days</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="w-full h-9 mt-1 border border-[#6366F1] text-[#6366F1] hover:bg-[#EEF2FF] dark:hover:bg-[#1E1B4B] text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {savingSettings ? "Saving schedule..." : "Save Backup Schedule"}
+              </button>
+            </div>
           </div>
         </SettingsCard>
 

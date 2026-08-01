@@ -218,7 +218,7 @@ export function RecordPaymentModal({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">
               Payment Mode *

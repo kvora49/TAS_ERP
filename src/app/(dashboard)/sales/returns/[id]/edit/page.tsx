@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -10,11 +10,10 @@ import {
   FileText,
   Building2,
   Package,
-  Trash2,
   CheckCircle2,
-  AlertCircle,
   Loader2,
-  Plus,
+  Receipt,
+  Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
 import AsyncButton from "@/components/shared/AsyncButton";
@@ -27,434 +26,339 @@ const formatCurrency = (val: number) => {
   }).format(val || 0);
 };
 
-interface EditableItem {
-  id?: string;
-  item_id: string;
-  godown_id?: string;
-  quantity: number;
-  rate: number;
-  amount: number;
-  design_number: string;
-  design_name: string;
+interface Party {
+  id: string;
+  name: string;
+  company_name: string | null;
 }
 
-interface OriginalBillItem {
+interface SaleBill {
   id: string;
-  design_id: string;
-  colour_id: string | null;
+  bill_number: string;
+  bill_date: string;
+  grand_total: number;
+  payment_status?: string;
+  party_id: string;
+}
+
+interface ReturnLineItem {
+  id?: string;
+  item_id?: string;
+  key: string;
+  design_name: string;
   size: string;
   quantity: number;
   rate: number;
   amount: number;
-  design?: { id: string; design_number?: string; name?: string };
 }
 
 export default function EditSalesReturnPage() {
-  const { id } = useParams();
   const router = useRouter();
+  const params = useParams();
+  const id = params?.id as string;
 
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Form states
+  // Master Data & Current Data
   const [returnNumber, setReturnNumber] = useState("");
+  const [customer, setCustomer] = useState<Party | null>(null);
+  const [customerBills, setCustomerBills] = useState<SaleBill[]>([]);
+  const [selectedBillId, setSelectedBillId] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [returnReason, setReturnReason] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [billNumber, setBillNumber] = useState("");
-  const [originalBillId, setOriginalBillId] = useState<string | null>(null);
+  const [items, setItems] = useState<ReturnLineItem[]>([]);
 
-  // Items states
-  const [items, setItems] = useState<EditableItem[]>([]);
-  const [originalBillItems, setOriginalBillItems] = useState<OriginalBillItem[]>([]);
-  const [selectedAddItemIndex, setSelectedAddItemIndex] = useState<string>("");
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
+  // Load Sales Return Details
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    fetch(`/api/sales/returns/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load sales return");
-        return res.json();
-      })
-      .then((data) => {
-        if (data.return) {
-          const r = data.return;
-          setReturnNumber(r.return_number);
-          setReturnDate(r.return_date ? new Date(r.return_date).toISOString().split("T")[0] : "");
-          setReturnReason(r.return_reason || "");
-          setCustomerName(r.party?.name || "Customer");
-          setBillNumber(r.bill?.bill_number || "Direct Return");
-          setOriginalBillId(r.original_bill_id || null);
+    async function loadReturn() {
+      if (!id) return;
+      try {
+        const res = await fetch(`/api/sales/returns/${id}`);
+        if (!res.ok) throw new Error("Failed to fetch return details");
+        const data = await res.json();
+        const sReturn = data.return;
 
-          // If created from a bill, fetch original bill items for "+ Add Item" dropdown
-          if (r.original_bill_id) {
-            fetch(`/api/sales/bills/${r.original_bill_id}`)
-              .then((bRes) => bRes.json())
-              .then((bData) => {
-                if (bData.items) {
-                  setOriginalBillItems(bData.items);
-                }
-              })
-              .catch(() => {});
-          }
-        }
+        setReturnNumber(sReturn.return_number);
+        setCustomer(sReturn.party || null);
+        setSelectedBillId(sReturn.original_bill_id || "");
+        setReturnDate(sReturn.return_date ? sReturn.return_date.split("T")[0] : "");
+        setReturnReason(sReturn.return_reason || "");
 
-        if (data.ledgerEntries && Array.isArray(data.ledgerEntries)) {
-          const mapped: EditableItem[] = data.ledgerEntries.map((it: any) => {
-            const qty = Math.abs(Number(it.quantity_delta || 0));
-            const amt = Math.abs(Number(it.value_delta || 0));
-            const rate = qty > 0 ? amt / qty : 0;
-            return {
-              id: it.id,
-              item_id: it.item_id,
-              godown_id: it.godown_id,
-              quantity: qty,
-              rate: Math.round(rate),
-              amount: amt,
-              design_number: it.design?.design_number || "SR-ITEM",
-              design_name: it.design?.name || "Returned Item",
-            };
-          });
-          setItems(mapped);
+        // Load items from stock ledger entries
+        const rawEntries: any[] = data.ledgerEntries || [];
+        const formatted: ReturnLineItem[] = rawEntries.map((e, idx) => ({
+          id: e.id,
+          item_id: e.item_id,
+          key: e.id || `item-${idx}`,
+          design_name: e.design ? `${e.design.design_number || ""} - ${e.design.name}` : "Returned Item",
+          size: e.size || "Free Size",
+          quantity: Math.abs(Number(e.quantity_delta || 0)),
+          rate: Number(e.value_delta && e.quantity_delta ? Math.abs(e.value_delta / e.quantity_delta) : 0),
+          amount: Math.abs(Number(e.value_delta || 0)),
+        }));
+
+        setItems(formatted);
+
+        // Fetch bills for customer to allow relinking original bill
+        if (sReturn.party_id) {
+          fetch(`/api/sales/bills?party_id=${sReturn.party_id}&type=all&limit=200`)
+            .then((r) => r.json())
+            .then((bData) => setCustomerBills(bData.data || []))
+            .catch(() => {});
         }
-      })
-      .catch((err) => {
-        toast.error(err.message || "Failed to fetch sales return details");
-      })
-      .finally(() => setLoading(false));
+      } catch (err: any) {
+        toast.error(err.message || "Error loading sales return");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadReturn();
   }, [id]);
 
-  // Compute items from original bill that are not yet in the return list
-  const availableBillItems = useMemo(() => {
-    const currentItemIds = new Set(items.map((i) => i.item_id));
-    return originalBillItems.filter((bItem) => !currentItemIds.has(bItem.design_id));
-  }, [originalBillItems, items]);
+  const handleQtyChange = (index: number, val: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const parsed = parseFloat(val) || 0;
+      next[index] = {
+        ...next[index],
+        quantity: parsed,
+        amount: parsed * next[index].rate,
+      };
+      return next;
+    });
+  };
 
-  // Recalculate Total Credit Value
+  const handleRateChange = (index: number, val: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const parsed = parseFloat(val) || 0;
+      next[index] = {
+        ...next[index],
+        rate: parsed,
+        amount: next[index].quantity * parsed,
+      };
+      return next;
+    });
+  };
+
   const calculatedGrandTotal = useMemo(() => {
-    return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    return items.reduce((sum, item) => sum + (item.amount || 0), 0);
   }, [items]);
-
-  const handleItemQtyChange = (index: number, newQty: number) => {
-    const qty = Math.max(0, newQty);
-    setItems((prev) => {
-      const next = [...prev];
-      const rate = next[index].rate;
-      next[index] = {
-        ...next[index],
-        quantity: qty,
-        amount: qty * rate,
-      };
-      return next;
-    });
-  };
-
-  const handleItemRateChange = (index: number, newRate: number) => {
-    const rate = Math.max(0, newRate);
-    setItems((prev) => {
-      const next = [...prev];
-      const qty = next[index].quantity;
-      next[index] = {
-        ...next[index],
-        rate: rate,
-        amount: qty * rate,
-      };
-      return next;
-    });
-  };
-
-  const handleRemoveItem = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAddMissingItem = () => {
-    if (!selectedAddItemIndex) return;
-    const bItem = originalBillItems.find((bi) => bi.id === selectedAddItemIndex);
-    if (!bItem) return;
-
-    const newItem: EditableItem = {
-      item_id: bItem.design_id,
-      quantity: bItem.quantity,
-      rate: bItem.rate,
-      amount: bItem.amount,
-      design_number: bItem.design?.design_number || "DES-ITEM",
-      design_name: bItem.design?.name || "Original Invoice Item",
-    };
-
-    setItems((prev) => [...prev, newItem]);
-    setSelectedAddItemIndex("");
-    toast.success(`Added item '${newItem.design_number}' from original invoice!`);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.length === 0) {
-      toast.error("Sales return must have at least one item.");
+    if (!returnDate) {
+      toast.error("Please enter a valid Return Date");
       return;
     }
-    setSubmitting(true);
+
+    setSaving(true);
     try {
+      const payload = {
+        return_date: returnDate,
+        return_reason: returnReason,
+        original_bill_id: selectedBillId || null,
+        grand_total: calculatedGrandTotal,
+        items: items.map((it) => ({
+          id: it.id,
+          item_id: it.item_id,
+          quantity: it.quantity,
+          amount: it.amount,
+        })),
+      };
+
       const res = await fetch(`/api/sales/returns/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          return_date: returnDate,
-          return_reason: returnReason,
-          grand_total: calculatedGrandTotal,
-          items: items.map((it) => ({
-            id: it.id,
-            item_id: it.item_id,
-            godown_id: it.godown_id,
-            quantity: it.quantity,
-            amount: it.amount,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update sales return");
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update return");
 
-      toast.success(`Sales return ${returnNumber} updated successfully!`);
-      router.push("/sales/bills");
+      toast.success("Sales Return updated successfully!");
+      router.push(`/sales/returns/${id}`);
     } catch (err: any) {
-      toast.error(err.message || "Failed to update sales return");
+      toast.error(err.message);
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex h-[80vh] items-center justify-center">
+      <div className="flex h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-12">
+    <div className="p-6 space-y-6 max-w-[1100px] mx-auto pb-24">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+        <div className="flex items-center gap-3">
           <Link
-            href="/sales/bills"
-            className="w-9 h-9 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] flex items-center justify-center transition-colors"
+            href={`/sales/returns/${id}`}
+            className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors text-[var(--text-muted)]"
           >
-            <ArrowLeft size={18} className="text-[var(--text-body)]" />
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <span className="text-xs font-semibold text-rose-500 uppercase tracking-wider">
-              Sales Return
-            </span>
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              Edit Return {returnNumber}
+              Edit Sales Return: {returnNumber}
             </h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Modify return date, reason, original bill reference, and item breakdown
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Main Details Card */}
-        <div className="bg-[var(--card-bg)] p-6 rounded-2xl border border-[var(--border)] shadow-sm space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Customer & Return Context */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Customer & Return Context
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block">
-                Customer / Party
+              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
+                Customer Name
               </label>
-              <input
-                type="text"
-                disabled
-                value={customerName}
-                className="w-full bg-[var(--page-bg)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] opacity-70"
-              />
+              <div className="h-10 px-3 flex items-center bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-sm font-bold text-[var(--text-primary)]">
+                {customer?.name || "—"} {customer?.company_name ? `(${customer.company_name})` : ""}
+              </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block">
-                Original Invoice Number
-              </label>
-              <input
-                type="text"
-                disabled
-                value={billNumber}
-                className="w-full bg-[var(--page-bg)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm font-mono font-semibold text-[var(--primary)] opacity-70"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block">
-                Return Date
+              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
+                Return Date *
               </label>
               <input
                 type="date"
                 required
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 h-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block">
-                Reason for Return
+              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
+                Linked Original Sales Bill
               </label>
-              <input
-                type="text"
-                placeholder="e.g. Size misfit, damaged fabric, customer request"
-                value={returnReason}
-                onChange={(e) => setReturnReason(e.target.value)}
-                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Add Missing Item From Original Invoice Section */}
-        {originalBillId && availableBillItems.length > 0 && (
-          <div className="bg-[var(--primary-light)]/40 p-4 rounded-2xl border border-[var(--primary)]/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-bold text-[var(--primary)] uppercase tracking-wider">
-                + Add Missing Items From Original Invoice ({billNumber})
-              </span>
-              <p className="text-xs text-[var(--text-muted)]">
-                {availableBillItems.length} item(s) from the original invoice are not yet in this return list.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
               <select
-                value={selectedAddItemIndex}
-                onChange={(e) => setSelectedAddItemIndex(e.target.value)}
-                className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                value={selectedBillId}
+                onChange={(e) => setSelectedBillId(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 h-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               >
-                <option value="">Select Item to Add...</option>
-                {availableBillItems.map((bi) => (
-                  <option key={bi.id} value={bi.id}>
-                    {bi.design?.design_number || "DES-ITEM"} ({bi.quantity} Pcs @ ₹{bi.rate})
+                <option value="">No Bill Linked (Direct Return)</option>
+                {customerBills.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bill_number} — {formatCurrency(b.grand_total)} ({new Date(b.bill_date).toLocaleDateString("en-IN")})
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={handleAddMissingItem}
-                disabled={!selectedAddItemIndex}
-                className="px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold rounded-xl disabled:opacity-50 transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <Plus size={14} /> Add Item
-              </button>
             </div>
           </div>
-        )}
 
-        {/* Returned Items List */}
-        <div className="bg-[var(--card-bg)] p-6 rounded-2xl border border-[var(--border)] shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
-              Returned Items ({items.length})
-            </h2>
-            <span className="text-xs font-semibold text-[var(--text-muted)]">
-              Edit Quantity & Rate directly below
-            </span>
-          </div>
-
-          <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[var(--table-header-bg)] text-xs font-bold text-[var(--text-muted)] uppercase select-none">
-                <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Design Code</th>
-                  <th className="py-3 px-4">Design Name</th>
-                  <th className="py-3 px-4 text-center w-[130px]">Qty Returned</th>
-                  <th className="py-3 px-4 text-center w-[130px]">Rate (₹)</th>
-                  <th className="py-3 px-4 text-right">Return Value</th>
-                  <th className="py-3 px-4 text-right w-[60px]">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {items.length > 0 ? (
-                  items.map((it, idx) => (
-                    <tr key={it.id || idx} className="hover:bg-[var(--table-row-hover)]">
-                      <td className="py-3 px-4 font-mono text-[var(--text-muted)]">{idx + 1}</td>
-                      <td className="py-3 px-4 font-bold text-[var(--primary)]">
-                        {it.design_number}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-[var(--text-primary)]">
-                        {it.design_name}
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <input
-                          type="number"
-                          min="1"
-                          value={it.quantity}
-                          onChange={(e) => handleItemQtyChange(idx, Number(e.target.value))}
-                          className="w-20 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 py-1 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          value={it.rate}
-                          onChange={(e) => handleItemRateChange(idx, Number(e.target.value))}
-                          className="w-24 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 py-1 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-rose-500">
-                        {formatCurrency(it.amount)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="w-7 h-7 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-red-500/10 text-red-500 flex items-center justify-center transition-all cursor-pointer"
-                          title="Remove Item"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="py-6 text-center text-rose-500 font-semibold italic">
-                      No items remaining. Please add or keep at least one returned item.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-end pt-4 border-t border-[var(--border)]">
-            <div className="text-right">
-              <span className="text-xs text-[var(--text-muted)] uppercase font-bold block">
-                Total Credit Value
-              </span>
-              <span className="text-2xl font-black text-rose-500">
-                {formatCurrency(calculatedGrandTotal)}
-              </span>
-            </div>
+          <div>
+            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
+              Reason for Return
+            </label>
+            <input
+              type="text"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              placeholder="Reason for return..."
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg px-3 h-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+            />
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-4 pt-4">
-          <Link
-            href="/sales/bills"
-            className="px-6 py-2.5 border border-[var(--border)] rounded-xl text-sm font-bold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)]"
-          >
-            Cancel
-          </Link>
-          <AsyncButton
-            type="submit"
-            isLoading={submitting}
-            variant="primary"
-            className="px-8 py-2.5 text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white"
-          >
-            Update Sales Return
-          </AsyncButton>
+        {/* Itemized Table */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Returned Stock Items
+          </h2>
+
+          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-[var(--table-header-bg)] text-[var(--text-muted)] border-b border-[var(--border)] font-bold uppercase">
+                  <th className="p-3">Item Description</th>
+                  <th className="p-3 text-right w-[120px]">Qty Returned</th>
+                  <th className="p-3 text-right w-[140px]">Unit Rate (₹)</th>
+                  <th className="p-3 text-right w-[140px]">Credit Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {items.map((item, idx) => (
+                  <tr key={item.key} className="hover:bg-[var(--table-row-hover)]">
+                    <td className="p-3 font-bold text-[var(--text-primary)]">
+                      {item.design_name}
+                    </td>
+                    <td className="p-3 text-right">
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => handleQtyChange(idx, e.target.value)}
+                        className="w-24 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] text-right font-mono font-bold rounded-md px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                      />
+                    </td>
+                    <td className="p-3 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.rate}
+                        onChange={(e) => handleRateChange(idx, e.target.value)}
+                        className="w-28 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] text-right font-mono font-bold rounded-md px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                      />
+                    </td>
+                    <td className="p-3 text-right font-mono font-extrabold text-[var(--text-primary)] text-sm">
+                      {formatCurrency(item.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Action Footer */}
+        <div className="flex items-center justify-between bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Updated Total Value:</span>
+            <span className="text-xl font-black text-rose-600 font-mono">
+              {formatCurrency(calculatedGrandTotal)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/sales/returns/${id}`}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)]"
+            >
+              Cancel
+            </Link>
+            <AsyncButton
+              type="submit"
+              isLoading={saving}
+              variant="primary"
+              className="px-6 py-2 text-xs font-bold"
+            >
+              Save Changes
+            </AsyncButton>
+          </div>
         </div>
       </form>
     </div>

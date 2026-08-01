@@ -5,13 +5,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Bell, MessageSquare, AlertTriangle, CheckCircle2,
-  Send, Settings, ExternalLink, X, IndianRupee, Clock, FileText, Plus, Download
+  Send, Settings, ExternalLink, X, IndianRupee, Clock, FileText, Plus, Download, Trash2,
+  Calendar, Repeat, Smartphone, ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
+import { Modal } from "@/components/shared/Modal";
+import { usePWAWebPush } from "@/hooks/usePWAWebPush";
 import { cn } from "@/lib/utils";
-import { openWhatsApp, shareInvoiceWithWhatsApp } from "@/lib/utils/whatsapp";
 
 interface OverdueBill {
   id: string;
@@ -23,6 +26,8 @@ interface OverdueBill {
   days_overdue: number;
   payment_status: string;
   party: { id: string; name: string; company_name?: string; phone?: string } | null;
+  snoozed_until?: string | null;
+  recurring_interval_days?: number;
 }
 
 interface WhatsAppTemplate {
@@ -58,7 +63,10 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 
 export default function RemindersPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"bills" | "cheques">("bills");
+  const { permission, requestNotificationPermission } = usePWAWebPush();
+
+  // Active Tab: 'receivables' | 'payables' | 'cheques' | 'templates'
+  const [activeTab, setActiveTab] = useState<"receivables" | "payables" | "cheques" | "templates">("receivables");
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [selectedTemplateType, setSelectedTemplateType] = useState<string>("payment_reminder");
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
@@ -67,13 +75,86 @@ export default function RemindersPage() {
   const [reminderLinks, setReminderLinks] = useState<ReminderLink[]>([]);
   const [showLinksModal, setShowLinksModal] = useState(false);
 
+  // Snooze & Recurring Schedule Modal States
+  const [snoozeTargetBill, setSnoozeTargetBill] = useState<OverdueBill | null>(null);
+  const [snoozeDays, setSnoozeDays] = useState<number>(3);
+
+  const [recurringTargetBill, setRecurringTargetBill] = useState<OverdueBill | null>(null);
+  const [recurringDays, setRecurringDays] = useState<number>(2);
+
+  // Load reminder items for activeTab (receivables / payables / cheques)
+  const apiType = activeTab === "receivables" ? "bills" : activeTab;
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["reminders", activeTab],
     queryFn: async () => {
-      const res = await fetch(`/api/reminders?type=${activeTab}`);
+      const res = await fetch(`/api/reminders?type=${apiType}`);
       if (!res.ok) throw new Error("Failed to load reminders data");
       return res.json();
     },
+    enabled: activeTab !== "templates",
+  });
+
+  const [deletedTemplateKeys, setDeletedTemplateKeys] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("tas_deleted_templates");
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+      } catch {
+        return new Set();
+      }
+    }
+    return new Set();
+  });
+
+  // Snooze Mutation
+  const snoozeMutation = useMutation({
+    mutationFn: async ({ billId, snoozedUntil }: { billId: string; snoozedUntil: string | null }) => {
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "snooze_bill",
+          bill_id: billId,
+          bill_type: activeTab === "payables" ? "payable" : "receivable",
+          snoozed_until: snoozedUntil,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to snooze bill");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Reminder snoozed successfully!");
+      setSnoozeTargetBill(null);
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Recurring Schedule Mutation
+  const recurringMutation = useMutation({
+    mutationFn: async ({ billId, interval }: { billId: string; interval: number }) => {
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_recurring_interval",
+          bill_id: billId,
+          bill_type: activeTab === "payables" ? "payable" : "receivable",
+          recurring_interval_days: interval,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to set recurring schedule");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Recurring reminder interval updated!");
+      setRecurringTargetBill(null);
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   const saveTemplateMutation = useMutation({
@@ -87,8 +168,41 @@ export default function RemindersPage() {
       if (!res.ok) throw new Error(json.error);
       return json;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success("Template saved!");
+      const norm = variables.template_type.toLowerCase().replace(/\s+/g, "_");
+      setDeletedTemplateKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(norm);
+        try { localStorage.setItem("tas_deleted_templates", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      setShowTemplateEditor(false);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateType: string) => {
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_template", template_type: templateType }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      return json;
+    },
+    onSuccess: (_, templateType) => {
+      const norm = templateType.toLowerCase().replace(/\s+/g, "_");
+      setDeletedTemplateKeys((prev) => {
+        const next = new Set(prev);
+        next.add(norm);
+        try { localStorage.setItem("tas_deleted_templates", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+      toast.success("Template deleted!");
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       setShowTemplateEditor(false);
     },
@@ -123,22 +237,43 @@ export default function RemindersPage() {
   const templates: WhatsAppTemplate[] = data?.templates || [];
   const stats = data?.stats || { total_overdue: 0, total_outstanding: 0, critical: 0 };
 
-  const allTemplateTypes = [...TEMPLATE_TYPES];
+  const rawTemplateTypes: { key: string; label: string; isCustom: boolean }[] = [];
+  const seenKeys = new Set<string>();
+
+  TEMPLATE_TYPES.forEach((t) => {
+    const norm = t.key.toLowerCase().replace(/\s+/g, "_");
+    rawTemplateTypes.push({ key: t.key, label: t.label, isCustom: false });
+    seenKeys.add(norm);
+  });
+
   templates.forEach((tmpl: any) => {
-    const typeKey = tmpl?.template_type || tmpl?.code;
-    if (typeKey && typeof typeKey === "string" && !allTemplateTypes.some((t) => t.key === typeKey)) {
-      allTemplateTypes.push({
-        key: typeKey,
-        label: typeKey.startsWith("custom_")
-          ? "Custom Template (" + typeKey.slice(-4) + ")"
-          : typeKey.replace(/_/g, " "),
+    const rawKey = (tmpl?.template_type || tmpl?.code || "").trim();
+    if (!rawKey) return;
+    const norm = rawKey.toLowerCase().replace(/\s+/g, "_");
+
+    if (!seenKeys.has(norm)) {
+      seenKeys.add(norm);
+      rawTemplateTypes.push({
+        key: norm,
+        label: norm.startsWith("custom_")
+          ? "Custom Template (" + norm.slice(-4) + ")"
+          : rawKey.replace(/_/g, " "),
+        isCustom: true,
       });
     }
   });
 
+  const allTemplateTypes = rawTemplateTypes.filter(
+    (t) => !deletedTemplateKeys.has(t.key.toLowerCase().replace(/\s+/g, "_"))
+  );
+
   const getTemplate = (type: string) => {
-    const found = templates.find((t: any) => (t.template_type || t.code) === type);
-    return found?.template_text || (found as any)?.content || DEFAULT_TEMPLATES[type] || "";
+    const norm = type.toLowerCase().replace(/\s+/g, "_");
+    const found = templates.find((t: any) => {
+      const key = (t.template_type || t.code || "").trim().toLowerCase().replace(/\s+/g, "_");
+      return key === norm;
+    });
+    return found?.template_text || (found as any)?.content || DEFAULT_TEMPLATES[norm] || "";
   };
 
   const handleOpenTemplateEditor = (type: string) => {
@@ -170,416 +305,458 @@ export default function RemindersPage() {
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
 
-  const criticalColor = (days: number) => {
-    if (days > 60) return "bg-red-100 text-red-700 border-red-200";
-    if (days > 30) return "bg-orange-100 text-orange-700 border-orange-200";
-    if (days > 0) return "bg-amber-100 text-amber-700 border-amber-200";
-    if (days === 0) return "bg-blue-100 text-blue-700 border-blue-200";
-    return "bg-slate-100 text-slate-700 border-slate-200";
+  const handleApplySnooze = (daysToAdd: number) => {
+    if (!snoozeTargetBill) return;
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + daysToAdd);
+    const dateStr = targetDate.toISOString().split("T")[0];
+    snoozeMutation.mutate({ billId: snoozeTargetBill.id, snoozedUntil: dateStr });
   };
 
   return (
-    <PageState isLoading={isLoading} error={error?.message}>
+    <PageState isLoading={isLoading && activeTab !== "templates"} error={error?.message}>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Reminders & WhatsApp</h1>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-              Payments & Finance / Collection Reminders
+            <h1 className="text-xl font-extrabold text-[var(--text-primary)] flex items-center gap-2">
+              <Bell className="text-[var(--primary)]" size={24} />
+              <span>Reminders & WhatsApp Hub</span>
+            </h1>
+            <p className="text-xs text-[var(--text-muted)] font-medium">
+              Manage payment receivables, vendor payables, PDC cheques, and overdue reminder schedules.
             </p>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-[var(--border)]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] pl-2">Template:</span>
-              <select
-                value={selectedTemplateType}
-                onChange={(e) => setSelectedTemplateType(e.target.value)}
-                className="h-8 px-2 rounded-md bg-white dark:bg-slate-900 border border-[var(--border)] text-xs font-bold text-[var(--text-primary)] focus:outline-none cursor-pointer"
+            {permission !== "granted" && (
+              <button
+                onClick={requestNotificationPermission}
+                className="h-9 px-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                {allTemplateTypes.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button variant="outline" onClick={() => handleOpenTemplateEditor(selectedTemplateType)}
-              className="flex items-center gap-1.5 text-xs font-bold h-9 rounded-lg">
-              <Settings className="h-3.5 w-3.5" />
-              Manage Templates
-            </Button>
-            <AsyncButton onClick={() => handleSendReminders()}
-              disabled={selectedBills.size === 0}
-              className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer">
-              <MessageSquare className="h-4 w-4" />
-              Send WhatsApp ({selectedBills.size})
-            </AsyncButton>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-rose-50 rounded-lg"><AlertTriangle className="h-5 w-5 text-rose-600" /></div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Overdue Bills</span>
-              <p className="text-2xl font-bold text-rose-600 mt-0.5">{stats.total_overdue}</p>
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 rounded-lg"><IndianRupee className="h-5 w-5 text-amber-600" /></div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Total Outstanding</span>
-              <p className="text-xl font-bold text-amber-600 mt-0.5">{fmt(stats.total_outstanding)}</p>
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-red-50 rounded-lg"><Clock className="h-5 w-5 text-red-600" /></div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Critical (&gt;30 Days)</span>
-              <p className="text-2xl font-bold text-red-600 mt-0.5">{stats.critical}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* WhatsApp Templates Quick View */}
-        <div className="bg-gradient-to-br from-[#128C7E]/5 to-[#25D366]/5 border border-[#25D366]/20 rounded-xl p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-[#25D366]" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">WhatsApp Message Templates</h3>
-                <p className="text-[11px] text-slate-500 font-medium">Select or create templates for sending WhatsApp reminders</p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setEditingTemplate(`custom_${Date.now()}`);
-                setTemplateText("Dear {{party_name}}, please find your bill {{invoice_no}} for ₹{{amount}} due on {{due_date}}.\n\nThank you!");
-                setShowTemplateEditor(true);
-              }}
-              className="px-3 py-1.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer self-start sm:self-auto"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add Custom Template</span>
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {allTemplateTypes.map((t) => {
-              const existing = templates.find((tmpl: any) => (tmpl.template_type || tmpl.code) === t.key);
-              const isSelected = selectedTemplateType === t.key;
-              return (
-                <div
-                  key={t.key}
-                  className={cn(
-                    "rounded-lg border p-4 flex items-start justify-between gap-3 transition-all cursor-pointer",
-                    isSelected
-                      ? "bg-white border-[#25D366] shadow-sm ring-1 ring-[#25D366]/30"
-                      : "bg-white/80 border-gray-200 hover:border-gray-300"
-                  )}
-                  onClick={() => setSelectedTemplateType(t.key)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-slate-900">{t.label}</p>
-                      {isSelected && (
-                        <span className="bg-[#25D366]/10 text-[#128C7E] text-[9px] font-extrabold px-1.5 py-0.5 rounded">
-                          Active Template
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                      {existing?.template_text || (existing as any)?.content || DEFAULT_TEMPLATES[t.key]}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenTemplateEditor(t.key);
-                      }}
-                      className="text-[10px] font-bold text-[var(--primary)] hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedTemplateType(t.key);
-                        void handleSendReminders(t.key);
-                      }}
-                      disabled={selectedBills.size === 0}
-                      className="text-[10px] font-extrabold px-2 py-1 bg-[#25D366] text-white rounded hover:bg-[#1ebe5d] disabled:opacity-40"
-                    >
-                      Use & Send
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Reminders Table & Tabs */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          {/* Tab Navigation Bar */}
-          <div className="flex items-center gap-6 border-b border-gray-200 px-6 pt-3 bg-slate-50/50">
-            <button
-              onClick={() => {
-                setActiveTab("bills");
-                setSelectedBills(new Set());
-                setSelectedTemplateType("payment_reminder");
-              }}
-              className={cn(
-                "pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                activeTab === "bills"
-                  ? "border-[var(--primary)] text-[var(--primary)] font-extrabold"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              <FileText className="h-4 w-4" />
-              <span>Sales Bills ({activeTab === "bills" ? bills.length : "..."})</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab("cheques");
-                setSelectedBills(new Set());
-                setSelectedTemplateType("pdc_reminder");
-              }}
-              className={cn(
-                "pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2",
-                activeTab === "cheques"
-                  ? "border-[var(--primary)] text-[var(--primary)] font-extrabold"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              <Clock className="h-4 w-4 text-amber-500" />
-              <span>PDC / Cheque Reminders ({activeTab === "cheques" ? bills.length : "..."})</span>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-500">
-              {activeTab === "cheques" ? "PDC & Cheque Clearing Reminders" : "Sales Bills — Select & Send Reminders"}
-            </h3>
-            {bills.length > 0 && (
-              <button onClick={handleSelectAll}
-                className="text-xs font-bold text-[var(--primary)] hover:underline">
-                {selectedBills.size === bills.length ? "Deselect All" : "Select All"}
+                <Smartphone size={14} />
+                <span>Enable Mobile PWA Push</span>
               </button>
             )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-gray-200 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3 px-4 w-10"></th>
-                  <th className="py-3 px-6">Party</th>
-                  <th className="py-3 px-6">{activeTab === "cheques" ? "Cheque No / Ref" : "Bill No."}</th>
-                  <th className="py-3 px-6">{activeTab === "cheques" ? "Cheque Date" : "Bill Date"}</th>
-                  <th className="py-3 px-6">Due Date</th>
-                  <th className="py-3 px-6 text-right">Amount</th>
-                  <th className="py-3 px-6">Status</th>
-                  <th className="py-3 px-6">Phone</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 font-medium text-slate-700">
-                {bills.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <CheckCircle2 className="h-10 w-10 text-emerald-400" />
-                        <p className="font-bold text-slate-500">No overdue bills — great job!</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  bills.map((bill) => (
-                    <tr key={bill.id}
-                      className={`hover:bg-slate-50/50 h-14 cursor-pointer ${selectedBills.has(bill.id) ? "bg-blue-50/40" : ""}`}
-                      onClick={() => handleToggleBill(bill.id)}>
-                      <td className="py-3 px-4">
-                        <input type="checkbox" readOnly checked={selectedBills.has(bill.id)}
-                          className="h-4 w-4 accent-[var(--primary)] rounded cursor-pointer" />
-                      </td>
-                      <td className="py-3 px-6">
-                        <p className="font-bold text-slate-900">
-                          {bill.party?.company_name || bill.party?.name || "—"}
-                        </p>
-                        {bill.party?.company_name && (
-                          <p className="text-[10px] text-slate-500">{bill.party.name}</p>
-                        )}
-                      </td>
-                      <td className="py-3 px-6 font-mono font-bold text-slate-900">{bill.bill_number}</td>
-                      <td className="py-3 px-6 font-mono text-slate-500">
-                        {new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
-                      </td>
-                      <td className="py-3 px-6 font-mono text-rose-600 font-bold">
-                        {new Date(bill.due_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
-                      </td>
-                      <td className="py-3 px-6 text-right font-bold font-mono text-slate-900">
-                        {fmt(bill.outstanding_amount)}
-                      </td>
-                      <td className="py-3 px-6">
-                        <span className={`inline-flex px-2 py-1 rounded-full text-[9px] font-extrabold border ${criticalColor(bill.days_overdue)}`}>
-                          {bill.days_overdue > 0 ? `${bill.days_overdue}d overdue` : bill.days_overdue === 0 ? "Due today" : `Due in ${Math.abs(bill.days_overdue)}d`}
-                        </span>
-                      </td>
-                      <td className="py-3 px-6 font-mono text-slate-500">
-                        {bill.party?.phone || <span className="text-slate-300">No phone</span>}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+
+            {activeTab !== "templates" && (
+              <AsyncButton
+                onClick={() => handleSendReminders()}
+                disabled={selectedBills.size === 0}
+                className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Send WhatsApp ({selectedBills.size})
+              </AsyncButton>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Template Editor Modal */}
-      {showTemplateEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg border border-gray-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">
-                Edit Template: {TEMPLATE_TYPES.find((t) => t.key === editingTemplate)?.label}
-              </h3>
-              <button onClick={() => setShowTemplateEditor(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
-                <X className="h-4 w-4" />
-              </button>
+        {/* Primary Tabs Navigation */}
+        <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2 overflow-x-auto scrollbar-none">
+          <button
+            type="button"
+            onClick={() => { setActiveTab("receivables"); setSelectedBills(new Set()); }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              activeTab === "receivables"
+                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+            )}
+          >
+            <span>📥 Receivables (Customer Dues)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab("payables"); setSelectedBills(new Set()); }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              activeTab === "payables"
+                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+            )}
+          >
+            <span>📤 Payables (Supplier Dues)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab("cheques"); setSelectedBills(new Set()); }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              activeTab === "cheques"
+                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+            )}
+          >
+            <span>💳 PDC / Cheques</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("templates")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              activeTab === "templates"
+                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+            )}
+          >
+            <span>⚙️ WhatsApp Templates</span>
+          </button>
+        </div>
+
+        {/* Stats Cards (For Bills/Payables/Cheques) */}
+        {activeTab !== "templates" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 rounded-lg"><AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" /></div>
+              <div>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Overdue Count</span>
+                <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{stats.total_overdue}</p>
+              </div>
             </div>
-            <div className="p-5 space-y-4 text-xs font-semibold">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-lg"><IndianRupee className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div>
               <div>
-                <label className="text-slate-600 block mb-1.5">Template Type</label>
-                <select value={editingTemplate} onChange={(e) => {
-                  setEditingTemplate(e.target.value);
-                  setTemplateText(getTemplate(e.target.value));
-                }}
-                  className="h-9 px-3 w-full rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold outline-none">
-                  {allTemplateTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-                </select>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Total Pending Amount</span>
+                <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{fmt(stats.total_outstanding)}</p>
               </div>
+            </div>
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+              <div className="p-3 bg-red-50 dark:bg-red-950/50 rounded-lg"><Clock className="h-5 w-5 text-red-600 dark:text-red-400" /></div>
               <div>
-                <label className="text-slate-600 block mb-1.5 font-bold">Message Text</label>
-                <textarea rows={5} value={templateText} onChange={(e) => setTemplateText(e.target.value)}
-                  className="w-full p-3 rounded-lg border border-[var(--input-border)] text-xs font-medium outline-none resize-none leading-relaxed" />
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Critical (&gt;30 Days)</span>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">{stats.critical}</p>
               </div>
-              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <p className="text-xs font-semibold text-slate-700">
-                  Use placeholders like <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-800">{"{{party_name}}"}</code>, <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-800">{"{{invoice_no}}"}</code>, <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-800">{"{{amount}}"}</code>, <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-800">{"{{due_date}}"}</code>, <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-800">{"{{company_name}}"}</code>.
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[
-                    { code: "{{party_name}}", label: "Party Name" },
-                    { code: "{{invoice_no}}", label: "Invoice No" },
-                    { code: "{{amount}}", label: "Amount" },
-                    { code: "{{due_date}}", label: "Due Date" },
-                    { code: "{{company_name}}", label: "Company" },
-                    { code: "{{date}}", label: "Bill Date" },
-                    { code: "{{bill_url}}", label: "Bill Link" },
-                  ].map((v) => (
-                    <button
-                      type="button"
-                      key={v.code}
-                      onClick={() => setTemplateText((t) => t + " " + v.code)}
-                      className="px-2 py-1 bg-white border border-slate-200 text-slate-800 rounded font-mono text-[10px] font-bold hover:bg-slate-100 shadow-2xs cursor-pointer"
-                    >
-                      + {v.code}
-                    </button>
-                  ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: WHATSAPP TEMPLATES MANAGER */}
+        {activeTab === "templates" ? (
+          <div className="bg-gradient-to-br from-[#128C7E]/5 to-[#25D366]/5 border border-[#25D366]/20 rounded-xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#25D366]/20 pb-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-[#25D366]" />
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">WhatsApp Message Templates</h3>
+                  <p className="text-[11px] text-[var(--text-muted)] font-medium">Configure customized message templates for customer & vendor reminders</p>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-4 bg-slate-50 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setShowTemplateEditor(false)}
-                className="h-9 text-xs font-bold">Cancel</Button>
-              <AsyncButton
-                onClick={async (): Promise<void> => {
-                  await saveTemplateMutation.mutateAsync({ template_type: editingTemplate, template_text: templateText });
+              <button
+                onClick={() => {
+                  setEditingTemplate(`custom_${Date.now()}`);
+                  setTemplateText("Dear {{party_name}}, please find your bill {{invoice_no}} for ₹{{amount}} due on {{due_date}}.\n\nThank you!");
+                  setShowTemplateEditor(true);
                 }}
-                className="h-9 px-4 text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg">
+                className="px-3.5 py-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Custom Template</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {allTemplateTypes.map((t) => {
+                const text = getTemplate(t.key);
+                return (
+                  <div
+                    key={t.key}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--card-bg)] p-4 space-y-3 shadow-[var(--shadow-sm)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[var(--primary)] uppercase tracking-wide">
+                        {t.label}
+                      </span>
+                      <button
+                        onClick={() => handleOpenTemplateEditor(t.key)}
+                        className="text-xs text-[var(--primary)] hover:underline font-bold"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <p className="text-xs text-[var(--text-body)] font-mono whitespace-pre-wrap bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                      {text}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* TAB 1, 2 & 3: RECEIVABLES, PAYABLES & PDC CHEQUES LIST */
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)]">
+            <div className="p-4 bg-[var(--table-header-bg)] border-b border-[var(--border)] flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bills.length > 0 && selectedBills.size === bills.length}
+                  onChange={handleSelectAll}
+                  className="h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)]"
+                />
+                <span className="text-xs font-bold text-[var(--text-primary)]">
+                  Select All ({bills.length} Items)
+                </span>
+              </label>
+              <span className="text-xs font-semibold text-[var(--text-muted)]">
+                {selectedBills.size} selected for bulk action
+              </span>
+            </div>
+
+            {bills.length === 0 ? (
+              <div className="p-12 text-center text-[var(--text-muted)] space-y-2">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
+                <p className="text-sm font-bold text-[var(--text-primary)]">No Pending Dues!</p>
+                <p className="text-xs">All bills in this section are cleared or up to date.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border)]">
+                {bills.map((bill) => {
+                  const isSelected = selectedBills.has(bill.id);
+                  const isSnoozed = bill.snoozed_until && bill.snoozed_until > new Date().toISOString().split("T")[0];
+
+                  return (
+                    <div
+                      key={bill.id}
+                      className={cn(
+                        "p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors",
+                        isSelected ? "bg-[var(--primary-light)]/40" : "hover:bg-[var(--table-row-hover)]"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleBill(bill.id)}
+                          className="mt-1 h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)] cursor-pointer"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-xs text-[var(--primary)]">
+                              {bill.bill_number}
+                            </span>
+                            <DueDateBadge
+                              dueDate={bill.due_date}
+                              isCompleted={bill.payment_status === "paid"}
+                              type={activeTab === "payables" ? "purchase" : activeTab === "cheques" ? "job_work" : "bill"}
+                            />
+                            {isSnoozed && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded border border-purple-200">
+                                💤 Snoozed till {bill.snoozed_until}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                              Every {bill.recurring_interval_days || 2}d
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-[var(--text-body)] font-semibold">
+                            {bill.party?.company_name || bill.party?.name || "Party"}
+                            {bill.party?.phone && (
+                              <span className="text-[var(--text-muted)] font-normal ml-2">
+                                📞 {bill.party.phone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 self-end md:self-auto">
+                        <div className="text-right">
+                          <span className="text-xs font-extrabold text-[var(--text-primary)] font-mono block">
+                            {fmt(bill.outstanding_amount)}
+                          </span>
+                          <span className="text-[10px] text-[var(--text-muted)] block">
+                            Total: {fmt(bill.grand_total)}
+                          </span>
+                        </div>
+
+                        {/* Action buttons per bill */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSnoozeTargetBill(bill)}
+                            className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            title="Snooze reminder for N days"
+                          >
+                            <Clock size={12} className="text-amber-500" />
+                            <span>Snooze</span>
+                          </button>
+
+                          <button
+                            onClick={() => setRecurringTargetBill(bill)}
+                            className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            title="Change recurring reminder interval"
+                          >
+                            <Repeat size={12} className="text-[var(--primary)]" />
+                            <span>Interval</span>
+                          </button>
+
+                          {bill.party?.phone && (
+                            <a
+                              href={`https://web.whatsapp.com/send?phone=91${bill.party.phone.replace(/\D/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="h-8 w-8 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-all cursor-pointer"
+                              title="Direct WhatsApp chat"
+                            >
+                              <MessageSquare size={14} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* SNOOZE MODAL */}
+      <Modal open={!!snoozeTargetBill} onOpenChange={() => setSnoozeTargetBill(null)} title="Snooze Reminder">
+        <div className="space-y-4">
+          <p className="text-xs text-[var(--text-body)]">
+            Temporarily pause reminders for <strong>{snoozeTargetBill?.bill_number}</strong> until a specified date:
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => handleApplySnooze(1)}
+              className="py-2.5 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] transition-all cursor-pointer"
+            >
+              +1 Day (Tomorrow)
+            </button>
+            <button
+              onClick={() => handleApplySnooze(3)}
+              className="py-2.5 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] transition-all cursor-pointer"
+            >
+              +3 Days
+            </button>
+            <button
+              onClick={() => handleApplySnooze(7)}
+              className="py-2.5 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] transition-all cursor-pointer"
+            >
+              +7 Days (1 Week)
+            </button>
+          </div>
+          {snoozeTargetBill?.snoozed_until && (
+            <button
+              onClick={() => snoozeMutation.mutate({ billId: snoozeTargetBill.id, snoozedUntil: null })}
+              className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            >
+              Clear Snooze (Resume Normal Schedule)
+            </button>
+          )}
+        </div>
+      </Modal>
+
+      {/* RECURRING INTERVAL MODAL */}
+      <Modal open={!!recurringTargetBill} onOpenChange={() => setRecurringTargetBill(null)} title="Set Overdue Reminder Frequency">
+        <div className="space-y-4">
+          <p className="text-xs text-[var(--text-body)]">
+            Configure how often overdue notifications & mobile PWA alerts should repeat for <strong>{recurringTargetBill?.bill_number}</strong> until payment is cleared:
+          </p>
+
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3, 5, 7, 14].map((days) => (
+              <button
+                key={days}
+                onClick={() => recurringMutation.mutate({ billId: recurringTargetBill!.id, interval: days })}
+                className={cn(
+                  "py-2.5 border rounded-lg text-xs font-bold transition-all cursor-pointer",
+                  (recurringTargetBill?.recurring_interval_days || 2) === days
+                    ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                    : "border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+                )}
+              >
+                Every {days} {days === 1 ? "Day" : "Days"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* TEMPLATE EDITOR MODAL */}
+      <Modal open={showTemplateEditor} onOpenChange={setShowTemplateEditor} title="Edit WhatsApp Template">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Template Key / Type</label>
+            <input
+              type="text"
+              value={editingTemplate}
+              onChange={(e) => setEditingTemplate(e.target.value)}
+              className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-semibold text-[var(--text-primary)]"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Template Content</label>
+            <textarea
+              rows={4}
+              value={templateText}
+              onChange={(e) => setTemplateText(e.target.value)}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-mono text-[var(--text-primary)]"
+            />
+            <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">
+              Available tags: &#123;&#123;party_name&#125;&#125;, &#123;&#123;invoice_no&#125;&#125;, &#123;&#123;amount&#125;&#125;, &#123;&#123;due_date&#125;&#125;, &#123;&#123;days&#125;&#125;, &#123;&#123;bill_url&#125;&#125;
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <button
+              onClick={() => deleteTemplateMutation.mutate(editingTemplate)}
+              className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1"
+            >
+              <Trash2 size={13} />
+              Delete Template
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowTemplateEditor(false)} className="text-xs font-bold">
+                Cancel
+              </Button>
+              <AsyncButton
+                onClick={() => saveTemplateMutation.mutateAsync({ template_type: editingTemplate, template_text: templateText })}
+                className="text-xs font-bold bg-[var(--primary)] text-white px-4 py-2 rounded-lg"
+              >
                 Save Template
               </AsyncButton>
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {/* Reminder Links Modal */}
-      {showLinksModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl border border-gray-200 max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">WhatsApp Reminder Links</h3>
-              <button onClick={() => setShowLinksModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
-                <X className="h-4 w-4" />
-              </button>
+      {/* WHATSAPP LINKS MODAL */}
+      <Modal open={showLinksModal} onOpenChange={setShowLinksModal} title="Generated WhatsApp Reminders">
+        <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
+          {reminderLinks.map((link, idx) => (
+            <div key={idx} className="p-3 border border-[var(--border)] rounded-lg bg-[var(--card-bg)] space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-[var(--text-primary)]">
+                <span>{link.party_name}</span>
+                <span className="font-mono text-[var(--text-muted)]">{link.phone || "No Phone"}</span>
+              </div>
+              <p className="text-[11px] text-[var(--text-body)] font-mono bg-[var(--page-bg)] p-2 rounded border border-[var(--border)] whitespace-pre-wrap">
+                {link.message}
+              </p>
+              {link.whatsapp_url ? (
+                <a
+                  href={link.whatsapp_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#25D366] hover:underline"
+                >
+                  <ExternalLink size={12} />
+                  Open WhatsApp Chat
+                </a>
+              ) : (
+                <span className="text-[10px] text-rose-500 font-bold">Missing phone number in master data</span>
+              )}
             </div>
-            <div className="overflow-y-auto p-5 space-y-3">
-              {reminderLinks.map((link, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-white">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-slate-900">{link.party_name}</p>
-                        {link.bill_count && link.bill_count > 1 && (
-                          <span className="px-2 py-0.5 bg-indigo-50 text-[var(--primary)] text-[10px] font-extrabold rounded-full border border-indigo-100">
-                            {link.bill_count} Bills Combined
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">Invoices: {link.bill_number} • {link.phone ? `+91 ${link.phone}` : "No phone number"}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {link.bill_id && (
-                        <button
-                          type="button"
-                          onClick={() => window.open(`/sales/bills/${link.bill_id}/print?autoDownload=true`, "_blank")}
-                          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border border-slate-300 text-slate-700 bg-white rounded-lg hover:bg-slate-50 shadow-sm cursor-pointer"
-                        >
-                          <Download className="h-3 w-3 text-slate-500" />
-                          <span>Download PDF</span>
-                        </button>
-                      )}
-                      {link.phone ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            shareInvoiceWithWhatsApp({
-                              phone: link.phone,
-                              text: link.message,
-                              billId: link.bill_id,
-                              fileName: `Invoice-${link.bill_number}.pdf`,
-                            })
-                          }
-                          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-[#25D366] text-white rounded-lg hover:bg-[#1ebe5d] shadow-sm cursor-pointer"
-                        >
-                          <Send className="h-3 w-3" />
-                          Send via WhatsApp
-                          <ExternalLink className="h-2.5 w-2.5" />
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">No phone</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                    <p className="text-[11px] text-slate-700 leading-relaxed font-medium">{link.message}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end px-5 py-4 border-t border-slate-100 bg-slate-50">
-              <Button onClick={() => setShowLinksModal(false)} className="h-9 text-xs font-bold">Done</Button>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
+      </Modal>
     </PageState>
   );
 }

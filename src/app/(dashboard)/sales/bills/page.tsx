@@ -26,6 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
@@ -65,12 +66,18 @@ interface SaleBill {
   bill_number: string;
   bill_type: "pakka" | "kacha" | "return";
   bill_date: string;
+  due_date?: string | null;
   grand_total: number;
   paid_amount: number;
   payment_status: "unpaid" | "partial" | "paid" | "overdue" | "settled";
   status: "draft" | "active" | "cancelled";
   is_temporary?: boolean;
   is_sales_return?: boolean;
+  bill?: {
+    id: string;
+    bill_number: string;
+    bill_date?: string;
+  } | null;
   party: {
     name: string;
     gstin: string | null;
@@ -703,6 +710,9 @@ export default function SalesBillsListPage() {
               <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider select-none">
                 <tr>
                   <th className="px-6 py-3.5 w-[170px] whitespace-nowrap">Bill Number</th>
+                  {(activeTab === "return" || activeTab === "all") && (
+                    <th className="px-6 py-3.5 whitespace-nowrap">Orig. Sales Bill</th>
+                  )}
                   <th className="px-6 py-3.5 whitespace-nowrap">Bill Date</th>
                   <th className="px-6 py-3.5 whitespace-nowrap">Customer / Party</th>
                   <th className="px-6 py-3.5 whitespace-nowrap">Type</th>
@@ -710,6 +720,7 @@ export default function SalesBillsListPage() {
                   <th className="px-6 py-3.5 whitespace-nowrap">Paid</th>
                   <th className="px-6 py-3.5 whitespace-nowrap">Outstanding</th>
                   <th className="px-6 py-3.5 whitespace-nowrap">Payment Status</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Due Counter</th>
                   <th className="px-6 py-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
@@ -733,6 +744,25 @@ export default function SalesBillsListPage() {
                           {bill.bill_number}
                         </Link>
                       </td>
+                      {(activeTab === "return" || activeTab === "all") && (
+                        <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-semibold">
+                          {isReturn ? (
+                            bill.bill ? (
+                              <Link
+                                href={`/sales/bills/${bill.bill.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[var(--primary)] hover:underline font-bold"
+                              >
+                                {bill.bill.bill_number}
+                              </Link>
+                            ) : (
+                              <span className="text-[var(--text-faint)] italic">Direct Return</span>
+                            )
+                          ) : (
+                            <span className="text-[var(--text-muted)]">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap text-[var(--text-body)]">
                         {new Date(bill.bill_date).toLocaleDateString("en-IN", {
                           day: "2-digit",
@@ -795,6 +825,15 @@ export default function SalesBillsListPage() {
                           <Badge variant={getStatusVariant(bill.payment_status)}>
                             {bill.payment_status}
                           </Badge>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {!isReturn && (
+                          <DueDateBadge
+                            dueDate={bill.due_date}
+                            isCompleted={bill.payment_status === "paid" || bill.payment_status === "settled"}
+                            type="bill"
+                          />
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">

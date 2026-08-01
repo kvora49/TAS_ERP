@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Boxes, ChevronRight, Info } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 interface SelectedColour { id: string; colour_name: string; colour_hex: string | null; }
 
@@ -103,95 +104,36 @@ export default function Step4SizeQuantity({
         {availableSizes.length === 0 ? (
           <div className="py-6 text-center text-xs text-slate-400">Please select design size set template.</div>
         ) : useSameColours ? (
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <h5 className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 uppercase tracking-wide">
-              Standard Size Quantities (Applies to all selected colours)
-            </h5>
-            <table className="w-full text-center border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                  <th className="py-2.5 border-r border-slate-200">Size</th>
-                  {availableSizes.map((size) => (
-                    <th key={size} className="py-2.5 border-r border-slate-200">{size}</th>
-                  ))}
-                  <th className="py-2.5">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="text-xs">
-                  <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-700 bg-slate-50/50">
-                    Qty (Pcs)
-                  </td>
-                  {availableSizes.map((size) => (
-                    <td key={size} className="py-2.5 px-3 border-r border-slate-200">
-                      <NumericInput
-                        min="0"
-                        value={sizeQuantities["all"]?.[size] || 0}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10) || 0;
-                          setSizeQuantities((prev) => ({
-                            ...prev,
-                            "all": { ...(prev["all"] || {}), [size]: val },
-                          }));
-                        }}
-                        className="w-16 h-8 text-center border border-slate-200 rounded focus:ring-1 focus:ring-[#6366F1]"
-                      />
-                    </td>
-                  ))}
-                  <td className="py-2.5 px-3 font-bold text-slate-800 bg-slate-50/50">
-                    {Object.values(sizeQuantities["all"] || {}).reduce((a, b) => a + b, 0)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <SizeQuantityMatrix
+            sizes={availableSizes}
+            sizeQuantities={sizeQuantities["all"] || {}}
+            showAllColorsOption={true}
+            autoFillAllColors={useSameColours}
+            onAutoFillAllColorsChange={setUseSameColours}
+            onChange={(updated) => {
+              setSizeQuantities((prev) => ({ ...prev, "all": updated }));
+            }}
+          />
         ) : (
           <div className="space-y-4">
             {selectedColours.map((colour) => (
-              <div key={colour.id} className="border border-slate-200 rounded-lg overflow-hidden">
-                <h5 className="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 uppercase tracking-wide flex items-center gap-2">
+              <div key={colour.id} className="space-y-1.5">
+                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
                   {colour.colour_hex && (
                     <span className="w-3.5 h-3.5 rounded-full border border-white" style={{ backgroundColor: colour.colour_hex }} />
                   )}
                   Colour: {colour.colour_name}
                 </h5>
-                <table className="w-full text-center border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                      <th className="py-2.5 border-r border-slate-200">Size</th>
-                      {availableSizes.map((size) => (
-                        <th key={size} className="py-2.5 border-r border-slate-200">{size}</th>
-                      ))}
-                      <th className="py-2.5">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="text-xs">
-                      <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-700 bg-slate-50/50">
-                        Qty (Pcs)
-                      </td>
-                      {availableSizes.map((size) => (
-                        <td key={size} className="py-2.5 px-3 border-r border-slate-200">
-                          <NumericInput
-                            min="0"
-                            value={sizeQuantities[colour.id]?.[size] || 0}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 0;
-                              setSizeQuantities((prev) => ({
-                                ...prev,
-                                [colour.id]: { ...(prev[colour.id] || {}), [size]: val },
-                              }));
-                            }}
-                            className="w-16 h-8 text-center border border-slate-200 rounded focus:ring-1 focus:ring-[#6366F1]"
-                          />
-                        </td>
-                      ))}
-                      <td className="py-2.5 px-3 font-bold text-slate-800 bg-slate-50/50">
-                        {Object.values(sizeQuantities[colour.id] || {}).reduce((a, b) => a + b, 0)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <SizeQuantityMatrix
+                  sizes={availableSizes}
+                  sizeQuantities={sizeQuantities[colour.id] || {}}
+                  showAllColorsOption={true}
+                  autoFillAllColors={useSameColours}
+                  onAutoFillAllColorsChange={setUseSameColours}
+                  onChange={(updated) => {
+                    setSizeQuantities((prev) => ({ ...prev, [colour.id]: updated }));
+                  }}
+                />
               </div>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { PurchaseService } from "@/services/purchase.service";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -154,6 +155,13 @@ export async function PUT(
       }
     }
 
+    // Fire-and-forget audit log
+    void logAudit(businessId, "update", "raw_material_purchases", id, {
+      invoice_no,
+      grand_total,
+      updated_at: new Date().toISOString(),
+    });
+
     return NextResponse.json({ purchase });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "An unexpected error occurred" }, { status: 500 });
@@ -268,19 +276,11 @@ export async function DELETE(
       .eq("id", id)
       .eq("business_id", businessId);
 
-    // 5. Create Audit Log Entry
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "cancel_raw_material_purchase",
-      table_name: "raw_material_purchases",
-      record_id: id,
-      old_values: { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status },
-      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    // Fire-and-forget audit log (replace raw insert)
+    void logAudit(businessId, "cancel", "raw_material_purchases", id, {
+      status: "cancelled",
+      deleted_at: new Date().toISOString(),
+    }, { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status });
 
     return NextResponse.json({ success: true, message: `Purchase ${existing.purchase_number} successfully cancelled and stock reverted.` });
   } catch (err: any) {

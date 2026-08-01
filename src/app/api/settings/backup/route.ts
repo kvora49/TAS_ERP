@@ -4,6 +4,65 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+export async function GET(request: Request) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    return NextResponse.json({
+      settings: {
+        auto_backup_enabled: serverSettings.auto_backup_enabled,
+        backup_frequency: serverSettings.backup_frequency,
+        backup_time: serverSettings.backup_time,
+        backup_retention_days: serverSettings.backup_retention_days,
+      },
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { auto_backup_enabled, backup_frequency, backup_time, backup_retention_days } = body;
+
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        {
+          business_id: businessId,
+          auto_backup_enabled: !!auto_backup_enabled,
+          backup_frequency: backup_frequency || "daily",
+          backup_time: backup_time || "23:45",
+          backup_retention_days: Number(backup_retention_days || 30),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "business_id" }
+      );
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = createClient();
   const businessId = await getSessionBusinessId();

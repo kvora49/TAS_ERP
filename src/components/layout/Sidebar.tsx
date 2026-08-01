@@ -19,10 +19,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
+  const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const user = useAppStore((state) => state.user);
   const { canView } = usePermissions();
-
-
 
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     "Master Data": false,
@@ -58,6 +57,10 @@ export default function Sidebar() {
 
   useEffect(() => {
     setNavigatingTo(null);
+    // Auto-close sidebar on mobile when navigating
+    if (typeof window !== "undefined" && window.innerWidth < 768 && sidebarOpen) {
+      setSidebarOpen(false);
+    }
     if (pathname.startsWith("/settings")) {
       setExpandedMenus((prev) => ({ ...prev, Settings: true }));
     }
@@ -90,7 +93,7 @@ export default function Sidebar() {
     if (pathname.startsWith("/reports")) {
       setExpandedMenus((prev) => ({ ...prev, Reports: true }));
     }
-  }, [pathname, setNavigatingTo]);
+  }, [pathname, setNavigatingTo, setSidebarOpen]);
 
   const toggleSubMenu = (menuName: string) => {
     setExpandedMenus((prev) => ({
@@ -100,12 +103,21 @@ export default function Sidebar() {
   };
 
   return (
-    <div
-      className={cn(
-        "flex flex-col bg-[#0F1629] fixed left-0 top-16 bottom-0 z-40 border-r border-[#1E293B] transition-all duration-200 select-none print:hidden overflow-x-hidden",
-        sidebarOpen ? "w-[240px] translate-x-0" : "-translate-x-full md:translate-x-0 md:w-[68px]"
+    <>
+      {/* Mobile Drawer Backdrop Overlay */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-30 md:hidden transition-opacity"
+        />
       )}
-    >
+
+      <div
+        className={cn(
+          "flex flex-col bg-[#0F1629] fixed left-0 top-16 bottom-0 z-40 border-r border-[#1E293B] transition-all duration-200 select-none print:hidden overflow-x-hidden",
+          sidebarOpen ? "w-[240px] translate-x-0" : "-translate-x-full md:translate-x-0 md:w-[68px]"
+        )}
+      >
 
       {/* Nav List */}
       <nav className="flex-1 py-4 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-sidebar-active scrollbar-track-transparent">
@@ -132,5 +144,6 @@ export default function Sidebar() {
       {/* User Card */}
       <SidebarUser user={user} sidebarOpen={sidebarOpen} />
     </div>
+    </>
   );
 }

@@ -20,7 +20,10 @@ import {
   Building2,
   Smartphone,
   AlertTriangle,
+  Bell,
+  ChevronRight,
 } from "lucide-react";
+import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import {
   ResponsiveContainer,
   PieChart,
@@ -82,6 +85,26 @@ export default function DashboardPage() {
 
   const data = dashboardData || null;
   const loading = dashboardLoading;
+
+  const { data: receivablesReminders } = useQuery({
+    queryKey: ["reminders-summary", "receivables"],
+    queryFn: async () => {
+      const res = await fetch("/api/reminders?type=bills");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { data: payablesReminders } = useQuery({
+    queryKey: ["reminders-summary", "payables"],
+    queryFn: async () => {
+      const res = await fetch("/api/reminders?type=payables");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user,
+  });
 
   useEffect(() => {
     if (user) {
@@ -302,43 +325,62 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Upcoming Payments */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col">
+        {/* Overdue & Reminders Widget */}
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Upcoming Outflows</h3>
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-              Due Next 10 Days
-            </span>
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-[var(--primary)]" />
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Overdue & Payment Reminders</h3>
+            </div>
+            <Link
+              href="/reminders"
+              className="text-[11px] font-bold text-[var(--primary)] hover:underline flex items-center gap-0.5"
+            >
+              <span>Hub</span>
+              <ChevronRight size={12} />
+            </Link>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)] space-y-3">
-            {upcomingPayments.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
-                <div className="overflow-hidden">
-                  <p className="text-xs font-bold text-[var(--text-primary)] truncate">
-                    {item.desc}
-                  </p>
-                  <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
-                    {item.date}
-                  </p>
-                </div>
-                <div className="text-right whitespace-nowrap shrink-0">
-                  <p className="text-xs font-bold text-[var(--text-primary)]">
-                    {formatCurrency(item.amount)}
-                  </p>
-                  <span
-                    className={cn(
-                      "inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mt-0.5 leading-none",
-                      item.type === "cheque"
-                        ? "bg-[#EDE9FE] dark:bg-[#2E1065] text-[#7C3AED] dark:text-[#C4B5FD]"
-                        : "bg-[#FEF3C7] dark:bg-[#451A03] text-[#D97706] dark:text-[#FBBF24]"
-                    )}
-                  >
-                    {item.type}
-                  </span>
-                </div>
+          <div className="space-y-3">
+            {/* Customer Receivables Summary */}
+            <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-amber-700 dark:text-amber-300 tracking-wider block">
+                  Customer Receivables
+                </span>
+                <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
+                  {receivablesReminders?.stats?.total_overdue || 0} Bills Overdue
+                </span>
               </div>
-            ))}
+              <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400 font-mono">
+                {formatCurrency(receivablesReminders?.stats?.total_outstanding || 0)}
+              </span>
+            </div>
+
+            {/* Vendor Payables Summary */}
+            <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-indigo-700 dark:text-indigo-300 tracking-wider block">
+                  Supplier Payables
+                </span>
+                <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
+                  {payablesReminders?.stats?.total_overdue || 0} Bills Pending
+                </span>
+              </div>
+              <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
+                {formatCurrency(payablesReminders?.stats?.total_outstanding || 0)}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border)] mt-3">
+            <Link
+              href="/reminders"
+              className="w-full py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <Bell size={13} />
+              <span>Manage All Reminders & Schedules</span>
+            </Link>
           </div>
         </div>
       </div>

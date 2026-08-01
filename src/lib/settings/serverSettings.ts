@@ -6,8 +6,20 @@ export interface BusinessServerSettings {
   enable_batch_tracking: boolean;
   allow_negative_stock: boolean;
   low_stock_alerts: boolean;
+  low_stock_threshold: number;
+  stock_valuation_method: string;
+  default_godown_id: string | null;
+  default_work_center_id: string | null;
   enable_kacha_billing: boolean;
   enable_serial_numbers: boolean;
+  job_work_default_bill_type: string;
+  auto_complete_lot: boolean;
+  allow_back_date_production: boolean;
+  lock_completed_lots: boolean;
+  auto_backup_enabled: boolean;
+  backup_frequency: string;
+  backup_time: string;
+  backup_retention_days: number;
   currency: string;
   date_format: string;
 }
@@ -27,7 +39,7 @@ export async function getBusinessServerSettings(
       .single(),
     supabase
       .from("business_settings")
-      .select("job_work_default_bill_type, enable_serial_numbers")
+      .select("*")
       .eq("business_id", businessId)
       .maybeSingle(),
   ]);
@@ -40,12 +52,25 @@ export async function getBusinessServerSettings(
   return {
     business_id: businessId,
     enable_gst: bus.enable_gst ?? true,
-    enable_batch_tracking: bus.enable_batch_tracking ?? true,
-    allow_negative_stock: bus.allow_negative_stock ?? false,
+    enable_batch_tracking: set.enable_batch_tracking ?? bus.enable_batch_tracking ?? true,
+    allow_negative_stock: set.allow_negative_stock ?? bus.allow_negative_stock ?? false,
     low_stock_alerts: bus.low_stock_alerts ?? true,
+    low_stock_threshold: Number(set.low_stock_threshold || 10),
+    stock_valuation_method: set.stock_valuation_method || "fifo",
+    default_godown_id: set.default_godown_id || null,
+    default_work_center_id: set.default_work_center_id || null,
     enable_kacha_billing: enableKachaBilling,
     enable_serial_numbers: set.enable_serial_numbers ?? false,
+    job_work_default_bill_type: set.job_work_default_bill_type || "Job Work In",
+    auto_complete_lot: set.auto_complete_lot ?? true,
+    allow_back_date_production: set.allow_back_date_production ?? false,
+    lock_completed_lots: set.lock_completed_lots ?? true,
+    auto_backup_enabled: set.auto_backup_enabled ?? true,
+    backup_frequency: set.backup_frequency || "daily",
+    backup_time: set.backup_time || "23:45",
+    backup_retention_days: Number(set.backup_retention_days || 30),
     currency: bus.currency || "INR (₹) - Indian Rupee",
     date_format: bus.date_format || "DD MMM YYYY (31 May 2024)",
   };
 }
+

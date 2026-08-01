@@ -106,14 +106,14 @@ export function DataTable<T>({
 
       {/* Pagination Footer */}
       {!isLoading && data.length > 0 && (
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border)] bg-[var(--card-bg)] text-xs select-none">
-          <div className="text-[var(--text-muted)] font-medium">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-t border-[var(--border)] bg-[var(--card-bg)] text-xs select-none">
+          <div className="text-[var(--text-muted)] font-medium text-center sm:text-left">
             Showing <span className="font-bold text-[var(--text-primary)]">{startIdx}</span>{" "}
             to <span className="font-bold text-[var(--text-primary)]">{endIdx}</span> of{" "}
             <span className="font-bold text-[var(--text-primary)]">{total}</span> results
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {/* Prev Button */}
             <button
               type="button"
@@ -124,25 +124,32 @@ export function DataTable<T>({
               <ChevronLeft size={16} />
             </button>
 
-            {/* Page Indicators */}
-            {Array.from({ length: totalPages }).map((_, pIdx) => {
-              const pNum = pIdx + 1;
-              const isCurrent = pNum === page;
-              return (
-                <button
-                  key={pNum}
-                  type="button"
-                  onClick={() => onPageChange(pNum)}
-                  className={`w-9 h-9 text-xs font-semibold rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
-                    isCurrent
-                      ? "bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)]"
-                      : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)]"
-                  }`}
-                >
-                  {pNum}
-                </button>
-              );
-            })}
+            {/* Mobile Compact Indicator */}
+            <span className="sm:hidden text-xs font-semibold text-[var(--text-primary)] px-2">
+              {page} / {totalPages}
+            </span>
+
+            {/* Desktop Page Indicators */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              {Array.from({ length: totalPages }).map((_, pIdx) => {
+                const pNum = pIdx + 1;
+                const isCurrent = pNum === page;
+                return (
+                  <button
+                    key={pNum}
+                    type="button"
+                    onClick={() => onPageChange(pNum)}
+                    className={`w-9 h-9 text-xs font-semibold rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
+                      isCurrent
+                        ? "bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)]"
+                        : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)]"
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Next Button */}
             <button

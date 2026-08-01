@@ -358,6 +358,41 @@ export async function POST(request: Request) {
       );
     }
 
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(supabase, businessId);
+
+    if (!serverSettings.allow_back_date_production) {
+      const inputDate = new Date(lot_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (inputDate < today) {
+        return NextResponse.json(
+          { error: "Back-dated production entries are disabled in system settings." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Default stage flow from business settings if no custom stages provided
+    let effectiveStages = stages;
+    if (!effectiveStages || !Array.isArray(effectiveStages) || effectiveStages.length === 0) {
+      const { data: dbStages } = await supabase
+        .from("production_stages")
+        .select("id, name, is_active")
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true });
+
+      if (dbStages && dbStages.length > 0) {
+        effectiveStages = dbStages.map((s, idx) => ({
+          stage_id: s.id,
+          stage_name: s.name,
+          sequence_no: idx + 1,
+          is_mandatory: true,
+        }));
+      }
+    }
+
     // Check if lot_number already exists
     let finalLotNumber = lot_number;
     let isUnique = false;

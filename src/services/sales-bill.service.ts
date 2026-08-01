@@ -106,6 +106,32 @@ export class SalesBillService {
 
     const { items, charges, ...rest } = parsed.data;
 
+    // Check allow_negative_stock setting
+    const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
+    const serverSettings = await getBusinessServerSettings(this.repository.supabase, businessId);
+
+    if (!serverSettings.allow_negative_stock && items && items.length > 0) {
+      for (const item of items) {
+        const itemAny = item as any;
+        const targetId = itemAny.finished_goods_id || item.design_id;
+        if (targetId) {
+          const { data: stockRow } = await this.repository.supabase
+            .from("finished_goods_current_stock")
+            .select("current_stock, finished_goods:finished_goods(name)")
+            .eq("business_id", businessId)
+            .eq("finished_goods_id", targetId)
+            .maybeSingle();
+
+          const avail = Number(stockRow?.current_stock || 0);
+          const req = Number(item.quantity || 0);
+          if (avail < req) {
+            const fgName = (stockRow?.finished_goods as any)?.name || item.item_name || "Item";
+            throw new Error(`Insufficient stock for item "${fgName}". Available: ${avail}, Requested: ${req}`);
+          }
+        }
+      }
+    }
+
     let isInterstate = false;
     if (rest.gstin && rest.gstin.length >= 2) {
       const { data: biz } = await this.repository.supabase

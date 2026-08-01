@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
   const bid = userData.business_id;
 
   if (!partyId) {
-    // Return parties list
     const { data: parties } = await supabase
       .from("parties")
       .select("id, name, company_name, type, phone, gstin")
@@ -36,6 +35,10 @@ export async function GET(req: NextRequest) {
       writeOffsRes,
       creditNotesRes,
       debitNotesRes,
+      stageEntriesRes,
+      jobWorkPaymentsRes,
+      salaryAdvancesRes,
+      salaryEntriesRes,
     ] = await Promise.all([
       supabase.from("parties").select("*").eq("id", partyId).eq("business_id", bid).single(),
       supabase.from("raw_material_purchases").select("id, purchase_number, invoice_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
@@ -45,9 +48,28 @@ export async function GET(req: NextRequest) {
       supabase.from("write_offs").select("id, amount, written_off_at").eq("business_id", bid),
       supabase.from("credit_notes").select("id, cn_number, cn_date, amount").eq("party_id", partyId).eq("business_id", bid),
       supabase.from("debit_notes").select("id, dn_number, dn_date, amount").eq("party_id", partyId).eq("business_id", bid),
+      supabase.from("stage_entries").select("id, entry_number, entry_date, qty_out, job_work_rate, total_job_work_amount").eq("worker_id", partyId).eq("business_id", bid),
+      supabase.from("job_work_payments").select("id, payment_number, payment_date, paid_amount, payment_mode").eq("worker_id", partyId).eq("business_id", bid).eq("status", "success"),
+      supabase.from("salary_advances").select("id, advance_date, amount, payment_mode, notes").or(`worker_id.eq.${partyId},party_id.eq.${partyId}`).eq("business_id", bid),
+      supabase.from("salary_entries").select("id, salary_month, salary_year, net_salary, payment_mode, payment_date").or(`worker_id.eq.${partyId},party_id.eq.${partyId}`).eq("business_id", bid),
     ]);
 
-    const party = partyRes.data;
+    let party = partyRes.data;
+    if (!party) {
+      const { data: workerParty } = await supabase
+        .from("workers")
+        .select("id, name, opening_balance, created_at")
+        .eq("id", partyId)
+        .eq("business_id", bid)
+        .single();
+      if (workerParty) {
+        party = {
+          ...workerParty,
+          type: "worker",
+        };
+      }
+    }
+
     if (!party) return NextResponse.json({ error: "Party not found" }, { status: 404 });
 
     const isCustomer = party.type === "customer";
@@ -96,7 +118,55 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    // Payments
+    // Worker Job Work Production Stage Entries (Credit for worker)
+    (stageEntriesRes.data ?? []).forEach((se: any) => {
+      const qty = Number(se.qty_out || 0);
+      const rate = Number(se.job_work_rate || 0);
+      const total = Number(se.total_job_work_amount || qty * rate);
+      entries.push({
+        date: se.entry_date,
+        type: `Job Work (${qty} Pcs @ ₹${rate})`,
+        reference: se.entry_number || se.id.substring(0, 8),
+        debit: 0,
+        credit: total,
+      });
+    });
+
+    // Worker Job Work Payments (Debit for worker)
+    (jobWorkPaymentsRes.data ?? []).forEach((jp: any) => {
+      entries.push({
+        date: jp.payment_date,
+        type: `Job Work Payment (${jp.payment_mode || "Paid"})`,
+        reference: jp.payment_number || "-",
+        debit: Number(jp.paid_amount || 0),
+        credit: 0,
+      });
+    });
+
+    // Worker Salary Advances (Debit for worker)
+    (salaryAdvancesRes.data ?? []).forEach((sa: any) => {
+      entries.push({
+        date: sa.advance_date,
+        type: `Salary Advance (${sa.payment_mode || "Paid"})`,
+        reference: "-",
+        debit: Number(sa.amount || 0),
+        credit: 0,
+      });
+    });
+
+    // Worker Salary Entries (Debit for worker)
+    (salaryEntriesRes.data ?? []).forEach((se: any) => {
+      const dateStr = se.payment_date || `${se.salary_year}-${String(se.salary_month).padStart(2, "0")}-01`;
+      entries.push({
+        date: dateStr,
+        type: `Salary ${se.salary_month}/${se.salary_year}`,
+        reference: "-",
+        debit: Number(se.net_salary || 0),
+        credit: 0,
+      });
+    });
+
+    // Unified Payments
     (paymentsRes.data ?? []).forEach((p) => {
       if (p.direction === "received") {
         entries.push({
@@ -158,7 +228,6 @@ export async function GET(req: NextRequest) {
     const totalDebit = filteredRows.reduce((s, r) => s + r.debit, 0);
     const totalCredit = filteredRows.reduce((s, r) => s + r.credit, 0);
 
-    // Aging breakdown for outstanding
     const today = new Date();
     const aging = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
     filteredRows.forEach((r) => {

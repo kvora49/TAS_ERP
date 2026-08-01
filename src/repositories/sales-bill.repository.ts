@@ -19,7 +19,7 @@ export class SalesBillRepository {
     if (type === "return" || type === "sales_return") {
       let query = this.supabase
         .from("sales_returns")
-        .select("*, party:parties(name, gstin)", { count: "exact" })
+        .select("*, party:parties(name, gstin), bill:sale_bills(id, bill_number, bill_date)", { count: "exact" })
         .eq("business_id", businessId)
         .order("return_date", { ascending: false })
         .order("created_at", { ascending: false });
@@ -55,7 +55,7 @@ export class SalesBillRepository {
           .order("bill_date", { ascending: false }),
         this.supabase
           .from("sales_returns")
-          .select("*, party:parties(name, gstin)")
+          .select("*, party:parties(name, gstin), bill:sale_bills(id, bill_number, bill_date)")
           .eq("business_id", businessId)
           .order("return_date", { ascending: false }),
       ]);

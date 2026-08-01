@@ -69,10 +69,10 @@ export function PageHeader({
         </div>
 
         {/* Actions panel */}
-        <div className="flex items-center gap-3 self-end sm:self-center">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
           {/* Search bar */}
           {onSearch && (
-            <div className="relative w-[280px]">
+            <div className="relative w-full sm:w-[280px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
               <input
                 type="text"
@@ -89,7 +89,7 @@ export function PageHeader({
             <button
               type="button"
               onClick={onAction}
-              className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10"
+              className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10 shrink-0"
             >
               {actionIcon}
               {actionLabel}
