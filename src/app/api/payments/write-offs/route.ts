@@ -25,7 +25,8 @@ export async function GET(request: Request) {
         written_off_by
       `)
       .eq("business_id", businessId)
-      .order("written_off_at", { ascending: false });
+      .order("written_off_at", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

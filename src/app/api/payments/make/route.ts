@@ -13,8 +13,8 @@ export async function GET(request: Request) {
 
   try {
     if (partyId) {
-      // 1. Fetch Outstanding items from 3 different sources
-      const [rmPurchasesResult, fgPurchasesResult, jobWorkResult] = await Promise.all([
+      // 1. Fetch Outstanding items, purchase returns, and standalone debit notes in parallel
+      const [rmPurchasesResult, fgPurchasesResult, jobWorkResult, returnsResult, debitNotesResult] = await Promise.all([
         supabase
           .from("raw_material_purchases")
           .select("id, purchase_number, invoice_date, due_date, grand_total, paid_amount, payment_status")
@@ -35,37 +35,76 @@ export async function GET(request: Request) {
           .eq("worker_id", partyId)
           .eq("business_id", businessId)
           .neq("payment_status", "paid"),
+        supabase
+          .from("purchase_returns")
+          .select("id, purchase_id, grand_total")
+          .eq("supplier_id", partyId)
+          .eq("business_id", businessId)
+          .neq("status", "cancelled")
+          .is("deleted_at", null),
+        supabase
+          .from("debit_notes")
+          .select("id, dn_number, dn_date, amount, reason, related_purchase_return_id")
+          .eq("party_id", partyId)
+          .eq("business_id", businessId),
       ]);
+
+      if (debitNotesResult.error) {
+        console.error("debitNotes query error:", debitNotesResult.error);
+      }
 
       const rmPurchases = rmPurchasesResult.data || [];
       const fgPurchases = fgPurchasesResult.data || [];
       const jobWork = jobWorkResult.data || [];
+      const returnsMap: Record<string, number> = {};
+
+      (returnsResult.data || []).forEach((r) => {
+        if (r.purchase_id) {
+          returnsMap[r.purchase_id] = (returnsMap[r.purchase_id] || 0) + Number(r.grand_total || 0);
+        }
+      });
 
       // Combine and format them
       const outstandingBills: any[] = [];
 
       rmPurchases.forEach((p) => {
-        outstandingBills.push({
-          id: p.id,
-          invoice_number: p.purchase_number,
-          invoice_date: p.invoice_date,
-          due_date: p.due_date || p.invoice_date,
-          total: Number(p.grand_total),
-          outstanding: Number(p.grand_total) - Number(p.paid_amount || 0),
-          bill_type: "raw_material_purchase",
-        });
+        const returnedAmount = returnsMap[p.id] || 0;
+        const grossTotal = Number(p.grand_total);
+        const netPayable = grossTotal - returnedAmount;
+        const outstanding = Math.max(0, netPayable - Number(p.paid_amount || 0));
+
+        if (outstanding > 0) {
+          outstandingBills.push({
+            id: p.id,
+            invoice_number: p.purchase_number,
+            invoice_date: p.invoice_date,
+            due_date: p.due_date || p.invoice_date,
+            total: grossTotal,
+            returned_amount: returnedAmount,
+            outstanding: outstanding,
+            bill_type: "raw_material_purchase",
+          });
+        }
       });
 
       fgPurchases.forEach((p) => {
-        outstandingBills.push({
-          id: p.id,
-          invoice_number: p.bill_number,
-          invoice_date: p.invoice_date,
-          due_date: p.due_date || p.invoice_date,
-          total: Number(p.grand_total),
-          outstanding: Number(p.grand_total) - Number(p.paid_amount || 0),
-          bill_type: "purchase_bill",
-        });
+        const returnedAmount = returnsMap[p.id] || 0;
+        const grossTotal = Number(p.grand_total);
+        const netPayable = grossTotal - returnedAmount;
+        const outstanding = Math.max(0, netPayable - Number(p.paid_amount || 0));
+
+        if (outstanding > 0) {
+          outstandingBills.push({
+            id: p.id,
+            invoice_number: p.bill_number,
+            invoice_date: p.invoice_date,
+            due_date: p.due_date || p.invoice_date,
+            total: grossTotal,
+            returned_amount: returnedAmount,
+            outstanding: outstanding,
+            bill_type: "purchase_bill",
+          });
+        }
       });
 
       jobWork.forEach((jw) => {
@@ -78,13 +117,29 @@ export async function GET(request: Request) {
             invoice_date: jw.entry_date,
             due_date: jw.entry_date,
             total: total,
+            returned_amount: 0,
             outstanding: total - paid,
             bill_type: "job_work_entry",
           });
         }
       });
 
-      return NextResponse.json({ bills: outstandingBills });
+      const debitNotes = (debitNotesResult.data || [])
+        .filter((dn: any) => !dn.related_purchase_return_id)
+        .map((dn: any) => {
+          const amt = Number(dn.amount || 0);
+          return {
+            id: dn.id,
+            dn_number: dn.dn_number,
+            dn_date: dn.dn_date,
+            amount: amt,
+            available_amount: amt,
+            reason: dn.reason,
+          };
+        })
+        .filter((dn: any) => dn.available_amount > 0);
+
+      return NextResponse.json({ bills: outstandingBills, debitNotes });
     } else {
       // 2. Fetch Suppliers & Workers
       const { data: parties, error: partiesError } = await supabase
@@ -152,11 +207,15 @@ export async function POST(request: Request) {
       bank_account_id,
       remarks,
       allocations, // Array of { billId, allocatedAmount, billType }
+      debit_note_allocations,
     } = body;
 
+    const numAmount = Number(amount || 0);
+    const hasAllocations = (allocations && allocations.length > 0) || (debit_note_allocations && debit_note_allocations.length > 0);
+
     // Server-side validation
-    if (!party_id || !amount || !payment_date || !payment_mode) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!party_id || !payment_date || (!hasAllocations && numAmount <= 0)) {
+      return NextResponse.json({ error: "Missing required fields or payment amount" }, { status: 400 });
     }
 
     // Call record_payment database RPC function for direction: 'paid'

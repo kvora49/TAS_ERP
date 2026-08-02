@@ -20,35 +20,35 @@ export default function Step6DesignSpecSheet({
   specSheetTemplate, specSheetValues, setSpecSheetValues, onNext, onBack,
 }: Props) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-      <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-        <FileText className="h-4.5 w-4.5 text-[#6366F1]" />
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4 text-[var(--text-primary)]">
+      <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider flex items-center gap-2">
+        <FileText className="h-4.5 w-4.5 text-[var(--primary)]" />
         Step 6: Design Spec Sheet
       </h3>
 
       {!specSheetTemplate ? (
         <div className="py-10 text-center space-y-3">
-          <p className="text-sm text-slate-500 font-medium">
+          <p className="text-sm text-[var(--text-muted)] font-medium">
             No design specification template exists for the selected garment type.
           </p>
-          <p className="text-xs text-slate-400">You can safely skip this step and proceed to final review.</p>
+          <p className="text-xs text-[var(--text-faint)]">You can safely skip this step and proceed to final review.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
             Garment Parameters ({specSheetTemplate.garment_types?.name})
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {specSheetTemplate.fields.map((field) => (
               <div key={field.name} className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase">{field.name}</label>
+                <label className="block text-xs font-bold text-[var(--text-primary)] uppercase">{field.name}</label>
                 {field.type === "select" ? (
                   <select
                     value={specSheetValues[field.name] || ""}
                     onChange={(e) =>
                       setSpecSheetValues({ ...specSheetValues, [field.name]: e.target.value })
                     }
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)]"
                   >
                     <option value="">Select Option</option>
                     {(field.options || []).map((opt) => (
@@ -63,7 +63,7 @@ export default function Step6DesignSpecSheet({
                       setSpecSheetValues({ ...specSheetValues, [field.name]: e.target.value })
                     }
                     placeholder={`Enter ${field.name}`}
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:ring-2 focus:ring-[#6366F1]"
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)]"
                   />
                 )}
               </div>
@@ -73,11 +73,11 @@ export default function Step6DesignSpecSheet({
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between pt-4 border-t border-slate-100">
+      <div className="flex justify-between pt-4 border-t border-[var(--border)]">
         <button
           type="button"
           onClick={onBack}
-          className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           <ArrowLeft size={14} />
           Back
@@ -85,7 +85,7 @@ export default function Step6DesignSpecSheet({
         <button
           type="button"
           onClick={onNext}
-          className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           Next: Review & Create
           <ChevronRight size={14} />

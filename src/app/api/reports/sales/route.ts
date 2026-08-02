@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
       .is("deleted_at", null)
       .gte("bill_date", from)
       .lte("bill_date", to)
-      .order("bill_date", { ascending: false });
+      .order("bill_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (billType && (billType === "kacha" || billType === "pakka")) {
       query = query.eq("bill_type", billType);

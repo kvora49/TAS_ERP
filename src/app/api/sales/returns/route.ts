@@ -35,7 +35,9 @@ export async function GET(request: Request) {
       query = query.lte("return_date", endDate);
     }
 
-    const { data: returns, error } = await query.order("return_date", { ascending: false });
+    const { data: returns, error } = await query
+      .order("return_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

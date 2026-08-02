@@ -74,11 +74,11 @@ export default function ReceivePaymentView({
     }
   }, [bankAccounts, bankAccountId]);
 
-  // Fetch outstanding bills when customer is selected
-  const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: OutstandingBill[] }>({
+  // Fetch outstanding bills and available credit notes when customer is selected
+  const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: OutstandingBill[]; creditNotes?: any[] }>({
     queryKey: ["outstanding-bills-receive", selectedCustomerId],
     queryFn: async () => {
-      if (!selectedCustomerId) return { bills: [] };
+      if (!selectedCustomerId) return { bills: [], creditNotes: [] };
       const res = await fetch(`/api/payments/receive?party_id=${selectedCustomerId}`);
       if (!res.ok) throw new Error("Failed to load outstanding sales bills");
       return res.json();
@@ -87,6 +87,15 @@ export default function ReceivePaymentView({
   });
 
   const outstandingBills = billsData?.bills || [];
+  const availableCreditNotes = billsData?.creditNotes || [];
+  const [selectedCreditNoteIds, setSelectedCreditNoteIds] = useState<string[]>([]);
+
+  // Compute total selected credit note credit amount
+  const totalCreditNotesApplied = availableCreditNotes
+    .filter((cn) => selectedCreditNoteIds.includes(cn.id))
+    .reduce((sum, cn) => sum + Number(cn.available_amount || 0), 0);
+
+  const totalEffectivePool = Number(amountReceived || 0) + totalCreditNotesApplied;
 
   // Fetch customer running balance from ledger
   useEffect(() => {
@@ -112,9 +121,16 @@ export default function ReceivePaymentView({
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!selectedCustomerId) throw new Error("Please select a customer");
-      if (amountReceived <= 0 && allocations.length === 0) {
-        throw new Error("Please enter a valid amount or select bills to allocate");
+      if (amountReceived <= 0 && allocations.length === 0 && selectedCreditNoteIds.length === 0) {
+        throw new Error("Please enter a valid amount or select bills/credit notes to allocate");
       }
+
+      const creditNoteAllocations = availableCreditNotes
+        .filter((cn) => selectedCreditNoteIds.includes(cn.id))
+        .map((cn) => ({
+          credit_note_id: cn.id,
+          amount: cn.available_amount,
+        }));
 
       const payload = {
         party_id: selectedCustomerId,
@@ -125,6 +141,7 @@ export default function ReceivePaymentView({
         bank_account_id: bankAccountId,
         remarks,
         allocations,
+        credit_note_allocations: creditNoteAllocations,
       };
 
       const res = await fetch("/api/payments/receive", {
@@ -160,14 +177,26 @@ export default function ReceivePaymentView({
         {/* Card Header & Controls */}
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-            <div>
-              <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-emerald-500" />
-                Receive Payment (Customer Receipt)
-              </h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Record payment received from customer, allocate across open sales bills, or save unallocated excess as Customer Advance.
-              </p>
+            <div className="flex items-center gap-3">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)] hover:text-[var(--text-primary)] transition-colors"
+                  title="Back to Payments"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              <div>
+                <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-500" />
+                  Receive Payment (Customer Receipt)
+                </h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Record payment received from customer, allocate across open sales bills, or save unallocated excess as Customer Advance.
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -302,6 +331,55 @@ export default function ReceivePaymentView({
           </div>
         </div>
 
+        {/* Standalone Credit Notes Knock-Off Section */}
+        {selectedCustomerId && availableCreditNotes.length > 0 && (
+          <div className="bg-[var(--card-bg)] border border-rose-200 dark:border-rose-900/40 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                <span>Available Standalone Credit Notes ({availableCreditNotes.length})</span>
+                {totalCreditNotesApplied > 0 && (
+                  <span className="bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    +₹{totalCreditNotesApplied.toLocaleString("en-IN")} Credit Applied
+                  </span>
+                )}
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {availableCreditNotes.map((cn: any) => {
+                const isSelected = selectedCreditNoteIds.includes(cn.id);
+                return (
+                  <div
+                    key={cn.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedCreditNoteIds(selectedCreditNoteIds.filter((id) => id !== cn.id));
+                      } else {
+                        setSelectedCreditNoteIds([...selectedCreditNoteIds, cn.id]);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      isSelected
+                        ? "bg-rose-50/60 dark:bg-rose-950/30 border-rose-400 ring-1 ring-rose-400"
+                        : "bg-[var(--page-bg)] border-[var(--border)] hover:border-rose-300"
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-[var(--text-primary)]">{cn.cn_number}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">{cn.reason || "Manual Credit Note"}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-extrabold text-rose-700 dark:text-rose-400">
+                        ₹{Number(cn.available_amount).toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[9px] font-semibold text-[var(--text-muted)]">Available</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Bill Allocation Section */}
         {selectedCustomerId && (
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
@@ -320,7 +398,7 @@ export default function ReceivePaymentView({
             ) : (
               <BillAllocationTable
                 bills={outstandingBills}
-                paymentAmount={amountReceived}
+                paymentAmount={totalEffectivePool}
                 onAllocationChange={setAllocations}
               />
             )}

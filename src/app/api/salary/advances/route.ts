@@ -18,7 +18,8 @@ export async function GET(request: Request) {
         worker:parties(id, name)
       `)
       .eq("business_id", businessId)
-      .order("advance_date", { ascending: false });
+      .order("advance_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (workerId) query = query.eq("worker_id", workerId);
 

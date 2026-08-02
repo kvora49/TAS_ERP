@@ -11,7 +11,7 @@ interface LotStageInput {
   worker_ids: string[];
 }
 
-interface ProductionStage { id: string; name: string; type: string; }
+interface ProductionStage { id: string; name: string; type: string; custom_fields?: any[]; }
 interface Worker { id: string; name: string; stage_specialty?: string[] }
 
 interface Props {
@@ -35,10 +35,10 @@ export default function Step5AssignStages({
   onNext, onBack,
 }: Props) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-      <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
-        <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
-          <GitBranch className="h-4.5 w-4.5 text-[#6366F1]" />
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4 text-[var(--text-primary)]">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+          <GitBranch className="h-4.5 w-4.5 text-[var(--primary)]" />
           Step 5: Assign Production Stages
         </h3>
       </div>
@@ -49,7 +49,7 @@ export default function Step5AssignStages({
           <select
             value={selectedTemplateId}
             onChange={(e) => onLoadTemplate(e.target.value)}
-            className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1]"
+            className="h-9 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 focus:ring-1 focus:ring-[var(--input-focus)]"
           >
             <option value="">Load Production Template</option>
             {productionTemplates.map((t) => (
@@ -61,10 +61,10 @@ export default function Step5AssignStages({
         </div>
 
         {/* Stages table */}
-        <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
+        <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--card-bg)]">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
+              <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase">
                 <th className="py-2.5 px-4 w-12 text-center">Order</th>
                 <th className="py-2.5 px-4">Stage Name</th>
                 <th className="py-2.5 px-4">Stage Type</th>
@@ -72,7 +72,7 @@ export default function Step5AssignStages({
                 <th className="py-2.5 px-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E7EB] text-xs">
+            <tbody className="divide-y divide-[var(--border)] text-xs bg-[var(--card-bg)]">
               {assignedStages.map((stage, index) => {
                 const specialists = workers.filter(
                   (w) =>
@@ -82,7 +82,7 @@ export default function Step5AssignStages({
                 );
 
                 return (
-                  <tr key={stage.stage_id} className="hover:bg-[#F9FAFB] transition-colors">
+                  <tr key={stage.stage_id} className="hover:bg-[var(--table-row-hover)] transition-colors">
                     <td className="py-2.5 px-4 text-center">
                       <div className="flex flex-col items-center">
                         <button
@@ -94,11 +94,11 @@ export default function Step5AssignStages({
                             setAssignedStages(copy.map((s, i) => ({ ...s, sequence_no: i + 1 })));
                           }}
                           disabled={index === 0}
-                          className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-20 cursor-pointer"
+                          className="p-0.5 text-[var(--text-faint)] hover:text-[var(--primary)] disabled:opacity-20 cursor-pointer"
                         >
                           <ChevronUp size={12} />
                         </button>
-                        <span className="font-mono text-xs font-bold">{index + 1}</span>
+                        <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{index + 1}</span>
                         <button
                           type="button"
                           onClick={() => {
@@ -108,19 +108,35 @@ export default function Step5AssignStages({
                             setAssignedStages(copy.map((s, i) => ({ ...s, sequence_no: i + 1 })));
                           }}
                           disabled={index === assignedStages.length - 1}
-                          className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-20 cursor-pointer"
+                          className="p-0.5 text-[var(--text-faint)] hover:text-[var(--primary)] disabled:opacity-20 cursor-pointer"
                         >
                           <ChevronDown size={12} />
                         </button>
                       </div>
                     </td>
-                    <td className="py-2.5 px-4 font-semibold text-[#374151]">{stage.stage_name}</td>
+                    <td className="py-2.5 px-4 font-semibold text-[var(--text-primary)]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{stage.stage_name}</span>
+                        {(() => {
+                          const ms = masterStages.find((m: any) => m.id === stage.stage_id || m.name === stage.stage_name);
+                          const count = ms?.custom_fields?.length || 0;
+                          if (count > 0) {
+                            return (
+                              <span className="text-[9px] font-bold text-indigo-600 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded-full">
+                                {count} {count === 1 ? "QC Param" : "QC Params"}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </td>
                     <td className="py-2.5 px-4">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
                           stage.stage_type === "job_work"
-                            ? "bg-[#FEF3C7] text-[#D97706]"
-                            : "bg-[#DBEAFE] text-[#1D4ED8]"
+                            ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                            : "bg-blue-500/10 text-blue-500 border border-blue-500/20"
                         }`}
                       >
                         {stage.stage_type.replace("_", " ")}
@@ -130,7 +146,7 @@ export default function Step5AssignStages({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <select
                           onChange={(e) => { onAddWorker(index, e.target.value); e.currentTarget.value = ""; }}
-                          className="h-8 py-1 text-xs rounded border border-slate-300 bg-white px-2 focus:ring-1 focus:ring-[#6366F1] min-w-[140px] shrink-0 leading-normal"
+                          className="h-8 py-1 text-xs rounded border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[140px] shrink-0 leading-normal"
                         >
                           <option value="">+ Assign Worker</option>
                           {specialists.map((w) => (
@@ -147,13 +163,13 @@ export default function Step5AssignStages({
                           return (
                             <span
                               key={workerId}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-800 text-[10px] font-semibold border border-slate-200"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--page-bg)] text-[var(--text-primary)] text-[10px] font-semibold border border-[var(--border)]"
                             >
                               {name}
                               <button
                                 type="button"
                                 onClick={() => onRemoveWorker(index, workerId)}
-                                className="text-slate-400 hover:text-red-500 font-bold font-mono"
+                                className="text-[var(--text-faint)] hover:text-red-500 font-bold font-mono cursor-pointer"
                               >
                                 ×
                               </button>
@@ -170,7 +186,7 @@ export default function Step5AssignStages({
                             assignedStages.filter((_, i) => i !== index).map((s, i) => ({ ...s, sequence_no: i + 1 }))
                           )
                         }
-                        className="p-1 rounded border border-[#E5E7EB] text-[#64748B] hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                        className="p-1 rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
                         title="Remove Stage"
                       >
                         <Trash2 size={12} />
@@ -204,11 +220,11 @@ export default function Step5AssignStages({
               }
               e.currentTarget.value = "";
             }}
-            className="h-9 text-xs font-semibold text-indigo-700 bg-indigo-50/60 hover:bg-indigo-50 border border-indigo-200 hover:border-indigo-400 rounded-lg pl-3.5 pr-8 min-w-[195px] py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-xs"
+            className="h-9 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] rounded-lg pl-3.5 pr-8 min-w-[195px] py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all cursor-pointer shadow-xs"
           >
-            <option value="" className="text-slate-700 bg-white font-medium">+ Add Custom Stage</option>
+            <option value="" className="text-[var(--text-muted)] bg-[var(--card-bg)] font-medium">+ Add Custom Stage</option>
             {masterStages.map((s) => (
-              <option key={s.id} value={s.id} className="text-slate-800 bg-white font-medium">
+              <option key={s.id} value={s.id} className="text-[var(--text-primary)] bg-[var(--card-bg)] font-medium">
                 {s.name} ({s.type?.replace("_", " ")})
               </option>
             ))}
@@ -217,11 +233,11 @@ export default function Step5AssignStages({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-4 border-t border-slate-100">
+      <div className="flex justify-between pt-4 border-t border-[var(--border)]">
         <button
           type="button"
           onClick={onBack}
-          className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           <ArrowLeft size={14} />
           Back
@@ -229,7 +245,7 @@ export default function Step5AssignStages({
         <button
           type="button"
           onClick={onNext}
-          className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           Next: Design Spec Sheet
           <ChevronRight size={14} />

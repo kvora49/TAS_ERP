@@ -36,7 +36,9 @@ export async function GET(request: Request) {
       query = query.lte("invoice_date", endDate);
     }
 
-    const { data: bills, error } = await query.order("invoice_date", { ascending: false });
+    const { data: bills, error } = await query
+      .order("invoice_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

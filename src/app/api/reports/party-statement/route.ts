@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       writeOffsRes,
       creditNotesRes,
       debitNotesRes,
+      purchaseReturnsRes,
       stageEntriesRes,
       jobWorkPaymentsRes,
       salaryAdvancesRes,
@@ -46,8 +47,9 @@ export async function GET(req: NextRequest) {
       supabase.from("sale_bills").select("id, bill_number, bill_date, grand_total").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("payments").select("id, payment_number, payment_date, direction, payment_mode, amount").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("write_offs").select("id, amount, written_off_at").eq("business_id", bid),
-      supabase.from("credit_notes").select("id, cn_number, cn_date, amount").eq("party_id", partyId).eq("business_id", bid),
-      supabase.from("debit_notes").select("id, dn_number, dn_date, amount").eq("party_id", partyId).eq("business_id", bid),
+      supabase.from("credit_notes").select("id, cn_number, cn_date, amount, return_id").eq("party_id", partyId).eq("business_id", bid),
+      supabase.from("debit_notes").select("id, dn_number, dn_date, amount, related_purchase_return_id").eq("party_id", partyId).eq("business_id", bid),
+      supabase.from("purchase_returns").select("id, return_number, return_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
       supabase.from("stage_entries").select("id, entry_number, entry_date, qty_out, job_work_rate, total_job_work_amount").eq("worker_id", partyId).eq("business_id", bid),
       supabase.from("job_work_payments").select("id, payment_number, payment_date, paid_amount, payment_mode").eq("worker_id", partyId).eq("business_id", bid).eq("status", "success"),
       supabase.from("salary_advances").select("id, advance_date, amount, payment_mode, notes").or(`worker_id.eq.${partyId},party_id.eq.${partyId}`).eq("business_id", bid),
@@ -187,27 +189,41 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Purchase Returns (Debit for supplier)
+    (purchaseReturnsRes.data ?? []).forEach((pr: any) => {
+      entries.push({
+        date: pr.return_date,
+        type: "Purchase Return",
+        reference: pr.return_number,
+        debit: Number(pr.grand_total),
+        credit: 0,
+      });
+    });
+
     // Credit notes
-    (creditNotesRes.data ?? []).forEach((cn) => {
+    (creditNotesRes.data ?? []).forEach((cn: any) => {
+      const isReturn = !!cn.return_id;
       entries.push({
         date: cn.cn_date,
-        type: "Credit Note",
+        type: isReturn ? "Sales Return / Credit Note" : "Credit Note",
         reference: cn.cn_number,
         debit: 0,
         credit: Number(cn.amount),
       });
     });
 
-    // Debit notes
-    (debitNotesRes.data ?? []).forEach((dn) => {
-      entries.push({
-        date: dn.dn_date,
-        type: "Debit Note",
-        reference: dn.dn_number,
-        debit: Number(dn.amount),
-        credit: 0,
+    // Standalone Debit notes (exclude debit notes created from purchase returns)
+    (debitNotesRes.data ?? [])
+      .filter((dn: any) => !dn.related_purchase_return_id)
+      .forEach((dn: any) => {
+        entries.push({
+          date: dn.dn_date,
+          type: "Debit Note",
+          reference: dn.dn_number,
+          debit: Number(dn.amount),
+          credit: 0,
+        });
       });
-    });
 
     // Sort by date
     entries.sort((a, b) => a.date.localeCompare(b.date));

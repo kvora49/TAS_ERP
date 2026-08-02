@@ -134,9 +134,7 @@ export default function PublicBillPage() {
               const sellerPan = business?.pan;
               return (
                 <>
-                  {effectiveLogo && (
-                    <img src={effectiveLogo} alt={brand?.name || "Logo"} className="h-10 w-auto object-contain mb-2" />
-                  )}
+                  <img src={effectiveLogo || "/logo.png"} alt={brand?.name || "TAS ERP Logo"} className="h-10 w-auto object-contain mb-2" />
                   <h1 className="text-2xl font-black tracking-tight text-slate-900">{brand?.name || business?.name || "Tax Invoice"}</h1>
                   {(brand?.address || business?.address) && <p className="text-xs text-slate-500 mt-1 max-w-xs">{brand?.address || business?.address}</p>}
                   <div className="flex flex-col gap-0.5 mt-1 text-xs font-mono font-bold text-slate-700">

@@ -13,7 +13,8 @@ export async function GET(request: Request) {
       .from("purchase_payments")
       .select("*, supplier:parties(name, company_name), purchase:raw_material_purchases(purchase_number, invoice_no)")
       .eq("business_id", businessId)
-      .order("payment_date", { ascending: false });
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

@@ -27,14 +27,14 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0F1629] border-t border-[#1E293B] flex items-center justify-around z-40 select-none pb-safe print:hidden">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--card-bg)] border-t border-[var(--border)] flex items-center justify-around z-40 select-none print:hidden shadow-lg backdrop-blur-md">
         {/* Home Tab */}
         <Link
           href="/"
           onClick={triggerHaptic}
           className={cn(
             "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname === "/" ? "text-[#6366F1]" : "text-[#94A3B8]"
+            pathname === "/" ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
           )}
         >
           <Home className="h-5 w-5" />
@@ -47,9 +47,9 @@ export default function BottomNav() {
           onClick={triggerHaptic}
           className={cn(
             "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname.startsWith("/finished-stock") || pathname.startsWith("/raw-materials")
-              ? "text-[#6366F1]"
-              : "text-[#94A3B8]"
+            pathname.startsWith("/finished-stock") || pathname.startsWith("/raw-materials") || pathname.startsWith("/stock")
+              ? "text-[var(--primary)] font-bold"
+              : "text-[var(--text-muted)]"
           )}
         >
           <Boxes className="h-5 w-5" />
@@ -61,7 +61,7 @@ export default function BottomNav() {
           <Link
             href="/sales/bills/new"
             onClick={triggerHaptic}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center shadow-lg shadow-[#6366F1]/40 border-2 border-[#0F1629] active:scale-95 transition-transform"
+            className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center shadow-lg shadow-[var(--primary)]/30 border-2 border-[var(--card-bg)] active:scale-95 transition-transform"
             title="Create New Invoice"
           >
             <Plus className="h-6 w-6 stroke-[2.5]" />
@@ -74,7 +74,7 @@ export default function BottomNav() {
           onClick={triggerHaptic}
           className={cn(
             "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname.startsWith("/parties") ? "text-[#6366F1]" : "text-[#94A3B8]"
+            pathname.startsWith("/parties") ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
           )}
         >
           <Users className="h-5 w-5" />
@@ -90,7 +90,7 @@ export default function BottomNav() {
           }}
           className={cn(
             "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors cursor-pointer",
-            drawerOpen ? "text-[#6366F1]" : "text-[#94A3B8]"
+            drawerOpen ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
           )}
         >
           <Grid className="h-5 w-5" />

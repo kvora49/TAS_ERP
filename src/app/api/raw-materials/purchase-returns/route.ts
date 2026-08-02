@@ -22,7 +22,9 @@ export async function GET(request: Request) {
       query = query.or(`return_number.ilike.%${search}%,reason.ilike.%${search}%`);
     }
 
-    const { data: returns, error } = await query.order("return_date", { ascending: false });
+    const { data: returns, error } = await query
+      .order("return_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
         amount_in_words: amount_in_words || null,
         generate_debit_note: generate_debit_note !== false,
         attachments: attachments || [],
-        status: status || 'pending',
+        status: status || 'completed',
       })
       .select()
       .single();

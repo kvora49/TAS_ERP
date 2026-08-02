@@ -9,6 +9,7 @@ export interface OutstandingBill {
   invoice_date: string;
   due_date: string;
   total: number;
+  returned_amount?: number;
   outstanding: number;
   bill_type: "sale_bill" | "purchase_bill" | "raw_material_purchase" | "job_work_entry";
 }
@@ -211,7 +212,12 @@ export default function BillAllocationTable({
                       })}
                     </td>
                     <td className="py-3 px-4 text-right text-[var(--text-primary)]">
-                      ₹{bill.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      <div>₹{bill.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                      {!!bill.returned_amount && bill.returned_amount > 0 && (
+                        <span className="inline-block text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded mt-0.5">
+                          -₹{bill.returned_amount.toLocaleString("en-IN")} returned
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right text-amber-600 font-bold">
                       ₹{bill.outstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}

@@ -270,21 +270,38 @@ export async function POST(request: Request) {
           }, { onConflict: "id" });
         } catch (_ignore) {}
 
-        // 2. Ensure worker ALSO exists in `workers_deprecated` table to satisfy live DB foreign key constraint
-        try {
-          await supabaseAdmin.from("workers_deprecated").upsert({
-            id: matchedWorker.id,
-            business_id: businessId,
-            name: matchedWorker.name || "Worker",
-            worker_id: `${uniqueCode}_dep`,
-            type: worker_type,
-            phone: matchedWorker.phone || null,
-            address: matchedWorker.address || null,
-            remarks: matchedWorker.remarks || null,
-            is_active: matchedWorker.is_active !== false,
-            created_by: userId,
-          }, { onConflict: "id" });
-        } catch (_ignore) {}
+
+      }
+    }
+    // Validate required custom_fields against master production_stages definition if present
+    if (lot_stage_id) {
+      const { data: lotStageRecord } = await supabase
+        .from("lot_production_stages")
+        .select("stage_id, stage_name")
+        .eq("id", lot_stage_id)
+        .maybeSingle();
+
+      if (lotStageRecord?.stage_id) {
+        const { data: masterStageRecord } = await supabase
+          .from("production_stages")
+          .select("custom_fields")
+          .eq("id", lotStageRecord.stage_id)
+          .maybeSingle();
+
+        if (masterStageRecord?.custom_fields && Array.isArray(masterStageRecord.custom_fields)) {
+          const reqFields = masterStageRecord.custom_fields.filter((f: any) => f.required);
+          const submittedValues = custom_field_values || {};
+
+          for (const rf of reqFields) {
+            const val = submittedValues[rf.name];
+            if (val === undefined || val === null || val === "") {
+              return NextResponse.json(
+                { error: `Required stage parameter missing: '${rf.name}'` },
+                { status: 400 }
+              );
+            }
+          }
+        }
       }
     }
 

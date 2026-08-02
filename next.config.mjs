@@ -59,6 +59,14 @@ const nextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
         ],
       },
+      {
+        source: "/(sw.js|sw-push.js|firebase-messaging-sw.js)",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
+        ],
+      },
     ];
   },
 };

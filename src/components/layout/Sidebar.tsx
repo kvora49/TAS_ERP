@@ -108,7 +108,7 @@ export default function Sidebar() {
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-30 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-30 md:hidden print:hidden transition-opacity"
         />
       )}
 

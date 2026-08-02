@@ -78,11 +78,22 @@ export default function NewStageEntryPage() {
   const [attachments, setAttachments] = useState<string[]>([]);
   const { upload, uploading } = useFileUpload("stage-entries");
 
-  // Custom fields
-  const [threadColour, setThreadColour] = useState("White");
-  const [machineUsed, setMachineUsed] = useState("JUKI DDL-8700");
+  // Dynamic Custom Fields State: { "Shrinkage %": "3%", "QC Verified": true }
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Fetch Master Stages to obtain custom_fields definitions
+  const { data: masterStagesData } = useQuery({
+    queryKey: ["master-stages-definitions"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/production-stages");
+      if (!res.ok) return { stages: [] };
+      return res.json();
+    },
+  });
+
+  const masterStages = masterStagesData?.stages || [];
 
   // 1. Fetch In-Progress Production Lots
   const { data: lotsData } = useQuery({
@@ -151,6 +162,29 @@ export default function NewStageEntryPage() {
 
   // Selected lot stage info
   const selectedLotStage = lotStages.find((s) => s.id === stageId);
+
+  // Find corresponding master stage definition to read custom_fields
+  const matchedMasterStage = masterStages.find(
+    (ms: any) =>
+      ms.id === selectedLotStage?.stage_id ||
+      ms.name?.toLowerCase() === selectedLotStage?.stage_name?.toLowerCase()
+  );
+
+  const stageCustomFields: { name: string; type: "text" | "number" | "boolean" | "date"; required: boolean }[] =
+    matchedMasterStage?.custom_fields || [];
+
+  // Reset/Initialize custom field values whenever selected stage changes
+  useEffect(() => {
+    if (stageCustomFields.length > 0) {
+      const initialValues: Record<string, any> = {};
+      stageCustomFields.forEach((field) => {
+        initialValues[field.name] = field.type === "boolean" ? false : "";
+      });
+      setCustomFieldValues(initialValues);
+    } else {
+      setCustomFieldValues({});
+    }
+  }, [stageId, matchedMasterStage?.id]);
 
   // Sync Job Work Type and prefilled Qty In, and pre-fill worker when stage changes
   useEffect(() => {
@@ -236,6 +270,17 @@ export default function NewStageEntryPage() {
       return;
     }
 
+    // Validate Required Custom Fields
+    for (const field of stageCustomFields) {
+      if (field.required) {
+        const val = customFieldValues[field.name];
+        if (val === undefined || val === null || val === "" || (field.type === "boolean" && val !== true && val !== false)) {
+          toast.error(`Please provide required stage parameter: '${field.name}'`);
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -253,11 +298,8 @@ export default function NewStageEntryPage() {
         worker_id: workerId || null,
         no_of_workers: noOfWorkers,
         remarks,
+        custom_field_values: customFieldValues,
         attachments,
-        custom_field_values: {
-          thread_colour: threadColour,
-          machine_used: machineUsed,
-        },
       };
 
       const res = await fetch("/api/production/stage-entries", {
@@ -765,28 +807,81 @@ export default function NewStageEntryPage() {
               </div>
 
               <div className="space-y-4">
-                <label className="block text-xs font-bold text-[#374151] uppercase tracking-wide">
-                  Custom Fields
-                </label>
-                <div>
-                  <label className="block text-[10px] font-bold text-[#64748B] mb-1.5 uppercase">Thread Colour</label>
-                  <input
-                    type="text"
-                    value={threadColour}
-                    onChange={(e) => setThreadColour(e.target.value)}
-                    placeholder="e.g. White, Navy Blue, Contrast Gold"
-                    className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                  />
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide">
+                    Stage Custom Properties
+                  </label>
+                  {stageCustomFields.length > 0 && (
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                      {stageCustomFields.length} {stageCustomFields.length === 1 ? "Property" : "Properties"}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-[#64748B] mb-1.5 uppercase">Machine Used</label>
-                  <input
-                    type="text"
-                    value={machineUsed}
-                    onChange={(e) => setMachineUsed(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-xs"
-                  />
-                </div>
+
+                {stageCustomFields.length === 0 ? (
+                  <p className="text-xs text-[var(--text-muted)] italic bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                    No custom properties configured for this stage.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {stageCustomFields.map((field) => (
+                      <div key={field.name}>
+                        <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1 uppercase flex items-center justify-between">
+                          <span>
+                            {field.name} {field.required && <span className="text-red-500">*</span>}
+                          </span>
+                          <span className="text-[9px] font-mono text-[var(--text-faint)] lowercase">({field.type})</span>
+                        </label>
+                        {field.type === "boolean" ? (
+                          <label className="flex items-center gap-2 cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={!!customFieldValues[field.name]}
+                              onChange={(e) =>
+                                setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.checked }))
+                              }
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-xs font-semibold text-[var(--text-primary)]">
+                              {customFieldValues[field.name] ? "Yes / Approved" : "No / Pending"}
+                            </span>
+                          </label>
+                        ) : field.type === "number" ? (
+                          <NumericInput
+                            value={customFieldValues[field.name] || 0}
+                            onChange={(e) =>
+                              setCustomFieldValues((prev) => ({
+                                ...prev,
+                                [field.name]: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                            placeholder={`Enter ${field.name}`}
+                            className="w-full h-9 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                          />
+                        ) : field.type === "date" ? (
+                          <input
+                            type="date"
+                            value={customFieldValues[field.name] || ""}
+                            onChange={(e) =>
+                              setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))
+                            }
+                            className="w-full h-9 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={customFieldValues[field.name] || ""}
+                            onChange={(e) =>
+                              setCustomFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))
+                            }
+                            placeholder={`Enter ${field.name}`}
+                            className="w-full h-9 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

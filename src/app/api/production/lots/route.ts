@@ -595,6 +595,7 @@ export async function POST(request: Request) {
         lot_id: lot.id,
         purchase_roll_id: r.purchase_roll_id,
         allocated_meters: Number(r.allocated_meters),
+        colour_id: r.colour_id || null,
       }));
 
       const { error: lrError } = await supabase

@@ -639,13 +639,12 @@ export default function SaleBillDetailPage() {
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Net Profit Margin (%)</span>
                   <span
-                    className={`font-extrabold text-sm px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                      profit.profit_margin_percent >= 15
+                    className={`font-extrabold text-sm px-2.5 py-0.5 rounded-full flex items-center gap-1 ${profit.profit_margin_percent >= 15
                         ? "bg-[#DCFCE7] text-[#15803D]"
                         : profit.profit_margin_percent >= 5
-                        ? "bg-[#FEF3C7] text-[#D97706]"
-                        : "bg-[#FEE2E2] text-[#DC2626]"
-                    }`}
+                          ? "bg-[#FEF3C7] text-[#D97706]"
+                          : "bg-[#FEE2E2] text-[#DC2626]"
+                      }`}
                   >
                     {profit.profit_margin_percent >= 0 ? (
                       <TrendingUp className="h-3.5 w-3.5" />
@@ -671,7 +670,8 @@ export default function SaleBillDetailPage() {
 
       {/* PRINT-ONLY AREA WITH 4 SYSTEM LAYOUTS */}
       <div id="print-area" className="hidden print:block text-slate-900 bg-white p-8 w-full font-sans">
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @media print {
             body * {
               visibility: hidden;
@@ -687,16 +687,16 @@ export default function SaleBillDetailPage() {
             }
           }
         `}} />
-        
+
         {(() => {
           // Choose template type: classic, modern, compact, traditional_tax_invoice
           const templateType = bill.bill_type === "pakka"
             ? (brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000002" ? "modern" :
-               brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
-               brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic")
+              brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
+                brandConfig?.pakka_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic")
             : (brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000002" ? "modern" :
-               brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
-               brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic");
+              brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000003" ? "compact" :
+                brandConfig?.kacha_template_id === "00000000-0000-0000-0000-000000000004" ? "traditional" : "classic");
 
           const primaryColorVal = brandConfig?.primary_color || "#6366F1";
           const showHsnVal = brandConfig?.show_hsn !== false;
@@ -710,7 +710,7 @@ export default function SaleBillDetailPage() {
               <div className="flex flex-col gap-6 text-sm">
                 {/* Accent Color header line */}
                 <div style={{ backgroundColor: primaryColorVal }} className="h-3 w-full rounded" />
-                
+
                 {/* Header */}
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
@@ -800,7 +800,7 @@ export default function SaleBillDetailPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="w-64 flex flex-col gap-2.5 text-xs text-slate-600">
                     <div className="flex justify-between">
                       <span>Item Subtotal</span>

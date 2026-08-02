@@ -24,38 +24,38 @@ export default function Step3LotSpecifications({
   onNext, onBack,
 }: Props) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-      <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider flex items-center gap-2">
-        <BookOpen className="h-4.5 w-4.5 text-[#6366F1]" />
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4 text-[var(--text-primary)]">
+      <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider flex items-center gap-2">
+        <BookOpen className="h-4.5 w-4.5 text-[var(--primary)]" />
         Step 3: Lot Specifications
       </h3>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Additional Details</label>
+          <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Additional Details</label>
           <textarea
             rows={3}
             value={additionalDetails}
             onChange={(e) => setAdditionalDetails(e.target.value)}
-            className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:ring-2 focus:ring-[#6366F1] resize-none"
+            className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] p-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] resize-none"
             placeholder="Enter basic notes about lot design specs..."
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Design Reference Text</label>
+          <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Design Reference Text</label>
           <textarea
             rows={3}
             value={designReferenceText}
             onChange={(e) => setDesignReferenceText(e.target.value)}
-            className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:ring-2 focus:ring-[#6366F1] resize-none"
+            className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] p-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] resize-none"
             placeholder="Reference specs, size tolerances, seam detail notes..."
           />
         </div>
 
         {/* Photo Upload array */}
         <div className="space-y-2">
-          <label className="block text-xs font-bold text-[#374151] uppercase">Design Reference Photos</label>
+          <label className="block text-xs font-bold text-[var(--text-muted)] uppercase">Design Reference Photos</label>
           <div className="flex flex-wrap items-center gap-4">
             {designReferencePhotos.map((photo, idx) => (
               <ImageUpload
@@ -82,24 +82,24 @@ export default function Step3LotSpecifications({
         </div>
 
         {/* Custom Q&A list */}
-        <div className="space-y-3 pt-3 border-t border-slate-100">
+        <div className="space-y-3 pt-3 border-t border-[var(--border)]">
           <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold text-[#374151] uppercase">Custom Q&A Checklist</label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase">Custom Q&A Checklist</label>
             <button
               type="button"
               onClick={() => setCustomQa([...customQa, { question: "", answer: "" }])}
-              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1 cursor-pointer"
             >
               <Plus size={14} /> Add Q&A Pair
             </button>
           </div>
 
           {customQa.length === 0 ? (
-            <p className="text-xs text-slate-400">No QA points specified yet.</p>
+            <p className="text-xs text-[var(--text-faint)]">No QA points specified yet.</p>
           ) : (
             <div className="space-y-3">
               {customQa.map((qa, idx) => (
-                <div key={idx} className="flex gap-3 items-center bg-slate-50/50 border border-slate-100 p-3 rounded-lg">
+                <div key={idx} className="flex gap-3 items-center bg-[var(--page-bg)] border border-[var(--border)] p-3 rounded-lg">
                   <input
                     type="text"
                     placeholder="Question (e.g. Wash Test Done?)"
@@ -109,7 +109,7 @@ export default function Step3LotSpecifications({
                       copy[idx] = { ...copy[idx], question: e.target.value };
                       setCustomQa(copy);
                     }}
-                    className="flex-1 h-9 rounded border border-slate-200 px-3 text-xs bg-white"
+                    className="flex-1 h-9 rounded border border-[var(--input-border)] px-3 text-xs bg-[var(--input-bg)] text-[var(--text-primary)]"
                   />
                   <input
                     type="text"
@@ -120,12 +120,12 @@ export default function Step3LotSpecifications({
                       copy[idx] = { ...copy[idx], answer: e.target.value };
                       setCustomQa(copy);
                     }}
-                    className="flex-1 h-9 rounded border border-slate-200 px-3 text-xs bg-white"
+                    className="flex-1 h-9 rounded border border-[var(--input-border)] px-3 text-xs bg-[var(--input-bg)] text-[var(--text-primary)]"
                   />
                   <button
                     type="button"
                     onClick={() => setCustomQa(customQa.filter((_, i) => i !== idx))}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-500 hover:text-red-400"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -137,11 +137,11 @@ export default function Step3LotSpecifications({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-4 border-t border-slate-100">
+      <div className="flex justify-between pt-4 border-t border-[var(--border)]">
         <button
           type="button"
           onClick={onBack}
-          className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           <ArrowLeft size={14} />
           Back
@@ -149,7 +149,7 @@ export default function Step3LotSpecifications({
         <button
           type="button"
           onClick={onNext}
-          className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           Next: Size Set & Quantity
           <ChevronRight size={14} />

@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Loader2, Search, Check, ChevronDown, X } from "lucide-react";
 import Link from "next/link";
 import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { cn } from "@/lib/utils";
 
 const returnItemSchema = z.object({
   purchase_item_id: z.string().optional(),
@@ -83,6 +84,20 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
   const [loadingInvoiceDetail, setLoadingInvoiceDetail] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { upload, uploading } = useFileUpload("returns");
+
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [invoiceDropdownOpen, setInvoiceDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setInvoiceDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const isEditMode = !!id;
 
@@ -411,27 +426,117 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                     <span className="text-[10px] text-slate-400 font-normal block mt-0.5">Cannot change original invoice in edit mode</span>
                   </div>
                 ) : (
-                  <select
-                    disabled={loadingPurchases}
-                    {...register("purchase_id", {
-                      onChange: (e) => {
-                        const val = e.target.value;
-                        if (!val) {
-                          setValue("supplier_id", "");
-                          setValue("godown_id", "");
-                          replace([]);
-                        }
-                      },
-                    })}
-                    className="w-full pl-3 pr-7 py-2 border border-[#CBD5E1] rounded-lg text-xs bg-white font-bold text-[#0F172A] truncate cursor-pointer focus:ring-1 focus:ring-[#6366F1]"
-                  >
-                    <option value="">Select Invoice</option>
-                    {purchases.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.purchase_number} (Inv: {p.invoice_no})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      disabled={loadingPurchases}
+                      onClick={() => setInvoiceDropdownOpen((prev) => !prev)}
+                      className="w-full pl-3 pr-8 py-2 border border-[var(--input-border)] rounded-lg text-xs bg-[var(--input-bg)] font-bold text-[var(--text-primary)] text-left flex items-center justify-between cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                    >
+                      <span className="truncate">
+                        {purchases.find((p) => p.id === watchPurchaseId)
+                          ? `${purchases.find((p) => p.id === watchPurchaseId)?.purchase_number} (Inv: ${purchases.find((p) => p.id === watchPurchaseId)?.invoice_no || "N/A"})`
+                          : "Select Invoice..."}
+                      </span>
+                      <ChevronDown size={14} className="text-[var(--text-muted)] shrink-0 ml-1" />
+                    </button>
+
+                    {invoiceDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xl p-2 max-h-72 overflow-hidden flex flex-col">
+                        {/* Search Input Bar */}
+                        <div className="relative mb-2 shrink-0">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="Search by Purchase No, Inv No, Supplier..."
+                            value={invoiceSearchQuery}
+                            onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                            className="w-full pl-8 pr-7 py-1.5 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                          />
+                          {invoiceSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setInvoiceSearchQuery("")}
+                              className="absolute right-2 top-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* List Options */}
+                        <div className="overflow-y-auto space-y-1 flex-1 max-h-52">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setValue("purchase_id", "", { shouldValidate: true });
+                              setValue("supplier_id", "");
+                              setValue("godown_id", "");
+                              replace([]);
+                              setInvoiceDropdownOpen(false);
+                              setInvoiceSearchQuery("");
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 text-xs rounded-lg text-[var(--text-faint)] hover:bg-[var(--table-row-hover)] italic cursor-pointer"
+                          >
+                            Clear selection
+                          </button>
+
+                          {purchases.filter((p) => {
+                            if (!invoiceSearchQuery.trim()) return true;
+                            const q = invoiceSearchQuery.toLowerCase().trim();
+                            const purNo = (p.purchase_number || "").toLowerCase();
+                            const invNo = (p.invoice_no || "").toLowerCase();
+                            const supplierName = (p.supplier?.name || "").toLowerCase();
+                            return purNo.includes(q) || invNo.includes(q) || supplierName.includes(q);
+                          }).length === 0 ? (
+                            <p className="text-xs text-[var(--text-faint)] italic text-center py-3">No matching purchase invoices found</p>
+                          ) : (
+                            purchases
+                              .filter((p) => {
+                                if (!invoiceSearchQuery.trim()) return true;
+                                const q = invoiceSearchQuery.toLowerCase().trim();
+                                const purNo = (p.purchase_number || "").toLowerCase();
+                                const invNo = (p.invoice_no || "").toLowerCase();
+                                const supplierName = (p.supplier?.name || "").toLowerCase();
+                                return purNo.includes(q) || invNo.includes(q) || supplierName.includes(q);
+                              })
+                              .map((p) => {
+                                const isSelected = p.id === watchPurchaseId;
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setValue("purchase_id", p.id, { shouldValidate: true });
+                                      setInvoiceDropdownOpen(false);
+                                      setInvoiceSearchQuery("");
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer",
+                                      isSelected
+                                        ? "bg-indigo-500/10 text-[var(--primary)] font-bold"
+                                        : "hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-medium"
+                                    )}
+                                  >
+                                    <div className="truncate pr-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold">{p.purchase_number}</span>
+                                        <span className="text-[10px] text-[var(--text-muted)] font-mono">({p.invoice_no || "No Inv#"})</span>
+                                      </div>
+                                      {p.supplier?.name && (
+                                        <span className="text-[10px] text-[var(--text-muted)] block truncate">{p.supplier.name}</span>
+                                      )}
+                                    </div>
+                                    {isSelected && <Check size={14} className="text-[var(--primary)] shrink-0" />}
+                                  </button>
+                                );
+                              })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {errors.purchase_id && <p className="text-[10px] text-red-500 mt-1">{errors.purchase_id.message}</p>}
               </div>

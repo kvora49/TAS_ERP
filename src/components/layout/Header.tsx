@@ -26,6 +26,20 @@ interface BrandItem {
   name: string;
 }
 
+const ROUTE_LABELS: Record<string, string> = {
+  reports: "Reports",
+  financial: "Financial Reports",
+  inventory: "Inventory & Stock",
+  sales: "Sales Reports",
+  purchases: "Purchase Reports",
+  payments: "Payment & Finance",
+  production: "Production & Workers",
+  "party-statement": "Party Ledger",
+  analysis: "Executive Analysis",
+  "master-data": "Master Data",
+  stock: "Stock",
+};
+
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
@@ -70,6 +84,7 @@ export default function Header() {
     const parts = pathname.split("/").filter(Boolean);
     if (parts.length === 0) return ["Dashboard"];
     return parts.map((part) =>
+      ROUTE_LABELS[part] ??
       (part || "")
         .split("-")
         .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
@@ -95,19 +110,11 @@ export default function Header() {
           </button>
 
           {/* Logo */}
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={companyName || "Company Logo"}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain bg-white p-0.5 shadow-md shrink-0"
-            />
-          ) : (
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-lg shadow-[#6366F1]/30 shrink-0">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 11.51l3.17 3.17a1 1 0 001.42 0L20 8M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 16H3a1 1 0 01-1-1v-2.5a1 1 0 011-1h1M21 16h1a1 1 0 001-1v-2.5a1 1 0 00-1-1h-1M4 16h16M4 12V8a4 4 0 018 0v4M12 2v2" />
-              </svg>
-            </div>
-          )}
+          <img
+            src={logoUrl || "/logo.png"}
+            alt={companyName || "TAS ERP Logo"}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain bg-white dark:bg-[#1E293B] border border-[var(--border)] p-0.5 shadow-xs shrink-0"
+          />
 
           {/* App title + company name */}
           <div className="flex flex-col justify-center leading-tight min-w-0">

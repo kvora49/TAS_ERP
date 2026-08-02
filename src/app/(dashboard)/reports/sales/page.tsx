@@ -213,7 +213,7 @@ export default function SalesReportsPage() {
                             <td className="py-2 px-4 text-right font-mono text-emerald-500">{fmtINR(b.paid_amount)}</td>
                             <td className="py-2 px-4 text-right font-mono text-rose-500">{fmtINR(b.outstanding)}</td>
                             <td className="py-2 px-4">
-                              <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "bg-slate-100 text-slate-600 border-slate-200")}>
+                              <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "bg-[var(--badge-draft-bg)] text-[var(--badge-draft-text)] border-transparent")}>
                                 {b.payment_status}
                               </span>
                             </td>

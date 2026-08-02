@@ -53,7 +53,7 @@ export default function CreateLotPage() {
   const debouncedRollSearch = useDebounce(rollSearch, 300);
   const [allocatedRolls, setAllocatedRolls] = useState<Array<{
     purchase_roll_id: string; roll_number: string; shade: string; material_name: string;
-    supplier_name: string; remaining_meters: number; allocated_meters: number; rate: number;
+    supplier_name: string; remaining_meters: number; allocated_meters: number; rate: number; colour_id?: string;
   }>>([]);
   const [allocating, setAllocating] = useState(false);
 
@@ -306,6 +306,34 @@ export default function CreateLotPage() {
   const totalAllocatedMeters = allocatedRolls.reduce((acc, r) => acc + r.allocated_meters, 0);
   const suggestedPieces = averageMeter > 0 ? Math.floor(totalAllocatedMeters / averageMeter) : 0;
 
+  const getColorAllocatedMeters = () => {
+    const map: Record<string, number> = {};
+    selectedColours.forEach((c) => { map[c.id] = 0; });
+    allocatedRolls.forEach((r) => {
+      let targetColourId = r.colour_id;
+      if (!targetColourId && r.shade) {
+        const match = selectedColours.find(
+          (c) => c.colour_name.trim().toLowerCase() === r.shade.trim().toLowerCase()
+        );
+        if (match) targetColourId = match.id;
+      }
+      if (targetColourId && map[targetColourId] !== undefined) {
+        map[targetColourId] += r.allocated_meters;
+      }
+    });
+    return map;
+  };
+
+  const getColorSuggestedPieces = () => {
+    const map: Record<string, number> = {};
+    const colorMeters = getColorAllocatedMeters();
+    if (averageMeter <= 0) return map;
+    selectedColours.forEach((c) => {
+      map[c.id] = Math.floor((colorMeters[c.id] || 0) / averageMeter);
+    });
+    return map;
+  };
+
   const getTotalQuantity = () => {
     if (useSameColours) {
       const sum = Object.values(sizeQuantities["all"] || {}).reduce((a, b) => a + b, 0);
@@ -339,6 +367,12 @@ export default function CreateLotPage() {
       r.purchase_roll_id === rollId
         ? { ...r, allocated_meters: Math.min(r.remaining_meters, Math.max(0, meters)) }
         : r
+    ));
+  };
+
+  const handleRollColourChange = (rollId: string, colourId: string) => {
+    setAllocatedRolls(allocatedRolls.map((r) =>
+      r.purchase_roll_id === rollId ? { ...r, colour_id: colourId } : r
     ));
   };
 
@@ -393,17 +427,39 @@ export default function CreateLotPage() {
   const handlePrefillSizeQuantities = () => {
     if (suggestedPieces <= 0) { toast.error("Please configure roll allocation and non-zero average meter consumption"); return; }
     if (availableSizes.length === 0) { toast.error("No size set config available"); return; }
-    const share = Math.floor(suggestedPieces / (availableSizes.length || 1));
-    const initQty: Record<string, number> = {};
-    availableSizes.forEach((s, idx) => { initQty[s] = idx === 0 ? share + (suggestedPieces % availableSizes.length) : share; });
+
+    const numColours = selectedColours.length || 1;
+
     if (useSameColours) {
+      // Split overall total target suggestedPieces across the colors so total lot quantity == suggestedPieces exactly!
+      const perColourTarget = Math.floor(suggestedPieces / numColours);
+      const share = Math.floor(perColourTarget / (availableSizes.length || 1));
+      const remainder = perColourTarget % availableSizes.length;
+      const initQty: Record<string, number> = {};
+      availableSizes.forEach((s, idx) => {
+        initQty[s] = idx === 0 ? share + remainder : share;
+      });
       setSizeQuantities({ "all": initQty });
     } else {
+      const colorPiecesMap = getColorSuggestedPieces();
+      const hasShadeMappings = Object.values(colorPiecesMap).some((pcs) => pcs > 0);
       const next: Record<string, Record<string, number>> = {};
-      selectedColours.forEach((c) => { next[c.id] = { ...initQty }; });
+
+      selectedColours.forEach((c) => {
+        const targetPcs = hasShadeMappings
+          ? (colorPiecesMap[c.id] || 0)
+          : Math.floor(suggestedPieces / numColours);
+        const share = Math.floor(targetPcs / (availableSizes.length || 1));
+        const remainder = targetPcs % availableSizes.length;
+        const initQty: Record<string, number> = {};
+        availableSizes.forEach((s, idx) => {
+          initQty[s] = idx === 0 ? share + remainder : share;
+        });
+        next[c.id] = initQty;
+      });
       setSizeQuantities(next);
     }
-    toast.success("Distributed suggested piece count across size categories");
+    toast.success("Distributed suggested piece count across size categories!");
   };
 
   const handleAddWorker = (idx: number, workerId: string) => {
@@ -499,7 +555,11 @@ export default function CreateLotPage() {
         customer_ref: customerRef || null, po_date: poDate || null,
         total_quantity: totalQuantity, garment_type_id: garmentTypeId,
         design_type: designType || null, lot_name: lotName || null,
-        allocated_rolls: allocatedRolls.map((r) => ({ purchase_roll_id: r.purchase_roll_id, allocated_meters: r.allocated_meters })),
+        allocated_rolls: allocatedRolls.map((r) => ({
+          purchase_roll_id: r.purchase_roll_id,
+          allocated_meters: r.allocated_meters,
+          colour_id: r.colour_id || null,
+        })),
         specifications: { additional_details: additionalDetails, design_reference_text: designReferenceText, design_reference_photos: designReferencePhotos, custom_qa: customQa },
         spec_sheet: specSheetTemplate ? { template_id: specSheetTemplate.id, spec_values: specSheetValues } : null,
         sizes: sizesToSave, stages: assignedStages,

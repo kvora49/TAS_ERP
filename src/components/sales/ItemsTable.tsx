@@ -540,10 +540,10 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
   </div>
 
       {/* 3. Added Line Items Table */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+      <div className="border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow-sm)] bg-[var(--card-bg)]">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+            <tr className="border-b border-[var(--border)] bg-[var(--table-header-bg)] font-bold text-[var(--text-muted)] uppercase tracking-wider text-[11px]">
               <th className="p-3.5 pl-4">Design Code</th>
               <th className="p-3.5">Design Name</th>
               <th className="p-3.5">Colour</th>
@@ -556,7 +556,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
               <th className="p-3.5 text-center">Remove</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--border)] bg-[var(--card-bg)]">
             {state.items.map((it: any, index: number) => {
               const isFabric = it.item_type === "fabric" || !!it.material_type_id;
               const matchedDesign = designs.find((d) => d.id === it.design_id);
@@ -577,15 +577,15 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                 : matchedDesign?.design_colours?.find((c: any) => c.id === it.colour_id)?.colour_name || "Default";
 
               return (
-                <tr key={it.id || index} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3 pl-4 font-mono font-bold text-indigo-600">{designCode}</td>
-                  <td className="p-3 font-semibold text-slate-800">
+                <tr key={it.id || index} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                  <td className="p-3 pl-4 font-mono font-bold text-[var(--primary)]">{designCode}</td>
+                  <td className="p-3 font-semibold text-[var(--text-primary)]">
                     <div>
                       <span>{designName}</span>
                       {isFabric && it.rolls && it.rolls.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {it.rolls.map((r: any, rIdx: number) => (
-                            <span key={rIdx} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[10px] font-mono font-bold text-indigo-700">
+                            <span key={rIdx} className="px-1.5 py-0.5 bg-[var(--primary-light)] border border-[var(--border)] rounded text-[10px] font-mono font-bold text-[var(--primary)]">
                               Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
                             </span>
                           ))}
@@ -593,9 +593,9 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                       )}
                     </div>
                   </td>
-                  <td className="p-3 text-slate-600">{colourName}</td>
-                  <td className="p-3 font-bold text-slate-700">
-                    <span className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
+                  <td className="p-3 text-[var(--text-muted)]">{colourName}</td>
+                  <td className="p-3 font-bold text-[var(--text-primary)]">
+                    <span className="inline-block bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded text-[11px]">
                       {isFabric ? "Meters" : it.size || "Pcs"}
                     </span>
                   </td>
@@ -607,7 +607,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                       value={it.quantity}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleItemQtyChange(index, parseFloat(e.target.value) || 1)}
-                      className="w-20 h-8 px-2 text-right border border-slate-200 rounded font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                      className="w-20 h-8 px-2 text-right border border-[var(--input-border)] rounded font-bold text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)]"
                     />
                   </td>
                   <td className="p-2 text-right">
@@ -618,17 +618,17 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                       value={it.rate}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleItemRateChange(index, parseFloat(e.target.value) || 0)}
-                      className="w-20 h-8 px-2 text-right border border-slate-200 rounded font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                      className="w-20 h-8 px-2 text-right border border-[var(--input-border)] rounded font-medium text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)]"
                     />
                   </td>
-                  <td className="p-3 text-right text-slate-600">{it.discount_percent}%</td>
-                  <td className="p-3 text-right text-slate-600">{it.tax_percent}%</td>
-                  <td className="p-3 text-right font-extrabold text-slate-900">₹{(Number(it.amount) || 0).toFixed(2)}</td>
+                  <td className="p-3 text-right text-[var(--text-muted)]">{it.discount_percent}%</td>
+                  <td className="p-3 text-right text-[var(--text-muted)]">{it.tax_percent}%</td>
+                  <td className="p-3 text-right font-extrabold text-[var(--text-primary)]">₹{(Number(it.amount) || 0).toFixed(2)}</td>
                   <td className="p-3 text-center">
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(index)}
-                      className="p-1 hover:bg-red-50 text-red-500 rounded-md transition-colors cursor-pointer"
+                      className="p-1 hover:bg-red-500/10 text-red-500 rounded-md transition-colors cursor-pointer"
                       title="Remove Line"
                     >
                       <Trash2 size={15} />
@@ -639,7 +639,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             })}
             {state.items.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-slate-400 italic">
+                <td colSpan={10} className="p-8 text-center text-[var(--text-faint)] italic">
                   No items added yet. Select a design or click &quot;+ Sell Fabric Rolls&quot; above to add invoice items.
                 </td>
               </tr>

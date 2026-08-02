@@ -47,7 +47,8 @@ export async function GET(request: Request) {
         party:parties!party_id(id, name)
       `)
       .eq("business_id", businessId)
-      .order("income_date", { ascending: false });
+      .order("income_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

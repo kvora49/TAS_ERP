@@ -20,7 +20,8 @@ export async function GET(request: Request) {
         worker:workers(id, name, worker_id)
       `)
       .eq("business_id", businessId)
-      .order("payment_date", { ascending: false });
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (workerId) {
       query = query.eq("worker_id", workerId);

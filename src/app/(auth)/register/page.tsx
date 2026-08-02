@@ -184,21 +184,11 @@ export default function RegisterPage() {
         <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[#6366F1] flex items-center justify-center shadow-lg shadow-[#6366F1]/30 animate-pulse">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 11.51l3.17 3.17a1 1 0 001.42 0L20 8M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 16H3a1 1 0 01-1-1v-2.5a1 1 0 011-1h1M21 16h1a1 1 0 001-1v-2.5a1 1 0 00-1-1h-1M4 16h16M4 12V8a4 4 0 018 0v4M12 2v2"
-                />
-              </svg>
-            </div>
+            <img
+              src="/logo.png"
+              alt="TAS ERP Logo"
+              className="w-12 h-12 rounded-2xl object-contain bg-white p-1 shadow-xl animate-pulse"
+            />
             <span className="font-bold text-2xl tracking-wider">TAS ERP</span>
           </div>
 
@@ -229,21 +219,11 @@ export default function RegisterPage() {
 
         {/* Top: Logo */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-[#6366F1] flex items-center justify-center shadow-lg shadow-[#6366F1]/30">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 11.51l3.17 3.17a1 1 0 001.42 0L20 8M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 16H3a1 1 0 01-1-1v-2.5a1 1 0 011-1h1M21 16h1a1 1 0 001-1v-2.5a1 1 0 00-1-1h-1M4 16h16M4 12V8a4 4 0 018 0v4M12 2v2"
-              />
-            </svg>
-          </div>
+          <img
+            src="/logo.png"
+            alt="TAS ERP Logo"
+            className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 shadow-md shrink-0"
+          />
           <div>
             <span className="font-bold text-lg tracking-wider">TAS ERP</span>
             <p className="text-xs text-[#94A3B8] font-medium leading-none mt-0.5">

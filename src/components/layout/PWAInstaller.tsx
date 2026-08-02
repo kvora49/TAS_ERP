@@ -10,9 +10,15 @@ export default function PWAInstaller() {
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Register Service Worker
+    // Register Service Worker and check for deployment updates
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          // Check for service worker updates immediately on page load
+          reg.update().catch(() => {});
+        })
+        .catch(() => {});
     }
 
     const handleBeforeInstall = (e: Event) => {
@@ -58,8 +64,8 @@ export default function PWAInstaller() {
       {/* PWA Install Banner */}
       {showPrompt && isOnline && (
         <div className="fixed bottom-20 md:bottom-6 right-6 z-50 bg-[var(--card-bg)] border border-[var(--primary)] rounded-xl p-4 shadow-xl max-w-sm flex items-center gap-3 select-none">
-          <div className="p-2.5 rounded-lg bg-[var(--primary-light)] text-[var(--primary)]">
-            <Download className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-[var(--border)] p-0.5 shadow-xs flex items-center justify-center shrink-0">
+            <img src="/logo.png" alt="TAS ERP Logo" className="w-full h-full object-contain" />
           </div>
           <div className="flex-1 text-xs">
             <h4 className="font-bold text-[var(--text-primary)]">Install TAS ERP App</h4>

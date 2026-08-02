@@ -12,7 +12,7 @@ export function TableSkeleton({
   rowHeightClass = "h-16",
 }: TableSkeletonProps) {
   return (
-    <div className="w-full divide-y divide-[#E5E7EB]">
+    <div className="w-full divide-y divide-[var(--border)] bg-[var(--card-bg)]">
       {Array.from({ length: rowCount }).map((_, rIdx) => (
         <div
           key={rIdx}
@@ -26,7 +26,7 @@ export function TableSkeleton({
                 maxWidth: cIdx === 0 ? "80px" : "none", // narrower for first col if needed
               }}
             >
-              <div className="h-4 bg-[#E5E7EB] rounded w-[85%] animate-pulse" />
+              <div className="h-4 bg-[var(--skeleton-base)] rounded w-[85%] animate-shimmer" />
             </div>
           ))}
         </div>

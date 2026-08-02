@@ -1,6 +1,53 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+async function resolveOptionalTemplateId(supabase: any, businessId: string, requestedTemplateId?: string | null): Promise<string | null> {
+  if (requestedTemplateId) return requestedTemplateId;
+
+  try {
+    // 1. Try finding default template
+    const { data: defaultTemp } = await supabase
+      .from("production_templates")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("is_default", true)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (defaultTemp?.id) return defaultTemp.id;
+
+    // 2. Try finding ANY active template for this business
+    const { data: anyTemp } = await supabase
+      .from("production_templates")
+      .select("id")
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (anyTemp?.id) return anyTemp.id;
+
+    // 3. Auto-create default template for this business
+    const { data: newTemp } = await supabase
+      .from("production_templates")
+      .insert({
+        business_id: businessId,
+        name: "Default Garment Flow",
+        description: "Standard master production workflow template",
+        is_default: true,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    return newTemp?.id || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const supabase = createClient();
   
@@ -10,40 +57,26 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  let templateId = searchParams.get("template_id");
+  const requestedTemplateId = searchParams.get("template_id");
 
   try {
-    if (!templateId) {
-      const { data: defaultTemp } = await supabase
-        .from("production_templates")
-        .select("id")
-        .eq("business_id", businessId)
-        .eq("is_default", true)
-        .is("deleted_at", null)
-        .limit(1)
-        .single();
-      if (defaultTemp) {
-        templateId = defaultTemp.id;
-      }
-    }
-
-    if (!templateId) {
-      return NextResponse.json({ error: "No production templates found" }, { status: 404 });
-    }
-
-    const { data: stages, error } = await supabase
+    let query = supabase
       .from("production_stages")
       .select("*")
       .eq("business_id", businessId)
-      .eq("template_id", templateId)
-      .is("deleted_at", null)
-      .order("order_index", { ascending: true });
+      .is("deleted_at", null);
+
+    if (requestedTemplateId) {
+      query = query.eq("template_id", requestedTemplateId);
+    }
+
+    const { data: stages, error } = await query.order("order_index", { ascending: true });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ stages });
+    return NextResponse.json({ stages: stages || [] });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -62,8 +95,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, description, icon, color, custom_fields, is_active } = body;
-    let { template_id } = body;
+    const { name, description, icon, color, custom_fields, is_active, template_id: requestedTemplateId } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -72,32 +104,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve template_id if not supplied
-    if (!template_id) {
-      const { data: defaultTemp } = await supabase
-        .from("production_templates")
-        .select("id")
-        .eq("business_id", businessId)
-        .eq("is_default", true)
-        .is("deleted_at", null)
-        .limit(1)
-        .single();
-      if (defaultTemp) {
-        template_id = defaultTemp.id;
-      }
-    }
+    const template_id = await resolveOptionalTemplateId(supabase, businessId, requestedTemplateId);
 
-    if (!template_id) {
-      return NextResponse.json({ error: "No production template specified or found" }, { status: 400 });
-    }
-
-    // Get max order_index in this template to append this stage at the end
-    const { data: maxOrderData } = await supabase
+    // Get max order_index for this business (and optional template_id) to append this stage at the end
+    let maxOrderQuery = supabase
       .from("production_stages")
       .select("order_index")
       .eq("business_id", businessId)
-      .eq("template_id", template_id)
-      .is("deleted_at", null)
+      .is("deleted_at", null);
+
+    if (template_id) {
+      maxOrderQuery = maxOrderQuery.eq("template_id", template_id);
+    }
+
+    const { data: maxOrderData } = await maxOrderQuery
       .order("order_index", { ascending: false })
       .limit(1);
 
@@ -106,20 +126,25 @@ export async function POST(request: Request) {
         ? (maxOrderData[0].order_index || 0) + 1
         : 1;
 
+    const insertPayload: any = {
+      business_id: businessId,
+      name,
+      description: description || null,
+      icon: icon || null,
+      color: color || null,
+      order_index: nextOrderIndex,
+      sort_order: nextOrderIndex,
+      custom_fields: custom_fields || [],
+      is_active: is_active !== false,
+    };
+
+    if (template_id) {
+      insertPayload.template_id = template_id;
+    }
+
     const { data: stage, error } = await supabase
       .from("production_stages")
-      .insert({
-        business_id: businessId,
-        template_id,
-        name,
-        description: description || null,
-        icon: icon || null,
-        color: color || null,
-        order_index: nextOrderIndex,
-        sort_order: nextOrderIndex, // sync sort_order too
-        custom_fields: custom_fields || [],
-        is_active: is_active !== false,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 

@@ -30,7 +30,9 @@ export async function GET(request: Request) {
       query = query.lte("dn_date", endDate);
     }
 
-    const { data: debitNotes, error } = await query.order("dn_date", { ascending: false });
+    const { data: debitNotes, error } = await query
+      .order("dn_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

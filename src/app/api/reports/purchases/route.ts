@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
         .is("deleted_at", null)
         .gte("invoice_date", from)
         .lte("invoice_date", to)
-        .order("invoice_date", { ascending: false }),
+        .order("invoice_date", { ascending: false })
+        .order("created_at", { ascending: false }),
 
       // Finished goods purchases
       supabase
@@ -44,7 +45,8 @@ export async function GET(req: NextRequest) {
         .neq("status", "cancelled")
         .gte("invoice_date", from)
         .lte("invoice_date", to)
-        .order("invoice_date", { ascending: false }),
+        .order("invoice_date", { ascending: false })
+        .order("created_at", { ascending: false }),
     ]);
 
     const rawPurchases = (rawResult.data ?? []).map(p => ({ ...p, purchase_type: "raw_material" as const }));

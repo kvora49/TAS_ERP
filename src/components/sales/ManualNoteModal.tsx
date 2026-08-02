@@ -96,6 +96,8 @@ export function ManualNoteModal({
           party_id: selectedPartyId,
           note_type: noteType,
           date,
+          dn_date: date,
+          cn_date: date,
           amount: numAmount,
           reason: `${reasonCategory}${remarks ? ": " + remarks : ""}`,
           is_manual: true,

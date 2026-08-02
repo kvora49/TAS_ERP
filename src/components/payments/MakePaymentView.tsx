@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, Wallet } from "lucide-react";
+import { ArrowLeft, Save, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import PageState from "@/components/shared/PageState";
@@ -74,11 +74,11 @@ export default function MakePaymentView({
     }
   }, [bankAccounts, bankAccountId]);
 
-  // Fetch outstanding bills when payee is selected
-  const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: OutstandingBill[] }>({
+  // Fetch outstanding bills and available debit notes when payee is selected
+  const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: OutstandingBill[]; debitNotes?: any[] }>({
     queryKey: ["outstanding-bills-make", selectedPayeeId],
     queryFn: async () => {
-      if (!selectedPayeeId) return { bills: [] };
+      if (!selectedPayeeId) return { bills: [], debitNotes: [] };
       const res = await fetch(`/api/payments/make?party_id=${selectedPayeeId}`);
       if (!res.ok) throw new Error("Failed to load outstanding purchase bills");
       return res.json();
@@ -87,6 +87,15 @@ export default function MakePaymentView({
   });
 
   const outstandingBills = billsData?.bills || [];
+  const availableDebitNotes = billsData?.debitNotes || [];
+  const [selectedDebitNoteIds, setSelectedDebitNoteIds] = useState<string[]>([]);
+
+  // Compute total selected debit note credit amount
+  const totalDebitNotesApplied = availableDebitNotes
+    .filter((dn) => selectedDebitNoteIds.includes(dn.id))
+    .reduce((sum, dn) => sum + Number(dn.available_amount || 0), 0);
+
+  const totalEffectivePool = Number(amountPaid || 0) + totalDebitNotesApplied;
 
   // Fetch payee running balance from ledger
   useEffect(() => {
@@ -112,9 +121,16 @@ export default function MakePaymentView({
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPayeeId) throw new Error("Please select a supplier or job worker");
-      if (amountPaid <= 0 && allocations.length === 0) {
-        throw new Error("Please enter a valid amount or select bills to allocate");
+      if (amountPaid <= 0 && allocations.length === 0 && selectedDebitNoteIds.length === 0) {
+        throw new Error("Please enter a valid amount or select bills/debit notes to allocate");
       }
+
+      const debitNoteAllocations = availableDebitNotes
+        .filter((dn) => selectedDebitNoteIds.includes(dn.id))
+        .map((dn) => ({
+          debit_note_id: dn.id,
+          amount: dn.available_amount,
+        }));
 
       const payload = {
         party_id: selectedPayeeId,
@@ -125,6 +141,7 @@ export default function MakePaymentView({
         bank_account_id: bankAccountId,
         remarks,
         allocations,
+        debit_note_allocations: debitNoteAllocations,
       };
 
       const res = await fetch("/api/payments/make", {
@@ -160,14 +177,26 @@ export default function MakePaymentView({
         {/* Card Header & Controls */}
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-            <div>
-              <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-amber-500" />
-                Make Payment (Supplier / Job Worker)
-              </h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Record outward payment to supplier or worker, allocate against raw material purchases, purchase bills, or job work entries.
-              </p>
+            <div className="flex items-center gap-3">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)] hover:text-[var(--text-primary)] transition-colors"
+                  title="Back to Payments"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              <div>
+                <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-amber-500" />
+                  Make Payment (Supplier / Job Worker)
+                </h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Record outward payment to supplier or worker, allocate against raw material purchases, purchase bills, or job work entries.
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -302,6 +331,55 @@ export default function MakePaymentView({
           </div>
         </div>
 
+        {/* Standalone Debit Notes Knock-Off Section */}
+        {selectedPayeeId && availableDebitNotes.length > 0 && (
+          <div className="bg-[var(--card-bg)] border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                <span>Available Standalone Debit Notes ({availableDebitNotes.length})</span>
+                {totalDebitNotesApplied > 0 && (
+                  <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    +₹{totalDebitNotesApplied.toLocaleString("en-IN")} Credit Applied
+                  </span>
+                )}
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {availableDebitNotes.map((dn: any) => {
+                const isSelected = selectedDebitNoteIds.includes(dn.id);
+                return (
+                  <div
+                    key={dn.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedDebitNoteIds(selectedDebitNoteIds.filter((id) => id !== dn.id));
+                      } else {
+                        setSelectedDebitNoteIds([...selectedDebitNoteIds, dn.id]);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      isSelected
+                        ? "bg-amber-50/60 dark:bg-amber-950/30 border-amber-400 ring-1 ring-amber-400"
+                        : "bg-[var(--page-bg)] border-[var(--border)] hover:border-amber-300"
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-[var(--text-primary)]">{dn.dn_number}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">{dn.reason || "Manual Debit Note"}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-extrabold text-amber-700 dark:text-amber-400">
+                        ₹{Number(dn.available_amount).toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[9px] font-semibold text-[var(--text-muted)]">Available</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Bill Allocation Section */}
         {selectedPayeeId && (
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
@@ -320,7 +398,7 @@ export default function MakePaymentView({
             ) : (
               <BillAllocationTable
                 bills={outstandingBills}
-                paymentAmount={amountPaid}
+                paymentAmount={totalEffectivePool}
                 onAllocationChange={setAllocations}
               />
             )}

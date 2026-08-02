@@ -31,27 +31,27 @@ export default function Step4SizeQuantity({
   onNext, onBack,
 }: Props) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-      <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
-        <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
-          <Boxes className="h-4.5 w-4.5 text-[#6366F1]" />
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4 text-[var(--text-primary)]">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+          <Boxes className="h-4.5 w-4.5 text-[var(--primary)]" />
           Step 4: Size Set & Quantities
         </h3>
       </div>
 
       <div className="space-y-4">
         {/* Average meter calculator */}
-        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
-          <h4 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-2">
-            <Info size={14} className="text-indigo-600" />
+        <div className="p-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl space-y-3">
+          <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase flex items-center gap-2">
+            <Info size={14} className="text-[var(--primary)]" />
             Auto-estimate Size Quantities from Allocated fabric
           </h4>
-          <p className="text-[11px] text-slate-500 leading-normal">
-            You have allocated <strong>{totalAllocatedMeters.toFixed(2)} meters</strong> of fabric. Enter the average fabric requirement per piece to calculate suggested quantity.
+          <p className="text-[11px] text-[var(--text-muted)] leading-normal">
+            You have allocated <strong className="text-[var(--text-primary)]">{totalAllocatedMeters.toFixed(2)} meters</strong> of fabric. Enter the average fabric requirement per piece to calculate suggested quantity.
           </p>
           <div className="flex items-center gap-3">
             <div className="flex-1 max-w-xs">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Average Meter / Pc</label>
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">Average Meter / Pc</label>
               <input
                 type="number"
                 min="0"
@@ -59,7 +59,7 @@ export default function Step4SizeQuantity({
                 value={averageMeter || ""}
                 onChange={(e) => setAverageMeter(parseFloat(e.target.value) || 0)}
                 placeholder="e.g. 1.6"
-                className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs"
+                className="w-full h-9 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-xs"
               />
             </div>
             <div className="flex items-end gap-2 h-16 pt-5">
@@ -67,7 +67,7 @@ export default function Step4SizeQuantity({
                 type="button"
                 onClick={onFetchHistoricalAvg}
                 disabled={calculatingAvg}
-                className="h-9 px-3 border border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                className="h-9 px-3 border border-[var(--border)] bg-[var(--primary-light)] text-[var(--primary)] text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
               >
                 {calculatingAvg ? "Loading..." : "Suggest from History"}
               </button>
@@ -75,7 +75,7 @@ export default function Step4SizeQuantity({
                 type="button"
                 onClick={onPrefillSizeQuantities}
                 disabled={suggestedPieces <= 0}
-                className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                className="h-9 px-3 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50"
               >
                 Prefill Distribute ({suggestedPieces} Pcs)
               </button>
@@ -84,17 +84,17 @@ export default function Step4SizeQuantity({
         </div>
 
         {/* Same colours toggle */}
-        <div className="flex items-center justify-between bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
-          <span className="text-xs font-bold text-slate-700">Multi-Colour Sizing Config</span>
+        <div className="flex items-center justify-between bg-[var(--page-bg)] p-2.5 rounded-lg border border-[var(--border)]">
+          <span className="text-xs font-bold text-[var(--text-primary)]">Multi-Colour Sizing Config</span>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="useSameColours"
               checked={useSameColours}
               onChange={(e) => { setUseSameColours(e.target.checked); setSizeQuantities({}); }}
-              className="h-4.5 w-4.5 rounded border-[#E5E7EB] text-[#6366F1]"
+              className="h-4.5 w-4.5 rounded border-[var(--input-border)] text-[var(--primary)] cursor-pointer"
             />
-            <label htmlFor="useSameColours" className="text-xs text-[#64748B] font-semibold select-none cursor-pointer">
+            <label htmlFor="useSameColours" className="text-xs text-[var(--text-muted)] font-semibold select-none cursor-pointer">
               Use same size quantities for all colours
             </label>
           </div>
@@ -102,7 +102,7 @@ export default function Step4SizeQuantity({
 
         {/* Sizing grids */}
         {availableSizes.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-400">Please select design size set template.</div>
+          <div className="py-6 text-center text-xs text-[var(--text-faint)]">Please select design size set template.</div>
         ) : useSameColours ? (
           <SizeQuantityMatrix
             sizes={availableSizes}
@@ -118,7 +118,7 @@ export default function Step4SizeQuantity({
           <div className="space-y-4">
             {selectedColours.map((colour) => (
               <div key={colour.id} className="space-y-1.5">
-                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2 px-1">
+                <h5 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-2 px-1">
                   {colour.colour_hex && (
                     <span className="w-3.5 h-3.5 rounded-full border border-white" style={{ backgroundColor: colour.colour_hex }} />
                   )}
@@ -141,11 +141,11 @@ export default function Step4SizeQuantity({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-4 border-t border-slate-100">
+      <div className="flex justify-between pt-4 border-t border-[var(--border)]">
         <button
           type="button"
           onClick={onBack}
-          className="border border-[#E5E7EB] hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           <ArrowLeft size={14} />
           Back
@@ -153,7 +153,7 @@ export default function Step4SizeQuantity({
         <button
           type="button"
           onClick={onNext}
-          className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
         >
           Next: Assign Stages
           <ChevronRight size={14} />

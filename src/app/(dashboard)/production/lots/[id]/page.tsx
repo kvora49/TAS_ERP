@@ -510,7 +510,18 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                             <tr key={entry.id} className="hover:bg-[#F9FAFB] text-xs">
                               <td className="py-3 px-3 text-[#64748B] font-medium">{idx + 1}</td>
                               <td className="py-3 px-3 font-semibold text-[#374151]">
-                                {entry.stage?.stage_name || "—"}
+                                <div>
+                                  <span>{entry.stage?.stage_name || "—"}</span>
+                                  {entry.custom_field_values && Object.keys(entry.custom_field_values).length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {Object.entries(entry.custom_field_values).map(([k, v]) => (
+                                        <span key={k} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[9px] font-mono font-bold text-indigo-700">
+                                          {k}: {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 px-3">{entry.entry_date}</td>
                               <td className="py-3 px-3 text-right font-medium">{entry.qty_in}</td>

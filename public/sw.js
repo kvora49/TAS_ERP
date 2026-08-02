@@ -1,11 +1,10 @@
-const CACHE_NAME = "tas-erp-pwa-v1";
+const CACHE_NAME = "tas-erp-pwa-v2";
 const STATIC_ASSETS = [
-  "/",
   "/manifest.json",
-  "/globals.css",
-  "/scan",
+  "/favicon.ico",
 ];
 
+// Always activate immediately on new deployment
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -15,6 +14,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+// Delete old cache versions upon activation
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -33,32 +33,40 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Network-first for API requests
-  if (url.pathname.startsWith("/api/")) {
+  // Skip non-GET requests
+  if (event.request.method !== "GET") return;
+
+  // Network-First for API routes, Next.js internal routes (_next), and HTML navigation
+  const isApi = url.pathname.startsWith("/api/");
+  const isNextInternal = url.pathname.startsWith("/_next/");
+  const isNavigation = event.request.mode === "navigate";
+
+  if (isApi || isNextInternal || isNavigation) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request);
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          return networkResponse;
+        })
+        .catch(() => {
+          // If network fails (offline), attempt cache fallback
+          return caches.match(event.request);
+        })
     );
     return;
   }
 
-  // Stale-while-revalidate for pages and static assets
+  // Network-First for static assets to avoid stale bundle issues
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

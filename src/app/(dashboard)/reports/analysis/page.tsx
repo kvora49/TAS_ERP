@@ -31,7 +31,7 @@ export default function AnalysisPage() {
 
   // Sales data
   const salesQuery = useQuery({
-    queryKey: ["analysis-sales", from, to],
+    queryKey: ["reports", "sales", { from, to }],
     queryFn: async () => {
       const res = await fetch(`/api/reports/sales?from=${from}&to=${to}`);
       if (!res.ok) throw new Error("Failed");
@@ -42,7 +42,7 @@ export default function AnalysisPage() {
 
   // Financial data
   const finQuery = useQuery({
-    queryKey: ["analysis-financial", from, to],
+    queryKey: ["reports", "financial", { from, to }],
     queryFn: async () => {
       const res = await fetch(`/api/reports/financial?from=${from}&to=${to}`);
       if (!res.ok) throw new Error("Failed");
@@ -53,7 +53,7 @@ export default function AnalysisPage() {
 
   // Inventory data
   const invQuery = useQuery({
-    queryKey: ["analysis-inventory"],
+    queryKey: ["reports", "inventory", "valuation"],
     queryFn: async () => {
       const res = await fetch(`/api/reports/inventory?tab=valuation`);
       if (!res.ok) throw new Error("Failed");

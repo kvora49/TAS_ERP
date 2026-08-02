@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   try {
     if (partyId) {
       // 1. Fetch Outstanding Bills for specific party
-      const [saleBillsRes, rmPurchasesRes, fgPurchasesRes, jobWorkRes, creditNotesRes, debitNotesRes, advancesRes] = await Promise.all([
+      const [saleBillsRes, rmPurchasesRes, fgPurchasesRes, jobWorkRes, creditNotesRes, debitNotesRes, advancesRes, salesReturnsRes, purchaseReturnsRes] = await Promise.all([
         supabase
           .from("sale_bills")
           .select("id, bill_number, bill_date, due_date, grand_total, paid_amount, payment_status")
@@ -51,13 +51,13 @@ export async function GET(request: Request) {
 
         supabase
           .from("credit_notes")
-          .select("id, cn_number, cn_date, amount, reason")
+          .select("id, cn_number, cn_date, amount, reason, return_id")
           .eq("party_id", partyId)
           .eq("business_id", businessId),
 
         supabase
           .from("debit_notes")
-          .select("id, dn_number, dn_date, amount, reason")
+          .select("id, dn_number, dn_date, amount, reason, related_purchase_return_id")
           .eq("party_id", partyId)
           .eq("business_id", businessId),
 
@@ -66,45 +66,92 @@ export async function GET(request: Request) {
           .select("id, advance_amount, settled_amount, remaining_amount")
           .eq("party_id", partyId)
           .eq("business_id", businessId)
-          .eq("is_settled", false)
+          .eq("is_settled", false),
+
+        supabase
+          .from("sales_returns")
+          .select("id, original_bill_id, grand_total")
+          .eq("party_id", partyId)
+          .eq("business_id", businessId)
+          .neq("status", "cancelled"),
+
+        supabase
+          .from("purchase_returns")
+          .select("id, purchase_id, grand_total")
+          .eq("supplier_id", partyId)
+          .eq("business_id", businessId)
+          .neq("status", "cancelled")
+          .is("deleted_at", null),
       ]);
+
+      const salesReturnsMap: Record<string, number> = {};
+      (salesReturnsRes.data || []).forEach((r) => {
+        if (r.original_bill_id) {
+          salesReturnsMap[r.original_bill_id] = (salesReturnsMap[r.original_bill_id] || 0) + Number(r.grand_total || 0);
+        }
+      });
+
+      const purchaseReturnsMap: Record<string, number> = {};
+      (purchaseReturnsRes.data || []).forEach((r) => {
+        if (r.purchase_id) {
+          purchaseReturnsMap[r.purchase_id] = (purchaseReturnsMap[r.purchase_id] || 0) + Number(r.grand_total || 0);
+        }
+      });
 
       const bills: any[] = [];
 
       (saleBillsRes.data || []).forEach((b) => {
-        bills.push({
-          id: b.id,
-          invoice_number: b.bill_number,
-          invoice_date: b.bill_date,
-          due_date: b.due_date || b.bill_date,
-          total: Number(b.grand_total),
-          outstanding: Number(b.grand_total) - Number(b.paid_amount || 0),
-          bill_type: "sale_bill",
-        });
+        const retAmount = salesReturnsMap[b.id] || 0;
+        const netTotal = Number(b.grand_total) - retAmount;
+        const outstanding = Math.max(0, netTotal - Number(b.paid_amount || 0));
+
+        if (outstanding > 0) {
+          bills.push({
+            id: b.id,
+            invoice_number: b.bill_number,
+            invoice_date: b.bill_date,
+            due_date: b.due_date || b.bill_date,
+            total: netTotal,
+            outstanding: outstanding,
+            bill_type: "sale_bill",
+          });
+        }
       });
 
       (rmPurchasesRes.data || []).forEach((p) => {
-        bills.push({
-          id: p.id,
-          invoice_number: p.purchase_number,
-          invoice_date: p.invoice_date,
-          due_date: p.due_date || p.invoice_date,
-          total: Number(p.grand_total),
-          outstanding: Number(p.grand_total) - Number(p.paid_amount || 0),
-          bill_type: "raw_material_purchase",
-        });
+        const retAmount = purchaseReturnsMap[p.id] || 0;
+        const netTotal = Number(p.grand_total) - retAmount;
+        const outstanding = Math.max(0, netTotal - Number(p.paid_amount || 0));
+
+        if (outstanding > 0) {
+          bills.push({
+            id: p.id,
+            invoice_number: p.purchase_number,
+            invoice_date: p.invoice_date,
+            due_date: p.due_date || p.invoice_date,
+            total: netTotal,
+            outstanding: outstanding,
+            bill_type: "raw_material_purchase",
+          });
+        }
       });
 
       (fgPurchasesRes.data || []).forEach((p) => {
-        bills.push({
-          id: p.id,
-          invoice_number: p.bill_number,
-          invoice_date: p.invoice_date,
-          due_date: p.due_date || p.invoice_date,
-          total: Number(p.grand_total),
-          outstanding: Number(p.grand_total) - Number(p.paid_amount || 0),
-          bill_type: "purchase_bill",
-        });
+        const retAmount = purchaseReturnsMap[p.id] || 0;
+        const netTotal = Number(p.grand_total) - retAmount;
+        const outstanding = Math.max(0, netTotal - Number(p.paid_amount || 0));
+
+        if (outstanding > 0) {
+          bills.push({
+            id: p.id,
+            invoice_number: p.bill_number,
+            invoice_date: p.invoice_date,
+            due_date: p.due_date || p.invoice_date,
+            total: netTotal,
+            outstanding: outstanding,
+            bill_type: "purchase_bill",
+          });
+        }
       });
 
       (jobWorkRes.data || []).forEach((jw) => {

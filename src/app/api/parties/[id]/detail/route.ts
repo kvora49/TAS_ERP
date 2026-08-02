@@ -60,7 +60,8 @@ export async function GET(
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .is("deleted_at", null)
-        .order("invoice_date", { ascending: false });
+        .order("invoice_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       purchases = rawPurchases || [];
       
@@ -78,7 +79,8 @@ export async function GET(
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .is("deleted_at", null)
-        .order("return_date", { ascending: false });
+        .order("return_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       returns = rawReturns || [];
     }
@@ -91,7 +93,8 @@ export async function GET(
         .eq("party_id", id)
         .eq("business_id", businessId)
         .is("deleted_at", null)
-        .order("bill_date", { ascending: false });
+        .order("bill_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       sales = rawSales || [];
 

@@ -41,7 +41,7 @@ export function Modal({
 
         {/* Content Box */}
         <DialogPrimitive.Popup
-          className={`fixed bottom-0 sm:bottom-auto left-0 sm:left-[50%] right-0 sm:right-auto sm:top-[50%] z-50 w-full sm:w-full ${maxWidth} max-h-[88dvh] sm:max-h-[90vh] overflow-y-auto translate-x-0 sm:translate-x-[-50%] translate-y-0 sm:translate-y-[-50%] rounded-t-2xl sm:rounded-xl border-t sm:border border-[var(--border)] bg-[var(--card-bg)] p-4 sm:p-6 text-[var(--text-primary)] shadow-[var(--modal-shadow)] outline-none transition-all ${
+          className={`fixed bottom-0 sm:bottom-auto left-0 sm:left-[50%] right-0 sm:right-auto sm:top-[50%] z-50 w-full sm:w-full ${maxWidth} max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto translate-x-0 sm:translate-x-[-50%] translate-y-0 sm:translate-y-[-50%] rounded-t-2xl sm:rounded-xl border-t sm:border border-[var(--border)] bg-[var(--card-bg)] p-4 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-[var(--text-primary)] shadow-[var(--modal-shadow)] outline-none transition-all ${
             isPremium ? "premium-reveal" : "animate-fadeIn"
           }`}
         >

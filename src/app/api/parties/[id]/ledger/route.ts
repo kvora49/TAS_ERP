@@ -40,26 +40,26 @@ export async function GET(
         .single(),
       supabase
         .from("raw_material_purchases")
-        .select("id, purchase_number, invoice_date, grand_total, status")
+        .select("id, purchase_number, invoice_date, grand_total, status, gst_type")
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled")
         .is("deleted_at", null),
       supabase
         .from("purchase_bills")
-        .select("id, bill_number, invoice_date, grand_total, status")
+        .select("id, bill_number, invoice_date, grand_total, status, bill_type")
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled"),
       supabase
         .from("sale_bills")
-        .select("id, bill_number, bill_date, grand_total, status")
+        .select("id, bill_number, bill_date, grand_total, status, bill_type")
         .eq("party_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled"),
       supabase
         .from("purchase_returns")
-        .select("id, return_number, return_date, grand_total, status")
+        .select("id, return_number, return_date, grand_total, status, purchase_id, purchase_bill_id")
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled")
@@ -87,12 +87,12 @@ export async function GET(
         .eq("business_id", businessId),
       supabase
         .from("credit_notes")
-        .select("id, cn_number, cn_date, amount, reason")
+        .select("id, cn_number, cn_date, amount, reason, return_id")
         .eq("party_id", id)
         .eq("business_id", businessId),
       supabase
         .from("debit_notes")
-        .select("id, dn_number, dn_date, amount, reason")
+        .select("id, dn_number, dn_date, amount, reason, related_purchase_return_id")
         .eq("party_id", id)
         .eq("business_id", businessId),
       supabase
@@ -155,11 +155,22 @@ export async function GET(
     const salaryAdvances = salaryAdvancesResult.data || [];
     const salaryEntries = salaryEntriesResult.data || [];
 
-    // Helper map to find bill/invoice numbers by ID
+    // Helper map to find bill/invoice numbers and bill categories by ID
     const billMap: Record<string, string> = {};
-    purchases.forEach((p) => (billMap[p.id] = p.purchase_number));
-    purchaseBills.forEach((p) => (billMap[p.id] = p.bill_number));
-    saleBills.forEach((s) => (billMap[s.id] = s.bill_number));
+    const billCategoryMap: Record<string, "pakka" | "kacha"> = {};
+
+    purchases.forEach((p) => {
+      billMap[p.id] = p.purchase_number;
+      billCategoryMap[p.id] = p.gst_type === "without_gst" ? "kacha" : "pakka";
+    });
+    purchaseBills.forEach((p) => {
+      billMap[p.id] = p.bill_number;
+      billCategoryMap[p.id] = p.bill_type === "kacha" ? "kacha" : "pakka";
+    });
+    saleBills.forEach((s) => {
+      billMap[s.id] = s.bill_number;
+      billCategoryMap[s.id] = s.bill_type === "kacha" ? "kacha" : "pakka";
+    });
 
     const isCustomerOnly = party.type?.includes("customer") && !party.type?.includes("supplier") && !party.type?.includes("worker");
 
@@ -178,11 +189,14 @@ export async function GET(
       voucherNo: "-",
       debit: obVal < 0 ? Math.abs(obVal) : 0,
       credit: obVal > 0 ? obVal : 0,
+      billCategory: "both",
+      billTypeName: "General",
       sortOrder: 0,
     });
 
     // Add Purchases (Raw Materials)
     purchases.forEach((p) => {
+      const cat = p.gst_type === "without_gst" ? "kacha" : "pakka";
       entries.push({
         date: p.invoice_date,
         particulars: `Raw Material Purchase #${p.purchase_number}`,
@@ -190,12 +204,15 @@ export async function GET(
         voucherNo: p.purchase_number,
         debit: 0,
         credit: Number(p.grand_total),
+        billCategory: cat,
+        billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
       });
     });
 
     // Add Purchase Bills (Finished Goods Purchases)
     purchaseBills.forEach((p) => {
+      const cat = p.bill_type === "kacha" ? "kacha" : "pakka";
       entries.push({
         date: p.invoice_date,
         particulars: `Purchase Bill #${p.bill_number}`,
@@ -203,12 +220,15 @@ export async function GET(
         voucherNo: p.bill_number,
         debit: 0,
         credit: Number(p.grand_total),
+        billCategory: cat,
+        billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
       });
     });
 
     // Add Sale Bills (Customer Invoices)
     saleBills.forEach((s) => {
+      const cat = s.bill_type === "kacha" ? "kacha" : "pakka";
       entries.push({
         date: s.bill_date,
         particulars: `Sales Invoice #${s.bill_number}`,
@@ -216,6 +236,8 @@ export async function GET(
         voucherNo: s.bill_number,
         debit: Number(s.grand_total),
         credit: 0,
+        billCategory: cat,
+        billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
       });
     });
@@ -232,12 +254,15 @@ export async function GET(
         voucherNo: se.entry_number || "-",
         debit: 0,
         credit: total,
+        billCategory: "both",
+        billTypeName: "General",
         sortOrder: 1,
       });
     });
 
     // Add Purchase Returns
-    returns.forEach((r) => {
+    returns.forEach((r: any) => {
+      const cat = (r.purchase_id && billCategoryMap[r.purchase_id]) || (r.purchase_bill_id && billCategoryMap[r.purchase_bill_id]) || "pakka";
       entries.push({
         date: r.return_date,
         particulars: `Purchase Return #${r.return_number}`,
@@ -245,35 +270,48 @@ export async function GET(
         voucherNo: r.return_number,
         debit: Number(r.grand_total),
         credit: 0,
+        billCategory: cat,
+        billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 2,
       });
     });
 
     // Add Credit Notes
     creditNotes.forEach((cn: any) => {
+      const isSalesReturn = !!cn.return_id;
+      const cat = (cn.bill_id && billCategoryMap[cn.bill_id]) || "pakka";
       entries.push({
         date: cn.cn_date,
-        particulars: `Credit Note #${cn.cn_number} ${cn.reason ? "(" + cn.reason + ")" : ""}`,
+        particulars: isSalesReturn 
+          ? `Sales Return / Credit Note #${cn.cn_number}` 
+          : `Credit Note #${cn.cn_number} ${cn.reason ? "(" + cn.reason + ")" : ""}`,
         voucherType: "Credit Note",
         voucherNo: cn.cn_number,
         debit: 0,
         credit: Number(cn.amount),
+        billCategory: cat,
+        billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 2,
       });
     });
 
-    // Add Debit Notes
-    debitNotes.forEach((dn: any) => {
-      entries.push({
-        date: dn.dn_date,
-        particulars: `Debit Note #${dn.dn_number} ${dn.reason ? "(" + dn.reason + ")" : ""}`,
-        voucherType: "Debit Note",
-        voucherNo: dn.dn_number,
-        debit: Number(dn.amount),
-        credit: 0,
-        sortOrder: 2,
+    // Add Standalone Debit Notes (exclude debit notes generated directly from Purchase Returns to prevent double counting)
+    debitNotes
+      .filter((dn: any) => !dn.related_purchase_return_id)
+      .forEach((dn: any) => {
+        const cat = (dn.purchase_id && billCategoryMap[dn.purchase_id]) || "pakka";
+        entries.push({
+          date: dn.dn_date,
+          particulars: `Debit Note #${dn.dn_number} ${dn.reason ? "(" + dn.reason + ")" : ""}`,
+          voucherType: "Debit Note",
+          voucherNo: dn.dn_number,
+          debit: Number(dn.amount),
+          credit: 0,
+          billCategory: cat,
+          billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
+          sortOrder: 2,
+        });
       });
-    });
 
     // Add Legacy Payments
     legacyPayments.forEach((py) => {
@@ -285,6 +323,8 @@ export async function GET(
         voucherNo: py.reference_no || py.id.substring(0, 8).toUpperCase(),
         debit: Number(py.paid_amount),
         credit: 0,
+        billCategory: "both",
+        billTypeName: "General",
         sortOrder: 3,
       });
     });
@@ -299,6 +339,8 @@ export async function GET(
         voucherNo: jp.payment_number || jp.reference_no || "-",
         debit: Number(jp.paid_amount || 0),
         credit: 0,
+        billCategory: "both",
+        billTypeName: "General",
         sortOrder: 3,
       });
     });
@@ -313,6 +355,8 @@ export async function GET(
         voucherNo: "-",
         debit: Number(sa.amount || 0),
         credit: 0,
+        billCategory: "both",
+        billTypeName: "General",
         sortOrder: 3,
       });
     });
@@ -328,6 +372,8 @@ export async function GET(
         voucherNo: se.reference_no || "-",
         debit: Number(se.net_salary || 0),
         credit: 0,
+        billCategory: "both",
+        billTypeName: "General",
         sortOrder: 3,
       });
     });
@@ -337,12 +383,25 @@ export async function GET(
       const mode = py.payment_mode ? py.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
       const isAdvance = py.is_advance || Number(py.unallocated_amount) > 0;
       
-      const paymentAllocs = allocations
-        .filter((a) => a.payment_id === py.id)
-        .map((a) => ({
-          billNo: billMap[a.bill_id] || "Advance / Unallocated",
-          amount: Number(a.allocated_amount),
-        }));
+      const paymentAllocs = allocations.filter((a) => a.payment_id === py.id);
+      const formattedAllocs = paymentAllocs.map((a) => ({
+        billNo: billMap[a.bill_id] || "Advance / Unallocated",
+        amount: Number(a.allocated_amount),
+      }));
+
+      // Determine category from allocations
+      let hasKacha = false;
+      let hasPakka = false;
+      paymentAllocs.forEach((a) => {
+        const cat = billCategoryMap[a.bill_id];
+        if (cat === "kacha") hasKacha = true;
+        if (cat === "pakka") hasPakka = true;
+      });
+
+      let cat: "pakka" | "kacha" | "both" = "both";
+      if (hasKacha && !hasPakka) cat = "kacha";
+      else if (hasPakka && !hasKacha) cat = "pakka";
+      else cat = "both";
 
       const debit = py.direction === "paid" ? Number(py.amount) : 0;
       const credit = py.direction === "received" ? Number(py.amount) : 0;
@@ -357,7 +416,9 @@ export async function GET(
         voucherNo: py.reference_no || py.id.substring(0, 8).toUpperCase(),
         debit,
         credit,
-        allocations: paymentAllocs,
+        allocations: formattedAllocs,
+        billCategory: cat,
+        billTypeName: cat === "both" ? "General" : cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 3,
       });
     });
@@ -369,6 +430,7 @@ export async function GET(
         const isCustomerBill = wo.bill_type === "sale_bill";
         const debit = isCustomerBill ? 0 : Number(wo.amount);
         const credit = isCustomerBill ? Number(wo.amount) : 0;
+        const cat = billCategoryMap[wo.bill_id] || "pakka";
 
         entries.push({
           date: wo.written_off_at.split("T")[0],
@@ -377,6 +439,8 @@ export async function GET(
           voucherNo: "-",
           debit,
           credit,
+          billCategory: cat,
+          billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
           sortOrder: 4,
         });
       }

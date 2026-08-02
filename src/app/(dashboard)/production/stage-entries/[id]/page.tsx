@@ -134,8 +134,8 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
       value: entry.lot?.size_set?.name
         ? `${entry.lot.size_set.name}${Array.isArray(entry.lot.size_set.sizes) ? ` (${entry.lot.size_set.sizes.join(", ")})` : ""}`
         : Array.isArray(entry.lot?.size_set?.sizes)
-        ? entry.lot.size_set.sizes.join(", ")
-        : "—",
+          ? entry.lot.size_set.sizes.join(", ")
+          : "—",
     },
     { label: "Stage", value: entry.stage?.stage_name || "—" },
     { label: "Stage Sequence", value: `${entry.stage?.sequence_no || 0} of ${totalStagesCount}` },
@@ -156,13 +156,12 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
       label: "Payment Status",
       value: (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-            entry.payment_status === "paid"
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${entry.payment_status === "paid"
               ? "bg-[#DCFCE7] text-[#15803D]"
               : entry.payment_status === "partial"
-              ? "bg-[#FFF7ED] text-[#D97706]"
-              : "bg-[#FEE2E2] text-[#DC2626]"
-          }`}
+                ? "bg-[#FFF7ED] text-[#D97706]"
+                : "bg-[#FEE2E2] text-[#DC2626]"
+            }`}
         >
           {entry.payment_status || "unpaid"}
         </span>
@@ -429,17 +428,21 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               </div>
 
               <div>
-                <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider block border-b border-[#F3F4F6] pb-1.5 mb-2">Custom Fields</span>
-                <div className="space-y-1.5 font-medium">
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">Thread Colour:</span>
-                    <span className="text-[#374151]">{entry.custom_field_values?.thread_colour || "White"}</span>
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block border-b border-[var(--border)] pb-1.5 mb-2">Stage Parameters</span>
+                {entry.custom_field_values && Object.keys(entry.custom_field_values).length > 0 ? (
+                  <div className="space-y-1.5 font-medium text-xs">
+                    {Object.entries(entry.custom_field_values).map(([key, val]) => (
+                      <div key={key} className="flex items-center justify-between gap-2">
+                        <span className="text-[var(--text-muted)] font-semibold">{key}:</span>
+                        <span className="text-[var(--text-primary)] font-bold bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)] font-mono">
+                          {typeof val === "boolean" ? (val ? "Yes / Approved" : "No / Pending") : String(val || "—")}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">Machine Used:</span>
-                    <span className="text-[#374151]">{entry.custom_field_values?.machine_used || "JUKI DDL-8700"}</span>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-faint)] italic">No custom parameters recorded.</p>
+                )}
               </div>
 
               <div>
@@ -510,7 +513,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
             <p className="text-xs text-slate-500 leading-normal">
               This action will finalize the production lot and add the finished pieces of design **{entry.lot?.design?.code}** to the selected finished goods godown.
             </p>
-            
+
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase">Target Godown</label>

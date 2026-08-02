@@ -225,20 +225,7 @@ export async function PUT(
           }, { onConflict: "id" });
         } catch (_ignore) {}
 
-        // 2. Ensure worker ALSO exists in `workers_deprecated` table to satisfy live DB foreign key constraint
-        try {
-          await supabaseAdmin.from("workers_deprecated").upsert({
-            id: matchedWorker.id,
-            business_id: businessId,
-            name: matchedWorker.name || "Worker",
-            worker_id: `${uniqueCode}_dep`,
-            type: worker_type,
-            phone: matchedWorker.phone || null,
-            address: matchedWorker.address || null,
-            remarks: matchedWorker.remarks || null,
-            is_active: matchedWorker.is_active !== false,
-          }, { onConflict: "id" });
-        } catch (_ignore) {}
+
       }
     }
 

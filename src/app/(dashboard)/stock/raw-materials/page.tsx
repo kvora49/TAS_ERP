@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { Badge, BadgeVariant } from "@/components/shared/Badge";
-import { Search, Plus, Boxes, Layers, TrendingDown, AlertTriangle, ArrowLeftRight } from "lucide-react";
+import { Search, Plus, Boxes, Layers, TrendingDown, AlertTriangle, ArrowLeftRight, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -133,9 +133,14 @@ export default function RawMaterialStockPage() {
       header: "Material / Fabric Name",
       width: "240px",
       render: (row) => (
-        <div>
-          <span className="font-bold text-[#0F172A] block">{row.material_type?.name || "—"}</span>
-          <span className="text-[10px] text-[#64748B] uppercase tracking-wider block">
+        <div
+          className="cursor-pointer group"
+          onClick={() => row.material_type_id && router.push(`/master-data/raw-materials/${row.material_type_id}`)}
+        >
+          <span className="font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors block">
+            {row.material_type?.name || "—"}
+          </span>
+          <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block">
             {row.material_type?.category || "—"}
           </span>
         </div>
@@ -146,7 +151,7 @@ export default function RawMaterialStockPage() {
       header: "Godown Location",
       width: "160px",
       render: (row) => (
-        <span className="font-semibold text-xs text-[#334155] whitespace-nowrap">
+        <span className="font-semibold text-xs text-[var(--text-body)] whitespace-nowrap">
           {row.godown?.name || "Main Warehouse"}
         </span>
       ),
@@ -156,7 +161,7 @@ export default function RawMaterialStockPage() {
       header: "Available Stock",
       width: "150px",
       render: (row) => (
-        <span className="font-bold whitespace-nowrap">
+        <span className="font-bold text-[var(--text-primary)] whitespace-nowrap">
           {row.current_stock} {row.material_type?.unit || "meter"}
         </span>
       ),
@@ -186,13 +191,31 @@ export default function RawMaterialStockPage() {
       key: "unit_cost",
       header: "Unit Cost",
       width: "130px",
-      render: (row) => <span className="font-mono text-xs font-semibold whitespace-nowrap">{formatCurrency(row.unit_cost)}</span>,
+      render: (row) => <span className="font-mono text-xs font-semibold text-[var(--text-body)] whitespace-nowrap">{formatCurrency(row.unit_cost)}</span>,
     },
     {
       key: "stock_value",
       header: "Stock Value",
       width: "150px",
-      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A] whitespace-nowrap">{formatCurrency(row.stock_value)}</span>,
+      render: (row) => <span className="font-mono text-xs font-bold text-[var(--text-primary)] whitespace-nowrap">{formatCurrency(row.stock_value)}</span>,
+    },
+    {
+      key: "actions",
+      header: "Action",
+      width: "180px",
+      render: (row) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (row.material_type_id) {
+              router.push(`/master-data/raw-materials/${row.material_type_id}`);
+            }
+          }}
+          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#EEF2FF] dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+        >
+          View Details & Aging <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      ),
     },
   ];
 
@@ -389,6 +412,7 @@ export default function RawMaterialStockPage() {
             page={1}
             perPage={1000}
             onPageChange={() => {}}
+            onRowClick={(row) => row.material_type_id && router.push(`/master-data/raw-materials/${row.material_type_id}`)}
             emptyMessage="No raw material stock records found."
           />
         ) : (

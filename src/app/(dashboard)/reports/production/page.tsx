@@ -196,7 +196,7 @@ export default function ProductionReportsPage() {
                                     "inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize",
                                     l.status === "completed" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
                                     l.status === "in_progress" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
-                                    "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                                    "bg-[var(--table-header-bg)] text-[var(--text-muted)] border-[var(--border)]"
                                   )}>
                                     {l.status?.replace(/_/g, " ")}
                                   </span>

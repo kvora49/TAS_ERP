@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import QueryProvider from "@/components/providers/QueryProvider";
@@ -9,9 +9,35 @@ import PWAInstaller from "@/components/layout/PWAInstaller";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F1F5F9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F172A" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "TAS ERP - Garment Manufacturing Intelligence Platform",
   description: "Garment Manufacturing Intelligence Platform",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TAS ERP",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({

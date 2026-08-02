@@ -71,7 +71,8 @@ export class PurchaseRepository {
       .select("*, supplier:parties(name, company_name)")
       .eq("business_id", businessId)
       .is("deleted_at", null)
-      .order("invoice_date", { ascending: false });
+      .order("invoice_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (options.status) query = query.eq("status", options.status);
     if (options.paymentStatus) query = query.eq("payment_status", options.paymentStatus);

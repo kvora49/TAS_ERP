@@ -38,6 +38,7 @@ export async function GET(request: Request) {
 
     const { data: cheques, count, error } = await query
       .order("cheque_date", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) {

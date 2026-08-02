@@ -86,7 +86,13 @@ export class SalesBillRepository {
         );
       }
 
-      combined.sort((a, b) => new Date(b.bill_date).getTime() - new Date(a.bill_date).getTime());
+      combined.sort((a, b) => {
+        const dateDiff = new Date(b.bill_date).getTime() - new Date(a.bill_date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
 
       const total = combined.length;
       const paginated = combined.slice(offset, offset + limit);

@@ -995,16 +995,16 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="max-w-[1400px] mx-auto space-y-6 pb-20 select-none">
       {/* Top Header */}
-      <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
-          <Link href="/purchases" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
-            <ArrowLeft className="h-5 w-5 text-[#64748B]" />
+          <Link href="/purchases" className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors">
+            <ArrowLeft className="h-5 w-5 text-[var(--text-muted)]" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-[#0F172A]">
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">
               {id ? "Edit Purchase Invoice" : "Record Purchase Invoice"}
             </h1>
-            <p className="text-xs text-[#64748B]">
+            <p className="text-xs text-[var(--text-muted)]">
               Inward raw material invoice entry with GST, fabric roll tracking, and party ledger posting.
             </p>
           </div>
@@ -1013,7 +1013,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         <div className="flex items-center gap-3">
           <Link
             href="/purchases"
-            className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
+            className="px-4 py-2 text-sm font-semibold text-[var(--text-primary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)]"
           >
             Cancel
           </Link>
@@ -1021,7 +1021,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             type="submit"
             disabled={isSubmitting}
             onClick={handleSubmit(onSubmit, onInvalid)}
-            className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2 text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg transition-all shadow-md flex items-center gap-2 cursor-pointer"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {id ? "Save Changes" : "Submit Invoice"}
@@ -1033,14 +1033,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         {/* Main section: Info & Items table */}
         <div className="lg:col-span-2 space-y-6">
           {/* Header Info */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-4 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-xs">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
               1. Supplier & Invoice Details
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Supplier *</label>
                 <input type="hidden" {...register("supplier_id")} />
                 <SupplierCombobox
                   value={watch("supplier_id")}
@@ -1060,11 +1060,11 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Destination Godown *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Destination Godown *</label>
                 <select
                   disabled={loadingGodowns}
                   {...register("godown_id")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] text-[var(--text-primary)]"
                 >
                   <option value="">Select Godown</option>
                   {godowns.map((g) => (
@@ -1077,41 +1077,41 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Our Purchase Ref No. (Auto)</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Our Purchase Ref No. (Auto)</label>
                 <input
                   type="text"
                   disabled
                   value={initialData?.purchase_number || "(Auto Generated)"}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-100 font-mono text-[#6366F1] font-bold"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--page-bg)] font-mono text-[var(--primary)] font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier Invoice No. *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Supplier Invoice No. *</label>
                 <input
                   type="text"
                   placeholder="e.g. SUP-INV-2026-001"
                   {...register("invoice_no")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm font-mono"
                 />
                 {errors.invoice_no && <p className="text-[10px] text-red-500 mt-1">{errors.invoice_no.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier Invoice Date *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Supplier Invoice Date *</label>
                 <input
                   type="date"
                   {...register("invoice_date")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm"
                 />
                 {errors.invoice_date && <p className="text-[10px] text-red-500 mt-1">{errors.invoice_date.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Payment Terms</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Payment Terms</label>
                 <select
                   {...register("payment_terms")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm"
                 >
                   <option value="immediate">Immediate / Cash</option>
                   <option value="15_days">15 Days</option>
@@ -1123,19 +1123,19 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Due Date</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Due Date</label>
                 <input
                   type="date"
                   {...register("due_date")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">GST Treatment *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">GST Treatment *</label>
                 <select
                   {...register("gst_type")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm"
                 >
                   <option value="with_gst">With GST (Standard)</option>
                   <option value="without_gst">Without GST (Kacha)</option>
@@ -1146,15 +1146,15 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           </div>
 
           {/* Line Items Grid */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-xs">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
                 2. Purchase Items
               </h2>
               <button
                 type="button"
                 onClick={() => append({ material_type_id: "", design_id: "", colour_id: "", size_quantities: {}, other_item_name: "", other_category: "office_expense", asset_tag: "", hsn_sac: "", unit: "Meters", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", weight_unit: "gsm" }] })}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg flex items-center gap-1 cursor-pointer transition-all"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Material Row
               </button>

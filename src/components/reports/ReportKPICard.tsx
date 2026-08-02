@@ -52,9 +52,9 @@ const COLOR_MAP: Record<string, { border: string; icon: string; badge: string }>
     badge: "text-indigo-600",
   },
   slate: {
-    border: "border-l-slate-400",
-    icon: "bg-slate-500/10 text-slate-500",
-    badge: "text-slate-500",
+    border: "border-l-[var(--border)]",
+    icon: "bg-[var(--table-header-bg)] text-[var(--text-muted)]",
+    badge: "text-[var(--text-muted)]",
   },
   orange: {
     border: "border-l-orange-500",
