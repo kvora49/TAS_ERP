@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export interface PurchaseCreateParams {
   businessId: string;
@@ -391,6 +392,51 @@ export class PurchaseRepository {
       if (expError) console.error("Expenses insert warning:", expError);
     }
 
+    // Auto-generate Stock Entry Voucher for Stock Movement Registers
+    const rmItems = params.items.filter((it) => it.material_type_id && (!it.item_type || it.item_type === "fabric" || it.item_type === "accessory"));
+    if (rmItems.length > 0) {
+      const entryNumber = `STK-IN-${params.purchaseNumber}`;
+      const { data: stockEntry } = await this.supabase
+        .from("raw_material_stock_entries")
+        .insert({
+          business_id: params.businessId,
+          stock_entry_number: entryNumber,
+          entry_type: "stock_in",
+          posting_date: params.invoice_date || new Date().toISOString().split("T")[0],
+          godown_id: params.godown_id,
+          reference_type: "purchase",
+          reference_no: params.invoice_no,
+          reference_id: purchase.id,
+          remarks: `Auto-registered from Purchase Bill ${params.purchaseNumber}`,
+          total_items_value: Number(params.total_taxable_value || params.subtotal || 0),
+          grand_total: Number(params.grand_total || 0),
+          status: "active",
+        })
+        .select()
+        .single();
+
+      if (stockEntry) {
+        const seItems = rmItems.map((item) => ({
+          business_id: params.businessId,
+          stock_entry_id: stockEntry.id,
+          material_type_id: item.material_type_id,
+          hsn_sac: item.hsn_sac || null,
+          unit: item.unit || "meter",
+          quantity: Number(item.quantity),
+          rate: Number(item.rate),
+          amount: Number(item.taxable_value || item.amount),
+        }));
+
+        await this.supabase.from("raw_material_stock_entry_items").insert(seItems);
+      }
+    }
+
+    try {
+      await reconcileRawMaterialStock(this.supabase, params.businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on purchase creation warning:", recErr);
+    }
+
     return purchase;
   }
 
@@ -411,8 +457,8 @@ export class PurchaseRepository {
       .maybeSingle();
 
     const newQty = Number((existingStock?.current_stock || 0)) + quantity;
-    const newCost = Number(rate || existingStock?.unit_cost || 0);
     const newValue = Number((existingStock?.stock_value || 0)) + taxableValue;
+    const newCost = newQty > 0 ? Number((newValue / newQty).toFixed(2)) : Number(rate || existingStock?.unit_cost || 0);
 
     if (existingStock) {
       await this.supabase

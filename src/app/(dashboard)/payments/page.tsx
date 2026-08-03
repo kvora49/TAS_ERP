@@ -16,6 +16,7 @@ import {
 import PageState from "@/components/shared/PageState";
 import AdvancesCreditNotesTab from "@/components/payments/AdvancesCreditNotesTab";
 import DirectLinkingTab from "@/components/payments/DirectLinkingTab";
+import { cn } from "@/lib/utils";
 
 function PaymentsContent() {
   const router = useRouter();
@@ -109,8 +110,8 @@ function PaymentsContent() {
         </div>
       </div>
 
-      {/* Workspace Section Tabs */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)]">
+      {/* Workspace Section Tabs - scrollable on mobile */}
+      <div className="flex items-center gap-2 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
         <button
           type="button"
           onClick={() => handleTabChange("history")}
@@ -151,41 +152,66 @@ function PaymentsContent() {
       {/* TAB 1: Payment History */}
       {activeTab === "history" && (
         <div className="space-y-6">
-          {/* Summary Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Total Received (Inward)</span>
-                <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+          {/* ── MOBILE: snap-scroll stat cards ── */}
+          <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+            {[
+              { label: "Received",  value: `₹${totalReceived.toLocaleString("en-IN")}`, icon: ArrowDownLeft, bg: "bg-emerald-500/10",         color: "text-emerald-500" },
+              { label: "Paid Out",  value: `₹${totalPaid.toLocaleString("en-IN")}`,    icon: ArrowUpRight,  bg: "bg-amber-500/10",            color: "text-amber-500" },
+              { label: "Advances",  value: `₹${totalAdvances.toLocaleString("en-IN")}`,icon: Clock,         bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+            ].map(({ label, value, icon: Icon, bg, color }) => (
+              <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+                <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+                  <p className={cn("text-xs font-black mt-0.5", color)}>{value}</p>
+                </div>
               </div>
-              <div className="text-lg font-bold text-[var(--text-primary)]">
-                ₹{totalReceived.toLocaleString("en-IN")}
-              </div>
-            </div>
-
-            <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Total Paid (Outward)</span>
-                <ArrowUpRight className="w-4 h-4 text-amber-500" />
-              </div>
-              <div className="text-lg font-bold text-[var(--text-primary)]">
-                ₹{totalPaid.toLocaleString("en-IN")}
-              </div>
-            </div>
-
-            <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Active Unallocated Advances</span>
-                <Clock className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="text-lg font-bold text-[var(--primary)]">
-                ₹{totalAdvances.toLocaleString("en-IN")}
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Filter Bar */}
-          <div className="flex items-center justify-between gap-4 p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl">
+          {/* ── DESKTOP: existing 3-col stat grid ── */}
+          <div className="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Total Received (Inward)</span>
+                  <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="text-lg font-bold text-[var(--text-primary)]">₹{totalReceived.toLocaleString("en-IN")}</div>
+              </div>
+            
+
+              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Total Paid (Outward)</span>
+                  <ArrowUpRight className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="text-lg font-bold text-[var(--text-primary)]">₹{totalPaid.toLocaleString("en-IN")}</div>
+              </div>
+            
+
+              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Active Unallocated Advances</span>
+                  <Clock className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="text-lg font-bold text-[var(--primary)]">₹{totalAdvances.toLocaleString("en-IN")}</div>
+              </div>
+            </div>{/* end desktop grid */}
+
+          {/* ── MOBILE direction filter chips ── */}
+          <div className="md:hidden flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {["all", "received", "paid"].map((dir) => (
+              <button key={dir} type="button"
+                onClick={() => { setDirectionFilter(dir); setPage(1); }}
+                className={cn("shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer capitalize whitespace-nowrap",
+                  directionFilter === dir ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+                )}
+              >{dir === "all" ? "All" : dir === "received" ? "Received" : "Paid Out"}</button>
+            ))}
+          </div>
+
+          {/* ── DESKTOP filter bar (existing) ── */}
+          <div className="hidden md:flex items-center justify-between gap-4 p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-[var(--text-muted)] flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5" /> Filter Direction:
@@ -210,13 +236,69 @@ function PaymentsContent() {
                 ))}
               </div>
             </div>
+            <div className="text-xs text-[var(--text-muted)]">Showing {payments.length} of {totalCount} records</div>
+          </div>{/* end desktop filter bar */}
 
-            <div className="text-xs text-[var(--text-muted)]">
-              Showing {payments.length} of {totalCount} records
-            </div>
+          {/* ── MOBILE: payment card list ── */}
+          <div className="md:hidden space-y-3">
+            {payments.map((p) => (
+              <div key={p.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                {/* Header: Voucher# + Direction badge */}
+                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+                  <span className="font-mono font-black text-[var(--primary)] text-sm">{p.payment_number}</span>
+                  {p.direction === "received" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600">
+                      <ArrowDownLeft className="w-3 h-3" /> Received
+                    </span>
+                  ) : p.direction === "contra" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-600">
+                      <LinkIcon className="w-3 h-3" /> Contra
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600">
+                      <ArrowUpRight className="w-3 h-3" /> Paid
+                    </span>
+                  )}
+                </div>
+                {/* Party + Date */}
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <div className="min-w-0 mr-2">
+                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{p.party?.name || "Unknown"}</p>
+                    {p.party?.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{p.party.company_name}</p>}
+                  </div>
+                  <span className="text-xs text-[var(--text-muted)] shrink-0">
+                    {p.payment_date ? new Date(p.payment_date).toLocaleDateString("en-IN") : "—"}
+                  </span>
+                </div>
+                {/* Amount grid */}
+                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Amount</p>
+                    <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{Number(p.amount || 0).toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Unalloc.</p>
+                    {Number(p.unallocated_amount || 0) > 0 ? (
+                      <p className="text-xs font-bold mt-0.5 text-amber-600">₹{Number(p.unallocated_amount).toLocaleString("en-IN")}</p>
+                    ) : (
+                      <p className="text-xs font-bold mt-0.5 text-emerald-600">₹0</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Status</p>
+                    <p className="text-[10px] font-bold mt-0.5 uppercase text-emerald-600">{p.status || "completed"}</p>
+                  </div>
+                </div>
+                {/* Mode + Ref */}
+                <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-light)] pt-2">
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] capitalize">{p.payment_mode?.replace("_", " ")}</span>
+                  {p.reference_no && <span className="text-[11px] text-[var(--text-faint)]">· Ref: {p.reference_no}</span>}
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* PageState Wrapped Table */}
+          {/* ── DESKTOP: existing table ── */}
           <PageState
             isLoading={isLoading}
             isError={!!error}
@@ -229,7 +311,7 @@ function PaymentsContent() {
             emptyTitle="No Payments Found"
             emptyMessage="There are no payment vouchers matching the selected filter criteria."
           >
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm">
+            <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[var(--table-header-bg)] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border)]">
@@ -333,7 +415,7 @@ function PaymentsContent() {
                   </div>
                 </div>
               )}
-            </div>
+            </div>{/* end desktop table */}
           </PageState>
         </div>
       )}

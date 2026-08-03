@@ -14,6 +14,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface PurchaseLog {
   id: string;
@@ -425,7 +426,25 @@ export default function PurchasesPage() {
         </div>
       </div>
 
-      {/* STAT CARDS ROW */}
+      {/* ── MOBILE: snap-scroll stat cards ── */}
+      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-0 pb-1 scrollbar-none">
+        {[
+          { label: "Purchases",   value: formatCurrency(totalPurchasesVal), icon: ShoppingBag, bg: "bg-[var(--primary-light)]", color: "text-[var(--primary)]" },
+          { label: "Returns",     value: formatCurrency(totalReturnsVal),   icon: RotateCcw,  bg: "bg-purple-500/10",           color: "text-purple-500" },
+          { label: "Net Procured",value: formatCurrency(netProcurementVal), icon: DollarSign, bg: "bg-green-500/10",            color: "text-green-500" },
+          { label: "Due",         value: statsData ? formatCurrency(statsData.totalDue) : "₹0", icon: CreditCard, bg: "bg-amber-500/10", color: "text-amber-500" },
+        ].map(({ label, value, icon: Icon, bg, color }) => (
+          <div key={label} className="snap-start shrink-0 w-[152px] min-[430px]:w-[168px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: existing 4-col stat grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
             <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
@@ -468,9 +487,34 @@ export default function PurchasesPage() {
           </div>
         </div>
 
-        {/* FILTER & TABS BAR */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
-          {/* Tabs */}
+      {/* ── MOBILE: chip tabs + compact search ── */}
+        <div className="md:hidden space-y-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: "all", label: "All" },
+              { id: "purchases", label: "Purchases" },
+              { id: "returns", label: "Returns" },
+              { id: "unpaid", label: "Unpaid" },
+              { id: "paid", label: "Paid" },
+            ].map((tab) => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+                className={cn("shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+                  activeTab === tab.id ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+                )}
+              >{tab.label}</button>
+            ))}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+            <input type="text" placeholder="Search purchases..." value={search} onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-3 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* ── DESKTOP: filter & tabs bar (existing) ── */}
+        <div className="hidden md:flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+          {/* Desktop Tabs */}
           <div className="flex bg-[var(--page-bg)] p-1 rounded-lg w-full md:w-auto overflow-x-auto">
             {[
               { id: "all", label: "All Logs" },
@@ -493,20 +537,113 @@ export default function PurchasesPage() {
             ))}
           </div>
 
-          {/* Search */}
+          {/* Desktop Search */}
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
-            <input
-              type="text"
-              placeholder="Search PO, return #, supplier..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input type="text" placeholder="Search PO, return #, supplier..." value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
             />
           </div>
+        </div>{/* end desktop filter bar */}
+
+        {/* ── MOBILE: Purchase card list ── */}
+        <div className="md:hidden space-y-3">
+          {filteredLogs.map((log) => {
+            const isPurchase = log.record_type === "purchase";
+            const detailHref = isPurchase ? `/purchases/${log.id}` : `/purchases/returns/${log.id}`;
+            const editHref = isPurchase ? `/purchases/${log.id}/edit` : `/purchases/returns/${log.id}/edit`;
+            const isPaid = log.payment_status === "paid";
+            const dueDate = isPurchase ? (log.raw_purchase?.due_date || log.due_date) : undefined;
+
+            let statusVariant: BadgeVariant = "gray";
+            if (log.payment_status === "paid") statusVariant = "green";
+            else if (log.payment_status === "partial") statusVariant = "orange";
+            else if (log.payment_status === "unpaid") statusVariant = "red";
+
+            return (
+              <div key={log.id}
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                onClick={() => router.push(detailHref)}
+              >
+                {/* Header: Doc# + Type badge */}
+                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
+                    className={cn("font-mono font-black text-sm hover:underline", isPurchase ? "text-[var(--primary)]" : "text-purple-500")}
+                  >{log.doc_number}</Link>
+                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                    isPurchase ? "bg-[var(--primary-light)] text-[var(--primary)]" : "bg-purple-500/10 text-purple-500"
+                  )}>
+                    {isPurchase ? "Purchase" : "Return"}
+                  </span>
+                </div>
+
+                {/* Supplier + Date */}
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <span className="font-semibold text-[var(--text-primary)] text-sm truncate max-w-[60%]">{log.supplier?.name || "—"}</span>
+                  <span className="text-xs text-[var(--text-muted)] shrink-0">{formatDate(log.date)}</span>
+                </div>
+
+                {/* Amounts + Status grid */}
+                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Total</p>
+                    <p className={cn("text-xs font-bold mt-0.5", isPurchase ? "text-[var(--text-primary)]" : "text-purple-500")}>
+                      {isPurchase ? formatCurrency(log.grand_total) : `- ${formatCurrency(log.grand_total)}`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Paid</p>
+                    <p className="text-xs font-bold mt-0.5 text-green-500">{isPurchase ? formatCurrency(log.paid_amount) : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Status</p>
+                    <div className="mt-0.5">
+                      {isPurchase ? <Badge variant={statusVariant} className="capitalize text-[10px]">{log.payment_status}</Badge>
+                        : <span className="text-[10px] font-bold text-[var(--text-muted)]">—</span>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                {/* Invoice ref + Due counter */}
+                <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
+                  {log.invoice_no && log.invoice_no !== "—" && (
+                    <span className="text-[10px] font-mono font-bold text-[var(--text-muted)]">Inv: {log.invoice_no}</span>
+                  )}
+                  {log.purchase_ref && (
+                    <span className="text-[10px] font-mono text-purple-400">Ref: {log.purchase_ref}</span>
+                  )}
+                  {isPurchase && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <DueDateBadge dueDate={dueDate} isCompleted={isPaid} type="purchase" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Action footer */}
+                <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="View"
+                  ><Eye size={13} /></Link>
+                  <Link href={editHref} onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
+                  ><Edit2 size={13} /></Link>
+                  {isPurchase && !isPaid && (
+                    <button type="button"
+                      onClick={(e) => { e.stopPropagation(); setPaymentPurchase(log.raw_purchase); setPaymentModalOpen(true); }}
+                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="Record Payment"
+                    ><CreditCard size={13} /></button>
+                  )}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenDelete(log); }}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Cancel"
+                  ><Trash2 size={13} /></button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* UNIFIED LOGS TABLE */}
+        {/* ── DESKTOP: DataTable ── */}
         <PageState
           isLoading={loading}
           isError={isError}
@@ -542,7 +679,7 @@ export default function PurchasesPage() {
               }}
               emptyMessage="No purchases or returns found matching filters."
             />
-          </div>
+          </div>{/* end desktop DataTable */}
         </PageState>
 
       {/* RECORD PAYMENT MODAL */}

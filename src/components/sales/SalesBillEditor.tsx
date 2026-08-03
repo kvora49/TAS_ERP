@@ -258,7 +258,8 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+    <div className="space-y-6 max-w-5xl mx-auto p-6 pb-20 md:pb-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+
       {/* Back button and title */}
       <div className="flex items-center gap-4">
         <Button
@@ -499,7 +500,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       </div>
 
       {/* Footer Navigation Buttons */}
-      <div className="flex flex-wrap justify-between items-center pt-6 border-t border-[var(--border-light)] mt-6 select-none gap-3">
+      <div className="hidden md:flex flex-wrap justify-between items-center pt-6 border-t border-[var(--border-light)] mt-6 select-none gap-3">
         <Button
           variant="outline"
           disabled={step === 1}
@@ -528,7 +529,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 className="border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] font-bold"
               >
                 {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <span>Save as Temporary Bill</span>
+                <span>Save Temporary</span>
               </Button>
 
               <Button
@@ -537,7 +538,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold"
               >
                 {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <span>{mode === "edit" ? "Update Sales Bill" : "Generate Invoice"}</span>
+                <span>{mode === "edit" ? "Update Bill" : "Generate Invoice"}</span>
               </Button>
             </>
           )}
@@ -553,6 +554,38 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
           )}
         </div>
       </div>
+
+      {/* ── MOBILE STICKY BOTTOM ACTION BAR ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 flex items-center justify-between gap-2 shadow-lg">
+        <Button
+          variant="outline"
+          disabled={step === 1}
+          onClick={() => setStep((s) => Math.max(s - 1, 1))}
+          className="border-[var(--border)] text-[var(--text-body)] font-bold text-xs h-10 px-3"
+        >
+          Previous
+        </Button>
+
+        {step < 4 ? (
+          <Button
+            onClick={() => setStep((s) => Math.min(s + 1, 4))}
+            disabled={step === 1 && !state.partyId}
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs h-10 px-5 flex-1 max-w-[180px]"
+          >
+            Next Step
+          </Button>
+        ) : (
+          <Button
+            onClick={() => handleSaveBill("active", false)}
+            disabled={isSubmitting || saveMutation.isPending || !state.partyId || state.items.length === 0}
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs h-10 px-4 flex-1"
+          >
+            {(isSubmitting || saveMutation.isPending) && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin inline" />}
+            <span>{mode === "edit" ? "Update Bill" : "Generate Invoice"}</span>
+          </Button>
+        )}
+      </div>
+
 
       {/* Success Modal with Preview, Print, Download options */}
       <PostInvoiceSuccessModal

@@ -314,16 +314,63 @@ export default function GarmentTypesPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filtered}
-        isLoading={loading}
-        total={filtered.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
-      />
+      {/* ── MOBILE: Garment Types Card List ── */}
+      <div className="md:hidden space-y-3">
+        {filtered.map((gt) => {
+          const fieldCount = gt.specTemplate?.fields?.length || 0;
+          return (
+            <div key={gt.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
+                    <Shirt size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-[var(--primary)] text-sm">{gt.name}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{fieldCount} Spec Field{fieldCount === 1 ? "" : "s"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {fieldCount > 0 ? (
+                <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
+                  {gt.specTemplate!.fields.map((f, idx) => (
+                    <span key={idx} className="text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded">
+                      {f.name} ({f.type})
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--text-faint)] italic border-t border-[var(--border-light)] pt-2">No spec fields configured</p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
+                <button type="button" onClick={() => handleOpenEdit(gt)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                ><Pencil size={12} /> Edit</button>
+                <button type="button" onClick={() => handleOpenDelete(gt)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+                ><Trash2 size={12} /> Delete</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── DESKTOP: DataTable ── */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={filtered}
+          isLoading={loading}
+          total={filtered.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
+        />
+      </div>
+
 
       {/* Unified Add/Edit Garment Type & Fields Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

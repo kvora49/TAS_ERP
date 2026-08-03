@@ -257,18 +257,67 @@ export default function UnitsPage() {
         skeletonRows={6}
         skeletonColumns={5}
       >
-        <DataTable
-          columns={columns}
-          data={filteredUnits}
-          isLoading={false}
-          total={filteredUnits.length}
-          page={1}
-          perPage={100}
-          onPageChange={() => {}}
-          onRowClick={setSelectedUnitDetails}
-          emptyMessage="No matching units of measurement found."
-        />
+        {/* ── MOBILE: Units Card List ── */}
+        <div className="md:hidden space-y-3">
+          {filteredUnits.map((u) => {
+            const baseUnit = units.find((bu) => bu.id === u.base_unit_id);
+            return (
+              <div key={u.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer"
+                onClick={() => setSelectedUnitDetails(u)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
+                      <Ruler size={18} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-[var(--primary)] text-sm">{u.name}</p>
+                      <span className="text-[10px] font-mono font-bold bg-[var(--page-bg)] border border-[var(--border)] px-1.5 py-0.5 rounded text-[var(--text-muted)] mt-0.5 inline-block">
+                        {u.abbreviation}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {baseUnit ? (
+                  <p className="text-xs text-[var(--text-muted)] border-t border-[var(--border-light)] pt-2 font-mono">
+                    1 {u.abbreviation} = {u.conversion_factor} {baseUnit.abbreviation}
+                  </p>
+                ) : (
+                  <p className="text-xs font-bold text-emerald-600 border-t border-[var(--border-light)] pt-2">
+                    Primary / Base Unit
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                  <button type="button" onClick={() => handleOpenEdit(u)}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                  ><Pencil size={12} /> Edit</button>
+                  <button type="button" onClick={() => handleOpenDelete(u)}
+                    className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+                  ><Trash2 size={12} /> Delete</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredUnits}
+            isLoading={false}
+            total={filteredUnits.length}
+            page={1}
+            perPage={100}
+            onPageChange={() => {}}
+            onRowClick={setSelectedUnitDetails}
+            emptyMessage="No matching units of measurement found."
+          />
+        </div>
       </PageState>
+
 
       {/* Add/Edit Shared Modal */}
       <Modal

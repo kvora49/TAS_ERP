@@ -282,6 +282,13 @@ export async function DELETE(
       deleted_at: new Date().toISOString(),
     }, { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status });
 
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on purchase deletion warning:", recErr);
+    }
+
     return NextResponse.json({ success: true, message: `Purchase ${existing.purchase_number} successfully cancelled and stock reverted.` });
   } catch (err: any) {
     const status = err.message?.includes("not found") ? 404 : 500;

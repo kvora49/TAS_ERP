@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -15,6 +16,12 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
+    // Run real-time reconciliation to sync roll balances & movement vouchers
+    try {
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Auto-reconciliation warning:", recErr);
+    }
     if (view === "entries") {
       // Return list of stock entries
       let query = supabase
@@ -41,7 +48,7 @@ export async function GET(request: Request) {
       // Return current stock summary
       let query = supabase
         .from("raw_material_current_stock")
-        .select("*, material_type:raw_material_types(name, category, unit, reorder_level), godown:godowns(name)")
+        .select("*, material_type:raw_material_types(name, category, unit, reorder_level, deleted_at), godown:godowns(name)")
         .eq("business_id", businessId);
 
       if (godownId) {
@@ -54,8 +61,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      // Filter out soft-deleted materials & orphan rows
+      const validStock = (stock || []).filter((s: any) => s.material_type && !s.material_type.deleted_at);
+
       // Filter and compute details
-      let formattedStock = (stock || []).map((s: any) => {
+      let formattedStock = validStock.map((s: any) => {
         const current = Number(s.current_stock || 0);
         const minLevel = Number(s.material_type?.reorder_level || 0);
         let stockStatus = "in_stock";

@@ -120,14 +120,15 @@ export default function SalesReportsPage() {
       >
         {data && (
           <div className="space-y-6">
-            {/* KPI Row */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <ReportKPICard label="Total Sales" value={summary.totalRevenue} color="emerald" icon={<TrendingUp size={16} />} />
-              <ReportKPICard label="Total Bills" value={summary.totalBills} format="number" color="blue" icon={<Receipt size={16} />} />
-              <ReportKPICard label="Avg. Bill Value" value={summary.avgBillValue} color="violet" icon={<IndianRupee size={16} />} />
-              <ReportKPICard label="Total Received" value={summary.totalPaid} color="indigo" icon={<ShoppingBag size={16} />} />
-              <ReportKPICard label="Outstanding" value={summary.totalOutstanding} color="rose" icon={<Users size={16} />} />
+            {/* KPI Row — Snap scroll on mobile */}
+            <div className="flex md:grid grid-cols-2 md:grid-cols-5 gap-3 overflow-x-auto snap-x snap-mandatory pb-1 md:pb-0 scrollbar-none">
+              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Sales" value={summary.totalRevenue} color="emerald" icon={<TrendingUp size={16} />} /></div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Bills" value={summary.totalBills} format="number" color="blue" icon={<Receipt size={16} />} /></div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Avg. Bill Value" value={summary.avgBillValue} color="violet" icon={<IndianRupee size={16} />} /></div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Received" value={summary.totalPaid} color="indigo" icon={<ShoppingBag size={16} />} /></div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Outstanding" value={summary.totalOutstanding} color="rose" icon={<Users size={16} />} /></div>
             </div>
+
 
             {/* Main grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -184,7 +185,41 @@ export default function SalesReportsPage() {
                   <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Recent Bills</h3>
                   </div>
-                  <div className="overflow-x-auto">
+
+                  {/* ── MOBILE: Bills Card List ── */}
+                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    {(data.bills ?? []).slice(0, 15).map((b: any) => (
+                      <div key={b.id} className="p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-black text-xs text-[var(--primary)]">{b.bill_number}</span>
+                          <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "bg-[var(--badge-draft-bg)] text-[var(--badge-draft-text)] border-transparent")}>
+                            {b.payment_status}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[60%]">{b.party}</span>
+                          <span className="text-[11px] text-[var(--text-muted)]">{fmtDate(b.bill_date)}</span>
+                        </div>
+                        <div className="grid grid-cols-3 text-center border-t border-[var(--border-light)] pt-2">
+                          <div>
+                            <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Amount</span>
+                            <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">{fmtINR(b.grand_total)}</p>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Paid</span>
+                            <p className="text-xs font-bold mt-0.5 text-emerald-500">{fmtINR(b.paid_amount)}</p>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Due</span>
+                            <p className="text-xs font-bold mt-0.5 text-rose-500">{fmtINR(b.outstanding)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ── DESKTOP: Table ── */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">

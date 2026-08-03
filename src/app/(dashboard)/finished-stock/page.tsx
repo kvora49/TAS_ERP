@@ -109,15 +109,13 @@ export default function FinishedStockOverviewPage() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
-          <span className="text-[#334155]">Finished Stock</span>
+        <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
+          <span className="text-[var(--text-body)]">Finished Stock</span>
           <span>/</span>
-          <span className="text-[#334155] font-normal">Overview</span>
+          <span className="text-[var(--text-body)] font-normal">Overview</span>
         </div>
-        <button
-          onClick={fetchStats}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-semibold text-[#6366F1] bg-white border border-[#E2E8F0] px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+        <button onClick={fetchStats} disabled={loading}
+          className="flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)] bg-[var(--card-bg)] border border-[var(--border)] px-3 py-1.5 rounded-lg hover:bg-[var(--table-row-hover)] active:bg-[var(--table-row-hover)] transition-all cursor-pointer shadow-[var(--shadow-sm)] disabled:opacity-50"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           <span>Sync Data</span>
@@ -157,126 +155,79 @@ export default function FinishedStockOverviewPage() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* KPI Cards Grid — 2-col on mobile, expands on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-white border border-[#E2E8F0] rounded-2xl p-4 space-y-3 animate-pulse shadow-sm">
-              <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+            <div key={i} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 space-y-3 animate-pulse shadow-[var(--shadow-sm)]">
+              <div className="w-10 h-10 bg-[var(--skeleton-base)] rounded-xl" />
               <div className="space-y-1">
-                <div className="h-4 bg-gray-200 rounded w-1/2" />
-                <div className="h-6 bg-gray-200 rounded w-3/4" />
+                <div className="h-4 bg-[var(--skeleton-base)] rounded w-1/2" />
+                <div className="h-6 bg-[var(--skeleton-base)] rounded w-3/4" />
               </div>
             </div>
           ))
         ) : (
           <>
-            {/* Card 1: Total Stock */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center mb-3">
-                <Boxes className="h-5 w-5 text-[#6366F1]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-[var(--primary-light)] rounded-xl flex items-center justify-center mb-3">
+                <Boxes className="h-5 w-5 text-[var(--primary)]" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Total Stock (Pcs)
-              </p>
-              <h3 className="text-2xl font-bold text-[#1E293B] tracking-tight mb-0.5">
-                {(stats?.total_stock || 0).toLocaleString()}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                All Godowns
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Stock (Pcs)</p>
+              <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{(stats?.total_stock || 0).toLocaleString()}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Godowns</p>
             </div>
-
-            {/* Card 2: Total Designs */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#F0FDF4] rounded-xl flex items-center justify-center mb-3">
-                <Palette className="h-5 w-5 text-[#16A34A]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-3">
+                <Palette className="h-5 w-5 text-emerald-600" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Total Designs
-              </p>
-              <h3 className="text-2xl font-bold text-[#1E293B] tracking-tight mb-0.5">
-                {stats?.total_designs || 0}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                All Brands
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Designs</p>
+              <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_designs || 0}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Brands</p>
             </div>
-
-            {/* Card 3: Total Colours */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#FFF7ED] rounded-xl flex items-center justify-center mb-3">
-                <Droplets className="h-5 w-5 text-[#EA580C]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center mb-3">
+                <Droplets className="h-5 w-5 text-orange-600" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Total Colours
-              </p>
-              <h3 className="text-2xl font-bold text-[#1E293B] tracking-tight mb-0.5">
-                {stats?.total_colours || 0}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                All Designs
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Colours</p>
+              <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_colours || 0}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Designs</p>
             </div>
-
-            {/* Card 4: Total Sizes */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#FEF9C3] rounded-xl flex items-center justify-center mb-3">
-                <Ruler className="h-5 w-5 text-[#D97706]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center mb-3">
+                <Ruler className="h-5 w-5 text-amber-600" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Total Sizes
-              </p>
-              <h3 className="text-2xl font-bold text-[#1E293B] tracking-tight mb-0.5">
-                {stats?.total_sizes || 0}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                XS, S, M, L, XL, XXL
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Sizes</p>
+              <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_sizes || 0}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">XS–XXL range</p>
             </div>
-
-            {/* Card 5: Total Value */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#F5F3FF] rounded-xl flex items-center justify-center mb-3">
-                <IndianRupee className="h-5 w-5 text-[#7C3AED]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3">
+                <IndianRupee className="h-5 w-5 text-purple-600" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Total Value
-              </p>
-              <h3 className="text-xl font-bold text-[#1E293B] tracking-tight mb-0.5 mt-0.5">
-                {formatRupee(stats?.total_value || 0)}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                At Cost
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Value</p>
+              <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5 mt-0.5">{formatRupee(stats?.total_value || 0)}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">At Cost</p>
             </div>
-
-            {/* Card 6: Active Godowns */}
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-10 h-10 bg-[#EEF2FF] rounded-xl flex items-center justify-center mb-3">
-                <Building2 className="h-5 w-5 text-[#6366F1]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+              <div className="w-10 h-10 bg-[var(--primary-light)] rounded-xl flex items-center justify-center mb-3">
+                <Building2 className="h-5 w-5 text-[var(--primary)]" />
               </div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider leading-none mb-1">
-                Active Godowns
-              </p>
-              <h3 className="text-2xl font-bold text-[#1E293B] tracking-tight mb-0.5">
-                {stats?.active_godowns || 0}
-              </h3>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none">
-                All Locations
-              </p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Active Godowns</p>
+              <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.active_godowns || 0}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Locations</p>
             </div>
           </>
         )}
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* Charts Section — desktop only */}
+      <div className="hidden md:grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Donut Chart: Godown Breakdown */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 lg:col-span-2 flex flex-col justify-between shadow-sm">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 lg:col-span-2 flex flex-col justify-between shadow-[var(--shadow-sm)]">
           <div>
-            <h3 className="text-base font-bold text-[#1E293B] mb-1">Godown Stock Breakdown</h3>
-            <p className="text-xs text-[#64748B] mb-4">Stock distribution across active warehouses</p>
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-1">Godown Stock Breakdown</h3>
+            <p className="text-xs text-[var(--text-muted)] mb-4">Stock distribution across active warehouses</p>
           </div>
           <div className="h-[220px] flex items-center justify-center">
             {loading ? (
@@ -345,23 +296,83 @@ export default function FinishedStockOverviewPage() {
       </div>
 
       {/* Stock by Design Table */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden">
+        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-[#1E293B]">Stock by Design (Top 10)</h3>
-            <p className="text-xs text-[#64748B]">Top 10 garment designs ranked by stock levels</p>
+            <h3 className="text-base font-bold text-[var(--text-primary)]">Stock by Design (Top 10)</h3>
+            <p className="text-xs text-[var(--text-muted)]">Top 10 garment designs ranked by stock levels</p>
           </div>
-          <Link
-            href="/finished-stock/designs"
-            className="flex items-center gap-1 text-xs font-semibold text-[#6366F1] hover:text-[#4F46E5] hover:underline"
+          <Link href="/finished-stock/designs"
+            className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:text-[var(--primary-dark)] hover:underline"
           >
             <span>View All Designs</span>
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* ── MOBILE: design cards ── */}
+        <div className="md:hidden divide-y divide-[var(--border-light)]">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="p-4 animate-pulse space-y-2">
+                <div className="h-4 bg-[var(--skeleton-base)] rounded w-1/3" />
+                <div className="h-3 bg-[var(--skeleton-base)] rounded w-1/2" />
+              </div>
+            ))
+          ) : stats?.top_designs && stats.top_designs.length > 0 ? (
+            stats.top_designs.map((design, idx) => (
+              <div key={design.design_id} className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-black text-[var(--text-faint)] w-5 shrink-0">#{idx + 1}</span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[var(--primary)] text-sm truncate">{design.design_code}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate">{design.design_name}</p>
+                    </div>
+                  </div>
+                  <Link href={`/master-data/designs/${design.design_id}`}
+                    className="ml-2 shrink-0 inline-flex items-center justify-center w-7 h-7 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--primary)] rounded-lg transition-all"
+                  ><ArrowRight className="h-3.5 w-3.5" /></Link>
+                </div>
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Qty</p>
+                    <p className="text-xs font-black text-[var(--text-primary)] mt-0.5">{(design.total_quantity || 0).toLocaleString()} pcs</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Value</p>
+                    <p className="text-xs font-black text-[var(--primary)] mt-0.5">{formatRupee(design.total_value || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Godown</p>
+                    <p className="text-xs font-semibold text-[var(--text-body)] mt-0.5 truncate">{design.godown_count > 1 ? `All (${design.godown_count})` : design.godown_name || "N/A"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {design.colours && design.colours.slice(0, 5).map((hex, index) => (
+                      <ColourDot key={index} colourHex={hex} size="sm" />
+                    ))}
+                    {design.colours && design.colours.length > 5 && <span className="text-[10px] font-bold text-[var(--text-faint)]">+{design.colours.length - 5}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {design.sizes && design.sizes.slice(0, 4).map((sz, i) => (
+                      <span key={i} className="text-[10px] font-bold bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded">{sz}</span>
+                    ))}
+                    {design.sizes && design.sizes.length > 4 && <span className="text-[10px] font-bold text-[var(--text-faint)] px-1 py-0.5">+{design.sizes.length - 4}</span>}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-xs text-[var(--text-muted)]">No finished stock items found.</div>
+          )}
+        </div>
+
+        {/* ── DESKTOP: table ── */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm text-[#475569]">
+
             <thead>
               <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11px] font-bold text-[#475569] uppercase tracking-wider">
                 <th className="py-3 px-5 w-12 text-center">#</th>
@@ -455,7 +466,7 @@ export default function FinishedStockOverviewPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </div>{/* end desktop table */}
       </div>
     </div>
   );

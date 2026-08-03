@@ -275,6 +275,17 @@ export async function POST(request: Request) {
       }
     }
 
+    if (!effectiveGodownId) {
+      const { data: defaultG } = await supabase
+        .from("godowns")
+        .select("id")
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+      effectiveGodownId = defaultG?.id || null;
+    }
+
     // Always update inventory stock for purchase returns if godown_id is available
     if (effectiveGodownId) {
       const { data: { user } } = await supabase.auth.getUser();
@@ -324,10 +335,12 @@ export async function POST(request: Request) {
           if (existingStock) {
             const newQty = Math.max(0, Number(existingStock.current_stock || 0) - returnedQty);
             const newValue = Math.max(0, Number(existingStock.stock_value || 0) - returnedVal);
+            const newCost = newQty > 0 ? Number((newValue / newQty).toFixed(2)) : Number(existingStock.unit_cost || 0);
             await supabase
               .from("raw_material_current_stock")
               .update({
                 current_stock: newQty,
+                unit_cost: newCost,
                 stock_value: newValue,
                 updated_at: new Date().toISOString(),
               })
@@ -396,6 +409,13 @@ export async function POST(request: Request) {
 
         }
       }
+    }
+
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on purchase return warning:", recErr);
     }
 
     return NextResponse.json({ return: pReturn });

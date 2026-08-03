@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, FileText } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, ClipboardList } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
+import { Modal } from "@/components/shared/Modal";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 
 // Step components
@@ -597,10 +598,13 @@ export default function CreateLotPage() {
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
+  // Mobile summary sheet state
+  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
+
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
-      {/* Breadcrumbs */}
-      <nav className="flex items-center gap-1.5 text-xs text-[#64748B] font-semibold uppercase tracking-wider">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 select-none max-w-[1400px] mx-auto pb-28 md:pb-6">
+      {/* Breadcrumbs — hidden on mobile to save space */}
+      <nav className="hidden md:flex items-center gap-1.5 text-xs text-[#64748B] font-semibold uppercase tracking-wider">
         <Link href="/" className="hover:text-[#6366F1] transition-colors">Production</Link>
         <ChevronRight size={12} className="text-[#94A3B8]" />
         <Link href="/production/lots" className="hover:text-[#6366F1] transition-colors">Production Lots</Link>
@@ -628,9 +632,9 @@ export default function CreateLotPage() {
       <WizardHeader currentStep={currentStep} steps={steps} />
 
       {/* Content Layout Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Forms Section */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* Left Forms Section — full width on mobile, 2/3 on lg */}
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
           {currentStep === 1 && (
             <Step1RollAllocation
               rollSearch={rollSearch}
@@ -770,8 +774,8 @@ export default function CreateLotPage() {
           )}
         </div>
 
-        {/* Right sticky panel */}
-        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+        {/* Right sticky panel — HIDDEN on mobile, visible on lg+ */}
+        <div className="hidden lg:block space-y-6 lg:sticky lg:top-6 lg:self-start">
           <LotSummaryPanel
             title="Lot Live Summary"
             designImage={selectedDesign?.images?.[0]}
@@ -797,6 +801,44 @@ export default function CreateLotPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Mobile: Floating Summary Pill (lg:hidden) ───────────────────────── */}
+      <div className="lg:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] right-4 z-30">
+        <button
+          type="button"
+          onClick={() => setMobileSummaryOpen(true)}
+          className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2.5 rounded-full shadow-lg shadow-[var(--primary)]/30 text-sm font-bold active:scale-95 transition-transform cursor-pointer"
+        >
+          <ClipboardList className="h-4 w-4" />
+          Summary
+        </button>
+      </div>
+
+      {/* Mobile Summary Sheet */}
+      <Modal
+        open={mobileSummaryOpen}
+        onOpenChange={setMobileSummaryOpen}
+        title="Lot Live Summary"
+        maxWidth="max-w-lg"
+      >
+        <div className="space-y-4">
+          <LotSummaryPanel
+            title=""
+            designImage={selectedDesign?.images?.[0]}
+            items={summaryItems}
+          />
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Remarks / Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add production instructions or lot remarks..."
+              rows={3}
+              className="w-full p-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--input-focus)] outline-none resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Create Design Modal */}
       <CreateDesignModal

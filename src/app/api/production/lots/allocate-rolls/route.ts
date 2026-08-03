@@ -76,8 +76,19 @@ export async function POST(request: Request) {
         throw new Error(`Failed to write stock ledger for roll ${purchase_roll_id}: ${ledgerError.message}`);
       }
 
-      // Deduct from raw_material_current_stock
-      const godownId = roll.item?.purchase?.godown_id;
+      // Fetch default godown if roll purchase godown_id is missing
+      let godownId = roll.item?.purchase?.godown_id;
+      if (!godownId) {
+        const { data: defaultG } = await supabase
+          .from("godowns")
+          .select("id")
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .limit(1)
+          .maybeSingle();
+        godownId = defaultG?.id;
+      }
+
       const matTypeId = roll.item?.material_type_id;
       if (godownId && matTypeId) {
         const { data: stockEntry } = await supabase
@@ -91,7 +102,7 @@ export async function POST(request: Request) {
         if (stockEntry) {
           const updatedQty = Math.max(0, Number(stockEntry.current_stock || 0) - Number(allocated_meters));
           const updatedValue = Math.max(0, Number(stockEntry.stock_value || 0) - valDelta);
-          const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+          const updatedUnitCost = updatedQty > 0 ? Number((updatedValue / updatedQty).toFixed(2)) : Number(stockEntry.unit_cost || 0);
 
           await supabase
             .from("raw_material_current_stock")
@@ -103,7 +114,46 @@ export async function POST(request: Request) {
             })
             .eq("id", stockEntry.id);
         }
+
+        // Auto-register Stock Entry Voucher for Stock Movement Registers
+        const entryNumber = `STK-OUT-LOT-${roll.roll_number || purchase_roll_id.slice(0, 6)}`;
+        const { data: seVoucher } = await supabase
+          .from("raw_material_stock_entries")
+          .insert({
+            business_id: businessId,
+            stock_entry_number: entryNumber,
+            entry_type: "stock_out",
+            posting_date: new Date().toISOString().split("T")[0],
+            godown_id: godownId,
+            reference_type: "production",
+            reference_id: purchase_roll_id,
+            remarks: `Production Lot Allocation (Roll ${roll.roll_number || ''})`,
+            total_items_value: valDelta,
+            grand_total: valDelta,
+            status: "active",
+          })
+          .select()
+          .single();
+
+        if (seVoucher) {
+          await supabase.from("raw_material_stock_entry_items").insert({
+            business_id: businessId,
+            stock_entry_id: seVoucher.id,
+            material_type_id: matTypeId,
+            unit: "meter",
+            quantity: Number(allocated_meters),
+            rate: rate,
+            amount: valDelta,
+          });
+        }
       }
+    }
+
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on roll allocation warning:", recErr);
     }
 
     return NextResponse.json({ success: true });

@@ -113,20 +113,55 @@ export class SalesBillService {
     if (!serverSettings.allow_negative_stock && items && items.length > 0) {
       for (const item of items) {
         const itemAny = item as any;
-        const targetId = itemAny.finished_goods_id || item.design_id;
-        if (targetId) {
+        const designId = itemAny.design_id;
+        const finishedGoodsId = itemAny.finished_goods_id;
+        const colorId = itemAny.colour_id;
+        const size = itemAny.size;
+        const req = Number(item.quantity || 0);
+
+        if (finishedGoodsId) {
           const { data: stockRow } = await this.repository.supabase
-            .from("finished_goods_current_stock")
-            .select("current_stock, finished_goods:finished_goods(name)")
+            .from("raw_material_current_stock")
+            .select("current_stock, material:raw_materials(name)")
             .eq("business_id", businessId)
-            .eq("finished_goods_id", targetId)
+            .eq("material_id", finishedGoodsId)
             .maybeSingle();
 
           const avail = Number(stockRow?.current_stock || 0);
-          const req = Number(item.quantity || 0);
           if (avail < req) {
-            const fgName = (stockRow?.finished_goods as any)?.name || item.item_name || "Item";
+            const fgName = (stockRow?.material as any)?.name || item.item_name || "Item";
             throw new Error(`Insufficient stock for item "${fgName}". Available: ${avail}, Requested: ${req}`);
+          }
+        } else if (designId) {
+          let stockQuery = this.repository.supabase
+            .from("finished_stock")
+            .select("total_quantity, size_quantities, design:designs(name, design_number)")
+            .eq("business_id", businessId)
+            .eq("design_id", designId)
+            .is("deleted_at", null);
+
+          if (colorId) {
+            stockQuery = stockQuery.eq("colour_id", colorId);
+          }
+
+          const { data: stockRows } = await stockQuery;
+
+          let avail = 0;
+          let designName = "Design";
+          if (stockRows && stockRows.length > 0) {
+            designName = (stockRows[0]?.design as any)?.design_number || (stockRows[0]?.design as any)?.name || "Design";
+            stockRows.forEach((row: any) => {
+              if (size && size !== "—" && row.size_quantities && row.size_quantities[size] !== undefined) {
+                avail += Number(row.size_quantities[size] || 0);
+              } else {
+                avail += Number(row.total_quantity || 0);
+              }
+            });
+          }
+
+          if (avail < req) {
+            const itemLabel = size && size !== "—" ? `${designName} (${size})` : designName;
+            throw new Error(`Insufficient stock for item "${itemLabel}". Available: ${avail}, Requested: ${req}`);
           }
         }
       }

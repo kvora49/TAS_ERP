@@ -18,6 +18,8 @@ import { NotificationPopover } from "@/components/notifications/NotificationPopo
 import ThemeToggle from "./ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
+
 
 // Header component with collapsible sidebar support
 
@@ -149,7 +151,47 @@ export default function Header() {
 
       {/* Right: Filters & Quick Actions */}
       <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
-        {/* Brand Filter */}
+        {/* Mobile Filter Sheet Trigger (< sm) */}
+        <div className="sm:hidden">
+          <MobileFilterSheet
+            activeCount={
+              (filters?.brandId && filters.brandId !== "all" ? 1 : 0) +
+              (filters?.dateRange && filters.dateRange !== "today" ? 1 : 0)
+            }
+            triggerLabel="Filters"
+            onClearAll={() => setFilters({ brandId: "all", dateRange: "today" })}
+          >
+            <MobileFilterField label="Brand">
+              <select
+                value={filters?.brandId || "all"}
+                onChange={(e) => setFilters({ brandId: e.target.value })}
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Brands</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterField>
+            <MobileFilterField label="Period">
+              <select
+                value={filters?.dateRange || "today"}
+                onChange={(e) => setFilters({ dateRange: e.target.value })}
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="this_year">This Fiscal Year</option>
+              </select>
+            </MobileFilterField>
+          </MobileFilterSheet>
+        </div>
+
+        {/* Brand Filter (Desktop/Tablet) */}
         <div className="hidden sm:block">
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer outline-none">
@@ -184,7 +226,7 @@ export default function Header() {
           </DropdownMenu>
         </div>
 
-        {/* Date Filter */}
+        {/* Date Filter (Desktop/Tablet) */}
         <div className="hidden sm:block">
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer outline-none">
@@ -216,6 +258,7 @@ export default function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
 
         {/* Divider */}
         <div className="h-5 w-px bg-[var(--border)] hidden md:block" />

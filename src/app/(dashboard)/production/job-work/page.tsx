@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import WorkerAvatar from "@/components/shared/WorkerAvatar";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -573,58 +574,59 @@ export default function UnifiedJobWorkPage() {
         </div>
       </div>
 
-      {/* Financial Snapshot KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Total Job Work Billed</p>
-            <h3 className="text-lg font-extrabold text-[#0F172A] mt-1">
-              {formatCurrency(globalStats.totalBilled)}
-            </h3>
+      {/* ── MOBILE: snap-scroll KPI cards ── */}
+      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+        {[
+          { label: "Total Billed",    value: formatCurrency(globalStats.totalBilled),       icon: ClipboardList, bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+          { label: "Total Payouts",   value: formatCurrency(globalStats.totalPaid),          icon: CheckCircle,   bg: "bg-emerald-500/10",           color: "text-emerald-600" },
+          { label: "Outstanding",     value: formatCurrency(globalStats.totalOutstanding),   icon: IndianRupee,   bg: "bg-rose-500/10",              color: "text-rose-600" },
+          { label: "Active Workers",  value: `${workers.length}`,                            icon: User,          bg: "bg-blue-500/10",              color: "text-blue-600" },
+        ].map(({ label, value, icon: Icon, bg, color }) => (
+          <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+            </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#6366F1] flex items-center justify-center font-bold">
-            <ClipboardList size={20} />
-          </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs flex items-center justify-between">
+      {/* ── DESKTOP: existing 4-col KPI grid ── */}
+      <div className="hidden md:grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Total Payouts Released</p>
-            <h3 className="text-lg font-extrabold text-emerald-600 mt-1">
-              {formatCurrency(globalStats.totalPaid)}
-            </h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Job Work Billed</p>
+            <h3 className="text-lg font-extrabold text-[var(--text-primary)] mt-1">{formatCurrency(globalStats.totalBilled)}</h3>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-            <CheckCircle size={20} />
-          </div>
+          <div className="w-10 h-10 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-bold"><ClipboardList size={20} /></div>
         </div>
-
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs flex items-center justify-between">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Net Outstanding Payable</p>
-            <h3 className="text-lg font-extrabold text-rose-600 mt-1">
-              {formatCurrency(globalStats.totalOutstanding)}
-            </h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Payouts Released</p>
+            <h3 className="text-lg font-extrabold text-emerald-600 mt-1">{formatCurrency(globalStats.totalPaid)}</h3>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
-            <IndianRupee size={20} />
-          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold"><CheckCircle size={20} /></div>
         </div>
-
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs flex items-center justify-between">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Active Workers</p>
-            <h3 className="text-lg font-extrabold text-[#0F172A] mt-1">{workers.length}</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Net Outstanding Payable</p>
+            <h3 className="text-lg font-extrabold text-rose-600 mt-1">{formatCurrency(globalStats.totalOutstanding)}</h3>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-            <User size={20} />
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold"><IndianRupee size={20} /></div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Active Workers</p>
+            <h3 className="text-lg font-extrabold text-[var(--text-primary)] mt-1">{workers.length}</h3>
           </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold"><User size={20} /></div>
         </div>
       </div>
 
       {/* Tabs Container Header */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden">
-        <div className="flex items-center border-b border-[#E5E7EB] bg-slate-50/50 px-4 pt-3 gap-2">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+        <div className="flex items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] px-4 pt-3 gap-2 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab("entries")}
             className={`px-4 py-2.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-2 border-b-2 ${

@@ -519,20 +519,28 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             )}
 
             {/* Add Button Row */}
-            <div className="flex items-center justify-end gap-3 pt-1">
-              <span className="text-xs text-slate-500">
-                Line Total: <strong className="text-slate-900 font-bold">₹{(totalMatrixQty * rate * (1 - discountPercent / 100)).toFixed(2)}</strong> ({totalMatrixQty} Pcs)
-              </span>
-              <Button
-                type="button"
-                onClick={handleAddItem}
-                disabled={!selectedDesignId || totalMatrixQty <= 0 || rate < 0}
-                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center justify-center gap-1.5 h-10 px-5 font-bold shadow-md shadow-indigo-600/10 cursor-pointer"
-              >
-                <Plus size={16} />
-                <span>Add Items to Invoice</span>
-              </Button>
-            </div>
+            {(() => {
+              const effectiveMultiplier = autoFillAllColors && colours.length > 0 ? colours.length : 1;
+              const displayTotalQty = totalMatrixQty * effectiveMultiplier;
+              const displayLineTotal = displayTotalQty * rate * (1 - discountPercent / 100);
+
+              return (
+                <div className="flex items-center justify-end gap-3 pt-1">
+                  <span className="text-xs text-[var(--text-secondary)]">
+                    Line Total: <strong className="text-[var(--text-primary)] font-bold">₹{displayLineTotal.toFixed(2)}</strong> ({displayTotalQty} Pcs{autoFillAllColors && colours.length > 0 ? ` across ${colours.length} colours` : ""})
+                  </span>
+                  <Button
+                    type="button"
+                    onClick={handleAddItem}
+                    disabled={!selectedDesignId || totalMatrixQty <= 0 || rate < 0}
+                    className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center justify-center gap-1.5 h-10 px-5 font-bold shadow-md shadow-indigo-600/10 cursor-pointer"
+                  >
+                    <Plus size={16} />
+                    <span>Add Items to Invoice</span>
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
         )}
       </>

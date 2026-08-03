@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export async function GET(
   request: Request,
@@ -14,6 +15,13 @@ export async function GET(
   const { id } = params;
 
   try {
+    // 0. Perform real-time ground-truth stock reconciliation for this material
+    try {
+      await reconcileRawMaterialStock(supabase, businessId, id);
+    } catch (recErr) {
+      console.warn("Raw material detail reconciliation warning:", recErr);
+    }
+
     // 1. Fetch raw material type details
     const { data: material, error: matError } = await supabase
       .from("raw_material_types")
@@ -60,7 +68,8 @@ export async function GET(
         rate,
         amount,
         created_at,
-        purchase:raw_material_purchases!inner(
+        purchase:raw_material_purchases(
+
           id,
           invoice_no,
           invoice_date,
@@ -85,53 +94,30 @@ export async function GET(
 
     // 5. Build Live Stock per Godown (Tab 1)
     const godownDict = new Map<string, any>((allGodowns || []).map((g) => [g.id, g]));
+    const defaultGodown = allGodowns && allGodowns.length > 0 ? allGodowns[0] : null;
     const godownStockMap = new Map<string, { godown: any; current_stock: number; stock_value: number; unit_cost: number }>();
 
-    // Seed from current_stock table
+    // Seed from current_stock table (driven by stock_ledger)
     (rawStocks || []).forEach((s: any) => {
-      const g = s.godown || godownDict.get(s.godown_id);
-      if (g) {
-        godownStockMap.set(s.godown_id, {
-          godown: g,
-          current_stock: Number(s.current_stock || 0),
-          stock_value: Number(s.stock_value || 0),
-          unit_cost: Number(s.unit_cost || 0),
-        });
-      }
+      const g = s.godown || godownDict.get(s.godown_id) || defaultGodown;
+      if (!g) return;
+      godownStockMap.set(g.id, {
+        godown: g,
+        current_stock: Number(s.current_stock || 0),
+        stock_value: Number(s.stock_value || 0),
+        unit_cost: Number(s.unit_cost || 0),
+      });
     });
 
-    // Accumulate stock per godown from purchases if current_stock table was missing/zero
-    (purchaseItems || []).forEach((pi: any) => {
-      const gId = pi.purchase?.godown_id;
-      const g = godownDict.get(gId);
-      if (gId && g) {
-        const qty = Number(pi.quantity || 0);
-        const rate = Number(pi.rate || 0);
-        const amt = Number(pi.amount || (qty * rate));
-
-        const existing = godownStockMap.get(gId);
-        if (!existing) {
-          godownStockMap.set(gId, {
-            godown: g,
-            current_stock: qty,
-            stock_value: amt,
-            unit_cost: rate,
-          });
-        } else if (existing.current_stock === 0 && qty > 0) {
-          existing.current_stock += qty;
-          existing.stock_value += amt;
-          existing.unit_cost = rate;
-        }
-      }
-    });
-
-    const stocks = Array.from(godownStockMap.values()).map((v, idx) => ({
-      id: `godown-stock-${idx}`,
-      current_stock: v.current_stock,
-      unit_cost: v.unit_cost,
-      stock_value: v.stock_value,
-      godown: v.godown,
-    }));
+    const stocks = Array.from(godownStockMap.values())
+      .filter((v) => v.current_stock > 0 || godownStockMap.size === 1)
+      .map((v, idx) => ({
+        id: `godown-stock-${idx}`,
+        current_stock: v.current_stock,
+        unit_cost: v.unit_cost,
+        stock_value: v.stock_value,
+        godown: v.godown,
+      }));
 
     // 4. Fetch movements from stock_ledger
     const { data: movements } = await supabase

@@ -14,6 +14,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePartiesList } from "@/hooks/queries/useParties";
+import { cn } from "@/lib/utils";
 
 interface Party {
   id: string;
@@ -293,9 +294,27 @@ export default function PartiesPage() {
           </div>
         </div>
 
-        {/* FILTER & TABS BAR */}
+        {/* ── MOBILE: snap-scroll stat cards ── */}
+        <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 scrollbar-none">
+          {[
+            { label: "Suppliers", count: supplierCount, icon: Users,     bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+            { label: "Customers", count: customerCount, icon: Briefcase, bg: "bg-green-500/10",              color: "text-green-500" },
+            { label: "Workers",   count: workerCount,   icon: UserCheck, bg: "bg-amber-500/10",             color: "text-amber-500" },
+            { label: "All",       count: parties.length, icon: Users,    bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+          ].map(({ label, count, icon: Icon, bg, color }) => (
+            <div key={label} className="snap-start shrink-0 w-[140px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+              <div className={cn("p-2 rounded-lg", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</p>
+                <p className={cn("text-sm font-black mt-0.5", color)}>{count}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── DESKTOP: existing 3-col stat grid ── */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
-          {/* Tabs */}
+          {/* Desktop Tabs */}
           <div className="flex bg-[var(--page-bg)] p-1 rounded-lg w-full md:w-auto">
             {[
               { id: "all", label: "All Parties" },
@@ -317,21 +336,83 @@ export default function PartiesPage() {
             ))}
           </div>
 
-          {/* Search */}
+          {/* Desktop Search */}
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
-            <input
-              type="text"
-              placeholder="Search by name, address, city, state, pincode, GSTIN..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input type="text" placeholder="Search by name, address, city, state, pincode, GSTIN..." value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
             />
           </div>
+        </div>{/* end desktop filter bar */}
+
+        {/* ── MOBILE: Party card list ── */}
+        <div className="md:hidden space-y-3">
+          {filteredParties.map((party) => (
+            <div key={party.id}
+              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+              onClick={() => router.push(`/parties/${party.id}`)}
+            >
+              {/* Header: Avatar initials + Name + Status */}
+              <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
+                <div className="w-9 h-9 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-black text-sm shrink-0 uppercase">
+                  {party.name?.charAt(0) || "?"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Link href={`/parties/${party.id}`} onClick={(e) => e.stopPropagation()}
+                    className="font-bold text-[var(--text-primary)] text-sm hover:text-[var(--primary)] hover:underline block truncate"
+                  >{party.name}</Link>
+                  {party.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{party.company_name}</p>}
+                </div>
+                <StatusBadge active={party.status === "active"} />
+              </div>
+
+              {/* Type badges + Code */}
+              <div className="flex items-center gap-1.5 flex-wrap px-4 pb-2">
+                <span className="font-mono text-[10px] font-bold text-[var(--text-faint)] bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded">
+                  {party.code || "—"}
+                </span>
+                {party.type?.map((t) => {
+                  let variant: BadgeVariant = "gray";
+                  if (t === "supplier") variant = "primary";
+                  else if (t === "customer") variant = "green";
+                  else if (t === "worker") variant = "orange";
+                  return <Badge key={t} variant={variant} className="capitalize text-[10px]">{t}</Badge>;
+                })}
+              </div>
+
+              {/* Phone + GSTIN grid */}
+              <div className="grid grid-cols-2 gap-2 px-4 pb-2 border-t border-[var(--border-light)] pt-2">
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Phone</p>
+                  <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{party.phone || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">GSTIN</p>
+                  <p className="text-xs font-mono font-bold text-[var(--text-primary)] mt-0.5 truncate uppercase">{party.gstin || "—"}</p>
+                </div>
+              </div>
+
+              {/* Action footer */}
+              <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                <Link href={`/parties/${party.id}`} onClick={(e) => e.stopPropagation()}
+                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] flex items-center justify-center cursor-pointer" title="View Profile"
+                ><User size={13} /></Link>
+                <Link href={`/parties/${party.id}/ledger`} onClick={(e) => e.stopPropagation()}
+                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="Ledger"
+                ><FileText size={13} /></Link>
+                <Link href={`/parties/${party.id}/edit`} onClick={(e) => e.stopPropagation()}
+                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
+                ><Pencil size={13} /></Link>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenDelete(party); }}
+                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Delete"
+                ><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* DATA TABLE */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
           <DataTable
             columns={columns}
             data={filteredParties}
@@ -343,7 +424,7 @@ export default function PartiesPage() {
             onRowClick={(row) => router.push(`/parties/${row.id}`)}
             emptyMessage="No parties found matching filter."
           />
-        </div>
+        </div>{/* end desktop DataTable */}
       </PageState>
 
       {/* DELETE CONFIRM DIALOG */}

@@ -309,65 +309,142 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        {/* Dynamic KPI Cards (Updates per Active Tab) */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400">
-              <DollarSign className="h-6 w-6" />
+        {/* Dynamic KPI Cards (Updates per Active Tab) — Mobile Snap Scroll + Desktop Grid */}
+        <div className="lg:col-span-3 flex md:grid md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto snap-x snap-mandatory pb-1 md:pb-0 scrollbar-none">
+          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+            <div className="p-2.5 md:p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400 shrink-0">
+              <DollarSign className="h-5 w-5 md:h-6 md:w-6" />
             </div>
-            <div>
-              <span className="text-xs font-semibold text-[var(--text-muted)]">Total Debits (Dr)</span>
-              <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalDebits)}</p>
-              <span className="text-[10px] text-[var(--text-faint)]">
-                {activeBillTab === "total" ? "All Payments / Returns" : `${activeBillTab.toUpperCase()} Debits`}
+            <div className="min-w-0">
+              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Debits (Dr)</span>
+              <p className="text-sm md:text-xl font-bold text-red-600 dark:text-red-400 truncate">{formatCurrency(totalDebits)}</p>
+              <span className="text-[9px] text-[var(--text-faint)] truncate block">
+                {activeBillTab === "total" ? "All Payments" : `${activeBillTab.toUpperCase()} Debits`}
               </span>
             </div>
           </div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400">
-              <Receipt className="h-6 w-6" />
+          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+            <div className="p-2.5 md:p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Receipt className="h-5 w-5 md:h-6 md:w-6" />
             </div>
-            <div>
-              <span className="text-xs font-semibold text-[var(--text-muted)]">Total Credits (Cr)</span>
-              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalCredits)}</p>
-              <span className="text-[10px] text-[var(--text-faint)]">
-                {activeBillTab === "total" ? "All Purchases / Invoices" : `${activeBillTab.toUpperCase()} Credits`}
+            <div className="min-w-0">
+              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Credits (Cr)</span>
+              <p className="text-sm md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatCurrency(totalCredits)}</p>
+              <span className="text-[9px] text-[var(--text-faint)] truncate block">
+                {activeBillTab === "total" ? "All Purchases" : `${activeBillTab.toUpperCase()} Credits`}
               </span>
             </div>
           </div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-[var(--primary)]">
-              <Calendar className="h-6 w-6" />
+          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+            <div className="p-2.5 md:p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-[var(--primary)] shrink-0">
+              <Calendar className="h-5 w-5 md:h-6 md:w-6" />
             </div>
-            <div>
-              <span className="text-xs font-semibold text-[var(--text-muted)]">Closing Balance</span>
-              <p className={`text-xl font-bold ${closingBalanceSign === "Cr" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+            <div className="min-w-0">
+              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Closing Balance</span>
+              <p className={`text-sm md:text-xl font-bold truncate ${closingBalanceSign === "Cr" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                 {closingBalanceStr}
               </p>
-              <span className="text-[10px] text-[var(--text-faint)] capitalize">{activeBillTab} Outstanding</span>
+              <span className="text-[9px] text-[var(--text-faint)] capitalize truncate block">{activeBillTab} Outstanding</span>
             </div>
           </div>
 
           {remainingAdvance > 0 && (
-            <div className="bg-[var(--card-bg)] border border-blue-200 dark:border-blue-900 rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4 bg-blue-50/20 dark:bg-blue-950/20">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400">
-                <CreditCard className="h-6 w-6" />
+            <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-blue-200 dark:border-blue-900 rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4 bg-blue-50/20 dark:bg-blue-950/20">
+              <div className="p-2.5 md:p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
+                <CreditCard className="h-5 w-5 md:h-6 md:w-6" />
               </div>
-              <div>
-                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Advance Balance</span>
-                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(remainingAdvance)}</p>
-                <span className="text-[10px] text-blue-500 font-semibold uppercase tracking-wider">Unsettled</span>
+              <div className="min-w-0">
+                <span className="text-[10px] md:text-xs font-semibold text-blue-600 dark:text-blue-400 truncate block">Advance Balance</span>
+                <p className="text-sm md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate">{formatCurrency(remainingAdvance)}</p>
+                <span className="text-[9px] text-blue-500 font-semibold uppercase tracking-wider block">Unsettled</span>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* LEDGER TABLE WITH BILL TYPE DISTINCTION AND DYNAMIC TAB RUNNING BALANCE */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+
+      {/* ── MOBILE LEDGER TIMELINE CARDS (< md) ── */}
+      <div className="md:hidden space-y-3">
+        {displayLedger.length === 0 ? (
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-8 text-center text-xs text-[var(--text-muted)] font-semibold">
+            No ledger entries found for {activeBillTab.toUpperCase()} tab matching this filter.
+          </div>
+        ) : (
+          displayLedger.map((row, idx) => {
+            const hasAllocations = !!row.allocations && row.allocations.length > 0;
+            const rowId = row.id || `entry-${idx}`;
+            const isExpanded = !!expandedRows[rowId];
+            const isPakka = row.billCategory === "pakka";
+            const isKacha = row.billCategory === "kacha";
+
+            let badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+            if (row.voucherType === "Purchase") badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
+            else if (row.voucherType === "Sale") badgeClass = "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300";
+            else if (row.voucherType === "Return") badgeClass = "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+            else if (row.voucherType === "Payment") badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+
+            return (
+              <div key={rowId} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeClass}`}>{row.voucherType}</span>
+                    {isPakka && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">📄 Pakka</span>}
+                    {isKacha && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">📝 Kaccha</span>}
+                  </div>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)]">{formatDate(row.date)}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-[var(--text-primary)]">{row.particulars}</p>
+                    <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">Voucher #: {row.voucherNo}</p>
+                  </div>
+                  {hasAllocations && (
+                    <button type="button" onClick={() => toggleRow(rowId)} className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)]">
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 border-t border-[var(--border-light)] pt-2 text-center">
+                  <div>
+                    <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Debit (Dr)</span>
+                    <p className="text-xs font-bold text-red-600 mt-0.5">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Credit (Cr)</span>
+                    <p className="text-xs font-bold text-emerald-600 mt-0.5">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Balance</span>
+                    <p className="text-xs font-black text-[var(--text-primary)] mt-0.5">{row.balanceStr}</p>
+                  </div>
+                </div>
+
+                {isExpanded && hasAllocations && (
+                  <div className="bg-[var(--page-bg)] p-2.5 rounded-lg border border-[var(--border-light)] space-y-1 text-xs">
+                    <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block">Allocated Bills:</span>
+                    {row.allocations!.map((a, i) => (
+                      <div key={i} className="flex justify-between font-mono text-[11px]">
+                        <span>{a.billNo}</span>
+                        <span className="font-bold">{formatCurrency(a.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }))}
+      </div>
+
+
+      {/* ── DESKTOP LEDGER TABLE (≥ md) ── */}
+      <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
         <div className="overflow-x-auto">
+
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">

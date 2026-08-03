@@ -146,6 +146,93 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create stock items: " + itemsError.message }, { status: 500 });
     }
 
+    // Update raw_material_current_stock and insert into stock_ledger for each item
+    const { data: { user } } = await supabase.auth.getUser();
+    const ledgerEntries: any[] = [];
+
+    for (const item of items) {
+      if (!item.material_type_id) continue;
+      const qty = Number(item.quantity || 0);
+      const rate = Number(item.rate || 0);
+      const amt = Number(item.amount || (qty * rate));
+
+      // 1. Fetch current stock row
+      const { data: existingStock } = await supabase
+        .from("raw_material_current_stock")
+        .select("*")
+        .eq("business_id", businessId)
+        .eq("material_type_id", item.material_type_id)
+        .eq("godown_id", effectiveGodownId)
+        .maybeSingle();
+
+      let newQty = Number(existingStock?.current_stock || 0);
+      let newValue = Number(existingStock?.stock_value || 0);
+      let deltaQty = qty;
+      let deltaValue = amt;
+
+      if (entry_type === "stock_in") {
+        newQty += qty;
+        newValue += amt;
+      } else if (entry_type === "stock_out" || entry_type === "issue" || entry_type === "damage") {
+        newQty = Math.max(0, newQty - qty);
+        newValue = Math.max(0, newValue - amt);
+        deltaQty = -qty;
+        deltaValue = -amt;
+      } else if (entry_type === "adjustment") {
+        newQty = qty;
+        newValue = amt;
+      }
+
+      const newCost = newQty > 0 ? Number((newValue / newQty).toFixed(2)) : Number(rate || existingStock?.unit_cost || 0);
+
+      if (existingStock) {
+        await supabase
+          .from("raw_material_current_stock")
+          .update({
+            current_stock: newQty,
+            unit_cost: newCost,
+            stock_value: newValue,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingStock.id);
+      } else {
+        await supabase
+          .from("raw_material_current_stock")
+          .insert({
+            business_id: businessId,
+            material_type_id: item.material_type_id,
+            godown_id: effectiveGodownId,
+            current_stock: newQty,
+            unit_cost: newCost,
+            stock_value: newValue,
+          });
+      }
+
+      ledgerEntries.push({
+        business_id: businessId,
+        item_type: "raw_material",
+        item_id: item.material_type_id,
+        godown_id: effectiveGodownId,
+        transaction_type: entry_type,
+        quantity_delta: deltaQty,
+        value_delta: deltaValue,
+        reference_table: "raw_material_stock_entries",
+        reference_id: entry.id,
+        created_by: user?.id || null,
+      });
+    }
+
+    if (ledgerEntries.length > 0) {
+      await supabase.from("stock_ledger").insert(ledgerEntries);
+    }
+
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on new stock entry warning:", recErr);
+    }
+
     return NextResponse.json({ entry });
   } catch (err: any) {
     return NextResponse.json(

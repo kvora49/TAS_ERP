@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
+import { cn } from "@/lib/utils";
 
 interface StageEntry {
   id: string;
@@ -114,68 +115,143 @@ export default function StageEntriesListPage() {
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#EEF2FF] rounded-lg text-[#6366F1] shrink-0">
-            <ClipboardList className="h-6 w-6" />
+      {/* ── MOBILE: snap-scroll KPI cards ── */}
+      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+        {[
+          { label: "Total Logs",    value: `${entries.length}`,                                                                           icon: ClipboardList, bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+          { label: "Processed",     value: `${totalProcessed.toLocaleString()} pcs`,                                                      icon: TrendingUp,    bg: "bg-emerald-500/10",          color: "text-emerald-600" },
+          { label: "Wastage",       value: `${totalWastage.toLocaleString()} pcs`,                                                        icon: Clock,         bg: "bg-red-500/10",              color: "text-red-500" },
+          { label: "Labor Cost",    value: `₹${totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,                  icon: Calendar,      bg: "bg-amber-500/10",            color: "text-amber-600" },
+        ].map(({ label, value, icon: Icon, bg, color }) => (
+          <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+            </div>
           </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: existing 4-col KPI grid ── */}
+      <div className="hidden md:grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0"><ClipboardList className="h-6 w-6" /></div>
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Total Logs</p>
-            <h3 className="text-2xl font-bold text-[#0F172A] mt-0.5">{entries.length}</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Logs</p>
+            <h3 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{entries.length}</h3>
           </div>
         </div>
-
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#ECFDF5] rounded-lg text-[#10B981] shrink-0">
-            <TrendingUp className="h-6 w-6" />
-          </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-500 shrink-0"><TrendingUp className="h-6 w-6" /></div>
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Processed Qty</p>
-            <h3 className="text-2xl font-bold text-[#0F172A] mt-0.5">{totalProcessed.toLocaleString()} pcs</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Processed Qty</p>
+            <h3 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{totalProcessed.toLocaleString()} pcs</h3>
           </div>
         </div>
-
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEF2F2] rounded-lg text-[#EF4444] shrink-0">
-            <Clock className="h-6 w-6" />
-          </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-red-500/10 rounded-lg text-red-500 shrink-0"><Clock className="h-6 w-6" /></div>
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Total Wastage</p>
-            <h3 className="text-2xl font-bold text-[#0F172A] mt-0.5">{totalWastage.toLocaleString()} pcs</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Wastage</p>
+            <h3 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{totalWastage.toLocaleString()} pcs</h3>
           </div>
         </div>
-
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FFF7ED] rounded-lg text-[#F97316] shrink-0">
-            <Calendar className="h-6 w-6" />
-          </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0"><Calendar className="h-6 w-6" /></div>
           <div>
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">Labor Cost</p>
-            <h3 className="text-2xl font-bold text-[#0F172A] mt-0.5">₹{totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Labor Cost</p>
+            <h3 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">₹{totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
           </div>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
         <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] h-4 w-4 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by Entry #, Lot #, Stage, or Worker..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="pl-9 pr-4 h-10 w-full rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
+          <input type="text" placeholder="Search by Entry #, Lot #, Stage, or Worker..."
+            value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
           />
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-sm overflow-hidden">
+      {/* ── MOBILE: Entry card list ── */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-[var(--text-muted)] font-medium">Loading stage entries...</div>
+        ) : error ? (
+          <div className="p-8 text-center text-sm text-red-500 font-medium">Failed to load stage entries.</div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[var(--text-muted)] font-medium">No stage entries found.</div>
+        ) : paginatedEntries.map((entry) => (
+          <div key={entry.id}
+            className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+            onClick={() => router.push(`/production/stage-entries/${entry.id}`)}
+          >
+            {/* Header: Entry# + View */}
+            <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+              <span className="font-mono font-black text-[var(--primary)] text-sm">{entry.entry_number}</span>
+              <Link href={`/production/stage-entries/${entry.id}`} onClick={(e) => e.stopPropagation()}
+                className="w-7 h-7 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+              ><Eye size={13} /></Link>
+            </div>
+
+            {/* Lot + Stage + Worker */}
+            <div className="grid grid-cols-3 gap-1 px-4 pb-2">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Lot</p>
+                <Link href={`/production/lots/${entry.lot?.id}`} onClick={(e) => e.stopPropagation()}
+                  className="text-xs font-bold text-[var(--primary)] hover:underline"
+                >{entry.lot?.lot_number || "—"}</Link>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Stage</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.stage?.stage_name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Worker</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.worker?.name || "Unassigned"}</p>
+              </div>
+            </div>
+
+            {/* Qty / Wastage / Labor */}
+            <div className="grid grid-cols-4 border-t border-[var(--border-light)] mx-4 py-2">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">In</p>
+                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">{entry.qty_in.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Out</p>
+                <p className="text-xs font-bold mt-0.5 text-emerald-600">{entry.qty_out.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Wastage</p>
+                <p className="text-xs font-bold mt-0.5 text-red-500">{entry.wastage_qty.toLocaleString()}{entry.wastage_qty > 0 && <span className="text-[10px] font-normal"> ({(entry.wastage_percent * 100).toFixed(1)}%)</span>}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Labor</p>
+                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{entry.total_job_work_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+
+            {/* Date + Payment Status */}
+            <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-light)] pt-2">
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {new Date(entry.entry_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+              <span className={cn("ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                entry.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-500" :
+                entry.payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
+                "bg-rose-500/10 text-rose-500"
+              )}>{entry.payment_status}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: Table Section ── */}
+      <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-sm text-[#64748B] font-medium">
             Loading stage entries...
@@ -324,7 +400,7 @@ export default function StageEntriesListPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>{/* end desktop table */}
     </div>
   );
 }

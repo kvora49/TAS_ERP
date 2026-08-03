@@ -320,16 +320,54 @@ export default function ExpenseTypesPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filteredTypes}
-        isLoading={loading}
-        total={filteredTypes.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        emptyMessage="No expense types found. Click 'Add Expense Type' to create one."
-      />
+      {/* ── MOBILE: Expense Types Card List ── */}
+      <div className="md:hidden space-y-3">
+        {filteredTypes.map((et) => (
+          <div key={et.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-4 h-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: et.color || "#6366F1" }} />
+                <p className="font-bold text-[var(--primary)] text-sm">{et.name}</p>
+              </div>
+              <StatusBadge active={et.is_active} />
+            </div>
+
+            {et.description && <p className="text-xs text-[var(--text-muted)] line-clamp-2">{et.description}</p>}
+
+            <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
+              {(et.applicable_for || []).map((area, i) => (
+                <span key={i} className="text-[10px] font-bold bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded text-[var(--text-secondary)]">
+                  {area}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
+              <button type="button" onClick={() => handleOpenEdit(et)}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+              ><Pencil size={12} /> Edit</button>
+              <button type="button" onClick={() => handleOpenDelete(et)}
+                className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+              ><Trash2 size={12} /> Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: DataTable ── */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={filteredTypes}
+          isLoading={loading}
+          total={filteredTypes.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          emptyMessage="No expense types found. Click 'Add Expense Type' to create one."
+        />
+      </div>
+
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

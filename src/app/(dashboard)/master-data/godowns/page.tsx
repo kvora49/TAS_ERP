@@ -254,18 +254,60 @@ export default function GodownsPage() {
         skeletonRows={6}
         skeletonColumns={6}
       >
-        <DataTable
-          columns={columns}
-          data={filteredGodowns}
-          isLoading={false}
-          total={filteredGodowns.length}
-          page={1}
-          perPage={10}
-          onPageChange={() => {}}
-          onRowClick={(row) => router.push(`/master-data/godowns/${row.id}`)}
-          emptyMessage="No matching godowns found."
-        />
+        {/* ── MOBILE: Godown Card List ── */}
+        <div className="md:hidden space-y-3">
+          {filteredGodowns.map((g) => (
+            <div key={g.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer"
+              onClick={() => router.push(`/master-data/godowns/${g.id}`)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
+                    <Warehouse size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-[var(--primary)] text-sm">{g.name}</p>
+                      {g.is_primary && (
+                        <Badge variant="primary" className="text-[9px] px-1.5 py-0">Primary</Badge>
+                      )}
+                    </div>
+                    {g.contact_person && <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Contact: {g.contact_person}</p>}
+                  </div>
+                </div>
+                <StatusBadge active={g.is_active} />
+              </div>
+
+              {g.address && <p className="text-xs text-[var(--text-muted)] border-t border-[var(--border-light)] pt-2 truncate">{g.address}</p>}
+
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                <button type="button" onClick={() => handleOpenEdit(g)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                ><Pencil size={12} /> Edit</button>
+                <button type="button" onClick={() => handleOpenDelete(g)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+                ><Trash2 size={12} /> Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredGodowns}
+            isLoading={false}
+            total={filteredGodowns.length}
+            page={1}
+            perPage={10}
+            onPageChange={() => {}}
+            onRowClick={(row) => router.push(`/master-data/godowns/${row.id}`)}
+            emptyMessage="No matching godowns found."
+          />
+        </div>
       </PageState>
+
 
       {/* Add/Edit Shared Modal */}
       <Modal

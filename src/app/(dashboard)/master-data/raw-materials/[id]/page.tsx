@@ -272,8 +272,16 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
         </div>
 
         <button
-          onClick={() => router.push(`/master-data/raw-materials`)}
-          className="h-10 px-4 rounded-lg bg-white border border-[#E2E8F0] hover:bg-[#F1F5F9] text-[#475569] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+          onClick={() => {
+            if (typeof window !== "undefined" && document.referrer.includes("/stock/raw-materials")) {
+              router.push("/stock/raw-materials");
+            } else if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/master-data/raw-materials");
+            }
+          }}
+          className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
         >
           <ArrowLeft size={14} /> Back to List
         </button>

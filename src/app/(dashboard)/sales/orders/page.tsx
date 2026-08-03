@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import Link from "next/link";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
+import { cn } from "@/lib/utils";
 
 interface Party {
   id: string;
@@ -240,61 +241,88 @@ export default function SalesOrdersPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#FEF3C7] text-[#D97706] rounded-lg">
-            <ShoppingCart className="h-6 w-6" />
+      {/* ── MOBILE: snap-scroll stat cards ── */}
+      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+        {[
+          { label: "Pending Value",     value: `₹${totalPendingVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: ShoppingCart,  bg: "bg-amber-500/10",  color: "text-amber-600" },
+          { label: "Ready for Dispatch",value: `${readyCount} Orders`,      icon: ShoppingBag,  bg: "bg-purple-500/10", color: "text-purple-600" },
+          { label: "Completed / Billed",value: `${dispatchedCount} Billed`, icon: CheckCircle2, bg: "bg-green-500/10",  color: "text-green-600" },
+        ].map(({ label, value, icon: Icon, bg, color }) => (
+          <div key={label} className="snap-start shrink-0 w-[168px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+            </div>
           </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: existing 3-col stat grid ── */}
+      <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-amber-500/10 text-amber-600 rounded-lg"><ShoppingCart className="h-6 w-6" /></div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Pending Value</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{totalPendingVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
+            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Pending Value</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">₹{totalPendingVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#F3E8FF] text-[#9333EA] rounded-lg">
-            <ShoppingBag className="h-6 w-6" />
-          </div>
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-purple-500/10 text-purple-600 rounded-lg"><ShoppingBag className="h-6 w-6" /></div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Ready for Dispatch</span>
-            <span className="text-xl font-bold text-slate-800">{readyCount} Bookings</span>
+            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Ready for Dispatch</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{readyCount} Bookings</span>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-4">
-          <div className="p-3 bg-[#DCFCE7] text-[#16A34A] rounded-lg">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <div className="p-3 bg-green-500/10 text-green-600 rounded-lg"><CheckCircle2 className="h-6 w-6" /></div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Completed / Billed</span>
-            <span className="text-xl font-bold text-slate-800">{dispatchedCount} Orders</span>
+            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Completed / Billed</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{dispatchedCount} Orders</span>
           </div>
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      {/* ── MOBILE: chips + search ── */}
+      <div className="md:hidden space-y-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { value: "", label: "All" },
+            { value: "pending", label: "Pending" },
+            { value: "in_process", label: "In Process" },
+            { value: "ready", label: "Ready" },
+            { value: "dispatched", label: "Dispatched" },
+            { value: "cancelled", label: "Cancelled" },
+          ].map((opt) => (
+            <button key={opt.value} type="button" onClick={() => setStatusFilter(opt.value)}
+              className={cn("shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+                statusFilter === opt.value ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+              )}
+            >{opt.label}</button>
+          ))}
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+          <input type="text" placeholder="Search orders..." value={search} onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 pr-3 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* ── DESKTOP: Filters Bar ── */}
+      <div className="hidden md:flex bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 shadow-[var(--shadow-sm)] flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           {/* Search */}
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search booking number, party..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-[var(--text-faint)]" />
+            <input type="text" placeholder="Search booking number, party..." value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-10 pl-10 pr-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
             />
           </div>
 
           {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-44 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full sm:w-44 h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer"
           >
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
@@ -304,28 +332,97 @@ export default function SalesOrdersPage() {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-
-        {/* Date Filter */}
         <div className="flex items-center gap-2 w-full lg:w-auto">
-          <Calendar className="h-4.5 w-4.5 text-slate-400 shrink-0" />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+          <Calendar className="h-4.5 w-4.5 text-[var(--text-faint)] shrink-0" />
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+            className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
           />
-          <span className="text-slate-400 font-semibold text-xs uppercase">to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+          <span className="text-[var(--text-faint)] font-semibold text-xs uppercase">to</span>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+            className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
           />
         </div>
+      </div>{/* end desktop filters */}
+
+      {/* ── MOBILE: Order card list ── */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 text-[var(--primary)] animate-spin" /></div>
+        ) : orders.length === 0 ? (
+          <div className="flex flex-col items-center py-12 gap-2 text-[var(--text-muted)]">
+            <ShoppingCart className="h-8 w-8" />
+            <p className="text-sm font-semibold">No order bookings yet.</p>
+          </div>
+        ) : orders.map((o) => (
+          <div key={o.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+            {/* Header: Order# + Status */}
+            <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+              <span className="font-mono font-black text-[var(--primary)] text-sm">{o.order_number}</span>
+              <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                o.status === "dispatched" ? "bg-green-500/10 text-green-600" :
+                o.status === "ready" ? "bg-purple-500/10 text-purple-600" :
+                o.status === "in_process" ? "bg-blue-500/10 text-blue-600" :
+                o.status === "cancelled" ? "bg-red-500/10 text-red-500" :
+                "bg-amber-500/10 text-amber-600"
+              )}>{o.status.replace("_", " ")}</span>
+            </div>
+
+            {/* Customer + Date */}
+            <div className="flex items-start justify-between px-4 pb-2">
+              <div className="min-w-0 mr-2">
+                <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{o.party?.name}</p>
+                {o.party?.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{o.party.company_name}</p>}
+              </div>
+              <span className="text-xs text-[var(--text-muted)] shrink-0">{o.order_date}</span>
+            </div>
+
+            {/* Value + Delivery grid */}
+            <div className="grid grid-cols-2 border-t border-[var(--border-light)] mx-4 py-2">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Value</p>
+                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Delivery</p>
+                <div className="mt-0.5">
+                  <DueDateBadge dueDate={o.expected_delivery} isCompleted={o.status === "dispatched" || !!o.converted_bill_id} type="order" />
+                </div>
+              </div>
+            </div>
+
+            {/* Invoice / Convert / Start Lot */}
+            <div className="px-4 pb-2">
+              {o.converted_bill_id ? (
+                <Link href={`/sales/bills/${o.converted_bill_id}`}
+                  className="inline-flex items-center gap-1 text-[var(--primary)] font-bold text-[11px] hover:underline"
+                ><LinkIcon size={10} />{o.bill?.bill_number}</Link>
+              ) : o.status !== "cancelled" ? (
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
+                    className="flex-1 h-7 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
+                  >Convert <ChevronRight size={11} /></button>
+                  <button type="button" onClick={() => router.push(`/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`)}
+                    className="flex-1 h-7 bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 rounded text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
+                  ><Layers size={11} />Start Lot</button>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Action footer */}
+            <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2">
+              <button type="button" onClick={() => handleOpenEdit(o)}
+                className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer"
+              ><Pencil size={13} /></button>
+              <button type="button" onClick={() => handleOpenDelete(o)}
+                className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer"
+              ><Trash2 size={13} /></button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+      {/* ── DESKTOP: Orders Table ── */}
+      <div className="hidden md:block bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-12 gap-2">
             <Loader2 className="h-7 w-7 text-[#6366F1] animate-spin" />
@@ -457,7 +554,7 @@ export default function SalesOrdersPage() {
             </table>
           </div>
         )}
-      </div>
+      </div>{/* end desktop table */}
 
       {/* Add Modal */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

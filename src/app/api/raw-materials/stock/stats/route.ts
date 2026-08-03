@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     // 1. Fetch current stock to calculate items, value, low stock, out of stock
     const { data: stock, error: stockErr } = await supabase
       .from("raw_material_current_stock")
-      .select("*, material_type:raw_material_types(reorder_level)")
+      .select("*, material_type:raw_material_types(reorder_level, deleted_at)")
       .eq("business_id", businessId);
 
     if (stockErr) {
@@ -32,6 +32,7 @@ export async function GET(request: Request) {
 
     if (stock) {
       stock.forEach((s) => {
+        if (!s.material_type || s.material_type.deleted_at) return;
         uniqueItemTypes.add(s.material_type_id);
         const qty = Number(s.current_stock || 0);
         const val = Number(s.stock_value || 0);

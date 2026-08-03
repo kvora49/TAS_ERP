@@ -244,7 +244,8 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   ];
 
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
+    <div className="p-4 md:p-6 space-y-6 select-none max-w-[1400px] mx-auto pb-20 md:pb-6">
+
       {/* Breadcrumbs and Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -893,6 +894,27 @@ export default function LotDetailPage({ params }: LotDetailProps) {
           <span className="font-bold">Note:</span> Mark the lot as complete once all stages are finished and production quantities are verified. Completed lots will update finished stock counts.
         </div>
       </div>
+      {/* ── MOBILE: STICKY BOTTOM ACTION BAR ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 flex items-center justify-around gap-2 shadow-lg">
+        <Link href="/production/lots"
+          className="h-10 px-3 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
+        ><ArrowLeft size={16} /></Link>
+
+        <Link href={`/production/lots/${id}/edit`}
+          className="h-10 px-4 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+        ><Pencil size={15} /><span>Edit Lot</span></Link>
+
+        {lot.is_moved_to_stock ? (
+          <span className="flex-1 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1">
+            <CheckCircle2 size={15} /> Stock Moved
+          </span>
+        ) : (
+          <button type="button" onClick={() => setMoveModalOpen(true)}
+            className="flex-1 h-10 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+          ><Boxes size={15} /><span>Move to Stock</span></button>
+        )}
+      </div>
     </div>
   );
 }
+

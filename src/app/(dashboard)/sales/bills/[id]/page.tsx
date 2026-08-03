@@ -103,7 +103,9 @@ interface SaleBill {
   igst: number;
   round_off: number;
   grand_total: number;
+  paid_amount?: number;
   payment_status: "unpaid" | "partial" | "paid" | "overdue";
+
   status: "draft" | "active" | "cancelled";
   is_temporary?: boolean;
   party: {
@@ -277,88 +279,76 @@ export default function SaleBillDetailPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Top Header Navigation & Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#E5E7EB] pb-4">
+
+    <div className="flex flex-col gap-6 pb-20 md:pb-0">
+      {/* ── MOBILE APP HEADER ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
-          <Link
-            href="/sales/bills"
-            className="p-1.5 rounded-lg border border-[#D1D5DB] text-[#64748B] hover:text-[#0F172A] bg-white transition-colors"
-          >
-            <ArrowLeft className="h-4.5 w-4.5" />
-          </Link>
-          <div className="flex flex-col">
+          <Link href="/sales/bills"
+            className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--card-bg)] transition-colors"
+          ><ArrowLeft className="h-4 w-4" /></Link>
+          <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-[#0F172A] font-mono">{bill.bill_number}</h1>
-              <Badge variant={getStatusColor(bill.status)} className="uppercase tracking-wider">
-                {bill.status}
-              </Badge>
-              {bill.is_temporary ? (
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-purple-500/10 text-purple-600 border border-purple-200">
-                  TEMPORARY BILL
-                </span>
-              ) : (
-                <Badge
-                  variant={bill.bill_type === "pakka" ? "green" : "orange"}
-                  className="uppercase tracking-wider text-[10px]"
-                >
-                  {bill.bill_type}
-                </Badge>
-              )}
+              <h1 className="text-lg font-black text-[var(--text-primary)] font-mono">{bill.bill_number}</h1>
+              <Badge variant={getStatusColor(bill.status)} className="uppercase tracking-wider text-[10px]">{bill.status}</Badge>
             </div>
-            <p className="text-xs text-[#64748B]">Created on {new Date(bill.bill_date).toLocaleDateString("en-IN")}</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Date: {new Date(bill.bill_date).toLocaleDateString("en-IN")}</p>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 select-none">
+        {/* Desktop Action Header */}
+        <div className="hidden md:flex items-center gap-2 select-none">
           {bill.is_temporary && (
-            <button
-              onClick={() => setConvertModalOpen(true)}
+            <button onClick={() => setConvertModalOpen(true)}
               className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Convert to Official Invoice</span>
-            </button>
+            ><CheckCircle2 className="h-4 w-4" /><span>Convert to Official Invoice</span></button>
           )}
-
-          <button
-            onClick={handleWhatsAppShare}
+          <button onClick={handleWhatsAppShare}
             className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            <MessageSquare className="h-4 w-4" />
-            <span>Share on WhatsApp</span>
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            className="px-3.5 py-2 border border-[#D1D5DB] rounded-lg text-xs font-semibold text-[#374151] bg-white hover:bg-[#F9FAFB] transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <Printer className="h-4 w-4" />
-            <span>Print Invoice</span>
-          </button>
-
+          ><MessageSquare className="h-4 w-4" /><span>Share on WhatsApp</span></button>
+          <button onClick={() => window.print()}
+            className="px-3.5 py-2 border border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-primary)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center gap-1.5 cursor-pointer"
+          ><Printer className="h-4 w-4" /><span>Print Invoice</span></button>
           {bill.status === "draft" && (
-            <Link
-              href={`/sales/bills/${bill.id}/edit`}
-              className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] transition-colors"
-            >
-              Resume Draft
-            </Link>
+            <Link href={`/sales/bills/${bill.id}/edit`}
+              className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors"
+            >Resume Draft</Link>
           )}
-
           {bill.status !== "cancelled" && (
-            <button
-              disabled={cancelling}
-              onClick={handleCancelBill}
-              className="px-3.5 py-2 border border-[#FCA5A5] rounded-lg text-xs font-semibold text-[#DC2626] bg-[#FEF2F2] hover:bg-[#FEE2E2] transition-colors flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>Cancel Bill</span>
-            </button>
+            <button disabled={cancelling} onClick={handleCancelBill}
+              className="px-3.5 py-2 border border-red-200 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            ><Trash2 className="h-4 w-4" /><span>Cancel Bill</span></button>
           )}
         </div>
       </div>
+
+      {/* ── HERO SUMMARY CARD (Mobile & Desktop) ── */}
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center sm:text-left">
+          <div className="p-3 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
+            <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">Grand Total</span>
+            <span className="text-base sm:text-xl font-black text-[var(--primary)] mt-0.5 block">₹{bill.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="p-3 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
+            <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">Paid Amount</span>
+            <span className="text-base sm:text-xl font-black text-emerald-600 mt-0.5 block">₹{Number(bill.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="p-3 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
+            <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">Balance Due</span>
+            <span className={cn("text-base sm:text-xl font-black mt-0.5 block", (bill.grand_total - Number(bill.paid_amount || 0)) > 0 ? "text-amber-500" : "text-[var(--text-muted)]")}>
+              ₹{Math.max(0, bill.grand_total - Number(bill.paid_amount || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)] flex flex-col justify-center items-center sm:items-start">
+            <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block mb-1">Due Counter</span>
+            <span className="text-xs font-bold text-[var(--text-primary)]">
+              {new Date(bill.due_date).toLocaleDateString("en-IN")}
+            </span>
+          </div>
+        </div>
+      </div>
+
 
       {/* Temporary Bill Banner Notice */}
       {bill.is_temporary && (
@@ -1310,6 +1300,27 @@ export default function SaleBillDetailPage() {
           </div>
         </div>
       </Modal>
+      {/* ── MOBILE: STICKY BOTTOM ACTION BAR ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 flex items-center justify-around gap-2 shadow-lg">
+        <button onClick={handleWhatsAppShare}
+          className="flex-1 h-10 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+        ><MessageSquare className="h-4 w-4" /><span>WhatsApp</span></button>
+
+        <button onClick={() => window.print()}
+          className="h-10 px-3 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
+        ><Printer className="h-4 w-4" /></button>
+
+        {bill.is_temporary ? (
+          <button onClick={() => setConvertModalOpen(true)}
+            className="flex-1 h-10 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
+          ><CheckCircle2 className="h-4 w-4" /><span>Convert</span></button>
+        ) : bill.status === "draft" ? (
+          <Link href={`/sales/bills/${bill.id}/edit`}
+            className="flex-1 h-10 rounded-xl bg-[var(--primary)] text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+          >Edit</Link>
+        ) : null}
+      </div>
     </div>
   );
 }
+

@@ -243,17 +243,50 @@ export default function SizeSetsPage() {
         skeletonRows={6}
         skeletonColumns={4}
       >
-        <DataTable
-          columns={columns}
-          data={filteredSizeSets}
-          isLoading={false}
-          total={filteredSizeSets.length}
-          page={1}
-          perPage={10}
-          onPageChange={() => {}}
-          emptyMessage="No size sets found."
-        />
+        {/* ── MOBILE: Size Set Card List ── */}
+        <div className="md:hidden space-y-3">
+          {filteredSizeSets.map((ss) => (
+            <div key={ss.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-[var(--primary)] text-sm">{ss.name}</p>
+                <StatusBadge active={ss.is_active} />
+              </div>
+
+              <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
+                {ss.sizes?.map((sz, i) => (
+                  <span key={i} className="text-xs font-bold bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded text-[var(--text-primary)]">
+                    {sz}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
+                <button type="button" onClick={() => handleOpenEdit(ss)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                ><Pencil size={12} /> Edit</button>
+                <button type="button" onClick={() => handleOpenDelete(ss)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+                ><Trash2 size={12} /> Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredSizeSets}
+            isLoading={false}
+            total={filteredSizeSets.length}
+            page={1}
+            perPage={10}
+            onPageChange={() => {}}
+            emptyMessage="No size sets found."
+          />
+        </div>
       </PageState>
+
 
       {/* Add/Edit Shared Modal */}
       <Modal

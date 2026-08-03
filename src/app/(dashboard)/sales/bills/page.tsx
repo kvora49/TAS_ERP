@@ -24,12 +24,14 @@ import {
   Download,
   Printer,
   Trash2,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
+import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -490,68 +492,54 @@ export default function SalesBillsListPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-[var(--border)]">
+      {/* Tabs — desktop: underline nav; mobile: horizontal snap chip row */}
+      <div className="border-b border-[var(--border)] hidden md:block">
         <nav className="flex gap-6 -mb-[1px]">
           <button
-            onClick={() => {
-              setActiveTab("pakka");
-              setPage(1);
-            }}
-            className={cn(
-              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "pakka"
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            onClick={() => { setActiveTab("pakka"); setPage(1); }}
+            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+              activeTab === "pakka" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
-          >
-            Pakka Bills
-          </button>
+          >Pakka Bills</button>
           {enableKachaBilling && (
             <button
-              onClick={() => {
-                setActiveTab("kacha");
-                setPage(1);
-              }}
-              className={cn(
-                "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-                activeTab === "kacha"
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              onClick={() => { setActiveTab("kacha"); setPage(1); }}
+              className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+                activeTab === "kacha" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               )}
-            >
-              Kacha Bills
-            </button>
+            >Kacha Bills</button>
           )}
           <button
-            onClick={() => {
-              setActiveTab("return");
-              setPage(1);
-            }}
-            className={cn(
-              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "return"
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            onClick={() => { setActiveTab("return"); setPage(1); }}
+            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+              activeTab === "return" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
-          >
-            Sales Returns
-          </button>
+          >Sales Returns</button>
           <button
-            onClick={() => {
-              setActiveTab("all");
-              setPage(1);
-            }}
+            onClick={() => { setActiveTab("all"); setPage(1); }}
+            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
+              activeTab === "all" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            )}
+          >All Transactions</button>
+        </nav>
+      </div>
+
+      {/* Mobile Tab Chips */}
+      <div className="md:hidden flex gap-2 overflow-x-auto pb-1 -mx-0 scrollbar-none">
+        {["pakka", ...(enableKachaBilling ? ["kacha"] : []), "return", "all"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab as any); setPage(1); }}
             className={cn(
-              "pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "all"
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              "shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+              activeTab === tab
+                ? "bg-[var(--primary)] border-[var(--primary)] text-white"
+                : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
             )}
           >
-            All Transactions
+            {tab === "pakka" ? "Pakka Bills" : tab === "kacha" ? "Kacha Bills" : tab === "return" ? "Returns" : "All"}
           </button>
-        </nav>
+        ))}
       </div>
 
       <PageState
@@ -571,87 +559,110 @@ export default function SalesBillsListPage() {
         skeletonRows={8}
         skeletonColumns={9}
       >
-        {/* 5 KPI Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard
-            title="Total Bills"
-            value={total.toString()}
-            icon={FileText}
-            bgClass="bg-[var(--primary-light)]"
-            iconColor="text-[var(--primary)]"
-          />
-          <StatCard
-            title="Total Amount"
-            value={formatCurrency(bills.reduce((s, b) => s + (b.grand_total || 0), 0))}
-            icon={IndianRupee}
-            bgClass="bg-[var(--primary-light)]"
-            iconColor="text-[var(--primary)]"
-          />
-          <StatCard
-            title="Paid Amount"
-            value={formatCurrency(bills.reduce((s, b) => s + (b.paid_amount || 0), 0))}
-            icon={CheckCircle2}
-            bgClass="bg-green-500/10"
-            iconColor="text-green-500"
-          />
-          <StatCard
-            title="Outstanding"
-            value={formatCurrency(bills.reduce((s, b) => s + Math.max(0, (b.grand_total || 0) - (b.paid_amount || 0)), 0))}
-            icon={Clock}
-            bgClass="bg-amber-500/10"
-            iconColor="text-amber-500"
-          />
-          <StatCard
-            title="Overdue Bills"
-            value={bills.filter(b => b.payment_status === "overdue").length.toString()}
-            icon={AlertCircle}
-            bgClass="bg-red-500/10"
-            iconColor="text-red-500"
-          />
+        {/* Mobile: Snap-scroll stat card row */}
+        <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-4 px-4 scrollbar-none">
+          {[
+            { title: "Total",       value: total.toString(),                                                                                                icon: FileText,     bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+            { title: "Amount",      value: formatCurrency(bills.reduce((s,b)=>s+(b.grand_total||0),0)),                                                    icon: IndianRupee,  bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
+            { title: "Paid",        value: formatCurrency(bills.reduce((s,b)=>s+(b.paid_amount||0),0)),                                                    icon: CheckCircle2, bg: "bg-green-500/10",             color: "text-green-500" },
+            { title: "Outstanding", value: formatCurrency(bills.reduce((s,b)=>s+Math.max(0,(b.grand_total||0)-(b.paid_amount||0)),0)),                      icon: Clock,        bg: "bg-amber-500/10",             color: "text-amber-500" },
+            { title: "Overdue",     value: bills.filter(b=>b.payment_status==="overdue").length.toString(),                                                 icon: AlertCircle,  bg: "bg-red-500/10",              color: "text-red-500" },
+          ].map(({ title, value, icon: Icon, bg, color }) => (
+            <div key={title} className="snap-start shrink-0 w-[148px] min-[430px]:w-[160px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+              <div className={cn("p-2 rounded-lg", bg)}>
+                <Icon className={cn("h-4 w-4", color)} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{title}</p>
+                <p className={cn("text-sm font-bold mt-0.5 truncate", color)}>{value}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Filter and search bar */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex flex-col gap-4">
+        {/* Desktop: existing 5-col stat grid — unchanged */}
+        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard title="Total Bills" value={total.toString()} icon={FileText} bgClass="bg-[var(--primary-light)]" iconColor="text-[var(--primary)]" />
+          <StatCard title="Total Amount" value={formatCurrency(bills.reduce((s, b) => s + (b.grand_total || 0), 0))} icon={IndianRupee} bgClass="bg-[var(--primary-light)]" iconColor="text-[var(--primary)]" />
+          <StatCard title="Paid Amount" value={formatCurrency(bills.reduce((s, b) => s + (b.paid_amount || 0), 0))} icon={CheckCircle2} bgClass="bg-green-500/10" iconColor="text-green-500" />
+          <StatCard title="Outstanding" value={formatCurrency(bills.reduce((s, b) => s + Math.max(0, (b.grand_total || 0) - (b.paid_amount || 0)), 0))} icon={Clock} bgClass="bg-amber-500/10" iconColor="text-amber-500" />
+          <StatCard title="Overdue Bills" value={bills.filter(b => b.payment_status === "overdue").length.toString()} icon={AlertCircle} bgClass="bg-red-500/10" iconColor="text-red-500" />
+        </div>
+
+        {/* Mobile: compact search bar + filter sheet trigger */}
+        <div className="md:hidden flex gap-2 mb-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search bills..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-3 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+            />
+          </div>
+          <MobileFilterSheet
+            activeCount={[partyId, status, startDate, endDate].filter(Boolean).length}
+            onClearAll={() => { setPartyId(""); setStatus(""); setStartDate(""); setEndDate(""); setPage(1); }}
+          >
+            <MobileFilterField label="Customer">
+              <select
+                value={partyId}
+                onChange={(e) => { setPartyId(e.target.value); setPage(1); }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="">All Customers</option>
+                {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </MobileFilterField>
+            <MobileFilterField label="Payment Status">
+              <select
+                value={status}
+                onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="">All Statuses</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </MobileFilterField>
+            <MobileFilterField label="Date From">
+              <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+            <MobileFilterField label="Date To">
+              <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+          </MobileFilterSheet>
+        </div>
+
+        {/* Desktop: existing filter bar — unchanged */}
+        <div className="hidden md:block bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)]">
           <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
-              <input
-                type="text"
-                placeholder="Search by Bill Number, Reference..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+              <input type="text" placeholder="Search by Bill Number, Reference..." value={search} onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 pr-4 py-2 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:border-[var(--input-focus)] focus:ring-1 focus:ring-[var(--input-focus)] outline-none"
               />
             </div>
-
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 border border-[var(--input-border)] rounded-lg px-3 py-2 bg-[var(--input-bg)]">
                 <User className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
-                <select
-                  value={partyId}
-                  onChange={(e) => {
-                    setPartyId(e.target.value);
-                    setPage(1);
-                  }}
+                <select value={partyId} onChange={(e) => { setPartyId(e.target.value); setPage(1); }}
                   className="text-sm text-[var(--text-primary)] font-medium bg-transparent border-0 outline-none pl-1 pr-6 py-0.5 focus:ring-0 focus:outline-none appearance-none cursor-pointer"
                 >
                   <option value="">All Customers</option>
-                  {parties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
+                  {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-
               <div className="flex items-center gap-1.5 border border-[var(--input-border)] rounded-lg px-3 py-2 bg-[var(--input-bg)]">
                 <Filter className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
-                <select
-                  value={status}
-                  onChange={(e) => {
-                    setStatus(e.target.value);
-                    setPage(1);
-                  }}
+                <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}
                   className="text-sm text-[var(--text-primary)] font-medium bg-transparent border-0 outline-none pl-1 pr-6 py-0.5 focus:ring-0 focus:outline-none appearance-none cursor-pointer"
                 >
                   <option value="">All Statuses</option>
@@ -661,26 +672,13 @@ export default function SalesBillsListPage() {
                   <option value="overdue">Overdue</option>
                 </select>
               </div>
-
               <div className="flex items-center gap-2 border border-[var(--input-border)] rounded-lg px-3 py-1.5 bg-[var(--input-bg)]">
                 <Calendar className="h-4 w-4 text-[var(--text-muted)]" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPage(1);
-                  }}
+                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
                   className="text-xs text-[var(--text-primary)] font-medium border-0 outline-none p-0 focus:ring-0 bg-transparent"
                 />
                 <span className="text-xs text-[var(--text-muted)]">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPage(1);
-                  }}
+                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
                   className="text-xs text-[var(--text-primary)] font-medium border-0 outline-none p-0 focus:ring-0 bg-transparent"
                 />
               </div>
@@ -688,14 +686,7 @@ export default function SalesBillsListPage() {
               {(search || partyId || status || startDate || endDate) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setPartyId("");
-                    setStatus("");
-                    setStartDate("");
-                    setEndDate("");
-                    setPage(1);
-                  }}
+                  onClick={() => { setSearch(""); setPartyId(""); setStatus(""); setStartDate(""); setEndDate(""); setPage(1); }}
                   className="text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer"
                 >
                   Reset Filters
@@ -703,9 +694,111 @@ export default function SalesBillsListPage() {
               )}
             </div>
           </form>
+        </div>{/* end desktop filter bar */}
 
-          {/* Table / List */}
-          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+        {/* Mobile: Card list (md:hidden) — ALL data preserved */}
+        <div className="md:hidden space-y-3">
+          {bills.map((bill) => {
+            const isReturn = bill.is_sales_return;
+            const outstanding = isReturn ? 0 : bill.grand_total - bill.paid_amount;
+            const detailHref = isReturn ? `/sales/returns/${bill.id}` : `/sales/bills/${bill.id}`;
+            const editHref = isReturn ? `/sales/returns/${bill.id}/edit` : `/sales/bills/${bill.id}/edit`;
+            const printHref = isReturn ? `/sales/returns/${bill.id}/print` : `/sales/bills/${bill.id}/print`;
+            const downloadHref = isReturn ? `/sales/returns/${bill.id}/print?autoDownload=true` : `/sales/bills/${bill.id}/print?autoDownload=true`;
+            return (
+              <div
+                key={bill.id}
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                onClick={() => router.push(detailHref)}
+              >
+                {/* Header: Bill# + Status */}
+                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
+                    className="font-mono font-black text-[var(--primary)] text-sm hover:underline"
+                  >{bill.bill_number}</Link>
+                  {isReturn ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">CREDITED</span>
+                  ) : bill.is_temporary ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600">TEMPORARY</span>
+                  ) : (
+                    <Badge variant={getStatusVariant(bill.payment_status)}>{bill.payment_status}</Badge>
+                  )}
+                </div>
+                {/* Subheader: Party + Date */}
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <span className="font-semibold text-[var(--text-primary)] text-sm truncate max-w-[60%]">{bill.party?.name}</span>
+                  <span className="text-xs text-[var(--text-muted)] shrink-0">
+                    {new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+                {/* Data Grid: Total / Paid / Due */}
+                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Total</p>
+                    <p className={cn("text-xs font-bold mt-0.5", isReturn ? "text-rose-500" : "text-[var(--text-primary)]")}>
+                      {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Paid</p>
+                    <p className={cn("text-xs font-bold mt-0.5", isReturn ? "text-[var(--text-muted)]" : "text-green-500")}>
+                      {isReturn ? "—" : formatCurrency(bill.paid_amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Due</p>
+                    <p className={cn("text-xs font-bold mt-0.5", outstanding > 0 ? "text-red-500" : "text-[var(--text-muted)]")}>
+                      {formatCurrency(outstanding)}
+                    </p>
+                  </div>
+                </div>
+                {/* Badge strip: Type + GSTIN + Orig Bill + Due Date Counter */}
+                <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
+                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                    isReturn ? "bg-rose-500/10 text-rose-500" : bill.is_temporary ? "bg-purple-500/10 text-purple-600 border border-purple-200" :
+                    bill.bill_type === "pakka" ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"
+                  )}>
+                    {isReturn ? "RETURN" : bill.is_temporary ? `${bill.bill_type.toUpperCase()} (TEMP)` : bill.bill_type}
+                  </span>
+                  {bill.party?.gstin && <span className="text-[10px] text-[var(--text-muted)] font-bold font-mono">GST: {bill.party.gstin}</span>}
+                  {isReturn && bill.bill && (
+                    <Link href={`/sales/bills/${bill.bill.id}`} onClick={(e) => e.stopPropagation()}
+                      className="text-[10px] text-[var(--primary)] font-bold hover:underline"
+                    >← {bill.bill.bill_number}</Link>
+                  )}
+                  {!isReturn && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <DueDateBadge dueDate={bill.due_date} isCompleted={bill.payment_status === "paid" || bill.payment_status === "settled"} type="bill" />
+                    </div>
+                  )}
+                </div>
+                {/* Action footer */}
+                <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                  {bill.is_temporary && (
+                    <button type="button" onClick={(e) => handleConvertClick(e, bill)}
+                      className="px-2.5 py-1.5 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                    ><CheckCircle2 size={11} /> Convert</button>
+                  )}
+                  <Link href={editHref} onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
+                  ><Edit2 size={13} /></Link>
+                  <Link href={printHref} onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-600 flex items-center justify-center cursor-pointer" title="Print"
+                  ><Printer size={13} /></Link>
+                  <Link href={downloadHref} onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="PDF"
+                  ><Download size={13} /></Link>
+                  <button type="button" onClick={(e) => handleDeleteClick(e, bill)}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Delete"
+                  ><Trash2 size={13} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table wrapper — hidden on mobile */}
+        <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg">
             <table className="min-w-full divide-y divide-[var(--border)] text-left">
               <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider select-none">
                 <tr>
@@ -897,7 +990,8 @@ export default function SalesBillsListPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </div>{/* end desktop table */}
+
 
           {/* Pagination footer */}
           {!loading && total > 0 && (
@@ -946,8 +1040,8 @@ export default function SalesBillsListPage() {
               </div>
             </div>
           )}
-        </div>
       </PageState>
+
 
       {/* Import Bills Shared Modal */}
       <Modal

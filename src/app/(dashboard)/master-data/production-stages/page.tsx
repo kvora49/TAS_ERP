@@ -322,8 +322,49 @@ export default function ProductionStagesPage() {
         </span>
       </div>
 
-      {/* Custom Draggable Stage Table */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden shadow-sm flex flex-col">
+      {/* ── MOBILE: Production Stages Card List ── */}
+      <div className="md:hidden space-y-3">
+        {filteredStages.map((stage) => (
+          <div key={stage.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-[var(--page-bg)] border border-[var(--border)] text-xs font-black text-[var(--text-primary)] flex items-center justify-center shrink-0">
+                  {stage.sort_order}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: stage.color || "#6366F1" }} />
+                  <p className="font-bold text-[var(--primary)] text-sm">{stage.name}</p>
+                </div>
+              </div>
+              <StatusBadge active={stage.is_active} />
+            </div>
+
+            {stage.description && <p className="text-xs text-[var(--text-muted)]">{stage.description}</p>}
+
+            {stage.custom_fields && stage.custom_fields.length > 0 && (
+              <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
+                {stage.custom_fields.map((f, i) => (
+                  <Badge key={i} variant="purple" className="text-[10px] font-bold">
+                    {f.name} ({f.type})
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
+              <button type="button" onClick={() => handleOpenEdit(stage)}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+              ><Pencil size={12} /> Edit</button>
+              <button type="button" onClick={() => handleOpenDelete(stage)}
+                className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+              ><Trash2 size={12} /> Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: Custom Draggable Stage Table ── */}
+      <div className="hidden md:block bg-white rounded-xl border border-[#E5E7EB] overflow-hidden shadow-sm flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm text-[#374151]">
             <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#E5E7EB]">
@@ -381,6 +422,7 @@ export default function ProductionStagesPage() {
           </table>
         </div>
       </div>
+
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

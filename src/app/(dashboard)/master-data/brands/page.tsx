@@ -370,18 +370,62 @@ export default function BrandsPage() {
         skeletonRows={6}
         skeletonColumns={6}
       >
-        <DataTable
-          columns={columns}
-          data={filteredBrands}
-          isLoading={false}
-          total={filteredBrands.length}
-          page={1}
-          perPage={10}
-          onPageChange={() => {}}
-          onRowClick={(row) => router.push(`/master-data/brands/${row.id}`)}
-          emptyMessage="No matching brands found."
-        />
+        {/* ── MOBILE: Brand Card List ── */}
+        <div className="md:hidden space-y-3">
+          {filteredBrands.map((brand) => (
+            <div key={brand.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer"
+              onClick={() => router.push(`/master-data/brands/${brand.id}`)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {brand.logo_url ? (
+                    <Image src={brand.logo_url} alt={brand.name} width={40} height={40} className="w-10 h-10 object-contain rounded border border-[var(--border)] bg-[var(--page-bg)] p-1 shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded border border-[var(--border)] bg-[var(--page-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--text-faint)] uppercase shrink-0">No Logo</div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-[var(--primary)] text-sm">{brand.name}</p>
+                      {brand.is_primary && (
+                        <Badge variant="primary" className="text-[9px] px-1.5 py-0 flex items-center gap-0.5"><Star size={8} className="fill-current" /> Primary</Badge>
+                      )}
+                    </div>
+                    {brand.gstin && <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">GST: {brand.gstin}</p>}
+                  </div>
+                </div>
+                <StatusBadge active={brand.is_active} />
+              </div>
+
+              {brand.address && <p className="text-xs text-[var(--text-muted)] border-t border-[var(--border-light)] pt-2 truncate">{brand.address}</p>}
+
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                <button type="button" onClick={() => handleOpenEdit(brand)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                ><Pencil size={12} /> Edit</button>
+                <button type="button" onClick={() => handleOpenDelete(brand)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
+                ><Trash2 size={12} /> Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredBrands}
+            isLoading={false}
+            total={filteredBrands.length}
+            page={1}
+            perPage={10}
+            onPageChange={() => {}}
+            onRowClick={(row) => router.push(`/master-data/brands/${row.id}`)}
+            emptyMessage="No matching brands found."
+          />
+        </div>
       </PageState>
+
 
       {/* Add/Edit Shared Modal */}
       <Modal

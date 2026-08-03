@@ -147,7 +147,8 @@ export default function GeneralSettingsPage() {
       onRetry={refetch}
       skeletonVariant="form"
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 pb-20 md:pb-0">
+
         <SettingsPageHeader
           section="General"
           title="Settings"
@@ -362,6 +363,14 @@ export default function GeneralSettingsPage() {
           />
         </div>
       </div>
+
+      {/* ── MOBILE: STICKY BOTTOM SAVE BAR ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 flex items-center justify-end shadow-lg">
+        <AsyncButton onClick={handleSave} isLoading={saveMutation.isPending} variant="primary" className="w-full h-10 font-bold text-xs">
+          <Save className="size-4 text-white mr-1.5 inline" /> Save Changes
+        </AsyncButton>
+      </div>
     </PageState>
   );
 }
+
