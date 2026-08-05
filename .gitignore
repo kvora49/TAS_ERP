@@ -44,7 +44,8 @@ yarn-error.log*
 *.sln
 *.sw?
 
-# Scratch files / diagnostic scripts
+# Scratch files / diagnostic scripts / temporary folders
+/scratch/
 /call-reload-rpc.js
 /check-event-triggers.js
 /check-grants.js
@@ -68,6 +69,9 @@ yarn-error.log*
 /test-workers-table.js
 /user_request_phase4.md
 
-# Archives and Serena settings
+# Archives, Vercel, Turbo and Serena settings
+.vercel/
+.turbo/
+*.log
 *.zip
 .serena/
