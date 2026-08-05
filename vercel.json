@@ -7,11 +7,11 @@
     },
     {
       "path": "/api/cron/calendar-reminders",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/notifications",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
