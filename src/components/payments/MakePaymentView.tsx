@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Save, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -86,14 +86,14 @@ export default function MakePaymentView({
     enabled: !!selectedPayeeId,
   });
 
-  const outstandingBills = billsData?.bills || [];
-  const availableDebitNotes = billsData?.debitNotes || [];
+  const outstandingBills = useMemo(() => billsData?.bills || [], [billsData?.bills]);
+  const availableDebitNotes = useMemo(() => billsData?.debitNotes || [], [billsData?.debitNotes]);
   const [selectedDebitNoteIds, setSelectedDebitNoteIds] = useState<string[]>([]);
 
   // Compute total selected debit note credit amount
   const totalDebitNotesApplied = availableDebitNotes
-    .filter((dn) => selectedDebitNoteIds.includes(dn.id))
-    .reduce((sum, dn) => sum + Number(dn.available_amount || 0), 0);
+    .filter((dn: any) => selectedDebitNoteIds.includes(dn.id))
+    .reduce((sum: number, dn: any) => sum + Number(dn.available_amount || 0), 0);
 
   const totalEffectivePool = Number(amountPaid || 0) + totalDebitNotesApplied;
 
@@ -120,14 +120,14 @@ export default function MakePaymentView({
   // Submit Make Payment Mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedPayeeId) throw new Error("Please select a supplier or job worker");
+      if (!selectedPayeeId) throw new Error("Please select a payee");
       if (amountPaid <= 0 && allocations.length === 0 && selectedDebitNoteIds.length === 0) {
         throw new Error("Please enter a valid amount or select bills/debit notes to allocate");
       }
 
       const debitNoteAllocations = availableDebitNotes
-        .filter((dn) => selectedDebitNoteIds.includes(dn.id))
-        .map((dn) => ({
+        .filter((dn: any) => selectedDebitNoteIds.includes(dn.id))
+        .map((dn: any) => ({
           debit_note_id: dn.id,
           amount: dn.available_amount,
         }));

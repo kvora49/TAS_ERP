@@ -123,6 +123,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 3. Update bank account current_balance if received_in_account_id provided
+    if (received_in_account_id) {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance")
+        .eq("id", received_in_account_id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const newBal = Number(bank.current_balance || 0) + Number(amount);
+        await supabase
+          .from("bank_accounts")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", received_in_account_id)
+          .eq("business_id", businessId);
+      }
+    }
+
     return NextResponse.json({ success: true, income });
   } catch (err: any) {
     return NextResponse.json(

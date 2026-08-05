@@ -209,9 +209,12 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       remarks: state.remarks || null,
       is_temporary: isTemporary,
       items: state.items.map((it: any) => ({
-        design_id: it.design_id,
-        colour_id: it.colour_id,
-        size: it.size,
+        item_type: it.item_type || (it.material_type_id ? "fabric" : "finished_goods"),
+        design_id: it.design_id || null,
+        material_type_id: it.material_type_id || null,
+        item_name: it.item_name || null,
+        colour_id: it.colour_id || null,
+        size: it.size || null,
         quantity: it.quantity,
         unit: it.unit || "Pcs",
         rate: it.rate,
@@ -221,6 +224,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         cost_per_piece: it.cost_per_piece || 0,
         description: it.description || null,
         hsn_sac: it.hsn_sac || null,
+        rolls: it.rolls && Array.isArray(it.rolls) ? it.rolls : undefined,
       })),
       charges: state.charges.map((c: any) => ({
         charge_name: c.charge_name,

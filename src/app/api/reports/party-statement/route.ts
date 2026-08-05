@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       supabase.from("parties").select("*").eq("id", partyId).eq("business_id", bid).single(),
       supabase.from("raw_material_purchases").select("id, purchase_number, invoice_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
       supabase.from("purchase_bills").select("id, bill_number, invoice_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
-      supabase.from("sale_bills").select("id, bill_number, bill_date, grand_total").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
+      supabase.from("sale_bills").select("id, bill_number, bill_date, grand_total, remarks").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("payments").select("id, payment_number, payment_date, direction, payment_mode, amount").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("write_offs").select("id, amount, written_off_at").eq("business_id", bid),
       supabase.from("credit_notes").select("id, cn_number, cn_date, amount, return_id").eq("party_id", partyId).eq("business_id", bid),
@@ -88,7 +88,9 @@ export async function GET(req: NextRequest) {
     const entries: LedgerEntry[] = [];
 
     // Sales (Debit for customer)
-    (saleBillsRes.data ?? []).forEach((b) => {
+    (saleBillsRes.data ?? [])
+      .filter((b: any) => !b.bill_number?.startsWith("TEMP-") && !b.remarks?.includes("[TEMPORARY]"))
+      .forEach((b) => {
       entries.push({
         date: b.bill_date,
         type: "Sale Bill",

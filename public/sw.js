@@ -1,4 +1,4 @@
-const CACHE_NAME = "tas-erp-pwa-v2";
+const CACHE_NAME = "tas-erp-pwa-v3";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/favicon.ico",

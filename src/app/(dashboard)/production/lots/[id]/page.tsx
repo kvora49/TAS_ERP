@@ -229,10 +229,12 @@ export default function LotDetailPage({ params }: LotDetailProps) {
               ? "bg-emerald-100 text-emerald-700"
               : lot.lot_payment_status === "partial"
               ? "bg-amber-100 text-amber-700"
-              : "bg-rose-100 text-rose-700"
+              : lot.lot_payment_status === "unpaid"
+              ? "bg-rose-100 text-rose-700"
+              : "bg-slate-100 text-slate-600"
           }`}
         >
-          {lot.lot_payment_status || "paid"}
+          {lot.lot_payment_status || "none"}
         </span>
       ),
     },

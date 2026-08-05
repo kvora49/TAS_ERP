@@ -191,8 +191,11 @@ export async function GET(
 
     const averagePurchaseCost = totalQtyPurchased > 0 ? (totalSpend / totalQtyPurchased) : 0;
 
+    const isFabric = material.category?.toLowerCase() === "fabric" || (rolls && rolls.length > 0);
+
     return NextResponse.json({
       material,
+      is_fabric: isFabric,
       stocks: stocks || [],
       purchases,
       movements: movements || [],

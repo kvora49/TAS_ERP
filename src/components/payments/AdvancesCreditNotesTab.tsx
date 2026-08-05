@@ -9,6 +9,8 @@ import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
 
+import BillAllocationTable, { OutstandingBill } from "@/components/payments/BillAllocationTable";
+
 interface Advance {
   id: string;
   advance_amount: number;
@@ -29,9 +31,7 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
 
   const [subTab, setSubTab] = useState<"received" | "given">("received");
   const [selectedAdvance, setSelectedAdvance] = useState<Advance | null>(null);
-  const [selectedBillId, setSelectedBillId] = useState<string>("");
-  const [selectedBillType, setSelectedBillType] = useState<string>("sale_bill");
-  const [settleAmount, setSettleAmount] = useState<number>(0);
+  const [multiAllocations, setMultiAllocations] = useState<any[]>([]);
 
   // Fetch advances
   const { data: advancesData, isLoading, error, refetch } = useQuery<{
@@ -63,21 +63,36 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
   const { data: billsData, isLoading: billsLoading } = useQuery<{ bills: any[] }>({
     queryKey: ["outstanding-bills-for-advance", selectedAdvance?.party?.id],
     queryFn: async () => {
-      if (!selectedAdvance) return { bills: [] };
+      if (!selectedAdvance?.party?.id) return { bills: [] };
       const res = await fetch(`/api/payments?party_id=${selectedAdvance.party.id}`);
       if (!res.ok) throw new Error("Failed to load party bills");
       return res.json();
     },
-    enabled: !!selectedAdvance,
+    enabled: !!selectedAdvance?.party?.id,
   });
 
-  const outstandingBills = billsData?.bills || [];
+  const rawBills = billsData?.bills || [];
+  const outstandingBills: OutstandingBill[] = rawBills
+    .filter((b: any) => {
+      const isTemp = b.invoice_number?.startsWith("TEMP-") || b.bill_number?.startsWith("TEMP-");
+      return !isTemp;
+    })
+    .map((b: any) => ({
+      id: b.id,
+      invoice_number: b.invoice_number || b.bill_number || "Bill",
+      invoice_date: b.invoice_date || b.bill_date || new Date().toISOString(),
+      due_date: b.due_date || b.invoice_date || b.bill_date || new Date().toISOString(),
+      total: Number(b.total || b.grand_total || 0),
+      outstanding: Number(b.outstanding || 0),
+      bill_type: b.bill_type || (subTab === "received" ? "sale_bill" : "purchase_bill"),
+    }));
 
   // Settle advance mutation
   const settleMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedAdvance || !selectedBillId || settleAmount <= 0) {
-        throw new Error("Please select a bill and enter a valid settlement amount");
+      if (!selectedAdvance) throw new Error("No advance selected");
+      if (multiAllocations.length === 0) {
+        throw new Error("Please select at least one bill to allocate advance funds against");
       }
 
       const res = await fetch("/api/payments/advances", {
@@ -85,9 +100,7 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           advance_id: selectedAdvance.id,
-          bill_id: selectedBillId,
-          bill_type: selectedBillType,
-          amount_to_settle: settleAmount,
+          allocations: multiAllocations,
         }),
       });
 
@@ -96,12 +109,12 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
       return data;
     },
     onSuccess: () => {
-      toast.success("Advance settled against bill successfully!");
-      queryClient.invalidateQueries({ queryKey: ["advances"] });
-      queryClient.invalidateQueries({ queryKey: ["payments-list"] });
+      toast.success("Advance settled against bills successfully!");
       setSelectedAdvance(null);
-      setSelectedBillId("");
-      setSettleAmount(0);
+      setMultiAllocations([]);
+      queryClient.invalidateQueries({ queryKey: ["advances"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-bills-for-advance"] });
+      queryClient.invalidateQueries({ queryKey: ["payments-list-overview"] });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to settle advance");
@@ -277,7 +290,6 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
                             type="button"
                             onClick={() => {
                               setSelectedAdvance(adv);
-                              setSettleAmount(Number(adv.remaining_amount));
                             }}
                             className="px-3 py-1 bg-[var(--primary)] text-white text-[11px] font-medium rounded-lg hover:bg-[var(--primary-dark)] transition-colors"
                           >
@@ -299,7 +311,7 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
             open={!!selectedAdvance}
             onOpenChange={(o) => !o && setSelectedAdvance(null)}
             title={`Settle Advance — ${selectedAdvance.party?.name}`}
-            maxWidth="max-w-lg"
+            maxWidth="max-w-5xl"
           >
             <div className="space-y-4 text-xs">
               <div className="p-3 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl flex items-center justify-between font-medium">
@@ -317,40 +329,12 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
                 </div>
               ) : (
                 <>
-                  <div className="space-y-1">
-                    <label className="font-semibold text-[var(--text-muted)]">Select Bill to Settle *</label>
-                    <select
-                      value={selectedBillId}
-                      onChange={(e) => {
-                        const bId = e.target.value;
-                        setSelectedBillId(bId);
-                        const bill = outstandingBills.find((b) => b.id === bId);
-                        if (bill) {
-                          setSelectedBillType(bill.bill_type || "sale_bill");
-                          setSettleAmount(Math.min(Number(selectedAdvance.remaining_amount), Number(bill.outstanding)));
-                        }
-                      }}
-                      className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 h-10 transition-colors"
-                    >
-                      <option value="">Select unpaid bill...</option>
-                      {outstandingBills.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.bill_number} ({b.bill_date ? new Date(b.bill_date).toLocaleDateString("en-IN") : ""}) — Outstanding: ₹{Number(b.outstanding).toLocaleString("en-IN")}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="font-semibold text-[var(--text-muted)]">Settlement Amount ₹ *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={selectedAdvance.remaining_amount}
-                      step="0.01"
-                      value={settleAmount || ""}
-                      onChange={(e) => setSettleAmount(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 h-10 font-bold transition-colors"
+                  <div className="space-y-2">
+                    <label className="font-semibold text-[var(--text-muted)]">Select & Allocate Unpaid Bills *</label>
+                    <BillAllocationTable
+                      bills={outstandingBills}
+                      paymentAmount={Number(selectedAdvance.remaining_amount || 0)}
+                      onAllocationChange={setMultiAllocations}
                     />
                   </div>
 

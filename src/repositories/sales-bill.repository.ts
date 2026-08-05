@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export class SalesBillRepository {
   constructor(public supabase: SupabaseClient) {}
@@ -347,7 +348,7 @@ export class SalesBillRepository {
             }
           }
 
-          // C) Record raw material stock ledger entry
+          // C) Record raw material stock ledger entry & reconcile stock
           if (!billData.is_temporary && item.material_type_id) {
             await this.supabase.from("stock_ledger").insert({
               business_id: billData.business_id,
@@ -361,6 +362,12 @@ export class SalesBillRepository {
               reference_id: bill.id,
               created_by: billData.created_by || null,
             });
+
+            await reconcileRawMaterialStock(
+              this.supabase,
+              billData.business_id,
+              item.material_type_id
+            );
           }
         } else if (!billData.is_temporary && item.design_id) {
 
@@ -464,9 +471,11 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
         const itemsToInsert = items.map((it) => ({
           business_id: businessId,
           bill_id: billId,
-          design_id: it.design_id,
+          item_type: it.item_type || (it.material_type_id ? "fabric" : "finished_goods"),
+          material_type_id: it.material_type_id || null,
+          design_id: it.design_id || null,
           colour_id: it.colour_id || null,
-          size: it.size,
+          size: it.size || null,
           brand_id: it.brand_id || null,
           hsn_sac: it.hsn_sac || null,
           quantity: Number(it.quantity || 0),

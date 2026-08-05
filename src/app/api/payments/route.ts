@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       const [saleBillsRes, rmPurchasesRes, fgPurchasesRes, jobWorkRes, creditNotesRes, debitNotesRes, advancesRes, salesReturnsRes, purchaseReturnsRes] = await Promise.all([
         supabase
           .from("sale_bills")
-          .select("id, bill_number, bill_date, due_date, grand_total, paid_amount, payment_status")
+          .select("id, bill_number, bill_date, due_date, grand_total, paid_amount, payment_status, remarks")
           .eq("party_id", partyId)
           .eq("business_id", businessId)
           .neq("status", "cancelled")
@@ -100,7 +100,10 @@ export async function GET(request: Request) {
 
       const bills: any[] = [];
 
-      (saleBillsRes.data || []).forEach((b) => {
+      (saleBillsRes.data || []).forEach((b: any) => {
+        const isTemp = b.bill_number?.startsWith("TEMP-") || b.remarks?.includes("[TEMPORARY]");
+        if (isTemp) return;
+
         const retAmount = salesReturnsMap[b.id] || 0;
         const netTotal = Number(b.grand_total) - retAmount;
         const outstanding = Math.max(0, netTotal - Number(b.paid_amount || 0));

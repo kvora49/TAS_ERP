@@ -18,9 +18,12 @@ interface Party {
 
 interface BankAccount {
   id: string;
-  account_name: string;
-  bank_name: string;
-  account_number: string;
+  name?: string;
+  account_name?: string;
+  bank_name?: string;
+  account_number?: string;
+  type?: string;
+  current_balance?: number;
   is_default?: boolean;
 }
 
@@ -113,6 +116,18 @@ export default function RecordPaymentModal({
     mutationFn: async () => {
       if (!selectedPartyId) throw new Error("Please select a party");
       if (amount <= 0 && allocations.length === 0) throw new Error("Please enter a valid payment amount or select bills to allocate");
+
+      if (direction === "paid" && paymentMode !== "cheque" && paymentMode !== "pdc") {
+        const selectedAcc = bankAccounts.find((b: any) => b.id === bankAccountId);
+        if (selectedAcc && selectedAcc.current_balance !== undefined) {
+          const avail = Number(selectedAcc.current_balance || 0);
+          if (amount > avail) {
+            throw new Error(
+              `Insufficient funds in "${selectedAcc.name || selectedAcc.account_name || "selected account"}". Available balance is ₹${avail.toLocaleString("en-IN")}, but payment amount is ₹${amount.toLocaleString("en-IN")}.`
+            );
+          }
+        }
+      }
 
       const payload = {
         action: "record_payment",
@@ -263,23 +278,27 @@ export default function RecordPaymentModal({
             </select>
           </div>
 
-          {/* Bank Account */}
-          {paymentMode !== "cash" && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Bank Account *</label>
-              <select
-                value={bankAccountId}
-                onChange={(e) => setBankAccountId(e.target.value)}
-                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
-              >
-                {bankAccounts.map((b) => (
+          {/* Account (Bank / UPI / Cash) */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--text-muted)]">
+              {paymentMode === "cash" ? "Cash Account *" : "Bank / UPI Account *"}
+            </label>
+            <select
+              value={bankAccountId}
+              onChange={(e) => setBankAccountId(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            >
+              {bankAccounts.map((b: any) => {
+                const name = b.name || b.account_name || b.bank_name || "Account";
+                const bal = b.current_balance !== undefined ? ` (Bal: ₹${Number(b.current_balance || 0).toLocaleString("en-IN")})` : "";
+                return (
                   <option key={b.id} value={b.id}>
-                    {b.account_name} ({b.bank_name})
+                    {name}{bal}
                   </option>
-                ))}
-              </select>
-            </div>
-          )}
+                );
+              })}
+            </select>
+          </div>
 
           {/* Reference / UTR Number */}
           <div className="space-y-1">

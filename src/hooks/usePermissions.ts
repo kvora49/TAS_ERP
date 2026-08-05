@@ -35,8 +35,8 @@ export function usePermissions() {
 
   const getModulePermission = (moduleName: string): RolePermission | null => {
     if (!role) return null;
-    // Owner & Admin have full permissions across all modules by default
-    if (role === "owner" || role === "admin") {
+    // Only 'owner' (business creator/superuser) bypasses permission matrix
+    if (role === "owner") {
       return {
         business_id: "",
         role,
@@ -62,32 +62,37 @@ export function usePermissions() {
     permissions: permissionsList,
     getModulePermission,
     canView: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
-      return perm ? perm.can_view : true; // Default fallback to viewable
+      if (!perm) {
+        // If permissions list is still loading, allow view to avoid UI flicker
+        if (query.isLoading) return true;
+        return false;
+      }
+      return perm.can_view;
     },
     canAdd: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
       return perm ? perm.can_add : false;
     },
     canEdit: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
       return perm ? perm.can_edit : false;
     },
     canDelete: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
       return perm ? perm.can_delete : false;
     },
     canApprove: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
       return perm ? perm.can_approve : false;
     },
     canExport: (moduleName: string) => {
-      if (role === "owner" || role === "admin") return true;
+      if (role === "owner") return true;
       const perm = getModulePermission(moduleName);
       return perm ? perm.can_export : false;
     },

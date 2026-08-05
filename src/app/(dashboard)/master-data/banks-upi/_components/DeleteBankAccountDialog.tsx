@@ -14,7 +14,7 @@ import { toast } from "sonner";
 interface BankAccount {
   id: string;
   name: string;
-  type: "bank" | "upi";
+  type: "bank" | "upi" | "cash";
   bank_name?: string | null;
   upi_id?: string | null;
 }

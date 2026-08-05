@@ -375,7 +375,7 @@ function PaymentsContent() {
                               ₹{Number(p.unallocated_amount).toLocaleString("en-IN")} (Advance)
                             </span>
                           ) : (
-                            <span className="text-emerald-600 font-semibold">₹0.00 (Allocated)</span>
+                            <span className="text-emerald-600 font-semibold">₹0.00 (Fully Allocated)</span>
                           )}
                         </td>
                         <td className="px-4 py-3">

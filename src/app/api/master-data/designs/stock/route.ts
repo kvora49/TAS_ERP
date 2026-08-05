@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -21,6 +22,13 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
+    // 0. Perform real-time ground-truth finished stock reconciliation
+    try {
+      await reconcileFinishedStock(supabase, businessId, designId && designId !== "all" ? designId : undefined);
+    } catch (recErr) {
+      console.warn("Finished stock reconciliation warning:", recErr);
+    }
+
     // 1. Fetch Finished Stock entries
     let stockQuery = supabase
       .from("finished_stock")

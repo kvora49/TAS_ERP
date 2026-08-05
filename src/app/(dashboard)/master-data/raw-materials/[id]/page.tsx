@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   Percent,
   Maximize2,
+  RefreshCw,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
@@ -30,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface Godown {
   id: string;
@@ -106,6 +108,7 @@ interface Roll {
 
 interface RawMaterialDetailResponse {
   material: Material;
+  is_fabric?: boolean;
   stocks: Stock[];
   purchases: Purchase[];
   movements: Movement[];
@@ -118,8 +121,9 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("stock");
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const { data: detailData, isLoading, error } = useQuery<RawMaterialDetailResponse>({
+  const { data: detailData, isLoading, error, refetch } = useQuery<RawMaterialDetailResponse>({
     queryKey: ["raw-material-detail", id],
     queryFn: async () => {
       const res = await fetch(`/api/master-data/raw-materials/${id}`);
@@ -271,20 +275,46 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            if (typeof window !== "undefined" && document.referrer.includes("/stock/raw-materials")) {
-              router.push("/stock/raw-materials");
-            } else if (typeof window !== "undefined" && window.history.length > 1) {
-              router.back();
-            } else {
-              router.push("/master-data/raw-materials");
-            }
-          }}
-          className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-        >
-          <ArrowLeft size={14} /> Back to List
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            disabled={isSyncing}
+            onClick={async () => {
+              setIsSyncing(true);
+              try {
+                const res = await fetch("/api/raw-materials/purchase-returns/reconcile", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ targetMaterialTypeId: id }),
+                });
+                if (!res.ok) throw new Error("Sync failed");
+                toast.success("Stock reconciled successfully!");
+                refetch();
+              } catch (err: any) {
+                toast.error(err.message || "Failed to reconcile stock");
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            className="h-10 px-4 rounded-lg bg-[#EEF2FF] text-[#6366F1] hover:bg-indigo-100 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} /> Sync Stock
+          </button>
+
+          <button
+            onClick={() => {
+              if (typeof window !== "undefined" && document.referrer.includes("/stock/raw-materials")) {
+                router.push("/stock/raw-materials");
+              } else if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/master-data/raw-materials");
+              }
+            }}
+            className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <ArrowLeft size={14} /> Back to List
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -347,16 +377,20 @@ export default function RawMaterialDetailPage({ params }: { params: { id: string
         >
           Live Stock per Godown ({stocks.length})
         </button>
-        <button
-          onClick={() => setActiveTab("rolls")}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "rolls"
-              ? "border-[#6366F1] text-[#6366F1]"
-              : "border-transparent text-[#64748B] hover:text-[#0F172A]"
-          }`}
-        >
-          Rolls & Batches In Stock ({(detailData.rolls || []).length})
-        </button>
+
+        {(detailData.is_fabric ?? (detailData.material.category?.toLowerCase() === "fabric" || (detailData.rolls && detailData.rolls.length > 0))) && (
+          <button
+            onClick={() => setActiveTab("rolls")}
+            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === "rolls"
+                ? "border-[#6366F1] text-[#6366F1]"
+                : "border-transparent text-[#64748B] hover:text-[#0F172A]"
+            }`}
+          >
+            Rolls & Batches In Stock ({(detailData.rolls || []).length})
+          </button>
+        )}
+
         <button
           onClick={() => setActiveTab("purchases")}
           className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${

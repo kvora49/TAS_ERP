@@ -12,6 +12,7 @@ import Link from "next/link";
 import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 const returnItemSchema = z.object({
   purchase_item_id: z.string().optional(),
@@ -19,6 +20,9 @@ const returnItemSchema = z.object({
   design_id: z.string().optional().nullable(),
   colour_id: z.string().optional().nullable(),
   size_quantities: z.record(z.string(), z.coerce.number()).optional().default({}),
+  invoice_size_quantities: z.record(z.string(), z.coerce.number()).optional().default({}),
+  sizes: z.array(z.string()).optional().default([]),
+  size_set_name: z.string().optional(),
   material_name: z.string().optional(), // display helper
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
@@ -27,6 +31,9 @@ const returnItemSchema = z.object({
   rate: z.coerce.number().min(0.01),
   discount_percent: z.coerce.number(),
   taxable_value: z.coerce.number(),
+  gst_percent: z.coerce.number().default(0),
+  gst_amount: z.coerce.number().default(0),
+  amount: z.coerce.number().default(0),
   item_type: z.enum(["fabric", "accessory", "finished_goods", "others"]).default("fabric"),
   rolls: z.array(z.object({
     id: z.string(),
@@ -48,6 +55,7 @@ const returnSchema = z.object({
   godown_id: z.string().min(1, "Godown is required for inventory return"),
   challan_no: z.string().optional(),
   remarks: z.string().optional(),
+  gst_type: z.string().default("with_gst"),
   generate_debit_note: z.boolean(),
   attachments: z.array(z.string()),
   status: z.string(),
@@ -108,6 +116,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
     return_type: "material_return",
     reason: "",
     godown_id: "",
+    gst_type: "with_gst",
     challan_no: "",
     remarks: "",
     generate_debit_note: true,
@@ -185,16 +194,36 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
             if (p.godown_id) {
               setValue("godown_id", p.godown_id);
             }
+            if (p.gst_type) {
+              setValue("gst_type", p.gst_type);
+            }
 
             const itemsList = data.purchase?.items || data.items || [];
             const returnItems = itemsList.map((it: any) => {
               const rollsList = it.rolls || [];
-              const calculatedType = it.item_type || (rollsList.length > 0 ? "fabric" : it.design_id ? "finished_goods" : "accessory");
+              const category = it.material_type?.category?.toLowerCase() || "";
+              const isFinishedGood = it.item_type === "finished_goods" || !!it.design_id;
+              const isOthers = it.item_type === "others";
+              const isFabricItem = (it.item_type === "fabric" || category === "fabric") && rollsList.length > 0;
+              const calculatedType = isFinishedGood
+                ? "finished_goods"
+                : isOthers
+                ? "others"
+                : isFabricItem
+                ? "fabric"
+                : "accessory";
+
               const materialName = calculatedType === "finished_goods"
                 ? `${it.design?.design_number || it.design?.name || "Finished Good"} ${it.colour?.colour_name ? `(${it.colour.colour_name})` : ""}`
                 : calculatedType === "others"
                 ? it.other_item_name || "Other Item"
                 : it.material_type?.name || "Material";
+
+              const invSizeQty = it.size_quantities || {};
+              const sizesList = (it.design?.size_set?.sizes && it.design.size_set.sizes.length > 0)
+                ? it.design.size_set.sizes
+                : Object.keys(invSizeQty);
+              const sizeSetName = it.design?.size_set?.name || "";
 
               return {
                 purchase_item_id: it.id,
@@ -202,6 +231,9 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                 design_id: it.design_id || null,
                 colour_id: it.colour_id || null,
                 size_quantities: {},
+                invoice_size_quantities: invSizeQty,
+                sizes: sizesList,
+                size_set_name: sizeSetName,
                 material_name: materialName,
                 hsn_sac: it.hsn_sac || "",
                 unit: it.unit || (calculatedType === "finished_goods" ? "Pcs" : "Meters"),
@@ -210,6 +242,9 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                 rate: Number(it.rate || 0),
                 discount_percent: Number(it.discount_percent || 0),
                 taxable_value: 0,
+                gst_percent: Number(it.gst_percent || 0),
+                gst_amount: 0,
+                amount: 0,
                 item_type: calculatedType,
                 rolls: rollsList.map((r: any) => ({
                   id: r.id,
@@ -236,6 +271,21 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
       replace([]);
     }
   }, [watchPurchaseId, setValue, replace]);
+
+  const watchGstType = watch("gst_type") || "with_gst";
+
+  // Helper calculation for item tax
+  const calcItemTax = (item: any, returnedQty: number) => {
+    const rate = Number(item?.rate || 0);
+    const disc = Number(item?.discount_percent || 0);
+    const gstPct = watchGstType === "with_gst" ? Number(item?.gst_percent || 0) : 0;
+
+    const taxable = Number((returnedQty * rate * (1 - disc / 100)).toFixed(2));
+    const gstAmt = Number(((taxable * gstPct) / 100).toFixed(2));
+    const totalAmt = Number((taxable + gstAmt).toFixed(2));
+
+    return { taxable, gstAmt, totalAmt };
+  };
 
   // Toggle roll selection
   const handleRollToggle = (itemIndex: number, rollIndex: number) => {
@@ -289,13 +339,52 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
     setValue(`items.${itemIndex}.rolls`, rolls);
     setValue(`items.${itemIndex}.returned_qty`, returnedQty);
 
-    const rate = Number(item?.rate || 0);
-    const disc = Number(item?.discount_percent || 0);
-    const taxable = returnedQty * rate * (1 - disc / 100);
-    setValue(`items.${itemIndex}.taxable_value`, Number(taxable.toFixed(2)));
+    const { taxable, gstAmt, totalAmt } = calcItemTax(item, returnedQty);
+    setValue(`items.${itemIndex}.taxable_value`, taxable);
+    setValue(`items.${itemIndex}.gst_amount`, gstAmt);
+    setValue(`items.${itemIndex}.amount`, totalAmt);
   };
 
-  // Recalculate item taxable value when returned quantity changes (for accessories)
+  // Recalculate item taxable value when size matrix input changes (for finished goods & sized items)
+  const handleSizeQtyChange = (itemIndex: number, updatedSizeQs: Record<string, number>) => {
+    const item = watchItems[itemIndex];
+    if (!item) return;
+
+    const invSizeQs = item.invoice_size_quantities || {};
+    let isValid = true;
+    const validatedSizeQs: Record<string, number> = {};
+
+    Object.entries(updatedSizeQs).forEach(([sz, qty]) => {
+      const numQty = Math.max(0, Number(qty || 0));
+      const maxQtyForSize = invSizeQs[sz] !== undefined ? Number(invSizeQs[sz] || 0) : Number(item.invoice_qty || 0);
+
+      if (numQty > maxQtyForSize) {
+        toast.error(`Return quantity for size '${sz}' cannot exceed original invoice quantity of ${maxQtyForSize}`);
+        validatedSizeQs[sz] = maxQtyForSize;
+        isValid = false;
+      } else {
+        validatedSizeQs[sz] = numQty;
+      }
+    });
+
+    const totalReturnedQty = Object.values(validatedSizeQs).reduce((sum, q) => sum + Number(q || 0), 0);
+    const maxInvoiceQty = Number(item.invoice_qty || 0);
+
+    if (totalReturnedQty > maxInvoiceQty) {
+      toast.error(`Total returned quantity (${totalReturnedQty}) cannot exceed invoice total quantity (${maxInvoiceQty})`);
+      return;
+    }
+
+    setValue(`items.${itemIndex}.size_quantities`, validatedSizeQs);
+    setValue(`items.${itemIndex}.returned_qty`, totalReturnedQty);
+
+    const { taxable, gstAmt, totalAmt } = calcItemTax(item, totalReturnedQty);
+    setValue(`items.${itemIndex}.taxable_value`, taxable);
+    setValue(`items.${itemIndex}.gst_amount`, gstAmt);
+    setValue(`items.${itemIndex}.amount`, totalAmt);
+  };
+
+  // Recalculate item taxable value when returned quantity changes (for scalar accessories)
   const handleQtyChange = (index: number, qtyVal: string) => {
     const qty = Number(qtyVal || 0);
     const maxQty = Number(watchItems[index]?.invoice_qty || 0);
@@ -304,20 +393,28 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
       toast.error(`Return quantity cannot exceed original invoice quantity of ${maxQty}`);
       setValue(`items.${index}.returned_qty`, 0);
       setValue(`items.${index}.taxable_value`, 0);
+      setValue(`items.${index}.gst_amount`, 0);
+      setValue(`items.${index}.amount`, 0);
       return;
     }
 
-    const rate = Number(watchItems[index]?.rate || 0);
-    const disc = Number(watchItems[index]?.discount_percent || 0);
-    const taxable = qty * rate * (1 - disc / 100);
+    const { taxable, gstAmt, totalAmt } = calcItemTax(watchItems[index], qty);
 
     setValue(`items.${index}.returned_qty`, qty);
-    setValue(`items.${index}.taxable_value`, Number(taxable.toFixed(2)));
+    setValue(`items.${index}.taxable_value`, taxable);
+    setValue(`items.${index}.gst_amount`, gstAmt);
+    setValue(`items.${index}.amount`, totalAmt);
   };
 
-  // Compute Grand Total
+  // Compute Grand Totals
   const totalTaxable = watchItems.reduce((acc, curr) => acc + Number(curr.taxable_value || 0), 0);
-  const grandTotal = totalTaxable; // keeping it simple, matching purchase return structure
+  const totalGst = watchGstType === "with_gst" ? watchItems.reduce((acc, curr) => acc + Number(curr.gst_amount || 0), 0) : 0;
+  const cgst = watchGstType === "with_gst" ? Number((totalGst / 2).toFixed(2)) : 0;
+  const sgst = watchGstType === "with_gst" ? Number((totalGst / 2).toFixed(2)) : 0;
+  const igst = 0;
+  const rawGrandTotal = totalTaxable + totalGst;
+  const grandTotal = Math.round(rawGrandTotal);
+  const roundOff = Number((grandTotal - rawGrandTotal).toFixed(2));
 
   const onSubmit = async (values: ReturnFormValues) => {
     // Check if any items actually have returned_qty > 0
@@ -332,6 +429,10 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         ...values,
         items: itemsToReturn,
         total_taxable_value: totalTaxable,
+        cgst,
+        sgst,
+        igst,
+        round_off: roundOff,
         grand_total: grandTotal,
       };
 
@@ -617,7 +718,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               <div className="space-y-6">
                 {fields.map((field, index) => {
                   const item = watchItems[index];
-                  const isFabric = (item?.item_type || "fabric") === "fabric";
+                  const isFabric = item?.item_type === "fabric" && (item?.rolls || []).length > 0;
 
                   return (
                     <div key={field.id} className="p-4 bg-white rounded-xl border border-[#E2E8F0] space-y-4 shadow-sm">
@@ -690,22 +791,64 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-4">
-                          <div className="w-1/3">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Returned Qty</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0"
-                              value={item?.returned_qty || ""}
-                              onChange={(e) => {
-                                handleQtyChange(index, e.target.value);
-                              }}
-                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1]"
-                            />
-                          </div>
-                        </div>
-                      )}
+                      ) : (() => {
+                          const hasSizes =
+                            (item?.item_type === "finished_goods") ||
+                            (item?.sizes && item.sizes.length > 0) ||
+                            (item?.invoice_size_quantities && Object.keys(item.invoice_size_quantities).length > 0);
+
+                          if (hasSizes) {
+                            const sizes = (item?.sizes && item.sizes.length > 0)
+                              ? item.sizes
+                              : (item?.invoice_size_quantities && Object.keys(item.invoice_size_quantities).length > 0)
+                              ? Object.keys(item.invoice_size_quantities)
+                              : ["S", "M", "L", "XL", "XXL", "3XL"];
+                            const currentSizeQs = item?.size_quantities || {};
+
+                            return (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                                    Return Size Breakdown Matrix
+                                  </h4>
+                                  <span className="text-[10px] text-[#64748B] font-semibold">
+                                    Specify returned piece quantity for each size of this colour
+                                  </span>
+                                </div>
+
+                                <SizeQuantityMatrix
+                                  sizes={sizes}
+                                  sizeQuantities={currentSizeQs}
+                                  sizeSetName={item?.size_set_name}
+                                  onChange={(updated) => handleSizeQtyChange(index, updated)}
+                                />
+
+                                <div className="flex items-center justify-between text-xs pt-1 px-1">
+                                  <span className="text-slate-500 font-medium">
+                                    Total Returned Pcs: <strong className="text-[#6366F1] font-mono">{item?.returned_qty || 0}</strong> / {item?.invoice_qty} Pcs
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center gap-4">
+                              <div className="w-1/3">
+                                <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Returned Qty</label>
+                                <NumericInput
+                                  step="0.01"
+                                  placeholder="0"
+                                  value={item?.returned_qty || ""}
+                                  onChange={(e) => {
+                                    handleQtyChange(index, e.target.value);
+                                  }}
+                                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                       {/* Display taxable value for return */}
                       <div className="flex justify-end pt-2 border-t border-[#F1F5F9] text-xs font-semibold text-slate-700">
@@ -756,14 +899,37 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               3. Summary Details
             </h2>
 
-            <div className="space-y-3.5 text-sm">
-              <div className="flex justify-between text-[#64748B] font-semibold">
+            <div className="space-y-2.5 text-sm">
+              <div className="flex justify-between text-[var(--text-muted)] font-semibold">
                 <span>Total Taxable Value:</span>
                 <span className="font-mono">₹{totalTaxable.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] font-bold text-[#0F172A]">
+              {watchGstType === "with_gst" && (
+                <>
+                  <div className="flex justify-between text-[var(--text-muted)] text-xs font-medium">
+                    <span>CGST:</span>
+                    <span className="font-mono">₹{cgst.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[var(--text-muted)] text-xs font-medium">
+                    <span>SGST:</span>
+                    <span className="font-mono">₹{sgst.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              {watchGstType === "without_gst" && (
+                <div className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-900">
+                  Kaccha Bill (No GST applicable)
+                </div>
+              )}
+              {roundOff !== 0 && (
+                <div className="flex justify-between text-[var(--text-faint)] text-xs">
+                  <span>Round Off:</span>
+                  <span className="font-mono">₹{roundOff > 0 ? `+${roundOff.toFixed(2)}` : roundOff.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center bg-[var(--table-row-hover)] p-3 rounded-lg border border-[var(--border)] font-bold text-[var(--text-primary)]">
                 <span>Grand Total:</span>
-                <span className="font-mono text-lg font-black text-[#6366F1]">
+                <span className="font-mono text-lg font-black text-[var(--primary)]">
                   ₹{grandTotal.toFixed(2)}
                 </span>
               </div>

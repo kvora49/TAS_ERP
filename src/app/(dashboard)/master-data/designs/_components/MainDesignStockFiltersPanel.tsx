@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Filter, RefreshCw, Search, Boxes, Layers } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
+import { toast } from "sonner";
+
 export interface FilterState {
   selectedGodown: string;
   selectedDesign: string;
@@ -23,6 +25,7 @@ export default function MainDesignStockFiltersPanel({
   onFilterChange?: (filters: FilterState) => void;
 }) {
   const [showPanel, setShowPanel] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // 10 Filter States (Matching Screenshot 1)
   const [selectedGodown, setSelectedGodown] = useState<string>("all");
@@ -197,10 +200,27 @@ export default function MainDesignStockFiltersPanel({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => refetch()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer shadow-xs"
+            disabled={isSyncing}
+            onClick={async () => {
+              setIsSyncing(true);
+              try {
+                const res = await fetch("/api/finished-stock/reconcile", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({}),
+                });
+                if (!res.ok) throw new Error("Reconciliation failed");
+                toast.success("Finished stock reconciled successfully!");
+                refetch();
+              } catch (err: any) {
+                toast.error(err.message || "Failed to reconcile finished stock");
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer shadow-xs disabled:opacity-50"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Sync Stock
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} /> Sync Stock
           </button>
           <button
             onClick={() => setShowPanel(!showPanel)}

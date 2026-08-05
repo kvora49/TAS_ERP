@@ -15,6 +15,7 @@ import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { Modal } from "@/components/shared/Modal";
 import { usePWAWebPush } from "@/hooks/usePWAWebPush";
 import { cn } from "@/lib/utils";
+import { CalendarPlannerTab } from "./CalendarPlannerTab";
 
 interface OverdueBill {
   id: string;
@@ -65,8 +66,8 @@ export default function RemindersPage() {
   const queryClient = useQueryClient();
   const { permission, requestNotificationPermission } = usePWAWebPush();
 
-  // Active Tab: 'receivables' | 'payables' | 'cheques' | 'templates'
-  const [activeTab, setActiveTab] = useState<"receivables" | "payables" | "cheques" | "templates">("receivables");
+  // Active Tab: 'calendar' | 'receivables' | 'payables' | 'cheques' | 'templates'
+  const [activeTab, setActiveTab] = useState<"calendar" | "receivables" | "payables" | "cheques" | "templates">("calendar");
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [selectedTemplateType, setSelectedTemplateType] = useState<string>("payment_reminder");
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
@@ -92,7 +93,7 @@ export default function RemindersPage() {
       if (!res.ok) throw new Error("Failed to load reminders data");
       return res.json();
     },
-    enabled: activeTab !== "templates",
+    enabled: activeTab !== "templates" && activeTab !== "calendar",
   });
 
   const [deletedTemplateKeys, setDeletedTemplateKeys] = useState<Set<string>>(() => {
@@ -314,7 +315,7 @@ export default function RemindersPage() {
   };
 
   return (
-    <PageState isLoading={isLoading && activeTab !== "templates"} error={error?.message}>
+    <PageState isLoading={isLoading && activeTab !== "templates" && activeTab !== "calendar"} error={error?.message}>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
@@ -354,6 +355,20 @@ export default function RemindersPage() {
 
         {/* Primary Tabs Navigation */}
         <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2 overflow-x-auto scrollbar-none">
+          {/* Calendar & Planner tab */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("calendar")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              activeTab === "calendar"
+                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+            )}
+          >
+            <span>📅 Calendar & Planner</span>
+          </button>
+
           <button
             type="button"
             onClick={() => { setActiveTab("receivables"); setSelectedBills(new Set()); }}
@@ -407,8 +422,11 @@ export default function RemindersPage() {
           </button>
         </div>
 
+        {/* CALENDAR & PLANNER TAB */}
+        {activeTab === "calendar" && <CalendarPlannerTab />}
+
         {/* Stats Cards (For Bills/Payables/Cheques) */}
-        {activeTab !== "templates" && (
+        {activeTab !== "templates" && activeTab !== "calendar" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
               <div className="p-3 bg-rose-50 dark:bg-rose-950/50 rounded-lg"><AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" /></div>

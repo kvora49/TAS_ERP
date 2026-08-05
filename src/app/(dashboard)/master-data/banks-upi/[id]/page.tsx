@@ -19,6 +19,7 @@ import {
   Clock,
   QrCode,
   CreditCard,
+  Wallet,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
@@ -36,7 +37,7 @@ interface Transaction {
 
 interface BankAccount {
   id: string;
-  type: "bank" | "upi";
+  type: "bank" | "upi" | "cash";
   name: string;
   sub_label: string | null;
   bank_name: string | null;
@@ -144,7 +145,7 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
 
         <div className="flex items-start gap-4">
           <div className="w-14 h-14 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xl shadow-sm">
-            {isBank ? <CreditCard size={24} /> : <QrCode size={24} />}
+            {account.type === "bank" ? <CreditCard size={24} /> : account.type === "upi" ? <QrCode size={24} /> : <Wallet size={24} />}
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -158,10 +159,12 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
                   account.type === "bank"
                     ? "bg-blue-50 text-blue-700 border-blue-100"
-                    : "bg-[#FAF5FF] text-[#7C3AED] border-[#F3E8FF]"
+                    : account.type === "upi"
+                    ? "bg-[#FAF5FF] text-[#7C3AED] border-[#F3E8FF]"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-100"
                 }`}
               >
-                {account.type === "bank" ? "Bank Account" : "UPI Handle"}
+                {account.type === "bank" ? "Bank Account" : account.type === "upi" ? "UPI Handle" : "Cash Register"}
               </span>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${

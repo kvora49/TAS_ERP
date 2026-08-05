@@ -239,7 +239,7 @@ export const navItems: NavItem[] = [
       { name: "Cheques / PDC", href: "/finance/cheques" },
     ],
   },
-  { name: "Reminders & WhatsApp", href: "/reminders", icon: Bell },
+  { name: "Calendar, Reminders & WhatsApp", href: "/reminders", icon: Bell },
   {
     name: "Reports",
     icon: BarChart2,

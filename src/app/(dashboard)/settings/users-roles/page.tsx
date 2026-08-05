@@ -85,8 +85,11 @@ export default function UsersRolesSettingsPage() {
       const query = new URLSearchParams();
       if (roleFilter !== "all") query.append("role", roleFilter);
       if (search) query.append("search", search);
+      query.append("_t", Date.now().toString());
 
-      const res = await fetch(`/api/settings/users?${query.toString()}`);
+      const res = await fetch(`/api/settings/users?${query.toString()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load users`);
       setUsers(data.users || []);

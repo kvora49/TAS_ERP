@@ -1,6 +1,7 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
+import { onProductionLotCreated } from "@/lib/calendar-integration";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -127,7 +128,7 @@ export async function GET(request: Request) {
       const totalLaborCost = entries.reduce((sum, e) => sum + (Number(e.total_job_work_amount) || 0), 0);
       const totalPaidAmount = entries.reduce((sum, e) => sum + (Number(e.paid_amount) || 0), 0);
 
-      let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "paid";
+      let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "none";
       if (entries.length > 0 && totalLaborCost > 0) {
         if (totalPaidAmount >= totalLaborCost) {
           lotPaymentStatus = "paid";
@@ -598,9 +599,22 @@ export async function POST(request: Request) {
         colour_id: r.colour_id || null,
       }));
 
-      const { error: lrError } = await supabase
+      let { error: lrError } = await supabase
         .from("lot_rolls")
         .insert(lotRollsToInsert);
+
+      if (lrError && lrError.message?.includes("colour_id")) {
+        const lotRollsFallback = allocated_rolls.map((r: any) => ({
+          business_id: businessId,
+          lot_id: lot.id,
+          purchase_roll_id: r.purchase_roll_id,
+          allocated_meters: Number(r.allocated_meters),
+        }));
+        const { error: fbError } = await supabase
+          .from("lot_rolls")
+          .insert(lotRollsFallback);
+        lrError = fbError;
+      }
 
       if (lrError) {
         return NextResponse.json({ error: `Lot created, but roll allocation mapping failed: ${lrError.message}` }, { status: 400 });
@@ -727,6 +741,18 @@ export async function POST(request: Request) {
 
     // Log audit trail
     await logAudit(businessId, "create", "production_lots", lot.id, lot);
+
+    // Fire-and-forget calendar integration — auto-create lot events
+    const { data: { user: lotUser } } = await supabase.auth.getUser();
+    void onProductionLotCreated(supabase, {
+      businessId,
+      lotId: lot.id,
+      lotNumber: lot.lot_number,
+      lotName: lot_name || undefined,
+      startDate: lot.lot_date || lot_date,
+      targetCompletionDate: target_dispatch_date || target_due_date || undefined,
+      createdBy: lotUser?.id || null,
+    });
 
     return NextResponse.json({ lot });
   } catch (err: any) {

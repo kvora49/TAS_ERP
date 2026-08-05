@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ModuleGuard } from "@/components/shared/ModuleGuard";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ export default function DashboardLayout({
           {/* Content View */}
           <main className="flex-1 overflow-y-auto bg-[var(--page-bg)] text-[var(--text-body)] px-3 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-24 md:pb-8 relative print:p-0 print:m-0 print:bg-white print:overflow-visible">
             <div className="max-w-[1800px] mx-auto w-full">
-              {children}
+              <ModuleGuard>{children}</ModuleGuard>
             </div>
           </main>
 

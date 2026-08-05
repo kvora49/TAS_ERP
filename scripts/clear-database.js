@@ -1,3 +1,4 @@
+const { Client } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
@@ -25,103 +26,111 @@ function loadEnv() {
 
 loadEnv();
 
+const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !serviceRoleKey) {
-  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be defined in .env.local');
-  process.exit(1);
+const clearAuth = process.argv.includes('--with-auth');
+
+async function clearViaPg() {
+  console.log('Connecting directly to PostgreSQL via connection string...');
+  const client = new Client({
+    connectionString: dbUrl,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  await client.connect();
+
+  try {
+    console.log('Clearing all table data while keeping table structure & schema intact...');
+
+    const clearQuery = `
+      DO $$ 
+      DECLARE 
+          r RECORD;
+      BEGIN
+          SET CONSTRAINTS ALL DEFERRED;
+
+          FOR r IN (
+              SELECT tablename 
+              FROM pg_tables 
+              WHERE schemaname = 'public' 
+                AND tablename NOT IN ('schema_migrations', '_supabase_migrations', 'spatial_ref_sys')
+          ) LOOP
+              EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE;';
+          END LOOP;
+
+          ${clearAuth ? "EXECUTE 'TRUNCATE TABLE auth.users CASCADE;';" : ''}
+      END $$;
+    `;
+
+    await client.query(clearQuery);
+    console.log('✅ Successfully cleared all data from all public tables!');
+    if (clearAuth) {
+      console.log('✅ Successfully cleared all auth users from Supabase Auth.');
+    }
+  } finally {
+    await client.end();
+  }
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false }
-});
+async function clearViaSupabaseRest() {
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or DATABASE_URL) must be defined in .env.local');
+    process.exit(1);
+  }
 
-// All public schema tables in TAS ERP
-const tables = [
-  'sale_bill_items',
-  'sale_bill_charges',
-  'sale_bills',
-  'sale_orders',
-  'sales_returns',
-  'credit_notes',
-  'bill_profit',
-  'purchase_bills',
-  'bill_templates',
-  'brand_bill_config',
-  'job_work_payment_entries',
-  'job_work_payments',
-  'stage_entries',
-  'lot_rolls',
-  'lot_spec_sheet',
-  'lot_stage_workers',
-  'lot_specifications',
-  'lot_size_quantities',
-  'lot_production_stages',
-  'production_lots',
-  'finished_stock',
-  'stock_adjustments',
-  'stock_transfer_items',
-  'stock_transfers',
-  'challan_items',
-  'challans',
-  'purchase_return_rolls',
-  'purchase_return_items',
-  'purchase_returns',
-  'purchase_payments',
-  'purchase_rolls',
-  'raw_material_purchase_items',
-  'raw_material_purchases',
-  'raw_material_stock_entry_items',
-  'raw_material_stock_entries',
-  'raw_material_current_stock',
-  'party_bank_details',
-  'party_contacts',
-  'worker_attendance',
-  'worker_documents',
-  'workers',
-  'whatsapp_logs',
-  'whatsapp_templates',
-  'backup_history',
-  'business_settings',
-  'notification_rules',
-  'role_permissions',
-  'units',
-  'garment_types',
-  'design_spec_templates',
-  'production_templates'
-];
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false }
+  });
 
-async function clearDatabase() {
-  console.log('Starting Database Data Clean-Up...');
-  console.log('------------------------------------');
+  console.log('Using Supabase REST API fallback...');
+
+  const { data: tableData, error: tableError } = await supabase.rpc('pg_tables');
   
+  // Static table fallback list if RPC not available
+  const tables = [
+    'payment_allocations', 'cheques', 'bank_balances', 'party_bank_details', 'party_contacts', 'parties',
+    'sale_bill_items', 'sale_bill_charges', 'sale_bills', 'sale_orders', 'sales_returns', 'credit_notes', 'bill_profit',
+    'purchase_bills', 'bill_templates', 'brand_bill_config', 'job_work_payment_entries', 'job_work_payments',
+    'stage_entries', 'lot_rolls', 'lot_spec_sheet', 'lot_stage_workers', 'lot_specifications', 'lot_size_quantities',
+    'lot_production_stages', 'production_lots', 'finished_stock', 'stock_adjustments', 'stock_transfer_items',
+    'stock_transfers', 'challan_items', 'challans', 'purchase_return_rolls', 'purchase_return_items', 'purchase_returns',
+    'purchase_payments', 'purchase_rolls', 'raw_material_purchase_items', 'raw_material_purchases',
+    'raw_material_stock_entry_items', 'raw_material_stock_entries', 'raw_material_current_stock',
+    'worker_attendance', 'worker_documents', 'workers', 'whatsapp_logs', 'whatsapp_templates', 'backup_history',
+    'business_settings', 'notification_rules', 'role_permissions', 'units', 'garment_types', 'design_spec_templates',
+    'production_templates', 'in_app_notifications', 'audit_logs', 'bill_reminder_schedules'
+  ];
+
   let successCount = 0;
   let failCount = 0;
 
   for (const table of tables) {
     try {
-      // Delete all records from table
-      const { error, count } = await supabase
-        .from(table)
-        .delete({ count: 'exact' })
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) {
-        console.warn(`[WARN] Table '${table}': ${error.message}`);
         failCount++;
       } else {
-        console.log(`[OK] Truncated/Cleared table '${table}' (${count ?? 0} rows deleted)`);
         successCount++;
       }
-    } catch (err) {
-      console.error(`[ERROR] Failed to clear table '${table}':`, err.message);
+    } catch {
       failCount++;
     }
   }
 
-  console.log('------------------------------------');
-  console.log(`Clean-up completed: ${successCount} tables cleared successfully, ${failCount} warnings/errors.`);
+  console.log(`Clean-up completed: ${successCount} tables cleared.`);
 }
 
-clearDatabase();
+async function main() {
+  if (dbUrl) {
+    await clearViaPg();
+  } else {
+    await clearViaSupabaseRest();
+  }
+}
+
+main().catch(err => {
+  console.error('Fatal error during database clear:', err);
+  process.exit(1);
+});

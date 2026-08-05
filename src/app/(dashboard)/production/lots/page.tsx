@@ -556,7 +556,7 @@ export default function ProductionLotsPage() {
                       lot.lot_payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
                       lot.lot_payment_status === "unpaid" ? "bg-rose-500/10 text-rose-500" :
                       "bg-[var(--page-bg)] text-[var(--text-muted)]"
-                    )}>{lot.lot_payment_status || "paid"}</span>
+                    )}>{lot.lot_payment_status || "none"}</span>
                     {lot.target_due_date && (
                       <span className="text-[10px] font-mono text-[var(--text-muted)]">Due: {formatDate(lot.target_due_date)}</span>
                     )}
@@ -737,7 +737,7 @@ export default function ProductionLotsPage() {
                               : "bg-[var(--page-bg)] text-[var(--text-muted)]"
                           }`}
                         >
-                          {lot.lot_payment_status || "paid"}
+                          {lot.lot_payment_status || "none"}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center text-[11px] font-mono text-[var(--text-body)]">

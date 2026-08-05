@@ -53,13 +53,13 @@ export async function GET(
         .neq("status", "cancelled"),
       supabase
         .from("sale_bills")
-        .select("id, bill_number, bill_date, grand_total, status, bill_type")
+        .select("id, bill_number, bill_date, grand_total, status, bill_type, remarks")
         .eq("party_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled"),
       supabase
         .from("purchase_returns")
-        .select("id, return_number, return_date, grand_total, status, purchase_id, purchase_bill_id")
+        .select("id, return_number, return_date, grand_total, status, purchase_id, purchase_bill_id, gst_type")
         .eq("supplier_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled")
@@ -87,7 +87,7 @@ export async function GET(
         .eq("business_id", businessId),
       supabase
         .from("credit_notes")
-        .select("id, cn_number, cn_date, amount, reason, return_id")
+        .select("id, cn_number, cn_date, amount, reason, return_id, return:sales_returns(original_bill_id, gst_type)")
         .eq("party_id", id)
         .eq("business_id", businessId),
       supabase
@@ -142,7 +142,9 @@ export async function GET(
 
     const purchases = purchasesResult.data || [];
     const purchaseBills = purchaseBillsResult.data || [];
-    const saleBills = saleBillsResult.data || [];
+    const saleBills = (saleBillsResult.data || []).filter(
+      (s: any) => !s.bill_number?.startsWith("TEMP-") && !s.remarks?.includes("[TEMPORARY]")
+    );
     const returns = returnsResult.data || [];
     const legacyPayments = legacyPaymentsResult.data || [];
     const newPayments = newPaymentsResult.data || [];
@@ -262,7 +264,9 @@ export async function GET(
 
     // Add Purchase Returns
     returns.forEach((r: any) => {
-      const cat = (r.purchase_id && billCategoryMap[r.purchase_id]) || (r.purchase_bill_id && billCategoryMap[r.purchase_bill_id]) || "pakka";
+      const cat = r.gst_type === "without_gst" 
+        ? "kacha" 
+        : (r.purchase_id && billCategoryMap[r.purchase_id]) || (r.purchase_bill_id && billCategoryMap[r.purchase_bill_id]) || "pakka";
       entries.push({
         date: r.return_date,
         particulars: `Purchase Return #${r.return_number}`,
@@ -279,7 +283,10 @@ export async function GET(
     // Add Credit Notes
     creditNotes.forEach((cn: any) => {
       const isSalesReturn = !!cn.return_id;
-      const cat = (cn.bill_id && billCategoryMap[cn.bill_id]) || "pakka";
+      const sReturn = Array.isArray(cn.return) ? cn.return[0] : cn.return;
+      const cat = (sReturn?.gst_type === "without_gst")
+        ? "kacha"
+        : (sReturn?.original_bill_id && billCategoryMap[sReturn.original_bill_id]) || (cn.bill_id && billCategoryMap[cn.bill_id]) || "pakka";
       entries.push({
         date: cn.cn_date,
         particulars: isSalesReturn 
@@ -381,9 +388,10 @@ export async function GET(
     // Add Unified Payments (both paid & received)
     newPayments.forEach((py) => {
       const mode = py.payment_mode ? py.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
-      const isAdvance = py.is_advance || Number(py.unallocated_amount) > 0;
-      
       const paymentAllocs = allocations.filter((a) => a.payment_id === py.id);
+      const hasAllocations = paymentAllocs.length > 0;
+      const isAdvance = py.is_advance && !hasAllocations;
+      
       const formattedAllocs = paymentAllocs.map((a) => ({
         billNo: billMap[a.bill_id] || "Advance / Unallocated",
         amount: Number(a.allocated_amount),

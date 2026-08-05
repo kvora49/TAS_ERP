@@ -14,14 +14,19 @@ export async function GET(request: Request) {
     .select("id, name, code, is_default, deleted_at")
     .eq("business_id", businessId);
 
-  // Fetch cotton drill raw_material_type
+  const { searchParams } = new URL(request.url);
+  const searchId = searchParams.get("id");
+
+  // Fetch raw_material_types
   const { data: matTypes } = await supabase
     .from("raw_material_types")
     .select("id, name, category, unit, deleted_at")
     .eq("business_id", businessId);
 
-  const cottonDrill = matTypes?.find((m) => m.name?.toLowerCase().includes("cotton drill"));
-  const matId = cottonDrill?.id;
+  const targetMat = searchId
+    ? matTypes?.find((m) => m.id === searchId)
+    : matTypes?.find((m) => m.name?.toLowerCase().includes("cotton drill")) || matTypes?.[0];
+  const matId = targetMat?.id;
 
   // Fetch raw_material_current_stock for cotton drill
   const { data: currentStock } = await supabase
@@ -66,7 +71,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     businessId,
     godowns,
-    cottonDrill,
+    targetMat,
     currentStock,
     purchaseItems,
     rolls,

@@ -121,6 +121,25 @@ export async function POST(request: Request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    const targetBankId = bank_account_id || null;
+    if (targetBankId) {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance")
+        .eq("id", targetBankId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const newBal = Number(bank.current_balance || 0) - net;
+        await supabase
+          .from("bank_accounts")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", targetBankId)
+          .eq("business_id", businessId);
+      }
+    }
+
     return NextResponse.json({ success: true, entry });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

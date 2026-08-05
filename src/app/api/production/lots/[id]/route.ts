@@ -125,7 +125,7 @@ export async function GET(
     const totalLaborCost = (rawStageEntries || []).reduce((sum: number, e: any) => sum + (Number(e.total_job_work_amount) || 0), 0);
     const totalPaidAmount = (rawStageEntries || []).reduce((sum: number, e: any) => sum + (Number(e.paid_amount) || 0), 0);
 
-    let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "paid";
+    let lotPaymentStatus: "paid" | "unpaid" | "partial" | "none" = "none";
     if (rawStageEntries && rawStageEntries.length > 0 && totalLaborCost > 0) {
       if (totalPaidAmount >= totalLaborCost) {
         lotPaymentStatus = "paid";

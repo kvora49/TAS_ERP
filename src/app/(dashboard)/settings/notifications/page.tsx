@@ -26,8 +26,11 @@ import {
   Mail,
   User,
   Info,
+  Smartphone,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePWAWebPush } from "@/hooks/usePWAWebPush";
 
 interface Rule {
   id: string;
@@ -41,6 +44,7 @@ interface Rule {
 }
 
 export default function NotificationsSettingsPage() {
+  const { permission, requestNotificationPermission, sendTestLockScreenPush } = usePWAWebPush();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -498,6 +502,43 @@ export default function NotificationsSettingsPage() {
                 className="data-[state=checked]:bg-[#6366F1] data-[state=unchecked]:bg-[#D1D5DB] shrink-0"
               />
             </div>
+          </div>
+        </div>
+      </SettingsCard>
+
+      {/* CARD 3 — PWA Lock Screen & Background Push */}
+      <SettingsCard
+        icon={Smartphone}
+        title="PWA Mobile & Lock Screen Push"
+        subtitle="Configure and test Web Push notifications for locked screens and mobile background delivery"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[var(--page-bg)] p-4 border border-[var(--border)] rounded-xl">
+            <div>
+              <span className="text-sm font-semibold text-[var(--text-primary)] block">
+                Browser Notification Permission
+              </span>
+              <span className="text-xs text-[var(--text-muted)] block mt-1">
+                Status: <strong className="capitalize">{permission}</strong> {permission === "granted" ? "— Active ✅" : "— Not Enabled ❌"}
+              </span>
+            </div>
+            {permission !== "granted" ? (
+              <button
+                type="button"
+                onClick={requestNotificationPermission}
+                className="px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                Enable Lock Screen Push
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => sendTestLockScreenPush()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Send className="size-3.5" /> Test Lock Screen Push
+              </button>
+            )}
           </div>
         </div>
       </SettingsCard>

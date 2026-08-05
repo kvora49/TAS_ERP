@@ -33,7 +33,14 @@ export async function GET(
       return NextResponse.json({ error: "Sales return not found" }, { status: 404 });
     }
 
-    // Fetch stock ledger entries linked to this return to reconstruct item list
+    // Fetch return items from sales_return_items if present
+    const { data: returnItems } = await supabase
+      .from("sales_return_items")
+      .select("*, design:designs(id, name, design_number), colour:design_colours(id, colour_name)")
+      .eq("return_id", id)
+      .eq("business_id", businessId);
+
+    // Fetch stock ledger entries linked to this return to reconstruct item list fallback
     const { data: rawLedger } = await supabase
       .from("stock_ledger")
       .select("*")
@@ -60,7 +67,13 @@ export async function GET(
       }));
     }
 
-    return NextResponse.json({ return: sReturn, ledgerEntries });
+    return NextResponse.json({
+      return: {
+        ...sReturn,
+        items: returnItems || [],
+      },
+      ledgerEntries,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

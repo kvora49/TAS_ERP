@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       const [billsResult, returnsResult, creditNotesResult] = await Promise.all([
         supabase
           .from("sale_bills")
-          .select("id, bill_number, bill_date, due_date, grand_total, paid_amount, payment_status")
+          .select("id, bill_number, bill_date, due_date, grand_total, paid_amount, payment_status, remarks")
           .eq("party_id", partyId)
           .eq("business_id", businessId)
           .neq("status", "cancelled")
@@ -44,7 +44,11 @@ export async function GET(request: Request) {
         console.error("creditNotes query error:", creditNotesResult.error);
       }
 
-      const bills = billsResult.data || [];
+      const rawBills = billsResult.data || [];
+      const bills = rawBills.filter((b: any) => {
+        const isTemp = b.bill_number?.startsWith("TEMP-") || b.remarks?.includes("[TEMPORARY]");
+        return !isTemp;
+      });
       const returnsMap: Record<string, number> = {};
 
       (returnsResult.data || []).forEach((r) => {
@@ -192,68 +196,6 @@ export async function POST(request: Request) {
       payment_mode,
       direction: "received",
     });
-
-    // Process bill allocations and update sale_bills paid_amount & payment_status
-    if (paymentId && allocations && Array.isArray(allocations) && allocations.length > 0) {
-      let totalAllocated = 0;
-      for (const alloc of allocations) {
-        const billId = alloc.billId || alloc.bill_id;
-        const allocatedAmount = Number(alloc.allocatedAmount || alloc.allocated_amount || alloc.amount || 0);
-
-        if (billId && allocatedAmount > 0) {
-          totalAllocated += allocatedAmount;
-
-          const { data: bill } = await supabase
-            .from("sale_bills")
-            .select("grand_total, paid_amount")
-            .eq("id", billId)
-            .maybeSingle();
-
-          if (bill) {
-            const currentPaid = Number(bill.paid_amount || 0);
-            const grandTotal = Number(bill.grand_total || 0);
-            const newPaid = currentPaid + allocatedAmount;
-            const newStatus = newPaid >= grandTotal ? "paid" : "partially_paid";
-
-            await supabase
-              .from("sale_bills")
-              .update({
-                paid_amount: newPaid,
-                payment_status: newStatus,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", billId);
-          }
-
-          await supabase
-            .from("payment_allocations")
-            .insert({
-              business_id: businessId,
-              payment_id: paymentId,
-              bill_id: billId,
-              bill_type: alloc.billType || alloc.bill_type || "sale_bill",
-              amount: allocatedAmount,
-              created_by: userId,
-            });
-        }
-      }
-
-      if (totalAllocated > 0) {
-        const { data: pRec } = await supabase
-          .from("payments")
-          .select("amount")
-          .eq("id", paymentId)
-          .maybeSingle();
-
-        if (pRec) {
-          const newUnallocated = Math.max(0, Number(pRec.amount || 0) - totalAllocated);
-          await supabase
-            .from("payments")
-            .update({ unallocated_amount: newUnallocated })
-            .eq("id", paymentId);
-        }
-      }
-    }
 
     return NextResponse.json({ success: true, paymentId });
   } catch (err: any) {

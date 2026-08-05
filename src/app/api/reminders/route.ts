@@ -159,7 +159,7 @@ export async function GET(request: Request) {
         .from("sale_bills")
         .select(`
           id, bill_number, bill_date, due_date, payment_terms, grand_total, paid_amount,
-          payment_status, status, party:parties(id, name, company_name, phone)
+          payment_status, status, remarks, party:parties(id, name, company_name, phone)
         `)
         .eq("business_id", businessId)
         .eq("status", "active")
@@ -173,6 +173,7 @@ export async function GET(request: Request) {
     ]);
 
     const pendingBills = (billsRes.data || [])
+      .filter((b: any) => !b.bill_number?.startsWith("TEMP-") && !b.remarks?.includes("[TEMPORARY]"))
       .map((b: any) => {
         const grandTotal = Number(b.grand_total || 0);
         const paidAmount = Number(b.paid_amount || 0);

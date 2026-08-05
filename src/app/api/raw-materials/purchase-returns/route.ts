@@ -119,6 +119,7 @@ export async function POST(request: Request) {
         godown_id: godown_id || null,
         challan_no: challan_no || null,
         remarks: remarks || null,
+        gst_type: body.gst_type || 'with_gst',
         total_taxable_value: Number(total_taxable_value || 0),
         total_discount: Number(total_discount || 0),
         taxable_after_discount: Number(taxable_after_discount || 0),
@@ -155,7 +156,10 @@ export async function POST(request: Request) {
       returned_qty: Number(item.returned_qty),
       rate: Number(item.rate),
       discount_percent: Number(item.discount_percent || 0),
-      taxable_value: Number(item.taxable_value),
+      taxable_value: Number(item.taxable_value || 0),
+      gst_percent: Number(item.gst_percent || 0),
+      gst_amount: Number(item.gst_amount || 0),
+      amount: Number(item.amount || item.taxable_value || 0),
     }));
 
     const { data: insertedItems, error: itemsError } = await supabase
@@ -296,20 +300,8 @@ export async function POST(request: Request) {
         const returnedVal = Number(item.taxable_value || 0);
 
         if (item.item_type === "finished_goods" && item.design_id) {
-          // Deduct from finished_stock for godown
-          await supabase.from("finished_stock").insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id || null,
-            godown_id: effectiveGodownId,
-            entry_type: "return",
-            size_quantities: item.size_quantities || {},
-            total_quantity: -returnedQty,
-            cost_per_piece: Number(item.rate || 0),
-            total_value: -returnedVal,
-            notes: `Purchase Return ${returnNumber}`,
-          });
-
+          // Stock for finished goods is managed by reconcileFinishedStock called at the end.
+          // We only write to the stock_ledger for audit trail here.
           ledgerEntries.push({
             business_id: businessId,
             item_type: 'finished_good',
@@ -322,6 +314,7 @@ export async function POST(request: Request) {
             reference_id: pReturn.id,
             created_by: user?.id || null,
           });
+
         } else if (item.material_type_id) {
           // Deduct from raw_material_current_stock
           const { data: existingStock } = await supabase
@@ -416,6 +409,23 @@ export async function POST(request: Request) {
       await reconcileRawMaterialStock(supabase, businessId);
     } catch (recErr) {
       console.warn("Reconciliation on purchase return warning:", recErr);
+    }
+
+    // Reconcile finished goods stock for each affected design
+    const fgDesignIds = Array.from(new Set(
+      items
+        .filter((i: any) => i.item_type === "finished_goods" && i.design_id)
+        .map((i: any) => i.design_id as string)
+    ));
+    if (fgDesignIds.length > 0) {
+      try {
+        const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+        for (const designId of fgDesignIds) {
+          await reconcileFinishedStock(supabase, businessId, designId);
+        }
+      } catch (fgRecErr) {
+        console.warn("Finished goods reconciliation on purchase return warning:", fgRecErr);
+      }
     }
 
     return NextResponse.json({ return: pReturn });

@@ -111,6 +111,26 @@ export async function POST(request: Request) {
     const gstPct = Number(gst_percent || 0);
     const gstAmt = amt * (gstPct / 100);
 
+    // Validate sufficient bank balance if paying from a bank/cash account
+    if (paid_from_account_id) {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance, name")
+        .eq("id", paid_from_account_id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const curBal = Number(bank.current_balance || 0);
+        if (curBal < amt) {
+          return NextResponse.json(
+            { error: `Insufficient funds in "${bank.name}". Available balance is ₹${curBal.toLocaleString("en-IN")}, but expense amount is ₹${amt.toLocaleString("en-IN")}.` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // 3. Insert record
     const { data: expense, error } = await supabase
       .from("expenses")
@@ -133,6 +153,25 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 4. Update bank account current_balance if paid_from_account_id provided
+    if (paid_from_account_id) {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance")
+        .eq("id", paid_from_account_id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const newBal = Number(bank.current_balance || 0) - amt;
+        await supabase
+          .from("bank_accounts")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", paid_from_account_id)
+          .eq("business_id", businessId);
+      }
     }
 
     return NextResponse.json({ success: true, expense });

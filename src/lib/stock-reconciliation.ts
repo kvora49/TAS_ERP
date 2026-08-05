@@ -42,19 +42,30 @@ export async function reconcileRawMaterialStock(
   let updatedCount = 0;
 
   for (const mat of rawMaterialTypes) {
+    // Fetch all parent purchases for this business to ensure complete godown & status mapping
+    const { data: rawPurchases } = await supabase
+      .from("raw_material_purchases")
+      .select("id, godown_id, status")
+      .eq("business_id", businessId);
+    const purchaseDict = new Map<string, any>((rawPurchases || []).map((p: any) => [p.id, p]));
+
     // A. Fetch purchase items for this material
     const { data: pItems } = await supabase
       .from("raw_material_purchase_items")
-      .select("id, quantity, rate, amount, taxable_value, purchase:raw_material_purchases(id, godown_id, status)")
+      .select("id, purchase_id, quantity, rate, amount, taxable_value, purchase:raw_material_purchases(id, godown_id, status)")
       .eq("material_type_id", mat.id)
       .eq("business_id", businessId);
 
-    const validPItems = (pItems || []).filter((pi: any) => pi.purchase?.status !== "cancelled");
+    const validPItems = (pItems || []).filter((pi: any) => {
+      const p = pi.purchase || purchaseDict.get(pi.purchase_id);
+      return p?.status !== "cancelled";
+    });
     const pItemIds = validPItems.map((pi: any) => pi.id);
 
     const pItemGodownMap = new Map<string, { godownId: string; rate: number }>();
     validPItems.forEach((pi: any) => {
-      const gId = pi.purchase?.godown_id || defaultGodownId;
+      const p = pi.purchase || purchaseDict.get(pi.purchase_id);
+      const gId = p?.godown_id || defaultGodownId;
       if (gId) {
         pItemGodownMap.set(pi.id, { godownId: gId, rate: Number(pi.rate || 0) });
       }
@@ -98,7 +109,8 @@ export async function reconcileRawMaterialStock(
     } else {
       // Non-roll materials: Sum of Purchased Qty
       validPItems.forEach((pi: any) => {
-        const gId = pi.purchase?.godown_id || defaultGodownId;
+        const p = pi.purchase || purchaseDict.get(pi.purchase_id);
+        const gId = p?.godown_id || defaultGodownId;
         const rate = Number(pi.rate || 0);
         const qty = Number(pi.quantity || 0);
         const taxableVal = Number(pi.taxable_value || (qty * rate));
@@ -117,19 +129,22 @@ export async function reconcileRawMaterialStock(
       // Deduct purchase returns for non-roll materials
       const { data: returnItems } = await supabase
         .from("purchase_return_items")
-        .select("id, returned_qty, rate, taxable_value, purchase_return:purchase_returns(godown_id, purchase_id, status)")
+        .select("id, return_id, returned_qty, rate, taxable_value, purchase_return:purchase_returns(godown_id, purchase_id, status)")
         .eq("material_type_id", mat.id)
         .eq("business_id", businessId);
 
+      const { data: rawReturns } = await supabase
+        .from("purchase_returns")
+        .select("id, godown_id, purchase_id, status")
+        .eq("business_id", businessId);
+      const returnDict = new Map<string, any>((rawReturns || []).map((r: any) => [r.id, r]));
+
       for (const retItem of returnItems || []) {
-        if (retItem.purchase_return?.status === "cancelled") continue;
-        let gId = retItem.purchase_return?.godown_id;
-        if (!gId && retItem.purchase_return?.purchase_id) {
-          const { data: parentP } = await supabase
-            .from("raw_material_purchases")
-            .select("godown_id")
-            .eq("id", retItem.purchase_return.purchase_id)
-            .maybeSingle();
+        const parentRet = retItem.purchase_return || returnDict.get(retItem.return_id);
+        if (parentRet?.status === "cancelled") continue;
+        let gId = parentRet?.godown_id;
+        if (!gId && parentRet?.purchase_id) {
+          const parentP = purchaseDict.get(parentRet.purchase_id);
           gId = parentP?.godown_id;
         }
         gId = gId || defaultGodownId;

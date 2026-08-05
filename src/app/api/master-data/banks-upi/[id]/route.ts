@@ -27,54 +27,135 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // 2. Fetch recent purchase payments referencing this account
-    const { data: purchasePayments } = await supabase
-      .from("purchase_payments")
-      .select(`
-        id,
-        payment_number,
-        payment_date,
-        amount,
-        payment_mode,
-        purchase:raw_material_purchases(
-          invoice_number,
-          supplier:parties(name)
-        )
-      `)
-      .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
-      .eq("business_id", businessId);
+    // 2. Fetch all transaction sources referencing this account in parallel
+    const [paymentsRes, expensesRes, incomeRes, salaryRes, chequesRes, purchasePaymentsRes, jobWorkPaymentsRes] = await Promise.all([
+      supabase
+        .from("payments")
+        .select("id, payment_number, payment_date, amount, direction, payment_mode, party:parties(name)")
+        .eq("bank_account_id", id)
+        .eq("business_id", businessId)
+        .neq("status", "cancelled"),
 
-    // 3. Fetch recent job work payments referencing this account
-    const { data: jobWorkPayments } = await supabase
-      .from("job_work_payments")
-      .select(`
-        id,
-        payment_number,
-        payment_date,
-        paid_amount,
-        payment_mode,
-        worker:workers(name)
-      `)
-      .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
-      .eq("business_id", businessId);
+      supabase
+        .from("expenses")
+        .select("id, expense_number, expense_date, amount, vendor_name, expense_type:expense_types(name)")
+        .eq("paid_from_account_id", id)
+        .eq("business_id", businessId),
 
-    // 4. Transform and unify transaction list
+      supabase
+        .from("misc_income")
+        .select("id, income_number, income_date, amount, income_type, party:parties(name)")
+        .eq("received_in_account_id", id)
+        .eq("business_id", businessId),
+
+      supabase
+        .from("salary_entries")
+        .select("id, salary_month, salary_year, net_salary, payment_date, worker:parties(name)")
+        .eq("bank_account_id", id)
+        .eq("business_id", businessId),
+
+      supabase
+        .from("cheques")
+        .select("id, cheque_number, cleared_date, amount, direction, party:parties(name)")
+        .eq("received_account_id", id)
+        .eq("status", "cleared")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("purchase_payments")
+        .select("id, payment_number, payment_date, paid_amount, payment_mode, purchase:raw_material_purchases(invoice_number, supplier:parties(name))")
+        .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
+        .eq("business_id", businessId),
+
+      supabase
+        .from("job_work_payments")
+        .select("id, payment_number, payment_date, paid_amount, payment_mode, worker:parties(name)")
+        .or(`bank_account_id.eq.${id},upi_id.eq.${id}`)
+        .eq("business_id", businessId)
+    ]);
+
+    // 3. Transform and unify transaction list
     const transactions: any[] = [];
 
-    purchasePayments?.forEach((p: any) => {
+    (paymentsRes.data || []).forEach((p: any) => {
+      transactions.push({
+        id: p.id,
+        type: p.direction === "received" ? "inflow" : "outflow",
+        ref_no: p.payment_number,
+        date: p.payment_date,
+        amount: Number(p.amount || 0),
+        mode: p.payment_mode,
+        details: p.direction === "received" ? "Customer Receipt" : "Supplier / Party Payment",
+        partyName: (p.party as any)?.name || "Party",
+      });
+    });
+
+    (expensesRes.data || []).forEach((e: any) => {
+      transactions.push({
+        id: e.id,
+        type: "outflow",
+        ref_no: e.expense_number,
+        date: e.expense_date,
+        amount: Number(e.amount || 0),
+        mode: "expense",
+        details: `Expense: ${(e.expense_type as any)?.name || "General"}`,
+        partyName: e.vendor_name || "Vendor",
+      });
+    });
+
+    (incomeRes.data || []).forEach((inc: any) => {
+      transactions.push({
+        id: inc.id,
+        type: "inflow",
+        ref_no: inc.income_number,
+        date: inc.income_date,
+        amount: Number(inc.amount || 0),
+        mode: "misc_income",
+        details: `Misc Income (${inc.income_type})`,
+        partyName: (inc.party as any)?.name || "Other",
+      });
+    });
+
+    (salaryRes.data || []).forEach((s: any) => {
+      transactions.push({
+        id: s.id,
+        type: "outflow",
+        ref_no: `SAL-${s.salary_year}-${s.salary_month}`,
+        date: s.payment_date,
+        amount: Number(s.net_salary || 0),
+        mode: "salary",
+        details: `Salary (${s.salary_month}/${s.salary_year})`,
+        partyName: (s.worker as any)?.name || "Employee",
+      });
+    });
+
+    (chequesRes.data || []).forEach((chq: any) => {
+      transactions.push({
+        id: chq.id,
+        type: chq.direction === "received" ? "inflow" : "outflow",
+        ref_no: chq.cheque_number,
+        date: chq.cleared_date || chq.created_at,
+        amount: Number(chq.amount || 0),
+        mode: "cheque_cleared",
+        details: `Cleared Cheque (${chq.direction})`,
+        partyName: (chq.party as any)?.name || "Party",
+      });
+    });
+
+    (purchasePaymentsRes.data || []).forEach((p: any) => {
       transactions.push({
         id: p.id,
         type: "outflow",
         ref_no: p.payment_number,
         date: p.payment_date,
-        amount: Number(p.amount || 0),
+        amount: Number(p.paid_amount || 0),
         mode: p.payment_mode,
-        details: `Purchase Return / Supplier Payment (Invoice: ${p.purchase?.invoice_number || "N/A"})`,
-        partyName: p.purchase?.supplier?.name || "Supplier",
+        details: `Raw Material Purchase Payment`,
+        partyName: (p.purchase as any)?.supplier?.name || "Supplier",
       });
     });
 
-    jobWorkPayments?.forEach((jw: any) => {
+    (jobWorkPaymentsRes.data || []).forEach((jw: any) => {
       transactions.push({
         id: jw.id,
         type: "outflow",
@@ -83,7 +164,7 @@ export async function GET(
         amount: Number(jw.paid_amount || 0),
         mode: jw.payment_mode,
         details: "Job Work Worker Payment",
-        partyName: jw.worker?.name || "Worker",
+        partyName: (jw.worker as any)?.name || "Worker",
       });
     });
 
@@ -92,7 +173,7 @@ export async function GET(
 
     return NextResponse.json({
       account,
-      transactions: transactions.slice(0, 50), // return last 50 transactions
+      transactions: transactions.slice(0, 100),
     });
 
   } catch (err: any) {

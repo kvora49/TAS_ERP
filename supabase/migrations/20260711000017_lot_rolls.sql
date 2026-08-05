@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS lot_rolls (
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   lot_id UUID NOT NULL REFERENCES production_lots(id) ON DELETE CASCADE,
   purchase_roll_id UUID NOT NULL REFERENCES purchase_rolls(id) ON DELETE CASCADE,
+  colour_id UUID REFERENCES design_colours(id),
   allocated_meters NUMERIC(12,4) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

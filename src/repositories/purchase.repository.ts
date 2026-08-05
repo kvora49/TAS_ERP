@@ -97,8 +97,8 @@ export class PurchaseRepository {
         godown:godowns(id, name),
         items:raw_material_purchase_items(*,
           material_type:raw_material_types(id, name, unit, category),
-          design:designs(id, design_number, name),
-          colour:design_colours(id, colour_name),
+          design:designs(id, design_number, name, size_set:size_sets(id, name, sizes)),
+          colour:design_colours(id, colour_name, colour_hex),
           rolls:purchase_rolls(*)
         )`
       )
@@ -328,11 +328,12 @@ export class PurchaseRepository {
             design_id: inputItem.design_id,
             colour_id: inputItem.colour_id,
             godown_id: params.godown_id,
-            entry_type: "manual",
+            entry_type: "purchase",
             size_quantities: sq,
             total_quantity: totalQty,
             cost_per_piece: Number(inputItem.rate),
             total_value: Number(inputItem.taxable_value),
+            notes: `Purchase Invoice ${params.purchaseNumber}`,
             created_by: userId || null,
           });
 

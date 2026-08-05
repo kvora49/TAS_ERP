@@ -60,13 +60,36 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { advance_id, bill_id, bill_type, amount_to_settle } = body;
+    const { advance_id, bill_id, bill_type, amount_to_settle, allocations } = body;
 
-    if (!advance_id || !bill_id || !bill_type || !amount_to_settle) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id || null;
+
+    if (!advance_id) {
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
     }
 
-    // Call settle_advance RPC function
+    if (allocations && Array.isArray(allocations) && allocations.length > 0) {
+      // Call settle_advance_multi RPC procedure
+      const { data: settledAmount, error } = await supabase.rpc("settle_advance_multi", {
+        p_business_id: businessId,
+        p_advance_id: advance_id,
+        p_allocations: allocations,
+        p_created_by: userId,
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, settledAmount });
+    }
+
+    if (!bill_id || !bill_type || !amount_to_settle) {
+      return NextResponse.json({ error: "Missing bill_id, bill_type, or amount_to_settle" }, { status: 400 });
+    }
+
+    // Single bill fallback call
     const { data: success, error } = await supabase.rpc("settle_advance", {
       p_business_id: businessId,
       p_advance_id: advance_id,

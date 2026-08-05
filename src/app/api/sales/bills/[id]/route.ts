@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(
@@ -242,28 +243,9 @@ export async function DELETE(
             }
           }
 
-          // Restore raw_material_current_stock if material_type_id exists
-          if (item.material_type_id && bill.godown_id) {
-            const { data: existingStock } = await supabase
-              .from("raw_material_current_stock")
-              .select("*")
-              .eq("business_id", businessId)
-              .eq("material_type_id", item.material_type_id)
-              .eq("godown_id", bill.godown_id)
-              .maybeSingle();
-
-            if (existingStock) {
-              const newQty = Number(existingStock.current_stock || 0) + qty;
-              const newValue = Number(existingStock.stock_value || 0) + Number(item.amount || 0);
-              await supabase
-                .from("raw_material_current_stock")
-                .update({
-                  current_stock: newQty,
-                  stock_value: newValue,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", existingStock.id);
-            }
+          // Restore raw_material_current_stock & reconcile if material_type_id exists
+          if (item.material_type_id) {
+            await reconcileRawMaterialStock(supabase, businessId, item.material_type_id);
           }
         }
       }

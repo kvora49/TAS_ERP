@@ -6,8 +6,10 @@ import { Filter, Boxes, Layers, RefreshCw, Search } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import { formatCurrency } from "@/lib/utils";
 import ColourDot from "@/components/shared/ColourDot";
+import { toast } from "sonner";
 
 export default function DesignStockFiltersSection({ designId }: { designId: string }) {
+  const [isSyncing, setIsSyncing] = useState(false);
   // 10 Dimensional Filters
   const [selectedGodown, setSelectedGodown] = useState<string>("all"); // 1. Warehouse
   const [selectedColour, setSelectedColour] = useState<string>("all"); // 2. Colour
@@ -102,10 +104,27 @@ export default function DesignStockFiltersSection({ designId }: { designId: stri
         </div>
 
         <button
-          onClick={() => refetch()}
-          className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer shadow-xs"
+          disabled={isSyncing}
+          onClick={async () => {
+            setIsSyncing(true);
+            try {
+              const res = await fetch("/api/finished-stock/reconcile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ targetDesignId: designId }),
+              });
+              if (!res.ok) throw new Error("Reconciliation failed");
+              toast.success("Finished stock reconciled successfully!");
+              refetch();
+            } catch (err: any) {
+              toast.error(err.message || "Failed to reconcile finished stock");
+            } finally {
+              setIsSyncing(false);
+            }
+          }}
+          className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer shadow-xs disabled:opacity-50"
         >
-          <RefreshCw className="h-4 w-4 inline mr-1" /> Sync Stock
+          <RefreshCw className={`h-4 w-4 inline mr-1 ${isSyncing ? "animate-spin" : ""}`} /> Sync Stock
         </button>
       </div>
 

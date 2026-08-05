@@ -86,7 +86,7 @@ export async function POST(
     if (newPaidAmount >= grandTotal) {
       newPaymentStatus = "paid";
     } else if (newPaidAmount > 0) {
-      newPaymentStatus = "partial";
+      newPaymentStatus = "partially_paid";
     }
 
     const { error: updateError } = await supabase
@@ -103,6 +103,26 @@ export async function POST(
         payment,
         warning: "Payment saved, but purchase invoice status could not be updated: " + updateError.message,
       });
+    }
+
+    // 4. Update bank account balance for immediate payment modes
+    const targetAccountId = bank_account_id || upi_id || null;
+    if (targetAccountId && payment_mode !== "cheque") {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance")
+        .eq("id", targetAccountId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const newBal = Number(bank.current_balance || 0) - Number(paid_amount);
+        await supabase
+          .from("bank_accounts")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", targetAccountId)
+          .eq("business_id", businessId);
+      }
     }
 
     return NextResponse.json({ payment });

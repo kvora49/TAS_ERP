@@ -130,6 +130,13 @@ export async function POST(request: Request) {
         original_bill_id: original_bill_id || null,
         return_date,
         return_reason: return_reason || null,
+        godown_id: body.godown_id || null,
+        gst_type: body.gst_type || "with_gst",
+        taxable_amount: Number(body.taxable_amount || 0),
+        cgst: Number(body.cgst || 0),
+        sgst: Number(body.sgst || 0),
+        igst: Number(body.igst || 0),
+        round_off: Number(body.round_off || 0),
         grand_total: Number(grand_total),
         status: "approved", // Auto-approved to directly apply stock & credit note
         approved_by: userId,
@@ -143,7 +150,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: returnErr.message }, { status: 500 });
     }
 
-    // 4. Create Linked Credit Note
+    // 4. Insert Return Items into sales_return_items
+    const returnItems = body.items || [];
+    if (returnItems.length > 0) {
+      const itemsToInsert = returnItems.map((item: any) => ({
+        business_id: businessId,
+        return_id: sReturn.id,
+        sale_item_id: item.sale_item_id || null,
+        design_id: item.design_id || null,
+        colour_id: item.colour_id || null,
+        size: item.size || null,
+        returned_qty: Number(item.return_qty || item.quantity || 0),
+        unit_rate: Number(item.unit_rate || item.rate || 0),
+        taxable_amount: Number(item.taxable_amount || (Number(item.return_qty || item.quantity || 0) * Number(item.unit_rate || item.rate || 0))),
+        gst_percent: Number(item.gst_percent || item.tax_percent || 0),
+        gst_amount: Number(item.gst_amount || 0),
+        amount: Number(item.amount || 0),
+      }));
+
+      await supabase.from("sales_return_items").insert(itemsToInsert);
+    }
+
+    // 5. Create Linked Credit Note
     const { data: creditNote, error: cnErr } = await supabase
       .from("credit_notes")
       .insert({
@@ -170,8 +198,7 @@ export async function POST(request: Request) {
       .update({ credit_note_id: creditNote.id })
       .eq("id", sReturn.id);
 
-    // 5. Add back returned stock into finished_stock
-    const returnItems = body.items || [];
+    // 6. Add back returned stock into finished_stock
     const targetGodownId = body.godown_id || null;
 
     if (returnItems.length > 0 && targetGodownId) {

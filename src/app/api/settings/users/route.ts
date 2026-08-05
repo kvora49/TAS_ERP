@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
-  const supabase = createServerClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +14,12 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
-    let query = supabase
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAdmin = serviceRoleKey
+      ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
+      : createServerClient();
+
+    let query = supabaseAdmin
       .from("users")
       .select("*")
       .eq("business_id", businessId)
@@ -53,7 +57,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createServerClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -71,9 +74,17 @@ export async function POST(request: Request) {
     }
 
     // Initialize Supabase Admin Client
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      return NextResponse.json(
+        { error: "Server configuration missing: SUPABASE_SERVICE_ROLE_KEY is required to manage users" },
+        { status: 500 }
+      );
+    }
+
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      serviceRoleKey
     );
 
     // 1. Create auth user in Supabase Auth via Admin Client
@@ -93,16 +104,20 @@ export async function POST(request: Request) {
 
     const userId = authData.user.id;
 
-    // 2. Insert profile record in public.users table
-    const { error: profileError } = await supabaseAdmin.from("users").insert({
-      id: userId,
-      business_id: businessId,
-      full_name: name,
-      email,
-      phone: phone || null,
-      role: role.toLowerCase(),
-      is_active: true,
-    });
+    // 2. Insert or Upsert profile record in public.users table (handles DB triggers smoothly)
+    const { error: profileError } = await supabaseAdmin.from("users").upsert(
+      {
+        id: userId,
+        business_id: businessId,
+        full_name: name,
+        email,
+        phone: phone || null,
+        role: role.toLowerCase(),
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
 
     if (profileError) {
       // Rollback auth user creation

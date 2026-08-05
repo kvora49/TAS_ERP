@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
 import { logAudit } from "@/lib/audit";
+import { onSalesBillCreated } from "@/lib/calendar-integration";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -97,6 +98,28 @@ export async function POST(request: Request) {
       party_id: bill.party_id,
       type: bill.type,
     });
+
+    // Fire-and-forget calendar integration — auto-create payment reminder
+    if (bill.due_date || bill.bill_date) {
+      // Fetch party name for the reminder title
+      const { data: party } = await supabase
+        .from("parties")
+        .select("name, company_name")
+        .eq("id", bill.party_id)
+        .maybeSingle();
+      const partyName = party?.company_name || party?.name || "Customer";
+      const dueDate = bill.due_date || bill.bill_date;
+
+      void onSalesBillCreated(supabase, {
+        businessId,
+        billId: bill.id,
+        billNumber: bill.bill_number,
+        partyName,
+        dueDate,
+        grandTotal: Number(bill.grand_total || 0),
+        createdBy: user?.id || null,
+      });
+    }
 
     return NextResponse.json({ data: bill });
   } catch (err: any) {

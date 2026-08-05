@@ -30,7 +30,7 @@ export async function GET(
     // 2. Fetch Return Items
     const { data: items, error: itemsError } = await supabase
       .from("purchase_return_items")
-      .select("*, material_type:raw_material_types(name, category)")
+      .select("*, material_type:raw_material_types(name, category), design:designs(id, design_number, name), colour:design_colours(id, colour_name, colour_hex)")
       .eq("return_id", id)
       .eq("business_id", businessId);
 

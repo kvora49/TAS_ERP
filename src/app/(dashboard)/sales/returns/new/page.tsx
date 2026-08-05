@@ -49,6 +49,7 @@ interface SaleBillItem {
   quantity: number;
   rate: number;
   amount: number;
+  tax_percent?: number;
   design?: { id: string; code?: string; design_number?: string; name: string };
   colour?: { id: string; colour_name: string };
 }
@@ -72,7 +73,10 @@ interface ReturnLineItem {
   size: string;
   sold_qty: number;
   unit_rate: number;
+  tax_percent: number;
   return_qty: number | "";
+  taxable_amount: number;
+  gst_amount: number;
   amount: number;
 }
 
@@ -93,6 +97,7 @@ export default function RecordSalesReturnPage() {
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [returnReason, setReturnReason] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [billType, setBillType] = useState<"pakka" | "kacha">("pakka");
 
   // Loading States
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -188,13 +193,18 @@ export default function RecordSalesReturnPage() {
         if (!res.ok) throw new Error("Failed to fetch sales bill details");
 
         const data = await res.json();
-        const rawItems: SaleBillItem[] = data.bill?.items || [];
+        const bill = data.bill || {};
+        const isKacha = bill.bill_type === "kacha";
+        setBillType(isKacha ? "kacha" : "pakka");
+
+        const rawItems: SaleBillItem[] = bill.items || [];
 
         const formattedLines: ReturnLineItem[] = rawItems.map((it, idx) => {
           const designName = it.design
             ? `${it.design.code || it.design.design_number || ""} - ${it.design.name}`
             : "Unknown Item";
           const colourName = it.colour?.colour_name || "Default Colour";
+          const taxPct = isKacha ? 0 : Number(it.tax_percent || 0);
 
           return {
             key: `${it.id || idx}`,
@@ -205,7 +215,10 @@ export default function RecordSalesReturnPage() {
             size: it.size || "Free Size",
             sold_qty: Number(it.quantity || 0),
             unit_rate: Number(it.rate || 0),
+            tax_percent: taxPct,
             return_qty: 0,
+            taxable_amount: 0,
+            gst_amount: 0,
             amount: 0,
           };
         });
@@ -229,20 +242,23 @@ export default function RecordSalesReturnPage() {
 
       if (val === "") {
         line.return_qty = "";
+        line.taxable_amount = 0;
+        line.gst_amount = 0;
         line.amount = 0;
       } else {
         const parsed = parseInt(val, 10);
+        let qty = parsed;
         if (isNaN(parsed) || parsed < 0) {
-          line.return_qty = 0;
-          line.amount = 0;
+          qty = 0;
         } else if (parsed > line.sold_qty) {
           toast.warning(`Cannot return more than sold quantity (${line.sold_qty} pcs)`);
-          line.return_qty = line.sold_qty;
-          line.amount = line.sold_qty * line.unit_rate;
-        } else {
-          line.return_qty = parsed;
-          line.amount = parsed * line.unit_rate;
+          qty = line.sold_qty;
         }
+
+        line.return_qty = qty;
+        line.taxable_amount = Number((qty * line.unit_rate).toFixed(2));
+        line.gst_amount = billType === "kacha" ? 0 : Number(((line.taxable_amount * line.tax_percent) / 100).toFixed(2));
+        line.amount = Number((line.taxable_amount + line.gst_amount).toFixed(2));
       }
 
       next[index] = line;
@@ -255,9 +271,21 @@ export default function RecordSalesReturnPage() {
     return lineItems.reduce((sum, line) => sum + (Number(line.return_qty) || 0), 0);
   }, [lineItems]);
 
-  const calculatedCreditValue = useMemo(() => {
-    return lineItems.reduce((sum, line) => sum + line.amount, 0);
+  const totalTaxableAmount = useMemo(() => {
+    return lineItems.reduce((sum, line) => sum + Number(line.taxable_amount || 0), 0);
   }, [lineItems]);
+
+  const totalGstAmount = useMemo(() => {
+    return billType === "kacha" ? 0 : lineItems.reduce((sum, line) => sum + Number(line.gst_amount || 0), 0);
+  }, [lineItems, billType]);
+
+  const cgst = useMemo(() => (billType === "kacha" ? 0 : Number((totalGstAmount / 2).toFixed(2))), [totalGstAmount, billType]);
+  const sgst = useMemo(() => (billType === "kacha" ? 0 : Number((totalGstAmount / 2).toFixed(2))), [totalGstAmount, billType]);
+  const igst = 0;
+
+  const rawGrandTotal = totalTaxableAmount + totalGstAmount;
+  const grandTotal = Math.round(rawGrandTotal);
+  const roundOff = Number((grandTotal - rawGrandTotal).toFixed(2));
 
   // 7. Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -275,7 +303,7 @@ export default function RecordSalesReturnPage() {
       toast.error("Please select a Return Date");
       return;
     }
-    if (totalReturnedPieces <= 0 || calculatedCreditValue <= 0) {
+    if (totalReturnedPieces <= 0 || grandTotal <= 0) {
       toast.error("Please enter return quantity (> 0) for at least one item");
       return;
     }
@@ -294,6 +322,10 @@ export default function RecordSalesReturnPage() {
         quantity: Number(line.return_qty),
         unit_rate: line.unit_rate,
         rate: line.unit_rate,
+        tax_percent: line.tax_percent,
+        taxable_amount: line.taxable_amount,
+        gst_percent: line.tax_percent,
+        gst_amount: line.gst_amount,
         amount: line.amount,
       }));
 
@@ -306,7 +338,13 @@ export default function RecordSalesReturnPage() {
         return_reason: returnReason.trim(),
         remarks: remarks.trim(),
         godown_id: selectedGodownId,
-        grand_total: calculatedCreditValue,
+        gst_type: billType === "kacha" ? "without_gst" : "with_gst",
+        taxable_amount: totalTaxableAmount,
+        cgst,
+        sgst,
+        igst,
+        round_off: roundOff,
+        grand_total: grandTotal,
         items: activeItems,
       };
 
@@ -562,18 +600,36 @@ export default function RecordSalesReturnPage() {
         </div>
 
         {/* Sticky Action Footer */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E7EB] p-4 shadow-lg z-30 flex items-center justify-between px-8">
+        <div className="fixed bottom-0 left-0 right-0 bg-[var(--card-bg)] border-t border-[var(--border)] p-4 shadow-lg z-30 flex items-center justify-between px-8">
           <div className="flex items-center gap-6">
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Total Return Qty</span>
-              <span className="text-xl font-bold text-[#0F172A]">{totalReturnedPieces} Pcs</span>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Total Return Qty</span>
+              <span className="text-xl font-bold text-[var(--text-primary)]">{totalReturnedPieces} Pcs</span>
             </div>
 
-            <div className="h-8 w-[1px] bg-[#E5E7EB]" />
+            <div className="h-8 w-[1px] bg-[var(--border)]" />
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Credit Note Amount</span>
-              <span className="text-xl font-bold text-[#15803D]">{formatCurrency(calculatedCreditValue)}</span>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Taxable Amount</span>
+              <span className="text-sm font-semibold text-[var(--text-body)]">{formatCurrency(totalTaxableAmount)}</span>
+            </div>
+
+            {billType === "pakka" && (
+              <>
+                <div className="h-8 w-[1px] bg-[var(--border)]" />
+
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">CGST + SGST</span>
+                  <span className="text-sm font-semibold text-[var(--text-body)]">{formatCurrency(cgst + sgst)}</span>
+                </div>
+              </>
+            )}
+
+            <div className="h-8 w-[1px] bg-[var(--border)]" />
+
+            <div>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Credit Note Grand Total</span>
+              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(grandTotal)}</span>
             </div>
           </div>
 

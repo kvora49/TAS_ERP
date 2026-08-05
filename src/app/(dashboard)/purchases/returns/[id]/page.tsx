@@ -11,7 +11,11 @@ import { useRouter } from "next/navigation";
 
 interface ReturnItem {
   id: string;
-  material_type_id: string;
+  item_type?: string;
+  material_type_id: string | null;
+  design_id?: string | null;
+  colour_id?: string | null;
+  size_quantities?: Record<string, number> | null;
   hsn_sac: string | null;
   unit: string;
   invoice_qty: number;
@@ -22,6 +26,16 @@ interface ReturnItem {
   material_type?: {
     name: string;
     category: string;
+  };
+  design?: {
+    id: string;
+    design_number: string;
+    name: string;
+  };
+  colour?: {
+    id: string;
+    colour_name: string;
+    colour_hex?: string;
   };
 }
 
@@ -227,24 +241,45 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
-                  {pReturn.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-3">
-                        <span className="font-bold text-[#0F172A] block">{item.material_type?.name || "Raw Material"}</span>
-                        <span className="text-[10px] text-[#64748B]">{item.material_type?.category}</span>
-                      </td>
-                      <td className="py-3 text-right text-[#64748B]">
-                        {item.invoice_qty} {item.unit}
-                      </td>
-                      <td className="py-3 text-right font-bold text-red-600">
-                        {item.returned_qty} {item.unit}
-                      </td>
-                      <td className="py-3 text-right font-mono">{formatCurrency(item.rate)}</td>
-                      <td className="py-3 text-right font-mono font-bold text-[#0F172A]">
-                        {formatCurrency(item.taxable_value)}
-                      </td>
-                    </tr>
-                  ))}
+                  {pReturn.items.map((item) => {
+                    const itemName = item.item_type === "finished_goods" || item.design
+                      ? `${item.design?.design_number || item.design?.name || "Finished Good"}${item.colour?.colour_name ? ` (${item.colour.colour_name})` : ""}`
+                      : item.material_type?.name || "Material";
+                    const categoryText = item.item_type === "finished_goods"
+                      ? "Finished Goods"
+                      : item.material_type?.category || item.item_type || "Raw Material";
+
+                    return (
+                      <tr key={item.id}>
+                        <td className="py-3">
+                          <span className="font-bold text-[#0F172A] block">{itemName}</span>
+                          <span className="text-[10px] text-[#64748B] uppercase tracking-wider block">{categoryText}</span>
+                          {item.size_quantities && Object.keys(item.size_quantities).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {Object.entries(item.size_quantities).map(([sz, q]) => (
+                                <span
+                                  key={sz}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold"
+                                >
+                                  {sz}: {q} Pcs
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 text-right text-[#64748B]">
+                          {item.invoice_qty} {item.unit}
+                        </td>
+                        <td className="py-3 text-right font-bold text-red-600">
+                          {item.returned_qty} {item.unit}
+                        </td>
+                        <td className="py-3 text-right font-mono">{formatCurrency(item.rate)}</td>
+                        <td className="py-3 text-right font-mono font-bold text-[#0F172A]">
+                          {formatCurrency(item.taxable_value)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

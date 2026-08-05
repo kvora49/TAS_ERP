@@ -179,6 +179,26 @@ export async function POST(request: Request) {
     // Log audit trail
     await logAudit(businessId, "record_payment", "job_work_payments", payment.id, payment);
 
+    // 3. Update bank account balance for immediate payment modes
+    const targetAccountId = bank_account_id || upi_id || null;
+    if (targetAccountId && payment_mode !== "cheque") {
+      const { data: bank } = await supabase
+        .from("bank_accounts")
+        .select("current_balance")
+        .eq("id", targetAccountId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (bank) {
+        const newBal = Number(bank.current_balance || 0) - parseFloat(paid_amount);
+        await supabase
+          .from("bank_accounts")
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq("id", targetAccountId)
+          .eq("business_id", businessId);
+      }
+    }
+
     return NextResponse.json({ payment });
   } catch (err: any) {
     return NextResponse.json(

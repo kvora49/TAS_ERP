@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { CreatePurchaseBillSchema } from "@/lib/schemas/purchases";
+import { onPurchaseBillCreated } from "@/lib/calendar-integration";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -150,6 +151,17 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    // Fire-and-forget calendar integration — auto-create supplier payment reminder
+    void onPurchaseBillCreated(supabase, {
+      businessId,
+      billId: bill.id,
+      billNumber: bill.bill_number,
+      supplierName: bill.supplier?.company_name || bill.supplier?.name || "Supplier",
+      invoiceDate: bill.invoice_date,
+      grandTotal: Number(bill.grand_total || 0),
+      createdBy: userId,
+    });
 
     return NextResponse.json({ bill });
   } catch (err: any) {

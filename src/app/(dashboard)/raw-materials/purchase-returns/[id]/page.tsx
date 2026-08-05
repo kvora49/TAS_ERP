@@ -38,6 +38,11 @@ interface PurchaseReturn {
   challan_no: string | null;
   remarks: string | null;
   total_taxable_value: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  round_off?: number;
+  gst_type?: string;
   grand_total: number;
   generate_debit_note: boolean;
   debit_note_id: string | null;
@@ -290,10 +295,43 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
         {/* Right Column: Status timeline, Debit note stub, Actions */}
         <div className="space-y-6">
           {/* Return Value Summary */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-3">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] border-b border-[#F1F5F9] pb-2">
               Financial Return Value
             </h2>
+            <div className="flex justify-between text-xs font-semibold text-[#64748B]">
+              <span>Taxable Value:</span>
+              <span className="font-mono text-slate-800">{formatCurrency(pReturn.total_taxable_value || pReturn.grand_total)}</span>
+            </div>
+            {pReturn.cgst ? (
+              <div className="flex justify-between text-xs text-[#64748B]">
+                <span>CGST:</span>
+                <span className="font-mono">{formatCurrency(pReturn.cgst)}</span>
+              </div>
+            ) : null}
+            {pReturn.sgst ? (
+              <div className="flex justify-between text-xs text-[#64748B]">
+                <span>SGST:</span>
+                <span className="font-mono">{formatCurrency(pReturn.sgst)}</span>
+              </div>
+            ) : null}
+            {pReturn.igst ? (
+              <div className="flex justify-between text-xs text-[#64748B]">
+                <span>IGST:</span>
+                <span className="font-mono">{formatCurrency(pReturn.igst)}</span>
+              </div>
+            ) : null}
+            {pReturn.gst_type === "without_gst" && (
+              <div className="text-[10px] font-bold text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                Kaccha Return (No GST)
+              </div>
+            )}
+            {pReturn.round_off ? (
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Round Off:</span>
+                <span className="font-mono">{pReturn.round_off > 0 ? `+${pReturn.round_off}` : pReturn.round_off}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between items-center bg-red-50/50 p-3.5 rounded-lg border border-red-100 font-bold text-red-700">
               <span>Debit Value:</span>
               <span className="font-mono text-lg font-black">{formatCurrency(pReturn.grand_total)}</span>

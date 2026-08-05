@@ -39,50 +39,75 @@ export default function BillAllocationTable({
   const [isManualOverride, setIsManualOverride] = useState(false);
   const [, startTransition] = useTransition();
 
-  // Reset local state if bills list changes
+  const billIdsKey = bills.map((b) => `${b.id}:${b.outstanding}`).join(",");
+
+  // Reset local state ONLY if the actual list of bills or outstanding amounts change
   useEffect(() => {
     setAllocations({});
     setCheckedBills({});
     setIsManualOverride(false);
-  }, [bills]);
+  }, [billIdsKey]);
 
-  // Auto-allocate oldest-first when paymentAmount changes (if not in manual override mode)
+  // Re-allocate when paymentAmount or bills change
   useEffect(() => {
-    if (isManualOverride || paymentAmount <= 0) return;
+    if (paymentAmount <= 0 && !isManualOverride) return;
 
-    // Sort bills oldest first (by date)
-    const sortedBills = [...bills].sort(
-      (a, b) => new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime()
-    );
+    if (!isManualOverride) {
+      // Auto-allocate oldest-first across all bills
+      const sortedBills = [...bills].sort(
+        (a, b) => new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime()
+      );
 
-    let remainingMoney = paymentAmount;
-    const newAllocations: Record<string, number> = {};
-    const newChecked: Record<string, boolean> = {};
+      let remainingMoney = paymentAmount;
+      const newAllocations: Record<string, number> = {};
+      const newChecked: Record<string, boolean> = {};
 
-    sortedBills.forEach((bill) => {
-      if (remainingMoney > 0) {
-        const toAllocate = Math.min(remainingMoney, bill.outstanding);
-        newAllocations[bill.id] = parseFloat(toAllocate.toFixed(2));
-        newChecked[bill.id] = true;
-        remainingMoney -= toAllocate;
-      } else {
-        newAllocations[bill.id] = 0;
-        newChecked[bill.id] = false;
-      }
-    });
+      sortedBills.forEach((bill) => {
+        if (remainingMoney > 0) {
+          const toAllocate = Math.min(remainingMoney, bill.outstanding);
+          newAllocations[bill.id] = parseFloat(toAllocate.toFixed(2));
+          newChecked[bill.id] = true;
+          remainingMoney -= toAllocate;
+        } else {
+          newAllocations[bill.id] = 0;
+          newChecked[bill.id] = false;
+        }
+      });
 
-    setAllocations(newAllocations);
-    setCheckedBills(newChecked);
+      setAllocations(newAllocations);
+      setCheckedBills(newChecked);
 
-    // Notify parent
-    const result: Allocation[] = bills
-      .filter((b) => newChecked[b.id] && newAllocations[b.id] > 0)
-      .map((b) => ({
-        billId: b.id,
-        allocatedAmount: newAllocations[b.id],
-        billType: b.bill_type,
-      }));
-    onAllocationChange(result);
+      const result: Allocation[] = bills
+        .filter((b) => newChecked[b.id] && newAllocations[b.id] > 0)
+        .map((b) => ({
+          billId: b.id,
+          allocatedAmount: newAllocations[b.id],
+          billType: b.bill_type,
+        }));
+      onAllocationChange(result);
+    } else if (paymentAmount > 0) {
+      // In manual override mode: if paymentAmount changed, recalculate allocations for checked bills
+      const updatedAllocations = { ...allocations };
+      let remainingMoney = paymentAmount;
+
+      const sortedBills = [...bills].sort(
+        (a, b) => new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime()
+      );
+
+      sortedBills.forEach((bill) => {
+        if (checkedBills[bill.id]) {
+          const currentAlloc = updatedAllocations[bill.id] || 0;
+          // If current allocation was 0 (checked before typing paymentAmount), auto-assign available money up to bill.outstanding
+          const desiredAlloc = currentAlloc > 0 ? currentAlloc : bill.outstanding;
+          const actualAlloc = Math.min(remainingMoney, desiredAlloc);
+          updatedAllocations[bill.id] = parseFloat(actualAlloc.toFixed(2));
+          remainingMoney -= actualAlloc;
+        }
+      });
+
+      setAllocations(updatedAllocations);
+      triggerParentUpdate(checkedBills, updatedAllocations);
+    }
   }, [paymentAmount, bills, isManualOverride]);
 
   // Handle checking/unchecking a bill
@@ -94,15 +119,16 @@ export default function BillAllocationTable({
     if (!isChecked) {
       updatedAllocations[billId] = 0;
     } else {
-      // Find the remaining payment amount to allocate to this checked bill
       const currentAllocated = Object.entries(updatedAllocations)
-        .filter(([id]) => id !== billId)
+        .filter(([id]) => id !== billId && updatedChecked[id])
         .reduce((sum, [, val]) => sum + val, 0);
 
       const bill = bills.find((b) => b.id === billId);
       if (bill) {
-        const remainingPayment = Math.max(0, paymentAmount - currentAllocated);
-        updatedAllocations[billId] = parseFloat(Math.min(remainingPayment, bill.outstanding).toFixed(2));
+        // If paymentAmount is specified, cap at remaining payment money; otherwise allocate up to bill.outstanding
+        const remainingPayment = paymentAmount > 0 ? Math.max(0, paymentAmount - currentAllocated) : bill.outstanding;
+        const targetAlloc = Math.min(remainingPayment > 0 ? remainingPayment : bill.outstanding, bill.outstanding);
+        updatedAllocations[billId] = parseFloat(targetAlloc.toFixed(2));
       }
     }
 
@@ -125,15 +151,15 @@ export default function BillAllocationTable({
     const updatedAllocations = { ...allocations, [billId]: cappedValue };
     const updatedChecked = { ...checkedBills, [billId]: cappedValue > 0 };
 
-    setAllocations(updatedAllocations);
     setCheckedBills(updatedChecked);
+    setAllocations(updatedAllocations);
     triggerParentUpdate(updatedChecked, updatedAllocations);
   };
 
   const triggerParentUpdate = (checked: Record<string, boolean>, allocs: Record<string, number>) => {
     startTransition(() => {
       const result: Allocation[] = bills
-        .filter((b) => checked[b.id] && allocs[b.id] > 0)
+        .filter((b) => checked[b.id] && (allocs[b.id] || 0) > 0)
         .map((b) => ({
           billId: b.id,
           allocatedAmount: allocs[b.id],

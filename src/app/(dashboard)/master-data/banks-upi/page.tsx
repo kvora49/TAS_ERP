@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Smartphone } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Smartphone, Wallet } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -23,7 +23,7 @@ import { toast } from "sonner";
 
 // Form validation schema
 const accountSchema = z.object({
-  type: z.enum(["bank", "upi"]),
+  type: z.enum(["bank", "upi", "cash"]),
   name: z.string().min(2, "Account Holder / Name is required"),
   sub_label: z.string().optional(),
   bank_name: z.string().optional(),
@@ -41,7 +41,7 @@ type AccountFormValues = z.infer<typeof accountSchema>;
 
 interface BankAccount {
   id: string;
-  type: "bank" | "upi";
+  type: "bank" | "upi" | "cash";
   name: string;
   sub_label: string | null;
   bank_name: string | null;
@@ -52,6 +52,7 @@ interface BankAccount {
   upi_provider: string | null;
   is_default: boolean;
   opening_balance: number;
+  current_balance?: number;
   is_active: boolean;
   updated_at: string;
 }
@@ -233,12 +234,16 @@ export default function BanksUpiPage() {
       width: "120px",
       render: (row) =>
         row.type === "bank" ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[#DBEAFE] text-[#1D4ED8]">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
             <Building2 size={12} /> Bank
           </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[#EDE9FE] text-[#7C3AED]">
+        ) : row.type === "upi" ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
             <Smartphone size={12} /> UPI ID
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <Wallet size={12} /> Cash
           </span>
         ),
     },
@@ -247,7 +252,7 @@ export default function BanksUpiPage() {
       header: "Account Display Name",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <span className="font-bold text-[#6366F1] cursor-pointer">
+          <span className="font-bold text-[var(--primary)] cursor-pointer">
             {row.name}
           </span>
           {row.is_default && (
@@ -265,19 +270,26 @@ export default function BanksUpiPage() {
         if (row.type === "bank") {
           return (
             <div className="flex flex-col gap-0.5 font-mono text-xs">
-              <span className="font-bold text-[#374151]">
+              <span className="font-bold text-[var(--text-primary)]">
                 {row.bank_name} · A/C {row.account_number}
               </span>
-              <span className="text-[#64748B] text-[10px]">
+              <span className="text-[var(--text-muted)] text-[10px]">
                 IFSC: {row.ifsc} {row.branch ? `· ${row.branch}` : ""}
               </span>
+            </div>
+          );
+        } else if (row.type === "upi") {
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold font-mono text-xs text-[var(--text-primary)]">{row.upi_id}</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)]">{row.upi_provider || "UPI"} Channel</span>
             </div>
           );
         } else {
           return (
             <div className="flex flex-col gap-0.5">
-              <span className="font-bold font-mono text-xs text-[#374151]">{row.upi_id}</span>
-              <span className="text-[10px] font-semibold text-[#64748B]">{row.upi_provider || "UPI"} Channel</span>
+              <span className="font-bold font-mono text-xs text-[var(--text-primary)]">{row.sub_label || "Cash Register"}</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)]">Physical Cash</span>
             </div>
           );
         }
@@ -285,11 +297,16 @@ export default function BanksUpiPage() {
     },
     {
       key: "balance",
-      header: "Opening Balance",
+      header: "Current Balance",
       render: (row) => (
-        <span className="font-bold font-mono text-xs">
-          ₹{row.opening_balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-bold font-mono text-sm text-[var(--text-primary)]">
+            ₹{Number(row.current_balance ?? row.opening_balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </span>
+          <span className="text-[10px] text-[var(--text-muted)] font-mono">
+            Opening: ₹{Number(row.opening_balance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </span>
+        </div>
       ),
     },
     {

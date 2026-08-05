@@ -55,6 +55,12 @@ interface SalesReturn {
   return_number: string;
   return_date: string;
   return_reason: string | null;
+  taxable_amount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  round_off?: number;
+  gst_type?: string;
   grand_total: number;
   status: "pending" | "approved" | "rejected";
   created_at: string;
@@ -332,6 +338,39 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
                 <span className="text-[var(--text-muted)] font-semibold">Return Date:</span>
                 <span className="font-mono font-bold text-[var(--text-primary)]">{sReturn.return_date}</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--text-muted)] font-semibold">Taxable Amount:</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">{formatCurrency(sReturn.taxable_amount || sReturn.grand_total)}</span>
+              </div>
+              {sReturn.cgst ? (
+                <div className="flex justify-between text-xs text-[var(--text-muted)]">
+                  <span>CGST:</span>
+                  <span className="font-mono">{formatCurrency(sReturn.cgst)}</span>
+                </div>
+              ) : null}
+              {sReturn.sgst ? (
+                <div className="flex justify-between text-xs text-[var(--text-muted)]">
+                  <span>SGST:</span>
+                  <span className="font-mono">{formatCurrency(sReturn.sgst)}</span>
+                </div>
+              ) : null}
+              {sReturn.igst ? (
+                <div className="flex justify-between text-xs text-[var(--text-muted)]">
+                  <span>IGST:</span>
+                  <span className="font-mono">{formatCurrency(sReturn.igst)}</span>
+                </div>
+              ) : null}
+              {sReturn.gst_type === "without_gst" && (
+                <div className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-900">
+                  Kaccha Return (No GST)
+                </div>
+              )}
+              {sReturn.round_off ? (
+                <div className="flex justify-between text-xs text-[var(--text-faint)]">
+                  <span>Round Off:</span>
+                  <span className="font-mono">{sReturn.round_off > 0 ? `+${sReturn.round_off}` : sReturn.round_off}</span>
+                </div>
+              ) : null}
               <div className="border-t border-[var(--border)] my-2" />
               <div className="flex justify-between items-center bg-rose-500/10 border border-rose-200/50 p-3 rounded-lg">
                 <span className="font-bold text-rose-600 text-sm">Total Return Value:</span>

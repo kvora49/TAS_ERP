@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Save, Wallet, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -86,14 +86,14 @@ export default function ReceivePaymentView({
     enabled: !!selectedCustomerId,
   });
 
-  const outstandingBills = billsData?.bills || [];
-  const availableCreditNotes = billsData?.creditNotes || [];
+  const outstandingBills = useMemo(() => billsData?.bills || [], [billsData?.bills]);
+  const availableCreditNotes = useMemo(() => billsData?.creditNotes || [], [billsData?.creditNotes]);
   const [selectedCreditNoteIds, setSelectedCreditNoteIds] = useState<string[]>([]);
 
   // Compute total selected credit note credit amount
   const totalCreditNotesApplied = availableCreditNotes
-    .filter((cn) => selectedCreditNoteIds.includes(cn.id))
-    .reduce((sum, cn) => sum + Number(cn.available_amount || 0), 0);
+    .filter((cn: any) => selectedCreditNoteIds.includes(cn.id))
+    .reduce((sum: number, cn: any) => sum + Number(cn.available_amount || 0), 0);
 
   const totalEffectivePool = Number(amountReceived || 0) + totalCreditNotesApplied;
 
@@ -126,8 +126,8 @@ export default function ReceivePaymentView({
       }
 
       const creditNoteAllocations = availableCreditNotes
-        .filter((cn) => selectedCreditNoteIds.includes(cn.id))
-        .map((cn) => ({
+        .filter((cn: any) => selectedCreditNoteIds.includes(cn.id))
+        .map((cn: any) => ({
           credit_note_id: cn.id,
           amount: cn.available_amount,
         }));

@@ -31,20 +31,32 @@ export default function EditPurchaseReturnPage({ params }: { params: { id: strin
           generate_debit_note: r.generate_debit_note ?? true,
           attachments: r.attachments || [],
           status: r.status || "completed",
-          items: (r.items || []).map((it: any) => ({
-            purchase_item_id: it.purchase_item_id || "",
-            material_type_id: it.material_type_id,
-            material_name: it.material_type?.name || "Material",
-            hsn_sac: it.hsn_sac || "",
-            unit: it.unit || "meter",
-            invoice_qty: Number(it.invoice_qty || 0),
-            returned_qty: Number(it.returned_qty || 0),
-            rate: Number(it.rate || 0),
-            discount_percent: Number(it.discount_percent || 0),
-            taxable_value: Number(it.taxable_value || 0),
-            item_type: it.item_type || "fabric",
-            rolls: [],
-          })),
+          items: (r.items || []).map((it: any) => {
+            const calculatedType = it.item_type || (it.design_id ? "finished_goods" : "accessory");
+            const materialName = calculatedType === "finished_goods"
+              ? `${it.design?.design_number || it.design?.name || "Finished Good"}${it.colour?.colour_name ? ` (${it.colour.colour_name})` : ""}`
+              : it.material_type?.name || "Material";
+
+            return {
+              purchase_item_id: it.purchase_item_id || "",
+              material_type_id: it.material_type_id || null,
+              design_id: it.design_id || null,
+              colour_id: it.colour_id || null,
+              size_quantities: it.size_quantities || {},
+              invoice_size_quantities: it.size_quantities || {},
+              sizes: it.size_quantities ? Object.keys(it.size_quantities) : [],
+              material_name: materialName,
+              hsn_sac: it.hsn_sac || "",
+              unit: it.unit || (calculatedType === "finished_goods" ? "Pcs" : "Meters"),
+              invoice_qty: Number(it.invoice_qty || 0),
+              returned_qty: Number(it.returned_qty || 0),
+              rate: Number(it.rate || 0),
+              discount_percent: Number(it.discount_percent || 0),
+              taxable_value: Number(it.taxable_value || 0),
+              item_type: calculatedType,
+              rolls: [],
+            };
+          }),
         };
 
         setInitialData(mappedData);

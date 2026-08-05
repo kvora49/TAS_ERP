@@ -64,5 +64,9 @@ CREATE TABLE IF NOT EXISTS sale_rolls (
 CREATE INDEX IF NOT EXISTS idx_sale_rolls_sale_item_id ON sale_rolls(sale_item_id);
 CREATE INDEX IF NOT EXISTS idx_sale_rolls_purchase_roll_id ON sale_rolls(purchase_roll_id);
 
--- 8. Reload PostgREST Schema Cache
+-- 8. Add colour_id to lot_rolls table if missing
+ALTER TABLE lot_rolls ADD COLUMN IF NOT EXISTS colour_id UUID REFERENCES design_colours(id);
+
+-- 9. Reload PostgREST Schema Cache
 NOTIFY pgrst, 'reload schema';
+
