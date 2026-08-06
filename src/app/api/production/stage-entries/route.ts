@@ -130,6 +130,7 @@ export async function POST(request: Request) {
       remarks,
       custom_field_values,
       attachments,
+      accessories, // optional: [{ lot_accessory_id, issued_qty }]
     } = body;
 
     if (!lot_id || !lot_stage_id || !entry_date || qty_in === undefined || qty_out === undefined) {
@@ -412,6 +413,87 @@ export async function POST(request: Request) {
 
     // Log audit trail
     await logAudit(businessId, "create", "stage_entries", entry.id, entry);
+
+    // 5. Process optional accessory issuances (Section 5 of the stage entry form)
+    if (accessories && Array.isArray(accessories) && accessories.length > 0) {
+      let totalNewAccessoryCost = 0;
+
+      for (const acc of accessories) {
+        const { lot_accessory_id, issued_qty } = acc;
+        if (!lot_accessory_id || !issued_qty || Number(issued_qty) <= 0) continue;
+
+        // a. Fetch lot accessory with pool state
+        const { data: lotAcc, error: accFetchErr } = await supabaseAdmin
+          .from("production_lot_accessories")
+          .select(`
+            *,
+            issued:stage_entry_accessories(issued_qty)
+          `)
+          .eq("id", lot_accessory_id)
+          .eq("business_id", businessId)
+          .maybeSingle();
+
+        if (accFetchErr || !lotAcc) {
+          throw new Error(`Accessory allocation not found: ${lot_accessory_id}`);
+        }
+
+        // b. Compute available qty (allocated - already issued)
+        const alreadyIssued = (lotAcc.issued || []).reduce(
+          (sum: number, e: any) => sum + Number(e.issued_qty),
+          0
+        );
+        const available = Number(lotAcc.allocated_qty) - alreadyIssued;
+
+        if (Number(issued_qty) > available) {
+          throw new Error(
+            `Cannot issue ${issued_qty} ${lotAcc.unit} of "${lotAcc.item_name}". ` +
+            `Available in lot pool: ${available} ${lotAcc.unit}.`
+          );
+        }
+
+        // c. Insert stage_entry_accessories record
+        const issueValue = Number(issued_qty) * Number(lotAcc.unit_rate);
+        await supabaseAdmin.from("stage_entry_accessories").insert({
+          business_id: businessId,
+          stage_entry_id: entry.id,
+          lot_accessory_id,
+          lot_id,
+          worker_id: finalWorkerId,
+          item_name: lotAcc.item_name,
+          unit: lotAcc.unit,
+          godown_id: lotAcc.godown_id,
+          issued_qty: Number(issued_qty),
+          unit_rate: Number(lotAcc.unit_rate),
+          issued_at: new Date().toISOString(),
+          created_by: userId,
+        });
+
+        // d. Update total_issued_qty on production_lot_accessories
+        await supabaseAdmin
+          .from("production_lot_accessories")
+          .update({ total_issued_qty: alreadyIssued + Number(issued_qty) })
+          .eq("id", lot_accessory_id);
+
+        totalNewAccessoryCost += issueValue;
+      }
+
+      // e. Update production_lots.accessory_cost (add new issuance costs)
+      if (totalNewAccessoryCost > 0) {
+        const { data: currentLot } = await supabaseAdmin
+          .from("production_lots")
+          .select("accessory_cost")
+          .eq("id", lot_id)
+          .eq("business_id", businessId)
+          .single();
+
+        await supabaseAdmin
+          .from("production_lots")
+          .update({
+            accessory_cost: Number(currentLot?.accessory_cost || 0) + totalNewAccessoryCost,
+          })
+          .eq("id", lot_id);
+      }
+    }
 
     return NextResponse.json({ entry });
   } catch (err: any) {

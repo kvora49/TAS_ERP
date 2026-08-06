@@ -20,9 +20,11 @@ import { DeleteGodownDialog } from "./_components/DeleteGodownDialog";
 
 const godownSchema = z.object({
   name: z.string().min(2, "Godown Name must be at least 2 characters"),
+  code: z.string().optional(),
   address: z.string().optional(),
   contact_person: z.string().optional(),
   phone: z.string().optional(),
+  description: z.string().optional(),
   is_primary: z.boolean(),
   is_active: z.boolean(),
 });
@@ -32,9 +34,11 @@ type GodownFormValues = z.infer<typeof godownSchema>;
 interface Godown {
   id: string;
   name: string;
+  code: string | null;
   address: string | null;
   contact_person: string | null;
   phone: string | null;
+  description: string | null;
   is_primary: boolean;
   is_active: boolean;
   updated_at: string;
@@ -68,9 +72,11 @@ export default function GodownsPage() {
     setEditingGodown(null);
     reset({
       name: "",
+      code: "",
       address: "",
       contact_person: "",
       phone: "",
+      description: "",
       is_primary: false,
       is_active: true,
     });
@@ -81,9 +87,11 @@ export default function GodownsPage() {
     setEditingGodown(godown);
     reset({
       name: godown.name,
+      code: godown.code || "",
       address: godown.address || "",
       contact_person: godown.contact_person || "",
       phone: godown.phone || "",
+      description: godown.description || "",
       is_primary: godown.is_primary,
       is_active: godown.is_active,
     });
@@ -107,10 +115,15 @@ export default function GodownsPage() {
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (e) {
+        // Fallback if response is empty or HTML (e.g. 405 Method Not Allowed)
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save godown");
+        throw new Error(data.error || `Failed to save godown (Status: ${res.status})`);
       }
 
       toast.success(
@@ -156,6 +169,11 @@ export default function GodownsPage() {
           <span className="font-bold text-[var(--primary)] cursor-pointer">
             {row.name}
           </span>
+          {row.code && (
+            <span className="bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[var(--border)] uppercase font-mono">
+              {row.code}
+            </span>
+          )}
           {row.is_primary && (
             <Badge variant="primary">
               Primary
@@ -335,6 +353,19 @@ export default function GodownsPage() {
             )}
           </div>
 
+          {/* Godown Code */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Unique Code (Optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. GDN-001 (auto-generated if empty)"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono uppercase"
+              {...register("code")}
+            />
+          </div>
+
           {/* Address */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -371,6 +402,19 @@ export default function GodownsPage() {
               placeholder="Contact number"
               className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono"
               {...register("phone")}
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Description / Internal Notes
+            </label>
+            <textarea
+              placeholder="Optional notes or details about this godown"
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all resize-none"
+              {...register("description")}
             />
           </div>
 

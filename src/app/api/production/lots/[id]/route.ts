@@ -294,6 +294,43 @@ export async function GET(
       workers: stageWorkersMap.get(s.id) || [],
     }));
 
+    // 9. Fetch Lot Accessories with live available_qty
+    const { data: rawLotAccessories } = await supabase
+      .from("production_lot_accessories")
+      .select(`
+        *,
+        godown:godowns (id, name)
+      `)
+      .eq("lot_id", id)
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: true });
+
+    let enrichedLotAccessories: any[] = [];
+    if (rawLotAccessories && rawLotAccessories.length > 0) {
+      const accIds = rawLotAccessories.map((a: any) => a.id);
+      const { data: issuances } = await supabase
+        .from("stage_entry_accessories")
+        .select("lot_accessory_id, issued_qty")
+        .eq("business_id", businessId)
+        .in("lot_accessory_id", accIds);
+
+      const issuedMap = new Map<string, number>();
+      (issuances || []).forEach((iss: any) => {
+        const prev = issuedMap.get(iss.lot_accessory_id) || 0;
+        issuedMap.set(iss.lot_accessory_id, prev + Number(iss.issued_qty));
+      });
+
+      enrichedLotAccessories = rawLotAccessories.map((acc: any) => {
+        const totalIssued = issuedMap.get(acc.id) || 0;
+        return {
+          ...acc,
+          godown_name: acc.godown?.name || "—",
+          total_issued_qty: totalIssued,
+          available_qty: Math.max(0, Number(acc.allocated_qty) - totalIssued),
+        };
+      });
+    }
+
     return NextResponse.json({
       lot: lotWithImageUrl,
       sizes: sizeQuantities || [],
@@ -303,6 +340,7 @@ export async function GET(
       specifications: specifications || null,
       specSheet: specSheet || null,
       stageWorkers: stageWorkers || [],
+      lotAccessories: enrichedLotAccessories || [],
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -480,6 +518,12 @@ export async function PUT(
         .insert(stagesToInsert);
     }
 
+    // If lot status was changed to cancelled, release all fabric roll and accessory allocations
+    if (status === "cancelled" && oldLot.status !== "cancelled") {
+      const { data: { user } } = await supabase.auth.getUser();
+      await releaseLotAllocations(supabase, businessId, id, user?.id || null);
+    }
+
     // Log audit trail
     await logAudit(businessId, "update", "production_lots", id, lot, oldLot || {});
 
@@ -491,6 +535,260 @@ export async function PUT(
     );
   }
 }
+
+// DELETE to cancel or soft-delete a production lot and release its allocated materials
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = params;
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: oldLot } = await supabase
+      .from("production_lots")
+      .select("*")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (!oldLot) {
+      return NextResponse.json({ error: "Production lot not found" }, { status: 404 });
+    }
+
+    // Check if lot has stage entries or output moved to finished stock
+    const { data: finishedGoods } = await supabase
+      .from("finished_stock")
+      .select("id")
+      .eq("lot_id", id)
+      .limit(1);
+
+    if (finishedGoods && finishedGoods.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete lot because it has already been moved to Finished Stock." },
+        { status: 400 }
+      );
+    }
+
+    // Release all allocated fabric rolls & accessories back to raw material stock
+    await releaseLotAllocations(supabase, businessId, id, user?.id || null);
+
+    // Update status to cancelled and soft delete
+    const { error: deleteError } = await supabase
+      .from("production_lots")
+      .update({
+        status: "cancelled",
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("business_id", businessId);
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 400 });
+    }
+
+    await logAudit(businessId, "delete", "production_lots", id, oldLot);
+
+    return NextResponse.json({ success: true, message: "Production lot cancelled and allocated materials released back to stock." });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: Release all allocated fabric rolls and accessories back to stock
+// ──────────────────────────────────────────────────────────────────────────────
+async function releaseLotAllocations(supabase: any, businessId: string, lotId: string, userId: string | null) {
+  // 1. Release Allocated Fabric Rolls
+  const { data: lotRolls } = await supabase
+    .from("lot_rolls")
+    .select("*")
+    .eq("lot_id", lotId)
+    .eq("business_id", businessId);
+
+  if (lotRolls && lotRolls.length > 0) {
+    for (const lr of lotRolls) {
+      const allocated = Number(lr.allocated_meters || 0);
+      if (allocated <= 0) continue;
+
+      const { data: roll } = await supabase
+        .from("purchase_rolls")
+        .select(`
+          *,
+          item:raw_material_purchase_items (
+            material_type_id,
+            rate,
+            purchase:raw_material_purchases (godown_id)
+          )
+        `)
+        .eq("id", lr.purchase_roll_id)
+        .maybeSingle();
+
+      if (roll) {
+        // Restore remaining_meters on purchase_rolls
+        const updatedRemaining = Number(roll.remaining_meters || 0) + allocated;
+        await supabase
+          .from("purchase_rolls")
+          .update({ remaining_meters: updatedRemaining })
+          .eq("id", lr.purchase_roll_id);
+
+        const godownId = roll.item?.purchase?.godown_id;
+        const matTypeId = roll.item?.material_type_id;
+        const rate = Number(roll.item?.rate || 0);
+        const valDelta = allocated * rate;
+
+        if (godownId && matTypeId) {
+          const { data: stockEntry } = await supabase
+            .from("raw_material_current_stock")
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("material_type_id", matTypeId)
+            .eq("godown_id", godownId)
+            .maybeSingle();
+
+          if (stockEntry) {
+            const updatedQty = Number(stockEntry.current_stock || 0) + allocated;
+            const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
+            const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+            await supabase
+              .from("raw_material_current_stock")
+              .update({
+                current_stock: updatedQty,
+                stock_value: updatedValue,
+                unit_cost: updatedUnitCost,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", stockEntry.id);
+          }
+
+          // Insert positive ledger entry for cancellation release
+          await supabase
+            .from("stock_ledger")
+            .insert({
+              business_id: businessId,
+              item_type: "raw_material",
+              item_id: matTypeId,
+              godown_id: godownId,
+              transaction_type: "production_lot_cancellation_roll_release",
+              quantity_delta: allocated,
+              value_delta: valDelta,
+              reference_table: "production_lots",
+              reference_id: lotId,
+              created_by: userId,
+            });
+        }
+      }
+    }
+  }
+
+  // 2. Release Allocated Accessories
+  const { data: lotAccs } = await supabase
+    .from("production_lot_accessories")
+    .select("*")
+    .eq("lot_id", lotId)
+    .eq("business_id", businessId);
+
+  if (lotAccs && lotAccs.length > 0) {
+    const accIds = lotAccs.map((a: any) => a.id);
+    const { data: issuances } = await supabase
+      .from("stage_entry_accessories")
+      .select("lot_accessory_id, issued_qty")
+      .eq("business_id", businessId)
+      .in("lot_accessory_id", accIds);
+
+    const issuedMap = new Map<string, number>();
+    (issuances || []).forEach((iss: any) => {
+      const prev = issuedMap.get(iss.lot_accessory_id) || 0;
+      issuedMap.set(iss.lot_accessory_id, prev + Number(iss.issued_qty || 0));
+    });
+
+    for (const acc of lotAccs) {
+      const allocated = Number(acc.allocated_qty || 0);
+      const issued = issuedMap.get(acc.id) || Number(acc.total_issued_qty || 0);
+      const unissued = Math.max(0, allocated - issued);
+
+      if (unissued > 0 && acc.purchase_item_id) {
+        const { data: pItem } = await supabase
+          .from("raw_material_purchase_items")
+          .select(`
+            material_type_id,
+            rate,
+            purchase:raw_material_purchases (godown_id)
+          `)
+          .eq("id", acc.purchase_item_id)
+          .maybeSingle();
+
+        const godownId = acc.godown_id || (pItem as any)?.purchase?.godown_id;
+        const matTypeId = (pItem as any)?.material_type_id;
+        const rate = Number(acc.unit_rate || (pItem as any)?.rate || 0);
+        const valDelta = unissued * rate;
+
+        if (godownId && matTypeId) {
+          const { data: stockEntry } = await supabase
+            .from("raw_material_current_stock")
+            .select("*")
+            .eq("business_id", businessId)
+            .eq("material_type_id", matTypeId)
+            .eq("godown_id", godownId)
+            .maybeSingle();
+
+          if (stockEntry) {
+            const updatedQty = Number(stockEntry.current_stock || 0) + unissued;
+            const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
+            const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+            await supabase
+              .from("raw_material_current_stock")
+              .update({
+                current_stock: updatedQty,
+                stock_value: updatedValue,
+                unit_cost: updatedUnitCost,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", stockEntry.id);
+          }
+
+          // Insert positive ledger entry for accessory cancellation release
+          await supabase
+            .from("stock_ledger")
+            .insert({
+              business_id: businessId,
+              item_type: "raw_material",
+              item_id: matTypeId,
+              godown_id: godownId,
+              transaction_type: "production_lot_cancellation_accessory_release",
+              quantity_delta: unissued,
+              value_delta: valDelta,
+              reference_table: "production_lots",
+              reference_id: lotId,
+              created_by: userId,
+            });
+        }
+      }
+    }
+  }
+
+  // Trigger reconciliation
+  try {
+    const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+    await reconcileRawMaterialStock(supabase, businessId);
+  } catch (recErr) {
+    console.warn("Reconciliation on lot cancellation warning:", recErr);
+  }
+}
+
 
 // PATCH to complete lot
 export async function PATCH(

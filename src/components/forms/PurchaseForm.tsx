@@ -195,23 +195,23 @@ function MaterialTypeCombobox({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+        className="w-full flex items-center justify-between px-3 h-10 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] disabled:opacity-50 select-none cursor-pointer"
       >
         <span className="truncate">{selectedType ? selectedType.name : placeholder}</span>
-        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+        <ChevronDown size={16} className="text-[var(--text-muted)] ml-1 shrink-0" />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
+        <div className="absolute z-50 w-full mt-1.5 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[300px]">
           {/* Search box */}
-          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
-            <Search size={14} className="text-[#94A3B8] shrink-0" />
+          <div className="p-2 border-b border-[var(--border)] flex items-center gap-1.5 bg-[var(--page-bg)]">
+            <Search size={14} className="text-[var(--text-muted)] shrink-0" />
             <input
               type="text"
               placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
@@ -220,7 +220,7 @@ function MaterialTypeCombobox({
           {/* Options list */}
           <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+              <div className="px-3 py-2.5 text-xs text-[var(--text-muted)] font-semibold text-center">
                 No matching materials
               </div>
             ) : (
@@ -235,12 +235,12 @@ function MaterialTypeCombobox({
                       setIsOpen(false);
                       setSearch("");
                     }}
-                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
-                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-[var(--table-row-hover)] transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-[var(--primary)] bg-[var(--primary-light)] font-bold" : "text-[var(--text-primary)]"
                     }`}
                   >
                     <span className="truncate">{m.name}</span>
-                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                    {isSelected && <Check size={14} className="text-[var(--primary)] shrink-0" />}
                   </button>
                 );
               })
@@ -255,7 +255,7 @@ function MaterialTypeCombobox({
               setIsOpen(false);
               setSearch("");
             }}
-            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+            className="w-full h-10 px-3 border-t border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] text-xs font-bold text-[var(--primary)] flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
           >
             <Plus size={14} /> Add New Material Type
           </button>
@@ -316,22 +316,22 @@ function DesignCombobox({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+        className="w-full flex items-center justify-between px-3 h-10 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] disabled:opacity-50 select-none cursor-pointer"
       >
         <span className="truncate">{selectedLabel}</span>
-        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+        <ChevronDown size={16} className="text-[var(--text-muted)] ml-1 shrink-0" />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
-          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
-            <Search size={14} className="text-[#94A3B8] shrink-0" />
+        <div className="absolute z-50 w-full mt-1.5 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[300px]">
+          <div className="p-2 border-b border-[var(--border)] flex items-center gap-1.5 bg-[var(--page-bg)]">
+            <Search size={14} className="text-[var(--text-muted)] shrink-0" />
             <input
               type="text"
               placeholder="Search design..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
@@ -339,7 +339,7 @@ function DesignCombobox({
 
           <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+              <div className="px-3 py-2.5 text-xs text-[var(--text-muted)] font-semibold text-center">
                 No matching designs
               </div>
             ) : (
@@ -355,12 +355,12 @@ function DesignCombobox({
                       setIsOpen(false);
                       setSearch("");
                     }}
-                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
-                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-[var(--table-row-hover)] transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-[var(--primary)] bg-[var(--primary-light)] font-bold" : "text-[var(--text-primary)]"
                     }`}
                   >
                     <span className="truncate">{label}</span>
-                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                    {isSelected && <Check size={14} className="text-[var(--primary)] shrink-0" />}
                   </button>
                 );
               })
@@ -374,7 +374,7 @@ function DesignCombobox({
               setIsOpen(false);
               setSearch("");
             }}
-            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+            className="w-full h-10 px-3 border-t border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] text-xs font-bold text-[var(--primary)] flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
           >
             <Plus size={14} /> Add New Design
           </button>
@@ -436,23 +436,23 @@ function SupplierCombobox({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 h-10 border border-[#CBD5E1] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] disabled:opacity-50 select-none cursor-pointer"
+        className="w-full flex items-center justify-between px-3 h-10 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] disabled:opacity-50 select-none cursor-pointer"
       >
         <span className="truncate">{selectedSupplier ? getLabel(selectedSupplier) : placeholder}</span>
-        <ChevronDown size={16} className="text-[#64748B] ml-1 shrink-0" />
+        <ChevronDown size={16} className="text-[var(--text-muted)] ml-1 shrink-0" />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-white border border-[#E2E8F0] rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[300px]">
+        <div className="absolute z-50 w-full mt-1.5 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[300px]">
           {/* Search box */}
-          <div className="p-2 border-b border-[#F1F5F9] flex items-center gap-1.5 bg-slate-50">
-            <Search size={14} className="text-[#94A3B8] shrink-0" />
+          <div className="p-2 border-b border-[var(--border)] flex items-center gap-1.5 bg-[var(--page-bg)]">
+            <Search size={14} className="text-[var(--text-muted)] shrink-0" />
             <input
               type="text"
               placeholder="Search supplier..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[#0F172A]"
+              className="w-full bg-transparent border-none text-xs focus:outline-none focus:ring-0 font-medium p-0.5 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
@@ -461,7 +461,7 @@ function SupplierCombobox({
           {/* Options list */}
           <div className="flex-1 overflow-y-auto py-1 max-h-[200px]">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2.5 text-xs text-[#94A3B8] font-semibold text-center">
+              <div className="px-3 py-2.5 text-xs text-[var(--text-muted)] font-semibold text-center">
                 No matching suppliers
               </div>
             ) : (
@@ -477,12 +477,12 @@ function SupplierCombobox({
                       setIsOpen(false);
                       setSearch("");
                     }}
-                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-slate-50 transition-colors select-none cursor-pointer ${
-                      isSelected ? "text-indigo-600 bg-indigo-50/50" : "text-[#334155]"
+                    className={`w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold hover:bg-[var(--table-row-hover)] transition-colors select-none cursor-pointer ${
+                      isSelected ? "text-[var(--primary)] bg-[var(--primary-light)] font-bold" : "text-[var(--text-primary)]"
                     }`}
                   >
                     <span className="truncate">{label}</span>
-                    {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
+                    {isSelected && <Check size={14} className="text-[var(--primary)] shrink-0" />}
                   </button>
                 );
               })
@@ -497,7 +497,7 @@ function SupplierCombobox({
               setIsOpen(false);
               setSearch("");
             }}
-            className="w-full h-10 px-3 border-t border-[#F1F5F9] bg-[#F8FAFC] hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
+            className="w-full h-10 px-3 border-t border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] text-xs font-bold text-[var(--primary)] flex items-center gap-1.5 transition-colors cursor-pointer justify-center select-none"
           >
             <Plus size={14} /> Add New Supplier
           </button>
@@ -702,7 +702,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         const res = await fetch("/api/raw-materials");
         if (res.ok) {
           const data = await res.json();
-          setMaterialTypes(data.materialTypes || []);
+          const allMats = data.materialTypes || [];
+          setMaterialTypes(allMats.filter((m: any) => m.is_active !== false));
         }
       } catch (err) {
         console.error("Failed to load material types");
@@ -720,11 +721,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         ]);
         if (desRes.ok) {
           const data = await desRes.json();
-          setDesigns(data.designs || []);
+          const allDes = data.designs || [];
+          setDesigns(allDes.filter((d: any) => d.is_active !== false));
         }
         if (ssRes.ok) {
           const data = await ssRes.json();
-          setSizeSets(data.sizeSets || []);
+          const allSS = data.sizeSets || [];
+          setSizeSets(allSS.filter((s: any) => s.is_active !== false));
         }
       } catch (err) {
         console.error("Failed to load designs/size-sets:", err);
@@ -743,7 +746,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         const res = await fetch("/api/settings/inventory");
         if (res.ok) {
           const data = await res.json();
-          setGodowns(data.godowns || []);
+          const allGodowns = data.godowns || [];
+          setGodowns(allGodowns.filter((g: any) => g.is_active !== false));
           if (!id && !initialData?.godown_id && data.settings?.default_godown_id) {
             setValue("godown_id", data.settings.default_godown_id);
           }
@@ -920,6 +924,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   let subtotal = 0;
   let totalTaxableValue = 0;
   let totalGstAmount = 0;
+  let rcmGstAmount = 0;
 
   watchItems.forEach((item) => {
     const qty = Number(item.quantity || 0);
@@ -929,10 +934,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
     const taxableValue = qty * rate * (1 - disc / 100);
     const gstAmount = watchGstType === "with_gst" ? (taxableValue * gstPct) / 100 : 0;
+    const computedRcm = watchGstType === "reverse_charge" ? (taxableValue * gstPct) / 100 : 0;
 
     subtotal += qty * rate;
     totalTaxableValue += taxableValue;
     totalGstAmount += gstAmount;
+    rcmGstAmount += computedRcm;
   });
 
   const totalOtherCharges = Number(watchFreight) + Number(watchLoading) + Number(watchOtherCharges);
@@ -1167,14 +1174,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             ) : (
               <div className="space-y-4">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="p-4 bg-white rounded-xl border border-[#E2E8F0] space-y-4 relative shadow-sm">
+                  <div key={field.id} className="p-4 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] space-y-4 relative shadow-[var(--shadow-sm)]">
                     {/* Item header with count and delete action */}
-                    <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-                      <span className="text-xs font-bold text-[#6366F1] bg-[#EEF2FF] px-2.5 py-1 rounded-md">Item #{index + 1}</span>
+                    <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                      <span className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-1 rounded-md">Item #{index + 1}</span>
                       <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center gap-1 text-xs font-semibold"
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 flex items-center gap-1 text-xs font-semibold cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" /> Remove Item
                       </button>
@@ -1183,7 +1190,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                     <div className="space-y-3">
                       {/* Item Type Toggle - 4 Tabs */}
                       <input type="hidden" {...register(`items.${index}.item_type` as const)} />
-                      <div className="flex items-center gap-1.5 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-100 w-fit flex-wrap">
+                      <div className="flex items-center gap-1.5 mb-3 bg-[var(--page-bg)] p-1.5 rounded-lg border border-[var(--border)] w-fit flex-wrap">
                         <button
                           type="button"
                           onClick={() => {
@@ -1194,8 +1201,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           }}
                           className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
                             (watchItems[index]?.item_type || "fabric") === "fabric"
-                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
-                              : "text-[#64748B] hover:text-[#0F172A]"
+                              ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           Fabric (Roll-wise)
@@ -1211,8 +1218,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           }}
                           className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
                             watchItems[index]?.item_type === "accessory"
-                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
-                              : "text-[#64748B] hover:text-[#0F172A]"
+                              ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           Accessory
@@ -1228,8 +1235,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           }}
                           className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
                             watchItems[index]?.item_type === "finished_goods"
-                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
-                              : "text-[#64748B] hover:text-[#0F172A]"
+                              ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           Finished Goods
@@ -1245,8 +1252,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           }}
                           className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
                             watchItems[index]?.item_type === "others"
-                              ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
-                              : "text-[#64748B] hover:text-[#0F172A]"
+                              ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           Others (Assets/Expenses)
@@ -1425,22 +1432,22 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               type="text"
                               placeholder="HSN"
                               {...register(`items.${index}.hsn_sac` as const)}
-                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                             />
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
                             <input
                               type="text"
                               placeholder="Unit"
                               {...register(`items.${index}.unit` as const)}
-                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                             />
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
                               {(watchItems[index]?.item_type || "fabric") === "fabric" ? "Total Meters" : "Qty *"}
                             </label>
                             <NumericInput
@@ -1452,12 +1459,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                 register(`items.${index}.quantity` as const).onChange(e);
                                 recalcItem(index);
                               }}
-                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all disabled:bg-slate-50 disabled:text-slate-700"
+                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all disabled:bg-[var(--page-bg)] disabled:text-[var(--text-secondary)]"
                             />
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
                             <NumericInput
                               step="0.01"
                               placeholder="0.00"
@@ -1466,7 +1473,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                 register(`items.${index}.rate` as const).onChange(e);
                                 recalcItem(index);
                               }}
-                              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>
@@ -1475,7 +1482,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                       {/* Row 2 */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1.5">
                         <div className={watchGstType === "with_gst" ? "md:col-span-2" : "md:col-span-3"}>
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Disc (%)</label>
+                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Disc (%)</label>
                           <NumericInput
                             placeholder="0"
                             {...register(`items.${index}.discount_percent` as const)}
@@ -1483,13 +1490,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               register(`items.${index}.discount_percent` as const).onChange(e);
                               recalcItem(index);
                             }}
-                            className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
 
                         <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-4"}>
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Taxable</label>
-                          <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-slate-600 select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Taxable</label>
+                          <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-secondary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                             {formatCurrency(Number(watchItems[index]?.taxable_value || 0))}
                           </div>
                         </div>
@@ -1497,20 +1504,20 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                         {watchGstType === "with_gst" && (
                           <>
                             <div className="md:col-span-2">
-                              <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST %</label>
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">GST %</label>
                               <NumericInput
                                 {...register(`items.${index}.gst_percent` as const)}
                                 onChange={(e) => {
                                   register(`items.${index}.gst_percent` as const).onChange(e);
                                   recalcItem(index);
                                 }}
-                                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+                                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-xs sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                               />
                             </div>
 
                             <div className="md:col-span-2">
-                              <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">GST Amt</label>
-                              <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-slate-500 select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">GST Amt</label>
+                              <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-muted)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                                 {formatCurrency(Number(watchItems[index]?.gst_amount || 0))}
                               </div>
                             </div>
@@ -1518,8 +1525,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                         )}
 
                         <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-5"}>
-                          <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Total (₹)</label>
-                          <div className="w-full px-2.5 py-2 bg-slate-50 border border-[#E2E8F0] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[#0F172A] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Total (₹)</label>
+                          <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-primary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                             {formatCurrency(Number(watchItems[index]?.amount || 0))}
                           </div>
                         </div>
@@ -1527,13 +1534,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                       {/* Finished Goods Size Set Breakdown */}
                       {watchItems[index]?.item_type === "finished_goods" && (
-                        <div className="mt-4 border-t border-[#F1F5F9] pt-4 space-y-3">
+                        <div className="mt-4 border-t border-[var(--border)] pt-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                              <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
                                 Size Set Quantity Breakdown
                               </h4>
-                              <p className="text-[10px] text-[#64748B] font-semibold mt-0.5">
+                              <p className="text-[10px] text-[var(--text-muted)] font-semibold mt-0.5">
                                 Enter piece quantities for each size. Total Pcs will auto-calculate.
                               </p>
                             </div>
@@ -1592,51 +1599,51 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                       {/* Rolls Sub-section */}
                       {((watchItems[index]?.item_type || "fabric") === "fabric") && (
-                        <div className="mt-4 border-t border-[#F1F5F9] pt-4 space-y-3">
+                        <div className="mt-4 border-t border-[var(--border)] pt-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                              <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
                                 Fabric Roll Breakdown
                               </h4>
-                              <p className="text-[10px] text-[#64748B] font-semibold mt-0.5">
+                              <p className="text-[10px] text-[var(--text-muted)] font-semibold mt-0.5">
                                 Specify individual rolls. Total quantity is auto-calculated.
                               </p>
                             </div>
                             <button
                               type="button"
                               onClick={() => addRoll(index)}
-                              className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 border border-indigo-100 rounded hover:bg-indigo-50 flex items-center gap-1 cursor-pointer transition-all"
+                              className="px-2.5 py-1 text-[10px] font-bold text-[var(--primary)] border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] rounded flex items-center gap-1 cursor-pointer transition-all"
                             >
-                              <Plus size={12} className="text-indigo-600" /> Add Roll
+                              <Plus size={12} className="text-[var(--primary)]" /> Add Roll
                             </button>
                           </div>
 
                           {(watchItems[index]?.rolls || []).length === 0 ? (
-                            <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs font-semibold text-[#64748B]">
+                            <div className="text-center py-4 bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-muted)]">
                               No rolls added yet. Click Add Roll.
                             </div>
                           ) : (
                             <div className="space-y-2">
                               {(watchItems[index]?.rolls || []).map((roll: any, rollIndex: number) => (
-                                <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 items-end">
+                                <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)] items-end">
                                   {/* Roll Number */}
                                   <div className="md:col-span-1 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Roll No *</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Roll No *</label>
                                     <input
                                       type="text"
                                       required
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs focus:ring-1 focus:ring-[#6366F1]"
+                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded text-xs focus:ring-1 focus:ring-[var(--input-focus)]"
                                       {...register(`items.${index}.rolls.${rollIndex}.roll_number` as const)}
                                     />
                                   </div>
 
                                   {/* Meters */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Meters *</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Meters *</label>
                                     <NumericInput
                                       step="0.01"
                                       placeholder="0"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right font-bold min-w-0"
+                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right font-bold min-w-0"
                                       value={watchItems[index]?.rolls?.[rollIndex]?.meters || ""}
                                       onChange={(e) => {
                                         const meters = Number(e.target.value || 0);
@@ -1647,31 +1654,31 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                                   {/* Shade */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Shade *</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Shade *</label>
                                     <input
                                       type="text"
                                       placeholder="e.g. Indigo"
                                       required
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs"
+                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs"
                                       {...register(`items.${index}.rolls.${rollIndex}.shade` as const)}
                                     />
                                   </div>
 
                                   {/* Width */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Width</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Width</label>
                                     <NumericInput
                                       placeholder="inch"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right min-w-0"
+                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right min-w-0"
                                       {...register(`items.${index}.rolls.${rollIndex}.width` as const)}
                                     />
                                   </div>
 
                                   {/* Weight Unit */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Unit</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Wt Unit</label>
                                     <select
-                                      className="w-full h-8 pl-2 pr-6 bg-white border border-[#CBD5E1] rounded text-xs font-bold text-[#1E293B] cursor-pointer focus:ring-1 focus:ring-[#6366F1] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:8px_8px] bg-[right_0.4rem_center] bg-no-repeat uppercase"
+                                      className="w-full h-8 pl-2 pr-6 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded text-xs font-bold cursor-pointer focus:ring-1 focus:ring-[var(--input-focus)] uppercase"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
                                     >
                                       <option value="gsm">GSM</option>
@@ -1681,10 +1688,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                                   {/* Weight Value */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[#64748B] uppercase">Wt Value</label>
+                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Wt Value</label>
                                     <NumericInput
                                       placeholder="Value"
-                                      className="w-full h-8 px-2 bg-white border border-[#CBD5E1] rounded text-xs text-right min-w-0"
+                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right min-w-0"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
                                     />
                                   </div>
@@ -1713,15 +1720,15 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             )}
           </div>
           {/* Remarks & Notes */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-3 border-l-4 border-[var(--primary)] pl-2.5">
               Remarks & Notes
             </h2>
             <textarea
               rows={3}
               placeholder="Internal notes or special instructions..."
               {...register("notes")}
-              className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs"
+              className="w-full p-2.5 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             ></textarea>
           </div>
         </div>
@@ -1729,81 +1736,93 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
         {/* Right Section: Totals, Attachments, Notes */}
         <div className="space-y-6">
           {/* Summary Panel */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
               3. Invoice Summary
             </h2>
 
             <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between text-[#64748B] font-semibold">
+              <div className="flex justify-between text-[var(--text-muted)] font-semibold">
                 <span>Subtotal (Raw Items):</span>
-                <span className="font-mono">₹{subtotal.toFixed(2)}</span>
+                <span className="font-mono text-[var(--text-primary)] font-bold">₹{subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[#64748B] font-semibold">
+              <div className="flex justify-between text-[var(--text-muted)] font-semibold">
                 <span>Total Discount (-) :</span>
-                <span className="font-mono text-emerald-600">₹{(subtotal - totalTaxableValue).toFixed(2)}</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">₹{(subtotal - totalTaxableValue).toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[#64748B] font-semibold">
+              <div className="flex justify-between text-[var(--text-muted)] font-semibold">
                 <span>Taxable Value:</span>
-                <span className="font-mono">₹{totalTaxableValue.toFixed(2)}</span>
+                <span className="font-mono text-[var(--text-primary)] font-bold">₹{totalTaxableValue.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[#64748B] font-semibold">
+              <div className="flex justify-between text-[var(--text-muted)] font-semibold">
                 <span>GST Tax Value (+):</span>
-                <span className="font-mono">₹{totalGstAmount.toFixed(2)}</span>
+                <span className="font-mono text-[var(--text-primary)] font-bold">₹{totalGstAmount.toFixed(2)}</span>
               </div>
 
-              <div className="border-t border-[#E2E8F0] my-2" />
+              {watchGstType === "reverse_charge" && (
+                <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 space-y-1">
+                  <div className="flex justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
+                    <span>⚡ RCM Tax (Payable to Govt):</span>
+                    <span className="font-mono">₹{rcmGstAmount.toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-tight">
+                    Supplier gets net ₹{grandTotal.toFixed(2)}. RCM tax ₹{rcmGstAmount.toFixed(2)} is paid directly to GST portal & claimed as Input Credit.
+                  </p>
+                </div>
+              )}
+
+              <div className="border-t border-[var(--border)] my-2" />
 
               {/* Additional Charges inputs */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-[#0F172A]">Additional Charges (₹)</span>
+                <span className="text-xs font-bold text-[var(--text-primary)]">Additional Charges (₹)</span>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Freight</label>
+                    <label className="block text-[9px] font-bold text-[var(--text-muted)] mb-0.5">Freight</label>
                     <NumericInput
                       placeholder="0.00"
                       {...register("freight")}
-                      className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
+                      className="w-full px-2 py-1 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs font-bold text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Loading</label>
+                    <label className="block text-[9px] font-bold text-[var(--text-muted)] mb-0.5">Loading</label>
                     <NumericInput
                       placeholder="0.00"
                       {...register("loading_unloading")}
-                      className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
+                      className="w-full px-2 py-1 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs font-bold text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-bold text-[#64748B] mb-0.5">Other</label>
+                    <label className="block text-[9px] font-bold text-[var(--text-muted)] mb-0.5">Other</label>
                     <NumericInput
                       placeholder="0.00"
                       {...register("other_charges")}
-                      className="w-full px-2 py-1 border border-[#CBD5E1] rounded text-xs font-bold text-right"
+                      className="w-full px-2 py-1 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs font-bold text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-[#E2E8F0] my-2" />
+              <div className="border-t border-[var(--border)] my-2" />
 
-              <div className="flex justify-between items-center bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
-                <span className="font-bold text-[#0F172A]">Grand Total (₹):</span>
-                <span className="font-mono text-lg font-black text-[#6366F1]">
+              <div className="flex justify-between items-center bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                <span className="font-bold text-[var(--text-primary)]">Grand Total (₹):</span>
+                <span className="font-mono text-lg font-black text-[var(--primary)]">
                   {formatCurrency(grandTotal)}
                 </span>
               </div>
 
-              <div className="bg-slate-50 p-2.5 rounded border border-[#E2E8F0] text-[10px] text-[#64748B] font-semibold italic">
-                <span className="font-bold uppercase text-[9px] text-[#4F46E5] block not-italic">Amount in Words:</span>
+              <div className="bg-[var(--page-bg)] p-2.5 rounded border border-[var(--border)] text-[10px] text-[var(--text-muted)] font-semibold italic">
+                <span className="font-bold uppercase text-[9px] text-[var(--primary)] block not-italic">Amount in Words:</span>
                 {grandTotalWords}
               </div>
             </div>
           </div>
 
           {/* Attachments Dropzone */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-3 border-l-4 border-[var(--primary)] pl-2.5">
               4. Document Attachments
             </h2>
             <AttachmentDropzone

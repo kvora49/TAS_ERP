@@ -16,14 +16,14 @@ export function AddressSection({
   setSameAsBilling,
 }: AddressSectionProps) {
   return (
-    <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-4 border-l-4 border-[#6366F1] pl-2.5">
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+      <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
         2. Address Information
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Billing Address */}
         <div className="space-y-3">
-          <h3 className="text-xs font-bold text-[#0F172A]">Billing Address</h3>
+          <h3 className="text-xs font-bold text-[var(--text-primary)]">Billing Address</h3>
           <div>
             <label htmlFor="billing-address-1" className="sr-only">Billing Address Line 1</label>
             <input
@@ -31,7 +31,7 @@ export function AddressSection({
               type="text"
               placeholder="Address Line 1"
               {...register("billing_address_line1")}
-              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             />
           </div>
           <div>
@@ -41,7 +41,7 @@ export function AddressSection({
               type="text"
               placeholder="Address Line 2 (Optional)"
               {...register("billing_address_line2")}
-              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             />
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -52,7 +52,7 @@ export function AddressSection({
                 type="text"
                 placeholder="City"
                 {...register("billing_city")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
             <div>
@@ -62,7 +62,7 @@ export function AddressSection({
                 type="text"
                 placeholder="State"
                 {...register("billing_state")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
             <div>
@@ -72,7 +72,7 @@ export function AddressSection({
                 type="text"
                 placeholder="Pincode"
                 {...register("billing_pincode")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
           </div>
@@ -81,13 +81,13 @@ export function AddressSection({
         {/* Shipping Address */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[#0F172A]">Shipping Address</h3>
-            <label className="flex items-center gap-1.5 text-xs text-[#64748B] font-semibold cursor-pointer">
+            <h3 className="text-xs font-bold text-[var(--text-primary)]">Shipping Address</h3>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-semibold cursor-pointer">
               <input
                 type="checkbox"
                 checked={sameAsBilling}
                 onChange={(e) => setSameAsBilling(e.target.checked)}
-                className="rounded border-[#CBD5E1] text-[#6366F1] h-3.5 w-3.5"
+                className="rounded border-[var(--input-border)] text-[var(--primary)] h-3.5 w-3.5"
               />
               Same as Billing
             </label>
@@ -100,7 +100,7 @@ export function AddressSection({
               placeholder="Address Line 1"
               disabled={sameAsBilling}
               {...register("shipping_address_line1")}
-              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm disabled:opacity-60 focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             />
           </div>
           <div>
@@ -111,7 +111,7 @@ export function AddressSection({
               placeholder="Address Line 2"
               disabled={sameAsBilling}
               {...register("shipping_address_line2")}
-              className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
+              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm disabled:opacity-60 focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
             />
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -123,7 +123,7 @@ export function AddressSection({
                 placeholder="City"
                 disabled={sameAsBilling}
                 {...register("shipping_city")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm disabled:opacity-60 focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
             <div>
@@ -134,7 +134,7 @@ export function AddressSection({
                 placeholder="State"
                 disabled={sameAsBilling}
                 {...register("shipping_state")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm disabled:opacity-60 focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
             <div>
@@ -145,7 +145,7 @@ export function AddressSection({
                 placeholder="Pincode"
                 disabled={sameAsBilling}
                 {...register("shipping_pincode")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm disabled:bg-slate-50"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm disabled:opacity-60 focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
               />
             </div>
           </div>

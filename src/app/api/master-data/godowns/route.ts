@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, address, contact_person, phone, is_primary, is_active } = body;
+    const { name, code, address, contact_person, phone, description, is_primary, is_active } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -48,6 +48,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const finalCode = (code && code.trim().length > 0)
+      ? code.trim().toUpperCase()
+      : `GDN-${name.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10) || "001"}`;
 
     // Reset others if set to primary
     if (is_primary) {
@@ -62,9 +66,11 @@ export async function POST(request: Request) {
       .insert({
         business_id: businessId,
         name,
+        code: finalCode,
         address: address || null,
         contact_person: contact_person || null,
         phone: phone || null,
+        description: description || null,
         is_primary: !!is_primary,
         is_active: is_active !== false,
       })

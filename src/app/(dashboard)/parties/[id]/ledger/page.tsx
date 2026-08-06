@@ -394,13 +394,13 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                     {isPakka && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">📄 Pakka</span>}
                     {isKacha && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">📝 Kaccha</span>}
                   </div>
-                  <span className="text-[11px] font-mono text-[var(--text-muted)]">{formatDate(row.date)}</span>
+                  <span className="text-[11px] font-mono font-semibold text-[var(--text-secondary)]">{formatDate(row.date)}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-[var(--text-primary)]">{row.particulars}</p>
-                    <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">Voucher #: {row.voucherNo}</p>
+                    <p className="text-[11px] font-mono font-semibold text-[var(--text-secondary)] mt-0.5">Voucher #: {row.voucherNo || "—"}</p>
                   </div>
                   {hasAllocations && (
                     <button type="button" onClick={() => toggleRow(rowId)} className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)]">
@@ -502,7 +502,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                             <span className="text-[var(--text-faint)] font-semibold">—</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 align-middle font-mono text-xs text-[var(--text-muted)]">
+                        <td className="px-6 py-4 align-middle font-mono text-xs font-semibold text-[var(--text-secondary)]">
                           {formatDate(row.date)}
                         </td>
                         <td className="px-6 py-4 align-middle font-bold text-[var(--text-primary)]">
@@ -529,8 +529,8 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 align-middle font-mono text-xs text-[var(--text-muted)]">
-                          {row.voucherNo}
+                        <td className="px-6 py-4 align-middle font-mono text-xs font-semibold text-[var(--text-secondary)]">
+                          {row.voucherNo || "—"}
                         </td>
                         <td className="px-6 py-4 align-middle text-right font-mono text-xs font-bold text-red-600 dark:text-red-400">
                           {row.debit > 0 ? formatCurrency(row.debit) : "—"}

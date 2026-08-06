@@ -444,6 +444,15 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
                 <span className="font-mono">{formatCurrency(purchase.total_other_charges)}</span>
               </div>
 
+              {purchase.gst_type === "reverse_charge" && (
+                <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 text-[10px] space-y-1 my-1">
+                  <span className="font-bold text-amber-800 dark:text-amber-300 block">⚡ Reverse Charge (RCM) Invoice</span>
+                  <p className="text-amber-700 dark:text-amber-400 leading-tight">
+                    GST is not added to supplier payout. Business/Buyer is liable to deposit RCM GST directly to Govt & claim ITC.
+                  </p>
+                </div>
+              )}
+
               <div className="border-t border-[#E2E8F0] my-2" />
 
               <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-[#E2E8F0]">

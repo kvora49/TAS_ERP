@@ -78,6 +78,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
 
   // Filtered designs for searchable combobox
   const filteredDesigns = designs.filter((d) => {
+    if (d.is_active === false && d.id !== selectedDesignId) return false;
     const code = (d.design_number || d.code || "").toLowerCase();
     const name = (d.name || "").toLowerCase();
     const term = designSearch.toLowerCase();

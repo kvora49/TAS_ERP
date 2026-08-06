@@ -117,6 +117,34 @@ export async function POST(
                 reference_id: lot.id,
                 created_by: user?.id || null,
               });
+            // Also update raw_material_current_stock for returned fabric
+            const godownId = roll.item?.purchase?.godown_id;
+            const matTypeId = roll.item?.material_type_id;
+            if (godownId && matTypeId) {
+              const { data: stockEntry } = await supabase
+                .from("raw_material_current_stock")
+                .select("*")
+                .eq("business_id", businessId)
+                .eq("material_type_id", matTypeId)
+                .eq("godown_id", godownId)
+                .maybeSingle();
+
+              if (stockEntry) {
+                const updatedQty = Number(stockEntry.current_stock || 0) + unused;
+                const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
+                const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+                await supabase
+                  .from("raw_material_current_stock")
+                  .update({
+                    current_stock: updatedQty,
+                    stock_value: updatedValue,
+                    unit_cost: updatedUnitCost,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", stockEntry.id);
+              }
+            }
           }
         }
 
@@ -126,6 +154,96 @@ export async function POST(
           .update({ allocated_meters: used })
           .eq("lot_id", id)
           .eq("purchase_roll_id", purchase_roll_id);
+      }
+    }
+
+    // 1c. Reconcile and return unused accessories to stock
+    const { data: lotAccessories } = await supabase
+      .from("production_lot_accessories")
+      .select("*")
+      .eq("lot_id", id)
+      .eq("business_id", businessId);
+
+    if (lotAccessories && lotAccessories.length > 0) {
+      const accIds = lotAccessories.map((a: any) => a.id);
+      const { data: issuances } = await supabase
+        .from("stage_entry_accessories")
+        .select("lot_accessory_id, issued_qty")
+        .eq("business_id", businessId)
+        .in("lot_accessory_id", accIds);
+
+      const issuedMap = new Map<string, number>();
+      (issuances || []).forEach((iss: any) => {
+        const prev = issuedMap.get(iss.lot_accessory_id) || 0;
+        issuedMap.set(iss.lot_accessory_id, prev + Number(iss.issued_qty || 0));
+      });
+
+      for (const acc of lotAccessories) {
+        const allocated = Number(acc.allocated_qty || 0);
+        const actualIssued = issuedMap.has(acc.id)
+          ? issuedMap.get(acc.id)!
+          : Number(acc.total_issued_qty || 0);
+        const unusedAcc = Math.max(0, allocated - actualIssued);
+
+        if (unusedAcc > 0 && acc.purchase_item_id) {
+          // Fetch purchase item details
+          const { data: pItem } = await supabase
+            .from("raw_material_purchase_items")
+            .select(`
+              material_type_id,
+              rate,
+              purchase:raw_material_purchases (godown_id)
+            `)
+            .eq("id", acc.purchase_item_id)
+            .maybeSingle();
+
+          const godownId = acc.godown_id || (pItem as any)?.purchase?.godown_id;
+          const matTypeId = (pItem as any)?.material_type_id;
+          const rate = Number(acc.unit_rate || (pItem as any)?.rate || 0);
+          const valDelta = unusedAcc * rate;
+
+          if (godownId && matTypeId) {
+            const { data: stockEntry } = await supabase
+              .from("raw_material_current_stock")
+              .select("*")
+              .eq("business_id", businessId)
+              .eq("material_type_id", matTypeId)
+              .eq("godown_id", godownId)
+              .maybeSingle();
+
+            if (stockEntry) {
+              const updatedQty = Number(stockEntry.current_stock || 0) + unusedAcc;
+              const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
+              const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+              await supabase
+                .from("raw_material_current_stock")
+                .update({
+                  current_stock: updatedQty,
+                  stock_value: updatedValue,
+                  unit_cost: updatedUnitCost,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", stockEntry.id);
+            }
+
+            // Insert positive ledger entry for accessory return
+            await supabase
+              .from("stock_ledger")
+              .insert({
+                business_id: businessId,
+                item_type: "raw_material",
+                item_id: matTypeId,
+                godown_id: godownId,
+                transaction_type: "production_lot_return_unused_accessory",
+                quantity_delta: unusedAcc,
+                value_delta: valDelta,
+                reference_table: "production_lots",
+                reference_id: lot.id,
+                created_by: user?.id || null,
+              });
+          }
+        }
       }
     }
 

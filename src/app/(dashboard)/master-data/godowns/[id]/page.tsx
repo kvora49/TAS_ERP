@@ -50,7 +50,9 @@ interface Godown {
   id: string;
   name: string;
   code: string | null;
-  location: string | null;
+  address: string | null;
+  contact_person: string | null;
+  phone: string | null;
   description: string | null;
   is_active: boolean;
 }
@@ -199,10 +201,10 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#64748B] font-semibold">
-              {godown.location && (
+              {godown.address && (
                 <span className="flex items-center gap-1">
                   <MapPin size={13} className="text-[#94A3B8]" />
-                  {godown.location}
+                  {godown.address}
                 </span>
               )}
             </div>
@@ -500,6 +502,18 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
                 </span>
                 <span className="text-sm text-[#1E293B] font-mono">{godown.code || "—"}</span>
               </div>
+              <div>
+                <span className="text-[#64748B] block font-bold mb-1 uppercase tracking-wider text-[10px]">
+                  Contact Person
+                </span>
+                <span className="text-sm text-[#1E293B]">{godown.contact_person || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#64748B] block font-bold mb-1 uppercase tracking-wider text-[10px]">
+                  Contact Phone
+                </span>
+                <span className="text-sm text-[#1E293B] font-mono">{godown.phone || "—"}</span>
+              </div>
             </div>
             <div>
               <span className="text-[#64748B] block font-bold mb-1 uppercase tracking-wider text-[10px]">
@@ -507,7 +521,7 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
               </span>
               <span className="text-sm text-[#1E293B] flex items-center gap-1.5 font-medium leading-relaxed">
                 <MapPin size={14} className="text-[#94A3B8] shrink-0" />
-                {godown.location || "No location address provided."}
+                {godown.address || "No location address provided."}
               </span>
             </div>
             <div>

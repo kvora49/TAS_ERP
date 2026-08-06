@@ -83,6 +83,11 @@ export default function NewStageEntryPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Section 5: Accessory Assignment (Optional)
+  const [accessoriesExpanded, setAccessoriesExpanded] = useState(false);
+  const [accessoryIssuances, setAccessoryIssuances] = useState<Record<string, number>>({}); // lot_accessory_id -> issued_qty
+
+
   // Fetch Master Stages to obtain custom_fields definitions
   const { data: masterStagesData } = useQuery({
     queryKey: ["master-stages-definitions"],
@@ -132,6 +137,8 @@ export default function NewStageEntryPage() {
   const lotSizeQuantities = lotDetailData?.sizes || [];
   const stageEntries = lotDetailData?.stageEntries || [];
   const stageWorkers = lotDetailData?.stageWorkers || [];
+  const lotAccessoryPool: any[] = lotDetailData?.lotAccessories || [];
+
 
   // Build available colours list for this lot
   const colourMap = new Map();
@@ -300,6 +307,10 @@ export default function NewStageEntryPage() {
         remarks,
         custom_field_values: customFieldValues,
         attachments,
+        // Section 5: optional accessory issuances
+        accessories: Object.entries(accessoryIssuances)
+          .filter(([, qty]) => qty > 0)
+          .map(([lot_accessory_id, issued_qty]) => ({ lot_accessory_id, issued_qty })),
       };
 
       const res = await fetch("/api/production/stage-entries", {
@@ -779,11 +790,134 @@ export default function NewStageEntryPage() {
             </div>
           </div>
 
-          {/* Section 5: Additional Info */}
+          {/* ───────────────────────────────────────────────────── */}
+          {/* Section 5: Accessory Assignment (Optional, collapsed) */}
+          {/* ───────────────────────────────────────────────────── */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+            {/* Accordion Header */}
+            <button
+              type="button"
+              onClick={() => setAccessoriesExpanded((v) => !v)}
+              className="w-full flex items-center justify-between p-5 text-left hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-xs flex items-center justify-center">
+                  5
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+                    Accessory Assignment
+                    <span className="text-[10px] font-normal text-[var(--text-faint)] normal-case tracking-normal">(Optional)</span>
+                  </h3>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    {lotAccessoryPool.length === 0
+                      ? "No accessories allocated to this lot"
+                      : `${lotAccessoryPool.length} accessory type(s) · ${Object.values(accessoryIssuances).filter(q => q > 0).length} to be issued`
+                    }
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {Object.values(accessoryIssuances).some(q => q > 0) && (
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    {Object.values(accessoryIssuances).filter(q => q > 0).length} item(s) to issue
+                  </span>
+                )}
+                <span className={`text-[var(--text-muted)] transition-transform duration-200 ${accessoriesExpanded ? "rotate-90" : ""}`}>
+                  ▶
+                </span>
+              </div>
+            </button>
+
+            {/* Accordion Body */}
+            {accessoriesExpanded && (
+              <div className="px-5 pb-5 border-t border-[var(--border)]">
+                {!selectedLotId ? (
+                  <p className="text-xs text-[var(--text-faint)] italic mt-4">
+                    Select a Lot in Section 1 to see its allocated accessories.
+                  </p>
+                ) : lotAccessoryPool.length === 0 ? (
+                  <div className="mt-4 py-6 text-center border border-dashed border-[var(--border)] rounded-xl">
+                    <p className="text-xs text-[var(--text-faint)]">
+                      No accessories allocated to this lot.
+                    </p>
+                    <p className="text-[11px] text-[var(--text-faint)] mt-1">
+                      Accessories are allocated during Lot Creation (Step 1 → Accessories tab).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Issue accessories to <span className="font-bold text-[var(--text-primary)]">
+                        {workerId ? (workers.find(w => w.id === workerId)?.name || "selected worker") : "worker (select in Section 4)"}
+                      </span>. Leave qty as 0 to skip.
+                    </p>
+                    <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] uppercase text-[10px] font-bold">
+                            <th className="p-2.5 text-left">Accessory</th>
+                            <th className="p-2.5 text-left">Godown</th>
+                            <th className="p-2.5 text-center">Allocated</th>
+                            <th className="p-2.5 text-center">Already Issued</th>
+                            <th className="p-2.5 text-center">Available</th>
+                            <th className="p-2.5 text-center w-28">Issue Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)] bg-[var(--card-bg)]">
+                          {lotAccessoryPool.map((acc: any) => {
+                            const issueQty = accessoryIssuances[acc.id] ?? 0;
+                            return (
+                              <tr key={acc.id} className={`hover:bg-[var(--table-row-hover)] transition-colors ${issueQty > 0 ? "bg-emerald-500/5" : ""}`}>
+                                <td className="p-2.5">
+                                  <div className="font-semibold text-[var(--text-primary)]">{acc.item_name}</div>
+                                  <div className="text-[10px] text-[var(--text-muted)]">₹{Number(acc.unit_rate).toFixed(2)}/{acc.unit}</div>
+                                </td>
+                                <td className="p-2.5 text-[var(--text-muted)]">{acc.godown_name || "—"}</td>
+                                <td className="p-2.5 text-center text-[var(--text-secondary)] font-mono">{Number(acc.allocated_qty).toLocaleString("en-IN")} {acc.unit}</td>
+                                <td className="p-2.5 text-center text-[var(--text-muted)] font-mono">{Number(acc.total_issued_qty).toLocaleString("en-IN")} {acc.unit}</td>
+                                <td className="p-2.5 text-center font-mono font-bold">
+                                  <span className={Number(acc.available_qty) > 0 ? "text-emerald-600" : "text-red-400"}>
+                                    {Number(acc.available_qty).toLocaleString("en-IN")} {acc.unit}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      max={acc.available_qty}
+                                      value={issueQty || ""}
+                                      onChange={(e) => {
+                                        const val = Math.min(Number(acc.available_qty), Math.max(0, parseFloat(e.target.value) || 0));
+                                        setAccessoryIssuances(prev => ({ ...prev, [acc.id]: val }));
+                                      }}
+                                      placeholder="0"
+                                      disabled={Number(acc.available_qty) <= 0}
+                                      className="w-20 h-8 text-center bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-40"
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ───────────────────────────────────────────────────── */}
+          {/* Section 6: Additional Info (was Section 5)           */}
+          {/* ───────────────────────────────────────────────────── */}
           <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <span className="w-6 h-6 rounded-full bg-[#FEF9C3] text-[#D97706] font-bold text-xs flex items-center justify-center">
-                5
+                6
               </span>
               <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
                 Additional Information

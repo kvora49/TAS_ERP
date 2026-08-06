@@ -10,7 +10,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { data: designs, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get("active_only") === "true";
+
+    let query = supabase
       .from("designs")
       .select(`
         *,
@@ -19,8 +22,13 @@ export async function GET(request: Request) {
         design_colours(*)
       `)
       .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+      .is("deleted_at", null);
+
+    if (activeOnly) {
+      query = query.eq("is_active", true);
+    }
+
+    const { data: designs, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

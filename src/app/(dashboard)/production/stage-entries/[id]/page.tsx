@@ -1,29 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Printer,
   Edit,
+  Trash2,
   ChevronRight,
   FileText,
-  Package,
-  IndianRupee,
-  Users,
-  Settings,
-  Clock,
-  ClipboardList,
-  BarChart2,
   Lightbulb,
-  Boxes
+  Boxes,
+  Lock,
 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import CardSectionHeader from "@/components/shared/CardSectionHeader";
 import HorizontalTimeline from "@/components/shared/HorizontalTimeline";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
+import { Modal } from "@/components/shared/Modal";
+import { cn } from "@/lib/utils";
 
 interface StageEntryDetailProps {
   params: { id: string };
@@ -34,11 +31,24 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Move to stock modal state
+  // Modals state
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [targetGodownId, setTargetGodownId] = useState("");
   const [confirmDesignCode, setConfirmDesignCode] = useState("");
   const [movingToStock, setMovingToStock] = useState(false);
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  // Edit form state
+  const [editDate, setEditDate] = useState("");
+  const [editShift, setEditShift] = useState("day");
+  const [editWorkerId, setEditWorkerId] = useState("");
+  const [editQtyIn, setEditQtyIn] = useState(0);
+  const [editQtyOut, setEditQtyOut] = useState(0);
+  const [editWastageQty, setEditWastageQty] = useState(0);
+  const [editRate, setEditRate] = useState(0);
+  const [editRemarks, setEditRemarks] = useState("");
 
   // Fetch stage entry detail
   const { data, isLoading, error } = useQuery({
@@ -52,6 +62,22 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
   const entry = data?.entry || null;
   const totalStagesCount = data?.totalStagesCount || 0;
+  const isEditable = data?.isEditable ?? true;
+  const editableBlockReason = data?.editableBlockReason ?? null;
+
+  // Initialize edit form when entry loads or modal opens
+  useEffect(() => {
+    if (entry) {
+      setEditDate(entry.entry_date || "");
+      setEditShift(entry.shift || "day");
+      setEditWorkerId(entry.worker_id || entry.worker?.id || "");
+      setEditQtyIn(entry.qty_in || 0);
+      setEditQtyOut(entry.qty_out || 0);
+      setEditWastageQty(entry.wastage_qty || 0);
+      setEditRate(entry.job_work_rate || 0);
+      setEditRemarks(entry.remarks || "");
+    }
+  }, [entry, editModalOpen]);
 
   // Fetch godowns list for Move to Stock target selection
   const { data: godownsData } = useQuery<{ godowns: any[] }>({
@@ -63,10 +89,66 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
   });
   const godowns = godownsData?.godowns || [];
 
+  // Fetch active workers for Edit modal
+  const { data: workersData } = useQuery({
+    queryKey: ["workers-active-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/workers?active=true");
+      return res.json();
+    },
+    enabled: editModalOpen,
+  });
+  const workers = workersData?.workers || [];
+
+  // Update Mutation
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/production/stage-entries/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to update stage entry");
+      return resData;
+    },
+    onSuccess: () => {
+      toast.success("Stage entry updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["stage-entry-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["stage-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["lot-detail"] });
+      setEditModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to update stage entry");
+    },
+  });
+
+  // Delete Mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/production/stage-entries/${id}`, {
+        method: "DELETE",
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to delete stage entry");
+      return resData;
+    },
+    onSuccess: (resData) => {
+      toast.success(resData.message || "Stage entry deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["stage-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["lot-detail"] });
+      router.push(entry?.lot_id ? `/production/lots/${entry.lot_id}` : "/production/stage-entries");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to delete stage entry");
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <span className="text-sm text-[#64748B]">Loading stage entry details...</span>
+        <span className="text-sm text-[var(--text-muted)] font-medium">Loading stage entry details...</span>
       </div>
     );
   }
@@ -75,7 +157,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-2">
         <span className="text-sm font-semibold text-red-500">Failed to load stage entry</span>
-        <Link href="/production/lots" className="text-xs text-[#6366F1] hover:underline">
+        <Link href="/production/lots" className="text-xs text-[var(--primary)] hover:underline font-bold">
           Back to Lots Directory
         </Link>
       </div>
@@ -101,7 +183,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
     {
       label: "Entry Created",
       date: new Date(entry.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-      time: new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
+      time: new Date(entry.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
       status: "completed" as const,
     },
     {
@@ -145,7 +227,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
     { label: "Total Lot Quantity", value: entry.lot?.total_quantity || 0 },
     { label: "Completed Qty (Till Prev Stage)", value: qtyIn },
     { label: "This Stage - Qty Out", value: qtyOut },
-    { label: "Pending Quantity", value: entry.lot?.total_quantity - entry.lot?.completed_quantity },
+    { label: "Pending Quantity", value: (entry.lot?.total_quantity || 0) - (entry.lot?.completed_quantity || 0) },
   ];
 
   const financialSummaryItems = [
@@ -156,12 +238,13 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
       label: "Payment Status",
       value: (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${entry.payment_status === "paid"
-              ? "bg-[#DCFCE7] text-[#15803D]"
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            entry.payment_status === "paid"
+              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
               : entry.payment_status === "partial"
-                ? "bg-[#FFF7ED] text-[#D97706]"
-                : "bg-[#FEE2E2] text-[#DC2626]"
-            }`}
+              ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+              : "bg-red-500/10 text-red-500 border border-red-500/20"
+          }`}
         >
           {entry.payment_status || "unpaid"}
         </span>
@@ -187,24 +270,36 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          design_number: confirmDesignCode,
           godown_id: targetGodownId,
+          confirm_design_code: confirmDesignCode,
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to move lot to stock");
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to move lot to stock");
 
-      toast.success("Lot successfully moved to Finished Stock!");
+      toast.success(data.message || "Lot moved to finished stock successfully!");
       setMoveModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["stage-entry-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["lot-detail", entry.lot_id] });
     } catch (err: any) {
-      toast.error(err.message || "Error moving to stock");
+      toast.error(err.message || "An error occurred");
     } finally {
       setMovingToStock(false);
     }
+  };
+
+  const handleSaveEdit = () => {
+    updateMutation.mutate({
+      entry_date: editDate,
+      shift: editShift,
+      worker_id: editWorkerId,
+      qty_in: editQtyIn,
+      qty_out: editQtyOut,
+      wastage_qty: editWastageQty,
+      job_work_rate: editRate,
+      remarks: editRemarks,
+    });
   };
 
   return (
@@ -212,66 +307,122 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
       {/* Breadcrumbs and Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <nav className="flex items-center gap-1.5 text-xs text-[#64748B] mb-2 font-semibold uppercase tracking-wider">
-            <Link href="/" className="hover:text-[#6366F1] transition-colors">
+          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+            <Link href="/" className="hover:text-[var(--primary)] transition-colors">
               Production
             </Link>
-            <ChevronRight size={12} className="text-[#94A3B8]" />
-            <Link href={`/production/lots/${entry.lot_id}`} className="hover:text-[#6366F1] transition-colors">
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <Link href={`/production/lots/${entry.lot_id}`} className="hover:text-[var(--primary)] transition-colors">
               Lot Detail
             </Link>
-            <ChevronRight size={12} className="text-[#94A3B8]" />
-            <span className="text-[#374151]">Stage Entry Detail</span>
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <span className="text-[var(--text-secondary)]">Stage Entry Detail</span>
           </nav>
-          <h1 className="text-[28px] font-bold text-[#0F172A] leading-tight tracking-tight">
+          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Stage Entry Detail
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/production/lots/${entry.lot_id}`}
-            className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-2xs"
           >
-            <ArrowLeft size={16} />
-            Back to Lot Detail
+            <ArrowLeft size={14} />
+            Back to Lot
           </Link>
+
+          {/* Edit Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!isEditable) {
+                toast.error(editableBlockReason || "This entry is locked and cannot be edited.");
+                return;
+              }
+              router.push(`/production/stage-entries/${id}/edit`);
+            }}
+            className={cn(
+              "border text-xs font-semibold px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer",
+              isEditable
+                ? "border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+                : "border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-faint)] opacity-60"
+            )}
+            title={editableBlockReason || "Edit stage entry"}
+          >
+            <Edit size={14} />
+            Edit Entry
+          </button>
+
+          {/* Delete Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!isEditable) {
+                toast.error(editableBlockReason || "This entry is locked and cannot be deleted.");
+                return;
+              }
+              setDeleteModalOpen(true);
+            }}
+            className={cn(
+              "border text-xs font-semibold px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer",
+              isEditable
+                ? "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                : "border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-faint)] opacity-60"
+            )}
+            title={editableBlockReason || "Delete stage entry"}
+          >
+            <Trash2 size={14} />
+            Delete Entry
+          </button>
+
           {entry.lot?.status !== "completed" && (
             <button
               onClick={() => setMoveModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
             >
-              <Boxes size={16} />
+              <Boxes size={14} />
               Move Lot to Stock
             </button>
           )}
+
           <button
             onClick={() => window.print()}
-            className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-2xs"
           >
-            <Printer size={16} />
-            Print Entry
+            <Printer size={14} />
+            Print
           </button>
         </div>
       </div>
 
+      {/* Lock Guard Banner if entry cannot be edited/deleted */}
+      {!isEditable && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 flex items-center gap-3 text-amber-600 dark:text-amber-400">
+          <Lock className="h-4 w-4 shrink-0" />
+          <p className="text-xs font-medium leading-relaxed">
+            <strong className="font-bold">Entry Locked:</strong> {editableBlockReason}
+          </p>
+        </div>
+      )}
+
       {/* ENTRY HEADER CARD */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-[#F3F4F6] pb-4 lg:pb-0 pr-6 shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-[#EEF2FF] text-[#6366F1] flex items-center justify-center shadow-sm shrink-0">
+          <div className="flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-[var(--border)] pb-4 lg:pb-0 pr-6 shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shadow-xs shrink-0">
               <FileText className="h-6 w-6" />
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <span className="text-xl font-black text-[#0F172A] font-mono leading-none">
+                <span className="text-xl font-black text-[var(--text-primary)] font-mono leading-none">
                   {entry.entry_number}
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#DCFCE7] text-[#15803D]">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   Completed
                 </span>
               </div>
-              <p className="text-[10px] text-[#94A3B8] font-bold mt-1.5 uppercase tracking-wide">
+              <p className="text-[10px] text-[var(--text-faint)] font-bold mt-1.5 uppercase tracking-wide">
                 Reference ID: {entry.id}
               </p>
             </div>
@@ -279,8 +430,8 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-6 gap-6 text-sm">
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Lot No.</span>
-              <span className="text-sm font-semibold text-[#6366F1] mt-0.5 block font-mono">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Lot No.</span>
+              <span className="text-sm font-semibold text-[var(--primary)] mt-0.5 block font-mono">
                 <Link href={`/production/lots/${entry.lot_id}`} className="hover:underline">
                   {entry.lot?.lot_number}
                 </Link>
@@ -288,36 +439,36 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Production Stage</span>
-              <span className="text-sm font-semibold text-[#374151] mt-0.5 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Production Stage</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] mt-0.5 block">
                 {entry.stage?.stage_name}
               </span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Entry Date</span>
-              <span className="text-sm font-semibold text-[#374151] mt-0.5 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Entry Date</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] mt-0.5 block font-mono">
                 {entry.entry_date}
               </span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Shift</span>
-              <span className="text-sm font-semibold text-[#374151] capitalize mt-0.5 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Shift</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] capitalize mt-0.5 block">
                 {entry.shift} Shift
               </span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Created By</span>
-              <span className="text-sm font-semibold text-[#374151] mt-0.5 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Created By</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] mt-0.5 block">
                 System
               </span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Logged On</span>
-              <span className="text-sm font-semibold text-[#374151] mt-0.5 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Logged On</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] mt-0.5 block font-mono">
                 {new Date(entry.created_at).toLocaleDateString("en-IN")}
               </span>
             </div>
@@ -327,60 +478,60 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
       {/* MAIN CONTENT AREA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Read-Only Cards */}
+        {/* Left Column: Cards */}
         <div className="lg:col-span-2 space-y-6">
           {/* Card 1: Quantity Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs">
             <CardSectionHeader variant="quantity" title="Quantity Details" />
             <div className="grid grid-cols-5 gap-4 text-center">
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-[#E2E8F0]">
-                <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Qty In</span>
-                <span className="text-lg font-bold text-[#374151] mt-1 block">{qtyIn}</span>
+              <div className="bg-[var(--page-bg)] p-3.5 rounded-lg border border-[var(--border)]">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Qty In</span>
+                <span className="text-lg font-bold text-[var(--text-primary)] mt-1 block font-mono">{qtyIn}</span>
               </div>
-              <div className="bg-green-50 p-3.5 rounded-lg border border-green-100">
-                <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider block">Qty Out</span>
-                <span className="text-lg font-bold text-green-700 mt-1 block">{qtyOut}</span>
+              <div className="bg-emerald-500/10 p-3.5 rounded-lg border border-emerald-500/20">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Qty Out</span>
+                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 block font-mono">{qtyOut}</span>
               </div>
-              <div className="bg-orange-50 p-3.5 rounded-lg border border-orange-100">
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider block">Wastage Qty</span>
-                <span className="text-lg font-bold text-orange-700 mt-1 block">{wastageQty}</span>
+              <div className="bg-amber-500/10 p-3.5 rounded-lg border border-amber-500/20">
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">Wastage Qty</span>
+                <span className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block font-mono">{wastageQty}</span>
               </div>
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-[#E2E8F0]">
-                <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Wastage %</span>
-                <span className="text-lg font-bold text-[#374151] mt-1 block">{wastagePercent}%</span>
+              <div className="bg-[var(--page-bg)] p-3.5 rounded-lg border border-[var(--border)]">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Wastage %</span>
+                <span className="text-lg font-bold text-[var(--text-primary)] mt-1 block font-mono">{wastagePercent}%</span>
               </div>
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-[#E2E8F0]">
-                <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Balance Qty</span>
-                <span className="text-lg font-bold text-[#374151] mt-1 block">{qtyBalance}</span>
+              <div className="bg-[var(--page-bg)] p-3.5 rounded-lg border border-[var(--border)]">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Balance Qty</span>
+                <span className="text-lg font-bold text-[var(--text-primary)] mt-1 block font-mono">{qtyBalance}</span>
               </div>
             </div>
           </div>
 
           {/* Card 2: Job Work Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs">
             <CardSectionHeader variant="job_work" title="Job Work Details" />
             <div className="grid grid-cols-4 gap-4 text-sm text-center">
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Job Work Type</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block capitalize">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Job Work Type</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block capitalize">
                   {entry.job_work_type || "—"}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Rate (Per Pc)</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block font-mono">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Rate (Per Pc)</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block font-mono">
                   ₹{(entry.job_work_rate || 0).toFixed(2)}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Payment Type</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block capitalize">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Payment Type</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block capitalize">
                   {entry.payment_type ? entry.payment_type.replace("_", " ") : "Piece Rate"}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Total Amount</span>
-                <span className="text-base font-bold text-[#6366F1] mt-1 block">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Total Amount</span>
+                <span className="text-base font-bold text-[var(--primary)] mt-1 block font-mono">
                   {formatCurrency(entry.total_job_work_amount || 0)}
                 </span>
               </div>
@@ -388,30 +539,30 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
           </div>
 
           {/* Card 3: Worker Assignment */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs">
             <CardSectionHeader variant="worker" title="Worker Assignment" />
             <div className="grid grid-cols-4 gap-4 text-sm text-center">
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Assigned Worker</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Assigned Worker</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block">
                   {entry.worker?.name || "—"}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Worker Type</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block capitalize">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Worker Type</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block capitalize">
                   {entry.worker_type ? entry.worker_type.replace("_", " ") : "—"}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">No. of Workers</span>
-                <span className="text-sm font-semibold text-[#374151] mt-1 block">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">No. of Workers</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block font-mono">
                   {entry.no_of_workers || 1}
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] text-xs font-semibold block uppercase">Total Labor Cost</span>
-                <span className="text-base font-bold text-[#374151] mt-1 block">
+                <span className="text-[var(--text-muted)] text-xs font-semibold block uppercase">Total Labor Cost</span>
+                <span className="text-base font-bold text-[var(--text-primary)] mt-1 block font-mono">
                   {formatCurrency(entry.total_labor_cost || 0)}
                 </span>
               </div>
@@ -419,12 +570,12 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
           </div>
 
           {/* Card 4: Additional Information & Attachments */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs">
             <CardSectionHeader variant="info" title="Additional Information" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
               <div>
-                <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider block border-b border-[#F3F4F6] pb-1.5 mb-2">Remarks</span>
-                <p className="text-[#374151] leading-relaxed italic">{entry.remarks || "No remarks entered for this entry."}</p>
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block border-b border-[var(--border)] pb-1.5 mb-2">Remarks</span>
+                <p className="text-[var(--text-body)] leading-relaxed italic">{entry.remarks || "No remarks entered for this entry."}</p>
               </div>
 
               <div>
@@ -446,7 +597,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               </div>
 
               <div>
-                <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider block border-b border-[#F3F4F6] pb-1.5 mb-2">Finished Goods Photos</span>
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block border-b border-[var(--border)] pb-1.5 mb-2">Finished Goods Photos</span>
                 {entry.attachments && entry.attachments.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {entry.attachments.map((url: string, idx: number) => (
@@ -455,7 +606,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="relative w-16 h-16 border border-slate-200 rounded overflow-hidden bg-slate-50 flex items-center justify-center hover:ring-1 hover:ring-indigo-500"
+                        className="relative w-16 h-16 border border-[var(--border)] rounded overflow-hidden bg-[var(--page-bg)] flex items-center justify-center hover:ring-1 hover:ring-[var(--primary)]"
                       >
                         {url.endsWith(".pdf") ? (
                           <span className="text-[10px] font-bold text-red-500">PDF</span>
@@ -466,14 +617,14 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[#94A3B8] italic block text-xs">No photos uploaded</span>
+                  <span className="text-[var(--text-faint)] italic block text-xs">No photos uploaded</span>
                 )}
               </div>
             </div>
           </div>
 
           {/* Card 5: Timeline */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs">
             <CardSectionHeader variant="timeline" title="Entry Processing Timeline" />
             <HorizontalTimeline steps={timelineSteps} />
           </div>
@@ -481,22 +632,17 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
         {/* Right Column: Summaries */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Lot Summary */}
           <LotSummaryPanel title="Lot & Stage Summary" items={lotSummaryItems} />
-
-          {/* Quantity Summary */}
           <LotSummaryPanel title="Quantity Summary (Lot)" items={qtySummaryItems} />
-
-          {/* Financial Summary */}
           <LotSummaryPanel title="Financial Summary (This Entry)" items={financialSummaryItems} />
 
           {/* Note Card */}
-          <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-4 flex gap-2.5">
-            <Lightbulb className="h-5 w-5 text-[#D97706] shrink-0 mt-0.5" />
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-2.5 text-amber-600 dark:text-amber-400">
+            <Lightbulb className="h-5 w-5 shrink-0 mt-0.5" />
             <div>
-              <span className="text-xs font-bold text-[#D97706] block">Note</span>
-              <p className="text-[11px] text-[#374151] leading-relaxed mt-1">
-                This entry is locked. You can edit it only if you have admin permissions and need to make manual corrections.
+              <span className="text-xs font-bold uppercase tracking-wide block">Locking Policy Note</span>
+              <p className="text-[11px] text-[var(--text-body)] leading-relaxed mt-1">
+                Stage entries cannot be modified or deleted if the lot is completed, output is moved to stock, payment is recorded, or entries exist in subsequent stages.
               </p>
             </div>
           </div>
@@ -505,22 +651,22 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
 
       {/* MOVE TO STOCK DIALOG OVERLAY */}
       {moveModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-5 space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide border-b border-[var(--border)] pb-2">
               Move Lot to Finished Stock
             </h3>
-            <p className="text-xs text-slate-500 leading-normal">
+            <p className="text-xs text-[var(--text-muted)] leading-normal">
               This action will finalize the production lot and add the finished pieces of design **{entry.lot?.design?.code}** to the selected finished goods godown.
             </p>
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase">Target Godown</label>
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Target Godown</label>
                 <select
                   value={targetGodownId}
                   onChange={(e) => setTargetGodownId(e.target.value)}
-                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Select Godown</option>
                   {godowns.map((g) => (
@@ -530,7 +676,7 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">
                   Confirm Design Code (Type **{entry.lot?.design?.code}**)
                 </label>
                 <input
@@ -538,16 +684,16 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
                   value={confirmDesignCode}
                   onChange={(e) => setConfirmDesignCode(e.target.value)}
                   placeholder={entry.lot?.design?.code}
-                  className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
               <button
                 type="button"
                 onClick={() => setMoveModalOpen(false)}
-                className="h-9 px-4 border border-slate-200 rounded text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                className="px-3 h-8 rounded border border-[var(--border)] text-xs text-[var(--text-muted)] hover:bg-[var(--table-row-hover)]"
               >
                 Cancel
               </button>
@@ -555,13 +701,177 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
                 type="button"
                 onClick={handleMoveToStock}
                 disabled={movingToStock}
-                className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold disabled:opacity-50 cursor-pointer"
+                className="px-3 h-8 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs disabled:opacity-50"
               >
-                {movingToStock ? "Moving..." : "Confirm & Move"}
+                {movingToStock ? "Moving..." : "Confirm & Move Stock"}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* EDIT STAGE ENTRY MODAL */}
+      {editModalOpen && (
+        <Modal
+          open={editModalOpen}
+          onOpenChange={(open) => !open && setEditModalOpen(false)}
+          title={`Edit Stage Entry ${entry.entry_number}`}
+          maxWidth="max-w-lg"
+        >
+          <div className="space-y-4 pt-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Entry Date</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Shift</label>
+                <select
+                  value={editShift}
+                  onChange={(e) => setEditShift(e.target.value)}
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                >
+                  <option value="day">Day Shift</option>
+                  <option value="night">Night Shift</option>
+                  <option value="general">General Shift</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Assigned Worker</label>
+              <select
+                value={editWorkerId}
+                onChange={(e) => setEditWorkerId(e.target.value)}
+                className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+              >
+                <option value="">Select Worker</option>
+                {workers.map((w: any) => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.worker_id || "Worker"})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Qty In</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editQtyIn}
+                  onChange={(e) => setEditQtyIn(parseInt(e.target.value, 10) || 0)}
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Qty Out</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editQtyOut}
+                  onChange={(e) => setEditQtyOut(parseInt(e.target.value, 10) || 0)}
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Wastage Qty</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editWastageQty}
+                  onChange={(e) => setEditWastageQty(parseInt(e.target.value, 10) || 0)}
+                  className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Job Work Rate (INR / Pc)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRate}
+                onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
+                className="w-full h-9 rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase">Remarks</label>
+              <textarea
+                rows={3}
+                value={editRemarks}
+                onChange={(e) => setEditRemarks(e.target.value)}
+                placeholder="Optional remarks..."
+                className="w-full rounded bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] p-2 text-xs focus:outline-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="px-4 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--table-row-hover)] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={updateMutation.isPending}
+                className="px-4 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalOpen && (
+        <Modal
+          open={deleteModalOpen}
+          onOpenChange={(open) => !open && setDeleteModalOpen(false)}
+          title={`Delete Entry ${entry.entry_number}`}
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-[var(--text-body)] leading-relaxed">
+              Are you sure you want to delete stage entry <strong className="text-[var(--text-primary)]">{entry.entry_number}</strong> for stage <strong>{entry.stage?.stage_name}</strong>?
+            </p>
+            <p className="text-[11px] text-[var(--text-faint)]">
+              This will reconcile completed quantities for this stage. This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="px-4 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--table-row-hover)] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="px-4 h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete Entry"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

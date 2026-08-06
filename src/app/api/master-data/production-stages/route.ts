@@ -30,20 +30,24 @@ async function resolveOptionalTemplateId(supabase: any, businessId: string, requ
     if (anyTemp?.id) return anyTemp.id;
 
     // 3. Auto-create default template for this business
-    const { data: newTemp } = await supabase
+    const { data: newTemp, error: createErr } = await supabase
       .from("production_templates")
       .insert({
         business_id: businessId,
         name: "Default Garment Flow",
         description: "Standard master production workflow template",
         is_default: true,
-        is_active: true,
       })
       .select("id")
       .single();
 
+    if (createErr) {
+      console.error("Failed to auto-create default production template:", createErr);
+    }
+
     return newTemp?.id || null;
   } catch (e) {
+    console.error("Error in resolveOptionalTemplateId:", e);
     return null;
   }
 }
@@ -106,16 +110,20 @@ export async function POST(request: Request) {
 
     const template_id = await resolveOptionalTemplateId(supabase, businessId, requestedTemplateId);
 
-    // Get max order_index for this business (and optional template_id) to append this stage at the end
+    if (!template_id) {
+      return NextResponse.json(
+        { error: "Failed to assign a workflow template. Please create a workflow template first." },
+        { status: 400 }
+      );
+    }
+
+    // Get max order_index for this business and template_id to append this stage at the end
     let maxOrderQuery = supabase
       .from("production_stages")
       .select("order_index")
       .eq("business_id", businessId)
+      .eq("template_id", template_id)
       .is("deleted_at", null);
-
-    if (template_id) {
-      maxOrderQuery = maxOrderQuery.eq("template_id", template_id);
-    }
 
     const { data: maxOrderData } = await maxOrderQuery
       .order("order_index", { ascending: false })
@@ -128,6 +136,7 @@ export async function POST(request: Request) {
 
     const insertPayload: any = {
       business_id: businessId,
+      template_id,
       name,
       description: description || null,
       icon: icon || null,
@@ -137,10 +146,6 @@ export async function POST(request: Request) {
       custom_fields: custom_fields || [],
       is_active: is_active !== false,
     };
-
-    if (template_id) {
-      insertPayload.template_id = template_id;
-    }
 
     const { data: stage, error } = await supabase
       .from("production_stages")

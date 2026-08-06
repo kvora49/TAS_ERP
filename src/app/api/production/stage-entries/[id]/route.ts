@@ -96,9 +96,13 @@ export async function GET(
       .eq("lot_id", entry.lot_id)
       .eq("business_id", businessId);
 
+    const editableBlockReason = await checkStageEntryEditable(supabase, businessId, rawEntry);
+
     return NextResponse.json({
       entry,
       totalStagesCount: stages?.length || 0,
+      isEditable: !editableBlockReason,
+      editableBlockReason,
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -147,6 +151,12 @@ export async function PUT(
 
     if (!oldEntry) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    }
+
+    // Check guard conditions before editing
+    const guardError = await checkStageEntryEditable(supabase, businessId, oldEntry);
+    if (guardError) {
+      return NextResponse.json({ error: guardError }, { status: 400 });
     }
 
     // Computations
@@ -307,66 +317,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Stage entry not found" }, { status: 404 });
     }
 
-    // -------------------------------------------------------------
-    // GUARDRAIL 1: Payment Settled / Paid Amount Check
-    // -------------------------------------------------------------
-    const paidAmount = Number(oldEntry.paid_amount || 0);
-    if (paidAmount > 0 || oldEntry.payment_status === "paid" || oldEntry.payment_status === "partial") {
-      return NextResponse.json(
-        {
-          error: `Cannot delete stage entry ${oldEntry.entry_number} because a payment of ₹${paidAmount.toFixed(
-            2
-          )} has already been recorded against it. Please reverse or adjust the payment voucher first.`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const { data: linkedPayments } = await supabase
-      .from("job_work_payment_entries")
-      .select("id")
-      .eq("stage_entry_id", id)
-      .limit(1);
-
-    if (linkedPayments && linkedPayments.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Cannot delete stage entry ${oldEntry.entry_number} because it is linked to job work payment vouchers. Please delete or unlink the payment vouchers first.`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // -------------------------------------------------------------
-    // GUARDRAIL 2: Moved to Finished Stock Check
-    // -------------------------------------------------------------
-    if (
-      oldEntry.moved_to_stock === true ||
-      oldEntry.finished_stock_id ||
-      oldEntry.is_moved_to_stock
-    ) {
-      return NextResponse.json(
-        {
-          error: `Cannot delete stage entry ${oldEntry.entry_number} because the processed output items have already been moved to Finished Stock.`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const { data: stockMovements } = await supabase
-      .from("stock_ledger")
-      .select("id")
-      .eq("reference_id", id)
-      .eq("reference_type", "stage_entry")
-      .limit(1);
-
-    if (stockMovements && stockMovements.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Cannot delete stage entry ${oldEntry.entry_number} because output inventory has already been posted to Finished Stock ledger.`,
-        },
-        { status: 400 }
-      );
+    // Guard check using unified checkStageEntryEditable helper
+    const guardError = await checkStageEntryEditable(supabase, businessId, oldEntry);
+    if (guardError) {
+      return NextResponse.json({ error: guardError }, { status: 400 });
     }
 
     // -------------------------------------------------------------
@@ -414,3 +368,70 @@ export async function DELETE(
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: Check if a stage entry is editable or deletable
+// ──────────────────────────────────────────────────────────────────────────────
+async function checkStageEntryEditable(supabase: any, businessId: string, oldEntry: any): Promise<string | null> {
+  // 1. Check if lot is completed or output moved to stock
+  if (oldEntry.lot_id) {
+    const { data: lot } = await supabase
+      .from("production_lots")
+      .select("id, status, lot_number")
+      .eq("id", oldEntry.lot_id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (lot?.status === "completed") {
+      return `Cannot modify stage entry ${oldEntry.entry_number} because Lot #${lot.lot_number} has already been completed.`;
+    }
+  }
+
+  if (oldEntry.moved_to_stock === true || oldEntry.is_moved_to_stock || oldEntry.finished_stock_id) {
+    return `Cannot modify stage entry ${oldEntry.entry_number} because output items have already been moved to Finished Stock.`;
+  }
+
+  // 2. Check payment status / linked payment vouchers
+  const paidAmount = Number(oldEntry.paid_amount || 0);
+  if (paidAmount > 0 || oldEntry.payment_status === "paid" || oldEntry.payment_status === "partial") {
+    return `Cannot modify stage entry ${oldEntry.entry_number} because a payment of ₹${paidAmount.toFixed(
+      2
+    )} has already been recorded against it.`;
+  }
+
+  // 3. Check if subsequent stages in sequence have entries logged
+  if (oldEntry.lot_stage_id && oldEntry.lot_id) {
+    const { data: currentStage } = await supabase
+      .from("lot_production_stages")
+      .select("id, sequence_no, stage_name")
+      .eq("id", oldEntry.lot_stage_id)
+      .maybeSingle();
+
+    if (currentStage) {
+      const { data: nextStages } = await supabase
+        .from("lot_production_stages")
+        .select("id, stage_name, sequence_no")
+        .eq("lot_id", oldEntry.lot_id)
+        .gt("sequence_no", currentStage.sequence_no);
+
+      if (nextStages && nextStages.length > 0) {
+        const nextStageIds = nextStages.map((s: any) => s.id);
+        const { data: subsequentEntries } = await supabase
+          .from("stage_entries")
+          .select("id, entry_number, lot_stage_id")
+          .in("lot_stage_id", nextStageIds)
+          .eq("business_id", businessId)
+          .limit(1);
+
+        if (subsequentEntries && subsequentEntries.length > 0) {
+          const nextStageObj = nextStages.find((s: any) => s.id === subsequentEntries[0].lot_stage_id);
+          const nextStageName = nextStageObj?.stage_name || "a subsequent stage";
+          return `Cannot modify stage entry ${oldEntry.entry_number} because entries have already been logged in subsequent stage "${nextStageName}". Please delete downstream stage entries first.`;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+

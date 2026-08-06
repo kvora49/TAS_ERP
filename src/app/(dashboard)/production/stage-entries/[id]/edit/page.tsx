@@ -7,48 +7,38 @@ import {
   ArrowLeft,
   ChevronRight,
   ClipboardList,
-  Package,
-  IndianRupee,
-  Users,
-  FileText,
   Save,
-  CheckCircle,
+  Lock,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 import { NumericInput } from "@/components/ui/numeric-input";
-import PageState from "@/components/shared/PageState";
 
-interface EditStageEntryProps {
+interface EditStageEntryPageProps {
   params: { id: string };
 }
 
-interface Worker {
-  id: string;
-  name: string;
-  worker_id: string;
-  type: string;
-  default_rate: number;
-}
-
-export default function EditStageEntryPage({ params }: EditStageEntryProps) {
+export default function EditStageEntryPage({ params }: EditStageEntryPageProps) {
   const { id } = params;
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Form State
+  // Form states
   const [entryDate, setEntryDate] = useState("");
+  const [shift, setShift] = useState("day");
+  const [workerId, setWorkerId] = useState("");
   const [qtyIn, setQtyIn] = useState(0);
   const [qtyOut, setQtyOut] = useState(0);
   const [wastageQty, setWastageQty] = useState(0);
   const [jobWorkRate, setJobWorkRate] = useState(0);
-  const [workerId, setWorkerId] = useState("");
+  const [paymentType, setPaymentType] = useState("piece_rate");
+  const [noOfWorkers, setNoOfWorkers] = useState(1);
   const [remarks, setRemarks] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  // Fetch stage entry detail
-  const { data: entryData, isLoading, error } = useQuery({
-    queryKey: ["stage-entry-edit", id],
+  // Fetch entry detail
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["stage-entry-detail", id],
     queryFn: async () => {
       const res = await fetch(`/api/production/stage-entries/${id}`);
       if (!res.ok) throw new Error("Failed to fetch stage entry details");
@@ -56,258 +46,430 @@ export default function EditStageEntryPage({ params }: EditStageEntryProps) {
     },
   });
 
-  const entry = entryData?.entry || null;
+  const entry = data?.entry || null;
+  const isEditable = data?.isEditable ?? true;
+  const editableBlockReason = data?.editableBlockReason ?? null;
 
-  // Fetch Workers List
-  const { data: workersData } = useQuery<{ workers: Worker[] }>({
-    queryKey: ["workers-list-all"],
-    queryFn: async () => {
-      const res = await fetch("/api/workers");
-      return res.json();
-    },
-  });
-
-  const workers = workersData?.workers || [];
-
-  // Populate form fields when entry loads
+  // Pre-fill state when entry loads
   useEffect(() => {
     if (entry) {
-      setEntryDate(entry.entry_date || new Date().toISOString().substring(0, 10));
-      setQtyIn(Number(entry.qty_in || 0));
-      setQtyOut(Number(entry.qty_out || 0));
-      setWastageQty(Number(entry.wastage_qty || 0));
-      setJobWorkRate(Number(entry.job_work_rate || 0));
-      setWorkerId(entry.worker_id || "");
+      setEntryDate(entry.entry_date || "");
+      setShift(entry.shift || "day");
+      setWorkerId(entry.worker_id || entry.worker?.id || "");
+      setQtyIn(entry.qty_in || 0);
+      setQtyOut(entry.qty_out || 0);
+      setWastageQty(entry.wastage_qty || 0);
+      setJobWorkRate(entry.job_work_rate || 0);
+      setPaymentType(entry.payment_type || "piece_rate");
+      setNoOfWorkers(entry.no_of_workers || 1);
       setRemarks(entry.remarks || "");
     }
   }, [entry]);
 
-  // Derived calculations
-  const totalJobWorkAmount = qtyOut * jobWorkRate;
+  // Fetch active workers
+  const { data: workersData } = useQuery({
+    queryKey: ["workers-active-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/workers?active=true");
+      return res.json();
+    },
+  });
+  const workers = workersData?.workers || [];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entryDate) {
-      toast.error("Please select entry date");
-      return;
-    }
-    if (qtyOut <= 0) {
-      toast.error("Processed output quantity must be greater than zero");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const payload = {
-        lot_id: entry.lot_id,
-        lot_stage_id: entry.lot_stage_id,
-        entry_date: entryDate,
-        qty_in: qtyIn,
-        qty_out: qtyOut,
-        wastage_qty: wastageQty,
-        job_work_rate: jobWorkRate,
-        total_job_work_amount: totalJobWorkAmount,
-        worker_id: workerId || null,
-        remarks: remarks || null,
-      };
-
+  // Update Mutation
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
       const res = await fetch(`/api/production/stage-entries/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to update stage entry");
-
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to update stage entry");
+      return resData;
+    },
+    onSuccess: () => {
       toast.success("Stage entry updated successfully!");
       queryClient.invalidateQueries({ queryKey: ["stage-entry-detail", id] });
-      queryClient.invalidateQueries({ queryKey: ["job-work-entries-list"] });
-      queryClient.invalidateQueries({ queryKey: ["worker-ledger"] });
-
-      router.push("/production/job-work");
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["stage-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["lot-detail"] });
+      router.push(`/production/stage-entries/${id}`);
+    },
+    onError: (err: any) => {
       toast.error(err.message || "Failed to update stage entry");
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const handleWorkerChange = (wId: string) => {
+    setWorkerId(wId);
+    if (wId) {
+      const matched = workers.find((w: any) => w.id === wId);
+      if (matched && matched.default_rate !== undefined && matched.default_rate !== null) {
+        setJobWorkRate(matched.default_rate);
+      }
     }
   };
 
-  return (
-    <PageState isLoading={isLoading} error={error?.message}>
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        {/* Breadcrumbs & Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-gray-200 pb-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/production/job-work"
-              className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-gray-200 shadow-sm"
-            >
-              <ArrowLeft className="h-5 w-5 text-slate-500" />
-            </Link>
-            <div>
-              <nav className="flex items-center gap-2 text-xs font-semibold text-[#64748B] mb-0.5 select-none">
-                <Link href="/" className="hover:text-[#6366F1] transition-colors">
-                  Dashboard
-                </Link>
-                <ChevronRight size={12} className="text-[#94A3B8]" />
-                <Link href="/production/job-work" className="hover:text-[#6366F1] transition-colors">
-                  Job Work
-                </Link>
-                <ChevronRight size={12} className="text-[#94A3B8]" />
-                <span className="text-[#0F172A] font-bold">Edit Entry</span>
-              </nav>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <ClipboardList className="text-[#5B63D3]" size={24} />
-                <span>Edit Stage Entry: {entry?.entry_number}</span>
-              </h1>
-            </div>
-          </div>
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isEditable) {
+      toast.error(editableBlockReason || "This entry is locked.");
+      return;
+    }
+    if (!entryDate) {
+      toast.error("Entry date is required.");
+      return;
+    }
+    if (qtyIn <= 0) {
+      toast.error("Quantity In must be greater than 0.");
+      return;
+    }
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="h-10 px-4 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="h-10 px-5 rounded-xl bg-[#5B63D3] hover:bg-[#4F55C3] text-white font-bold text-xs shadow-md transition-all flex items-center gap-2"
-            >
-              <Save size={16} />
-              <span>{submitting ? "Saving..." : "Save Changes"}</span>
-            </button>
-          </div>
+    updateMutation.mutate({
+      entry_date: entryDate,
+      shift,
+      worker_id: workerId,
+      qty_in: qtyIn,
+      qty_out: qtyOut,
+      wastage_qty: wastageQty,
+      job_work_rate: jobWorkRate,
+      payment_type: paymentType,
+      no_of_workers: noOfWorkers,
+      remarks,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <span className="text-sm text-[var(--text-muted)] font-medium">Loading stage entry data...</span>
+      </div>
+    );
+  }
+
+  if (error || !entry) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-2">
+        <span className="text-sm font-semibold text-red-500">Failed to load stage entry</span>
+        <Link href="/production/stage-entries" className="text-xs text-[var(--primary)] hover:underline font-bold">
+          Back to Stage Entries
+        </Link>
+      </div>
+    );
+  }
+
+  const wastagePercent = qtyIn > 0 ? ((wastageQty / qtyIn) * 100).toFixed(2) : "0.00";
+  const qtyBalance = qtyIn - qtyOut - wastageQty;
+  const totalLaborCost = qtyOut * jobWorkRate;
+
+  const lotSummaryItems = [
+    { label: "Entry Number", value: entry.entry_number },
+    { label: "Lot No.", value: entry.lot?.lot_number || "—" },
+    { label: "Stage Name", value: entry.stage?.stage_name || "—" },
+    { label: "Stage Sequence", value: `${entry.stage?.sequence_no || 0}` },
+  ];
+
+  return (
+    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto animate-fadeIn">
+      {/* Header & Breadcrumb */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+            <Link href="/" className="hover:text-[var(--primary)] transition-colors">
+              Production
+            </Link>
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <Link href="/production/stage-entries" className="hover:text-[var(--primary)] transition-colors">
+              Stage Entries
+            </Link>
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <span className="text-[var(--text-secondary)]">Edit Entry {entry.entry_number}</span>
+          </nav>
+          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+            Edit Stage Entry <span className="font-mono text-[var(--primary)]">{entry.entry_number}</span>
+          </h1>
         </div>
 
-        {/* Form Body */}
-        {entry && (
-          <form onSubmit={handleSubmit} className="space-y-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            {/* Info Summary Banner */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-              <div>
-                <span className="text-[10px] text-slate-400 block font-bold uppercase">Production Lot</span>
-                <span className="font-extrabold text-[#6366F1]">{entry.lot?.lot_number || "—"}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-bold uppercase">Production Stage</span>
-                <span className="font-bold text-slate-800">{entry.stage?.stage_name || "—"}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-bold uppercase">Payment Status</span>
-                <span className="font-bold uppercase text-amber-600">{entry.payment_status || "unpaid"}</span>
-              </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/production/stage-entries/${id}`}
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-[var(--card-bg)] shadow-2xs"
+          >
+            <ArrowLeft size={16} />
+            Cancel &amp; Back
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isEditable || updateMutation.isPending}
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-xs px-5 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+          >
+            <Save size={16} />
+            {updateMutation.isPending ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+
+      {/* Lock Guard Banner */}
+      {!isEditable && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3 text-amber-600 dark:text-amber-400">
+          <Lock className="h-5 w-5 shrink-0" />
+          <p className="text-xs font-medium leading-relaxed">
+            <strong className="font-bold">Entry Locked:</strong> {editableBlockReason}
+          </p>
+        </div>
+      )}
+
+      {/* Info Bar */}
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-2xs flex flex-wrap items-center gap-x-8 gap-y-2 text-xs">
+        <div>
+          <span className="text-[var(--text-muted)] block">Lot Number:</span>
+          <span className="font-bold text-[var(--primary)] font-mono">{entry.lot?.lot_number || "—"}</span>
+        </div>
+        <div>
+          <span className="text-[var(--text-muted)] block">Stage:</span>
+          <span className="font-bold text-[var(--text-primary)]">{entry.stage?.stage_name}</span>
+        </div>
+        <div>
+          <span className="text-[var(--text-muted)] block">Lot Total Qty:</span>
+          <span className="font-bold text-[var(--text-primary)]">{entry.lot?.total_quantity} Pcs</span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Form Sections */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Section 1: Basic Info */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-3 border-b border-[var(--border)] pb-3">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
+                1
+              </span>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                Basic Entry Details
+              </h3>
             </div>
 
-            {/* Fields Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
                   Entry Date <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
                   value={entryDate}
                   onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] text-xs font-bold focus:ring-2 focus:ring-[#5B63D3] outline-none"
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                  Assigned Job Worker
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Shift <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={shift}
+                  onChange={(e) => setShift(e.target.value)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
+                >
+                  <option value="day">Day Shift (9 AM - 6 PM)</option>
+                  <option value="night">Night Shift (8 PM - 5 AM)</option>
+                  <option value="general">General Shift</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Quantities */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-3 border-b border-[var(--border)] pb-3">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
+                2
+              </span>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                Quantity Details
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Quantity In <span className="text-red-500">*</span>
+                </label>
+                <NumericInput
+                  min="1"
+                  value={qtyIn}
+                  onChange={(e) => setQtyIn(parseInt(e.target.value, 10) || 0)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-sm font-bold focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Quantity Out <span className="text-red-500">*</span>
+                </label>
+                <NumericInput
+                  min="0"
+                  value={qtyOut}
+                  onChange={(e) => setQtyOut(parseInt(e.target.value, 10) || 0)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-emerald-600 font-bold text-sm focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Wastage Quantity
+                </label>
+                <NumericInput
+                  min="0"
+                  value={wastageQty}
+                  onChange={(e) => setWastageQty(parseInt(e.target.value, 10) || 0)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-red-500 font-bold text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[var(--border)] text-xs">
+              <div className="bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                <span className="text-[var(--text-muted)] block">Calculated Wastage %:</span>
+                <span className="font-bold text-[var(--text-primary)] font-mono text-sm">{wastagePercent}%</span>
+              </div>
+              <div className="bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                <span className="text-[var(--text-muted)] block">Balance Qty (In Progress):</span>
+                <span className="font-bold text-[var(--text-primary)] font-mono text-sm">{qtyBalance} pcs</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Job Work & Worker */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-3 border-b border-[var(--border)] pb-3">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
+                3
+              </span>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                Worker &amp; Financials
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Assigned Worker
                 </label>
                 <select
                   value={workerId}
-                  onChange={(e) => setWorkerId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] bg-white text-xs font-bold focus:ring-2 focus:ring-[#5B63D3] outline-none"
+                  onChange={(e) => handleWorkerChange(e.target.value)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
                 >
                   <option value="">Select Worker</option>
-                  {workers.map((w) => (
+                  {workers.map((w: any) => (
                     <option key={w.id} value={w.id}>
-                      {w.name} ({w.worker_id})
+                      {w.name} ({w.worker_id || "WRK"}) — ₹{w.default_rate || 0}/pc
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                  Input Quantity (Pcs)
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Job Work Rate (INR / Pc)
                 </label>
-                <NumericInput
-                  value={qtyIn}
-                  onChange={(e) => setQtyIn(parseFloat(e.target.value) || 0)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] text-xs font-bold outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                  Processed Output Quantity (Pcs) <span className="text-red-500">*</span>
-                </label>
-                <NumericInput
-                  value={qtyOut}
-                  onChange={(e) => setQtyOut(parseFloat(e.target.value) || 0)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] text-xs font-extrabold text-indigo-600 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                  Scrap / Wastage Qty (Pcs)
-                </label>
-                <NumericInput
-                  value={wastageQty}
-                  onChange={(e) => setWastageQty(parseFloat(e.target.value) || 0)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] text-xs font-bold text-rose-600 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                  Job Work Piece Rate (₹)
-                </label>
-                <NumericInput
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
                   value={jobWorkRate}
                   onChange={(e) => setJobWorkRate(parseFloat(e.target.value) || 0)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--input-border)] text-xs font-bold text-slate-900 outline-none"
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
                 />
               </div>
             </div>
 
-            {/* Calculated Total Amount Box */}
-            <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Calculated Total Job Work Amount</p>
-                <p className="text-[#6366F1] text-xs font-semibold mt-0.5">
-                  {qtyOut} Pcs × ₹{jobWorkRate.toFixed(2)} / Pc
-                </p>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  No. of Workers
+                </label>
+                <NumericInput
+                  min="1"
+                  value={noOfWorkers}
+                  onChange={(e) => setNoOfWorkers(parseInt(e.target.value, 10) || 1)}
+                  disabled={!isEditable}
+                  className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs focus:outline-none"
+                />
               </div>
-              <p className="text-xl font-extrabold text-[#6366F1]">
-                ₹{totalJobWorkAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                  Total Labor Cost
+                </label>
+                <input
+                  type="text"
+                  value={`₹${totalLaborCost.toFixed(2)}`}
+                  disabled
+                  className="w-full h-10 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] px-3 text-xs font-bold font-mono text-[var(--text-primary)]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Remarks */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-3 border-b border-[var(--border)] pb-3">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
+                4
+              </span>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                Remarks &amp; Notes
+              </h3>
             </div>
 
-            {/* Remarks */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
-                Remarks / Work Notes
-              </label>
               <textarea
+                rows={4}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                rows={3}
-                placeholder="Optional work entry notes..."
-                className="w-full p-3 rounded-xl border border-[var(--input-border)] text-xs font-medium outline-none focus:ring-2 focus:ring-[#5B63D3] resize-none"
+                maxLength={250}
+                disabled={!isEditable}
+                placeholder="Optional remarks about this entry..."
+                className="w-full rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] p-3 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
               />
             </div>
-          </form>
-        )}
-      </div>
-    </PageState>
+          </div>
+        </div>
+
+        {/* Right Column: Summary */}
+        <div className="lg:col-span-1 space-y-6">
+          <LotSummaryPanel title="Entry Context" items={lotSummaryItems} />
+          
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-3 text-xs">
+            <h4 className="font-bold text-[var(--text-primary)] uppercase tracking-wider border-b border-[var(--border)] pb-2">
+              Cost Preview
+            </h4>
+            <div className="flex justify-between py-1 text-[var(--text-muted)]">
+              <span>Qty Produced:</span>
+              <span className="font-mono font-bold text-[var(--text-primary)]">{qtyOut} pcs</span>
+            </div>
+            <div className="flex justify-between py-1 text-[var(--text-muted)]">
+              <span>Rate / Pc:</span>
+              <span className="font-mono font-bold text-[var(--text-primary)]">₹{jobWorkRate.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-2 border-t border-[var(--border)] font-bold text-sm text-[var(--primary)]">
+              <span>Subtotal Labor:</span>
+              <span className="font-mono">₹{totalLaborCost.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }

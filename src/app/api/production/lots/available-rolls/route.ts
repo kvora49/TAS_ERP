@@ -22,6 +22,8 @@ export async function GET(request: Request) {
           material_type:raw_material_types (id, name, category, unit),
           purchase:raw_material_purchases (
             id,
+            godown_id,
+            godown:godowns (id, name),
             purchase_number,
             invoice_no,
             supplier:parties (id, name, company_name)

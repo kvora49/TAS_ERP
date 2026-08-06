@@ -14,6 +14,7 @@ import {
   Layers,
   Shirt,
   Boxes,
+  Package,
   BookOpen
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -55,6 +56,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const stages = data?.stages || [];
   const stageEntries = data?.stageEntries || [];
   const lotRolls = data?.lotRolls || [];
+  const lotAccessories = data?.lotAccessories || [];
   const specifications = data?.specifications || null;
   const specSheet = data?.specSheet || null;
 
@@ -587,6 +589,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         <LotCostingPanel
           lotId={id}
           lotRolls={lotRolls}
+          lotAccessories={lotAccessories}
           stageEntries={stageEntries}
           accessoryCost={accessoryCost}
           otherCost={otherCost}
@@ -708,6 +711,63 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg">No fabric rolls allocated for this lot.</p>
+                )}
+              </div>
+
+              {/* 2b. ALLOCATED ACCESSORIES (Step 1) */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-3">
+                <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider flex items-center gap-2">
+                  <Package className="h-4.5 w-4.5 text-emerald-600" />
+                  Allocated Accessories ({lotAccessories.length} Items)
+                </h3>
+
+                {lotAccessories.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider text-[10px]">
+                          <th className="p-2.5">Item Name</th>
+                          <th className="p-2.5">Godown</th>
+                          <th className="p-2.5 text-center">Allocated Qty</th>
+                          <th className="p-2.5 text-center">Issued Qty</th>
+                          <th className="p-2.5 text-center">Available Pool</th>
+                          <th className="p-2.5 text-right">Unit Rate</th>
+                          <th className="p-2.5 text-right">Total Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)] bg-[var(--card-bg)]">
+                        {lotAccessories.map((acc: any, idx: number) => {
+                          const rate = Number(acc.unit_rate || 0);
+                          const val = Number(acc.allocated_qty || 0) * rate;
+                          return (
+                            <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                              <td className="p-2.5 font-semibold text-[var(--text-primary)]">{acc.item_name}</td>
+                              <td className="p-2.5 text-[var(--text-muted)]">{acc.godown_name || "—"}</td>
+                              <td className="p-2.5 text-center font-mono font-bold text-[var(--text-secondary)]">
+                                {acc.allocated_qty} {acc.unit}
+                              </td>
+                              <td className="p-2.5 text-center font-mono text-[var(--text-muted)]">
+                                {acc.total_issued_qty ?? 0} {acc.unit}
+                              </td>
+                              <td className="p-2.5 text-center font-mono font-bold text-emerald-600">
+                                {acc.available_qty ?? acc.allocated_qty} {acc.unit}
+                              </td>
+                              <td className="p-2.5 text-right font-mono text-[var(--text-muted)]">
+                                ₹{rate.toFixed(2)}/{acc.unit}
+                              </td>
+                              <td className="p-2.5 text-right font-mono font-bold text-[var(--text-primary)]">
+                                ₹{val.toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-faint)] italic bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">
+                    No accessories allocated for this lot.
+                  </p>
                 )}
               </div>
 

@@ -345,11 +345,12 @@ export async function POST(request: Request) {
       garment_type_id,
       design_type,
       lot_name,
-      allocated_rolls, // array of { purchase_roll_id, allocated_meters }
-      specifications,  // object of { additional_details, design_reference_text, design_reference_photos, custom_qa }
-      spec_sheet,      // object of { template_id, spec_values }
-      sizes,  // array of { size, quantity, colour_id }
-      stages, // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, worker_ids }
+      allocated_rolls,       // array of { purchase_roll_id, allocated_meters }
+      allocated_accessories, // array of { purchase_item_id, allocated_qty } — OPTIONAL
+      specifications,        // object of { additional_details, design_reference_text, design_reference_photos, custom_qa }
+      spec_sheet,            // object of { template_id, spec_values }
+      sizes,   // array of { size, quantity, colour_id }
+      stages,  // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, worker_ids }
     } = body;
 
     if (!lot_number || !brand_id || !design_id || !lot_date || !total_quantity) {
@@ -711,7 +712,162 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Insert lot specifications
+    // 5. Insert accessory allocations (optional)
+    if (allocated_accessories && Array.isArray(allocated_accessories) && allocated_accessories.length > 0) {
+      const { data: { user: accUser } } = await supabase.auth.getUser();
+
+      for (const acc of allocated_accessories) {
+        const { purchase_item_id, allocated_qty } = acc;
+        if (!purchase_item_id || !allocated_qty || Number(allocated_qty) <= 0) continue;
+
+        // a. Fetch purchase item details (name, unit, rate, godown)
+        const { data: purchaseItem, error: itemErr } = await supabase
+          .from("raw_material_purchase_items")
+          .select(`
+            id,
+            item_type,
+            other_item_name,
+            unit,
+            rate,
+            material_type_id,
+            material_type:raw_material_types (id, name, unit),
+            purchase:raw_material_purchases (id, godown_id)
+          `)
+          .eq("id", purchase_item_id)
+          .eq("item_type", "accessory")
+          .maybeSingle();
+
+        if (itemErr || !purchaseItem) {
+          throw new Error(`Accessory item not found: ${purchase_item_id}`);
+        }
+
+        const godownId = (purchaseItem as any).purchase?.godown_id;
+        const matTypeId = (purchaseItem as any).material_type_id;
+        const itemName = (purchaseItem as any).other_item_name
+          || (purchaseItem as any).material_type?.name
+          || "Unnamed Accessory";
+        const unit = (purchaseItem as any).unit
+          || (purchaseItem as any).material_type?.unit
+          || "Pcs";
+        const rate = Number((purchaseItem as any).rate || 0);
+
+        // b. Validate stock availability
+        if (godownId && matTypeId) {
+          const { data: stock } = await supabase
+            .from("raw_material_current_stock")
+            .select("current_stock, stock_value, unit_cost")
+            .eq("business_id", businessId)
+            .eq("material_type_id", matTypeId)
+            .eq("godown_id", godownId)
+            .maybeSingle();
+
+          if (!stock || Number(stock.current_stock) < Number(allocated_qty)) {
+            throw new Error(
+              `Insufficient stock for accessory "${itemName}". ` +
+              `Available: ${stock?.current_stock || 0} ${unit}, Requested: ${allocated_qty} ${unit}.`
+            );
+          }
+
+          // c. Insert into production_lot_accessories
+          const { data: lotAcc, error: lotAccErr } = await supabase
+            .from("production_lot_accessories")
+            .insert({
+              business_id: businessId,
+              lot_id: lot.id,
+              purchase_item_id,
+              item_name: itemName,
+              unit,
+              godown_id: godownId,
+              allocated_qty: Number(allocated_qty),
+              unit_rate: rate,
+              total_issued_qty: 0,
+              created_by: accUser?.id || null,
+            })
+            .select()
+            .single();
+
+          if (lotAccErr || !lotAcc) {
+            throw new Error(`Failed to record accessory allocation: ${lotAccErr?.message}`);
+          }
+
+          // d. Deduct from raw_material_current_stock
+          const valDelta = Number(allocated_qty) * rate;
+          const updatedQty = Math.max(0, Number(stock.current_stock) - Number(allocated_qty));
+          const updatedValue = Math.max(0, Number(stock.stock_value || 0) - valDelta);
+          const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stock.unit_cost || 0);
+
+          await supabase
+            .from("raw_material_current_stock")
+            .update({
+              current_stock: updatedQty,
+              stock_value: updatedValue,
+              unit_cost: Number(updatedUnitCost.toFixed(4)),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("business_id", businessId)
+            .eq("material_type_id", matTypeId)
+            .eq("godown_id", godownId);
+
+          // e. Write stock_ledger entry
+          await supabase
+            .from("stock_ledger")
+            .insert({
+              business_id: businessId,
+              item_type: "raw_material",
+              item_id: matTypeId,
+              godown_id: godownId,
+              transaction_type: "production_lot_allocation",
+              quantity_delta: -Number(allocated_qty),
+              value_delta: -valDelta,
+              reference_table: "production_lot_accessories",
+              reference_id: lotAcc.id,
+              created_by: accUser?.id || null,
+            });
+
+          // f. Write stock-out voucher (raw_material_stock_entries)
+          const entryNumber = `STK-OUT-ACC-${lot.lot_number}-${purchase_item_id.slice(0, 6)}`;
+          const { data: seVoucher } = await supabase
+            .from("raw_material_stock_entries")
+            .insert({
+              business_id: businessId,
+              stock_entry_number: entryNumber,
+              entry_type: "stock_out",
+              posting_date: new Date().toISOString().split("T")[0],
+              godown_id: godownId,
+              reference_type: "production",
+              reference_id: lot.id,
+              remarks: `Production Lot Accessory Allocation (Lot ${lot.lot_number}, Item: ${itemName})`,
+              total_items_value: valDelta,
+              grand_total: valDelta,
+              status: "active",
+            })
+            .select()
+            .single();
+
+          if (seVoucher) {
+            await supabase.from("raw_material_stock_entry_items").insert({
+              business_id: businessId,
+              stock_entry_id: seVoucher.id,
+              material_type_id: matTypeId,
+              unit,
+              quantity: Number(allocated_qty),
+              rate,
+              amount: valDelta,
+            });
+          }
+        }
+      }
+
+      // Run reconciliation after all accessory allocations
+      try {
+        const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+        await reconcileRawMaterialStock(supabase, businessId);
+      } catch (recErr) {
+        console.warn("Reconciliation on accessory allocation warning:", recErr);
+      }
+    }
+
+    // 6. Insert lot specifications
     if (specifications) {
       const { additional_details, design_reference_text, design_reference_photos, custom_qa } = specifications;
       await supabase

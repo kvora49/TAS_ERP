@@ -227,31 +227,31 @@ export default function PartyDetailPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
       {/* Top Breadcrumb and Edit Actions */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
-          <Link href="/" className="hover:text-[#0F172A] transition-colors">
+        <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">
+          <Link href="/" className="hover:text-[var(--text-primary)] transition-colors">
             Dashboard
           </Link>
           <span>/</span>
-          <Link href="/parties" className="hover:text-[#0F172A] transition-colors">
+          <Link href="/parties" className="hover:text-[var(--text-primary)] transition-colors">
             Parties
           </Link>
           <span>/</span>
-          <span className="text-[#0F172A]">{party.name}</span>
+          <span className="text-[var(--text-primary)]">{party.name}</span>
         </div>
 
         <div className="flex items-center gap-3 select-none">
           <button
             onClick={() => router.push(`/parties`)}
-            className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer flex items-center gap-2"
+            className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-secondary)] transition-all cursor-pointer flex items-center gap-2"
           >
             <ArrowLeft size={16} /> Back
           </button>
           <button
             onClick={() => router.push(`/master-data/parties/${party.id}/edit`)}
-            className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#6366F1]/10"
+            className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
           >
             <Pencil size={15} /> Edit Party
           </button>
@@ -259,11 +259,11 @@ export default function PartyDetailPage() {
       </div>
 
       {/* Main Party Profile Header Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div className="p-6 md:p-8 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
+        <div className="p-6 md:p-8 bg-[var(--card-bg)] border-b border-[var(--border)] flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-bold font-mono px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md">
+              <span className="text-xs font-bold font-mono px-2.5 py-1 bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-primary)] rounded-md">
                 {party.code}
               </span>
               {party.type?.map((t) => (
@@ -271,15 +271,15 @@ export default function PartyDetailPage() {
                   {t}
                 </Badge>
               ))}
-              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${party.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${party.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800" : "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800"}`}>
                 {party.status === "active" ? "Active" : "Inactive"}
               </span>
             </div>
             
             <div>
-              <h1 className="text-2xl font-black text-[#0F172A] tracking-tight">{party.name}</h1>
+              <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{party.name}</h1>
               {party.company_name && (
-                <p className="text-sm font-semibold text-[#64748B] flex items-center gap-1.5 mt-0.5">
+                <p className="text-sm font-semibold text-[var(--text-muted)] flex items-center gap-1.5 mt-0.5">
                   <User size={14} /> Owner / Company: {party.company_name}
                 </p>
               )}
@@ -289,32 +289,32 @@ export default function PartyDetailPage() {
           {/* Contact and Registrations Brief Panel */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 shrink-0">
             <div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase">GSTIN Treatment</p>
-              <p className="text-xs font-bold text-[#334155] font-mono mt-0.5">{party.gstin || "URP"}</p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">GSTIN Treatment</p>
+              <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.gstin || "URP"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase">PAN Number</p>
-              <p className="text-xs font-bold text-[#334155] font-mono mt-0.5">{party.pan || "N/A"}</p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">PAN Number</p>
+              <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.pan || "N/A"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase">Aadhar Number</p>
-              <p className="text-xs font-bold text-[#334155] font-mono mt-0.5">{party.aadhar || "N/A"}</p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Aadhar Number</p>
+              <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.aadhar || "N/A"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[#94A3B8] uppercase">MSME Number</p>
-              <p className="text-xs font-bold text-[#334155] font-mono mt-0.5">{party.msme_number || "N/A"}</p>
+              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">MSME Number</p>
+              <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.msme_number || "N/A"}</p>
             </div>
           </div>
         </div>
 
         {/* Extended Profile Details (Remarks, Address, and Contacts) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[var(--border)]">
           {/* Address Details */}
           <div className="p-6 space-y-4">
-            <h2 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Registered Address</h2>
-            <div className="space-y-3 text-xs text-[#475569] font-medium">
+            <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Registered Address</h2>
+            <div className="space-y-3 text-xs text-[var(--text-body)] font-medium">
               <div>
-                <p className="text-[9px] font-bold text-[#94A3B8] uppercase">Billing Address</p>
+                <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Billing Address</p>
                 <p className="mt-1 leading-relaxed">
                   {party.billing_address_line1 || "No billing address specified"}
                   {party.billing_address_line2 && `, ${party.billing_address_line2}`}
@@ -330,18 +330,18 @@ export default function PartyDetailPage() {
 
           {/* Contact Channels List */}
           <div className="p-6 space-y-4">
-            <h2 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Contact Channels</h2>
+            <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Contact Channels</h2>
             <div className="space-y-3">
               {party.email && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#475569]">
-                  <Mail size={14} className="text-[#94A3B8]" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-body)]">
+                  <Mail size={14} className="text-[var(--text-faint)]" />
                   <span>{party.email}</span>
                 </div>
               )}
               {party.website && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#475569]">
-                  <Globe size={14} className="text-[#94A3B8]" />
-                  <a href={party.website} target="_blank" rel="noreferrer" className="text-[#6366F1] hover:underline">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-body)]">
+                  <Globe size={14} className="text-[var(--text-faint)]" />
+                  <a href={party.website} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
                     {party.website}
                   </a>
                 </div>
@@ -349,21 +349,21 @@ export default function PartyDetailPage() {
 
               {/* Repeatable Contacts list */}
               {party.contact_numbers && party.contact_numbers.length > 0 ? (
-                <div className="space-y-2 mt-2 pt-2 border-t border-slate-50">
-                  <p className="text-[9px] font-bold text-[#94A3B8] uppercase">Telephone Directory</p>
+                <div className="space-y-2 mt-2 pt-2 border-t border-[var(--border)]">
+                  <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Telephone Directory</p>
                   <div className="space-y-1.5">
                     {party.contact_numbers.map((c, i) => (
-                      <div key={i} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <div className="flex items-center gap-2 text-xs font-bold text-[#334155]">
-                          <Phone size={12} className="text-[#6366F1]" />
+                      <div key={i} className="flex items-center justify-between bg-[var(--page-bg)] p-2 rounded-lg border border-[var(--border)]">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)]">
+                          <Phone size={12} className="text-[var(--primary)]" />
                           <span>{c.number}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
+                          <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-[var(--card-bg)] text-[var(--text-muted)] rounded border border-[var(--border)]">
                             {c.label}
                           </span>
                           {c.is_primary && (
-                            <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded">
+                            <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 rounded">
                               Primary
                             </span>
                           )}
@@ -374,9 +374,9 @@ export default function PartyDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-1.5 mt-2">
-                  <p className="text-[9px] font-bold text-[#94A3B8] uppercase">Telephone Directory</p>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#475569]">
-                    <Phone size={14} className="text-[#94A3B8]" />
+                  <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Telephone Directory</p>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-body)]">
+                    <Phone size={14} className="text-[var(--text-faint)]" />
                     <span>{party.phone || "No phone listed"}</span>
                   </div>
                 </div>
@@ -386,8 +386,8 @@ export default function PartyDetailPage() {
 
           {/* Remarks and General notes */}
           <div className="p-6 space-y-4">
-            <h2 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Internal Remarks & Comments</h2>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-medium text-[#475569] min-h-[80px] leading-relaxed">
+            <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Internal Remarks & Comments</h2>
+            <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3 text-xs font-medium text-[var(--text-body)] min-h-[80px] leading-relaxed">
               {party.remarks || "No remarks or special comments logged for this party."}
             </div>
           </div>

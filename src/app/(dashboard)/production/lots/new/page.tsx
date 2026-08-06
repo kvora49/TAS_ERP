@@ -49,14 +49,26 @@ export default function CreateLotPage() {
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Step 1
+  // Step 1 — sub-tab
+  const [step1SubTab, setStep1SubTab] = useState<"rolls" | "accessories">("rolls");
+
+  // Step 1 — Rolls
   const [rollSearch, setRollSearch] = useState("");
   const debouncedRollSearch = useDebounce(rollSearch, 300);
   const [allocatedRolls, setAllocatedRolls] = useState<Array<{
     purchase_roll_id: string; roll_number: string; shade: string; material_name: string;
-    supplier_name: string; remaining_meters: number; allocated_meters: number; rate: number; colour_id?: string;
+    supplier_name: string; godown_name?: string; remaining_meters: number; allocated_meters: number; rate: number; colour_id?: string;
   }>>([]);
   const [allocating, setAllocating] = useState(false);
+
+  // Step 1 — Accessories
+  const [accessorySearch, setAccessorySearch] = useState("");
+  const debouncedAccessorySearch = useDebounce(accessorySearch, 300);
+  const [allocatedAccessories, setAllocatedAccessories] = useState<Array<{
+    purchase_item_id: string; item_name: string; unit: string;
+    godown_id: string; godown_name: string; supplier_name: string;
+    available_qty: number; allocated_qty: number; unit_rate: number;
+  }>>([]);
 
   // Step 2
   const [brandId, setBrandId] = useState("");
@@ -159,8 +171,18 @@ export default function CreateLotPage() {
       const res = await fetch(`/api/production/lots/available-rolls?search=${encodeURIComponent(debouncedRollSearch)}`);
       return res.json();
     },
-    enabled: currentStep === 1,
+    enabled: currentStep === 1 && step1SubTab === "rolls",
   });
+
+  const { data: availableAccessoriesData, isLoading: loadingAccessories } = useQuery<{ accessories: any[] }>({
+    queryKey: ["available-accessories", debouncedAccessorySearch],
+    queryFn: async () => {
+      const res = await fetch(`/api/production/lots/available-accessories?search=${encodeURIComponent(debouncedAccessorySearch)}`);
+      return res.json();
+    },
+    enabled: currentStep === 1 && step1SubTab === "accessories",
+  });
+
 
   const { data: brandsData } = useQuery<{ brands: Brand[] }>({
     queryKey: ["brands-list"],
@@ -224,11 +246,11 @@ export default function CreateLotPage() {
   });
 
   const availableRolls = availableRollsData?.rolls || [];
-  const brands = brandsData?.brands || [];
-  const designs = designsData?.designs || [];
-  const masterStages = masterStagesData?.stages || [];
-  const sizeSets = sizeSetsData?.sizeSets || [];
-  const garmentTypes = garmentTypesData?.garmentTypes || [];
+  const brands = (brandsData?.brands || []).filter((b: any) => b.is_active !== false);
+  const designs = (designsData?.designs || []).filter((d: any) => d.is_active !== false || d.id === designId);
+  const masterStages = (masterStagesData?.stages || []).filter((s: any) => s.is_active !== false);
+  const sizeSets = (sizeSetsData?.sizeSets || []).filter((s: any) => s.is_active !== false);
+  const garmentTypes = (garmentTypesData?.garmentTypes || []).filter((g: any) => g.is_active !== false);
   const productionTemplates = templatesData?.templates || [];
   const workers = workersData?.parties || [];
 
@@ -356,6 +378,7 @@ export default function CreateLotPage() {
         purchase_roll_id: roll.id, roll_number: roll.roll_number, shade: roll.shade || "—",
         material_name: roll.item?.material_type?.name || "Fabric",
         supplier_name: roll.item?.purchase?.supplier?.company_name || roll.item?.purchase?.supplier?.name || "—",
+        godown_name: roll.item?.purchase?.godown?.name || "Main Godown",
         remaining_meters: Number(roll.remaining_meters),
         allocated_meters: Number(roll.remaining_meters),
         rate: Number(roll.item?.rate || 0),
@@ -374,6 +397,33 @@ export default function CreateLotPage() {
   const handleRollColourChange = (rollId: string, colourId: string) => {
     setAllocatedRolls(allocatedRolls.map((r) =>
       r.purchase_roll_id === rollId ? { ...r, colour_id: colourId } : r
+    ));
+  };
+
+  const handleToggleAccessory = (item: any) => {
+    const exists = allocatedAccessories.some((a) => a.purchase_item_id === item.id);
+    if (exists) {
+      setAllocatedAccessories(allocatedAccessories.filter((a) => a.purchase_item_id !== item.id));
+    } else {
+      setAllocatedAccessories([...allocatedAccessories, {
+        purchase_item_id: item.id,
+        item_name: item.item_name,
+        unit: item.unit,
+        godown_id: item.godown_id,
+        godown_name: item.godown_name,
+        supplier_name: item.supplier_name,
+        available_qty: Number(item.available_qty),
+        allocated_qty: Math.min(Number(item.available_qty), 1),
+        unit_rate: Number(item.unit_rate),
+      }]);
+    }
+  };
+
+  const handleAccessoryQtyChange = (itemId: string, qty: number) => {
+    setAllocatedAccessories(allocatedAccessories.map((a) =>
+      a.purchase_item_id === itemId
+        ? { ...a, allocated_qty: Math.min(a.available_qty, Math.max(0, qty)) }
+        : a
     ));
   };
 
@@ -505,9 +555,16 @@ export default function CreateLotPage() {
 
   // ── Step validations ──────────────────────────────────────────────────────
   const handleStep1Next = () => {
-    if (allocatedRolls.length === 0) { toast.error("Please allocate at least one roll"); return; }
-    const invalid = allocatedRolls.some((r) => r.allocated_meters <= 0 || r.allocated_meters > r.remaining_meters);
-    if (invalid) { toast.error("Please ensure all allocations are valid"); return; }
+    if (allocatedRolls.length === 0 && allocatedAccessories.length === 0) {
+      toast.error("Please allocate at least one fabric roll or accessory");
+      return;
+    }
+    const invalidRolls = allocatedRolls.some((r) => r.allocated_meters <= 0 || r.allocated_meters > r.remaining_meters);
+    const invalidAcc = allocatedAccessories.some((a) => a.allocated_qty <= 0 || a.allocated_qty > a.available_qty);
+    if (invalidRolls || invalidAcc) {
+      toast.error("Please ensure all allocation quantities are valid");
+      return;
+    }
     setCurrentStep(2);
   };
 
@@ -561,6 +618,10 @@ export default function CreateLotPage() {
           allocated_meters: r.allocated_meters,
           colour_id: r.colour_id || null,
         })),
+        allocated_accessories: allocatedAccessories.map((a) => ({
+          purchase_item_id: a.purchase_item_id,
+          allocated_qty: a.allocated_qty,
+        })),
         specifications: { additional_details: additionalDetails, design_reference_text: designReferenceText, design_reference_photos: designReferencePhotos, custom_qa: customQa },
         spec_sheet: specSheetTemplate ? { template_id: specSheetTemplate.id, spec_values: specSheetValues } : null,
         sizes: sizesToSave, stages: assignedStages,
@@ -583,7 +644,7 @@ export default function CreateLotPage() {
   };
 
   // ── Summary ────────────────────────────────────────────────────────────────
-  const steps = ["Roll Allocation", "Basic Details", "Lot Specifications", "Size Set & Quantity", "Assign Stages", "Design Spec Sheet", "Review & Create"];
+  const steps = ["Material Allocation", "Basic Details", "Lot Specifications", "Size Set & Quantity", "Assign Stages", "Design Spec Sheet", "Review & Create"];
 
   const summaryItems = [
     { label: "Lot No.", value: lotNumber || "—" },
@@ -591,6 +652,7 @@ export default function CreateLotPage() {
     { label: "Brand", value: brands.find((b) => b.id === brandId)?.name || "—" },
     { label: "Design", value: selectedDesign ? `${selectedDesign.design_number || selectedDesign.code || ""} - ${selectedDesign.name}` : "—" },
     { label: "Allocated Fabric", value: `${totalAllocatedMeters.toFixed(1)} Meters` },
+    ...(allocatedAccessories.length > 0 ? [{ label: "Allocated Accessories", value: `${allocatedAccessories.length} item(s)` }] : []),
     { label: "Colours Selected", value: selectedColours.map((c) => c.colour_name).join(", ") || "—" },
     { label: "Stages Assigned", value: `${assignedStages.length} Stages` },
     { label: "Total Quantity", value: `${totalQuantity.toLocaleString("en-IN")} Pcs`, isQuantity: true },
@@ -637,6 +699,8 @@ export default function CreateLotPage() {
         <div className="lg:col-span-2 space-y-4 md:space-y-6">
           {currentStep === 1 && (
             <Step1RollAllocation
+              step1SubTab={step1SubTab}
+              setStep1SubTab={setStep1SubTab}
               rollSearch={rollSearch}
               setRollSearch={setRollSearch}
               availableRolls={availableRolls}
@@ -645,7 +709,17 @@ export default function CreateLotPage() {
               setAllocatedRolls={setAllocatedRolls}
               onToggleRoll={handleToggleRoll}
               onAllocationChange={handleRollAllocationChange}
+              onRollColourChange={handleRollColourChange}
+              selectedColours={selectedColours}
               allocating={allocating}
+              accessorySearch={accessorySearch}
+              setAccessorySearch={setAccessorySearch}
+              availableAccessories={availableAccessoriesData?.accessories || []}
+              loadingAccessories={loadingAccessories}
+              allocatedAccessories={allocatedAccessories}
+              setAllocatedAccessories={setAllocatedAccessories}
+              onToggleAccessory={handleToggleAccessory}
+              onAccessoryQtyChange={handleAccessoryQtyChange}
               onNext={handleStep1Next}
             />
           )}
