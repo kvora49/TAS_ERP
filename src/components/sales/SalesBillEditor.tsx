@@ -336,13 +336,13 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
               </div>
 
               {/* Items Table Overview */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 border-b border-slate-200 p-3">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Items In Invoice ({state.items.length})</span>
+              <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+                <div className="bg-[var(--table-header-bg)] border-b border-[var(--border)] p-3">
+                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block font-mono">Items In Invoice ({state.items.length})</span>
                 </div>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-200 text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider">
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] text-[var(--text-muted)] uppercase font-mono font-bold tracking-wider">
                       <th className="py-2 px-3">Design</th>
                       <th className="py-2 px-3">Colour</th>
                       <th className="py-2 px-3">Size</th>
@@ -353,14 +353,14 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                       <th className="py-2 px-3 text-right">Amount</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
                     {state.items.map((it: any, idx: number) => {
                       const design = designs.find((d: any) => d.id === it.design_id);
                       const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
                       return (
-                        <tr key={idx} className="border-b border-slate-100 font-medium">
-                          <td className="py-2 px-3 text-indigo-600 font-mono font-bold">{design?.design_number || "Unknown"}</td>
-                          <td className="py-2 px-3 text-slate-600">{colour?.colour_name || "—"}</td>
+                        <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                          <td className="py-2 px-3 text-[var(--primary)] font-mono font-bold">{design?.design_number || "Unknown"}</td>
+                          <td className="py-2 px-3 text-[var(--text-secondary)]">{colour?.colour_name || "—"}</td>
                           <td className="py-2 px-3 font-mono">{it.size}</td>
                           <td className="py-2 px-3 text-right font-mono">{it.quantity}</td>
                           <td className="py-2 px-3 text-right font-mono">₹{it.rate}</td>
@@ -375,34 +375,34 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
               </div>
 
               {/* Totals Summary */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Financial Summary</span>
+              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block font-mono">Financial Summary</span>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-semibold">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Sub Total</span>
-                    <span className="text-xs font-bold text-slate-800 font-mono">₹{totals.sub_total.toFixed(2)}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Sub Total</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{totals.sub_total.toFixed(2)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Taxable Amount</span>
-                    <span className="text-xs font-bold text-slate-800 font-mono">₹{totals.taxable_amount.toFixed(2)}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Taxable Amount</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{totals.taxable_amount.toFixed(2)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">GST Total</span>
-                    <span className="text-xs font-bold text-slate-800 font-mono">₹{(totals.cgst + totals.sgst + totals.igst).toFixed(2)}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">GST Total</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{(totals.cgst + totals.sgst + totals.igst).toFixed(2)}</span>
                   </div>
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center">
-                    <span className="text-[9px] text-[#6366F1] font-bold block uppercase">Grand Total</span>
-                    <span className="text-sm font-black text-indigo-700 font-mono">₹{totals.grand_total.toFixed(2)}</span>
+                  <div className="bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-lg p-2 flex flex-col justify-center">
+                    <span className="text-[9px] text-[var(--primary)] font-bold block uppercase">Grand Total</span>
+                    <span className="text-sm font-black text-indigo-700 dark:text-indigo-300 font-mono">₹{totals.grand_total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
 
               {/* E-way details toggle and inputs */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-xs font-bold text-slate-800 block">Generate E-Way Bill details</span>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-normal">
+                    <span className="text-xs font-bold text-[var(--text-primary)] block">Generate E-Way Bill details</span>
+                    <p className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider leading-normal">
                       Include e-way transport and vehicle details with this invoice
                     </p>
                   </div>
@@ -413,29 +413,29 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                       onChange={(e) => setShowEway(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <div className="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
                   </label>
                 </div>
 
                 {showEway && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200/60 animate-in slide-in-from-top-2 duration-150">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[var(--border-light)] animate-in slide-in-from-top-2 duration-150">
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider font-mono">Transporter Name</label>
+                      <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Transporter Name</label>
                       <input
                         type="text"
                         value={state.transporterName}
                         onChange={(e) => state.setTransporterName(e.target.value)}
-                        className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:ring-1 focus:ring-indigo-500 bg-white"
+                        className="w-full h-9 rounded-lg border border-[var(--input-border)] px-3 text-xs focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] transition-colors"
                         placeholder="e.g. VRL Logistics"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider font-mono">Vehicle Number</label>
+                      <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Vehicle Number</label>
                       <input
                         type="text"
                         value={state.vehicleNo}
                         onChange={(e) => state.setVehicleNo(e.target.value)}
-                        className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:ring-1 focus:ring-indigo-500 bg-white"
+                        className="w-full h-9 rounded-lg border border-[var(--input-border)] px-3 text-xs focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] transition-colors"
                         placeholder="e.g. GJ-01-XX-1234"
                       />
                     </div>

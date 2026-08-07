@@ -99,19 +99,18 @@ export default function RecordSalesReturnPage() {
   const [remarks, setRemarks] = useState("");
   const [billType, setBillType] = useState<"pakka" | "kacha">("pakka");
 
-  // Loading States
+  // Line items state
+  const [lineItems, setLineItems] = useState<ReturnLineItem[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingBills, setLoadingBills] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Line items state
-  const [lineItems, setLineItems] = useState<ReturnLineItem[]>([]);
-
-  // 1. Initial Load: Fetch Customers & Godowns
+  // 1. Initial Load (Customers & Godowns)
   useEffect(() => {
-    async function loadMasters() {
+    async function loadMasterData() {
       try {
+        setLoadingInitial(true);
         const [cRes, gRes] = await Promise.all([
           fetch("/api/parties?type=customer"),
           fetch("/api/master-data/godowns"),
@@ -119,26 +118,27 @@ export default function RecordSalesReturnPage() {
 
         if (cRes.ok) {
           const cData = await cRes.json();
-          setCustomers(cData.parties || []);
+          setCustomers(cData.parties || cData.data || []);
         }
         if (gRes.ok) {
           const gData = await gRes.json();
-          const list = gData.godowns || [];
-          setGodowns(list);
-          if (list.length > 0) {
-            setSelectedGodownId(list[0].id);
+          const gList = gData.godowns || gData.data || [];
+          setGodowns(gList);
+          if (gList.length > 0) {
+            setSelectedGodownId(gList[0].id);
           }
         }
       } catch (err) {
-        toast.error("Failed to load initial masters");
+        console.error("Error loading master data:", err);
+        toast.error("Failed to load customers/godowns");
       } finally {
         setLoadingInitial(false);
       }
     }
-    loadMasters();
+    loadMasterData();
   }, []);
 
-  // 2. Fetch Sales Bills when Customer is Selected
+  // 2. Fetch Customer's Bills when selectedPartyId changes
   useEffect(() => {
     if (!selectedPartyId) {
       setCustomerBills([]);
@@ -148,93 +148,88 @@ export default function RecordSalesReturnPage() {
     }
 
     async function loadCustomerBills() {
-      setLoadingBills(true);
       try {
-        const res = await fetch(`/api/sales/bills?party_id=${selectedPartyId}&type=all&limit=200`);
+        setLoadingBills(true);
+        const res = await fetch(`/api/sales/bills?party_id=${selectedPartyId}&status=active`);
         if (res.ok) {
           const data = await res.json();
-          setCustomerBills(data.data || []);
+          const billsList: SaleBill[] = data.bills || data.data || [];
+          setCustomerBills(billsList);
+
+          // If preselectedBillId matches a bill for this customer, select it
+          if (preselectedBillId && billsList.some((b) => b.id === preselectedBillId)) {
+            setSelectedBillId(preselectedBillId);
+          } else {
+            setSelectedBillId("");
+          }
         }
       } catch (err) {
-        toast.error("Failed to load customer sales bills");
+        console.error("Error fetching bills:", err);
       } finally {
         setLoadingBills(false);
       }
     }
+
     loadCustomerBills();
-  }, [selectedPartyId]);
+  }, [selectedPartyId, preselectedBillId]);
 
-  // 3. Handle preselected bill ID query param
-  useEffect(() => {
-    if (preselectedBillId && customers.length > 0) {
-      fetch(`/api/sales/bills/${preselectedBillId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.bill) {
-            setSelectedPartyId(data.bill.party_id);
-            setSelectedBillId(data.bill.id);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [preselectedBillId, customers]);
-
-  // 4. Fetch Items when Sales Bill is Selected
+  // 3. Fetch Bill Items when selectedBillId changes
   useEffect(() => {
     if (!selectedBillId) {
       setLineItems([]);
       return;
     }
 
-    async function loadBillItems() {
-      setLoadingItems(true);
+    async function loadBillDetails() {
       try {
+        setLoadingItems(true);
         const res = await fetch(`/api/sales/bills/${selectedBillId}`);
-        if (!res.ok) throw new Error("Failed to fetch sales bill details");
+        if (res.ok) {
+          const data = await res.json();
+          const billData: SaleBill = data.bill || data;
+          setBillType(billData.bill_number?.startsWith("KB-") ? "kacha" : "pakka");
 
-        const data = await res.json();
-        const bill = data.bill || {};
-        const isKacha = bill.bill_type === "kacha";
-        setBillType(isKacha ? "kacha" : "pakka");
+          const rawItems: SaleBillItem[] = billData.items || [];
+          const lines: ReturnLineItem[] = rawItems.map((item, idx) => {
+            const soldQty = Number(item.quantity || 0);
+            const unitRate = Number(item.rate || 0);
+            const taxPct = Number(item.tax_percent || 12);
+            return {
+              key: item.id || `item-${idx}`,
+              design_id: item.design_id,
+              design_name: item.design?.name || item.design?.design_number || "Design",
+              colour_id: item.colour_id || null,
+              colour_name: item.colour?.colour_name || "Standard",
+              size: item.size || "all",
+              sold_qty: soldQty,
+              unit_rate: unitRate,
+              tax_percent: taxPct,
+              return_qty: "",
+              taxable_amount: 0,
+              gst_amount: 0,
+              amount: 0,
+            };
+          });
 
-        const rawItems: SaleBillItem[] = bill.items || [];
-
-        const formattedLines: ReturnLineItem[] = rawItems.map((it, idx) => {
-          const designName = it.design
-            ? `${it.design.code || it.design.design_number || ""} - ${it.design.name}`
-            : "Unknown Item";
-          const colourName = it.colour?.colour_name || "Default Colour";
-          const taxPct = isKacha ? 0 : Number(it.tax_percent || 0);
-
-          return {
-            key: `${it.id || idx}`,
-            design_id: it.design_id,
-            design_name: designName,
-            colour_id: it.colour_id,
-            colour_name: colourName,
-            size: it.size || "Free Size",
-            sold_qty: Number(it.quantity || 0),
-            unit_rate: Number(it.rate || 0),
-            tax_percent: taxPct,
-            return_qty: 0,
-            taxable_amount: 0,
-            gst_amount: 0,
-            amount: 0,
-          };
-        });
-
-        setLineItems(formattedLines);
-      } catch (err: any) {
-        toast.error(err.message || "Failed to load bill items");
+          setLineItems(lines);
+        }
+      } catch (err) {
+        console.error("Error fetching bill details:", err);
+        toast.error("Failed to load bill items");
       } finally {
         setLoadingItems(false);
       }
     }
 
-    loadBillItems();
+    loadBillDetails();
   }, [selectedBillId]);
 
-  // 5. Update Line Item Return Qty & Calculate Amount
+  // 4. Handle Customer Selection Change
+  const handleCustomerChange = (partyId: string) => {
+    setSelectedPartyId(partyId);
+  };
+
+  // 5. Handle Return Qty Change for a Line Item
   const handleReturnQtyChange = (index: number, val: string) => {
     setLineItems((prev) => {
       const next = [...prev];
@@ -371,26 +366,26 @@ export default function RecordSalesReturnPage() {
   if (loadingInitial) {
     return (
       <div className="p-12 flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="h-8 w-8 text-[#6366F1] animate-spin" />
-        <span className="text-sm font-semibold text-[#64748B]">Loading Sales Return Form...</span>
+        <Loader2 className="h-8 w-8 text-[var(--primary)] animate-spin" />
+        <span className="text-sm font-semibold text-[var(--text-muted)]">Loading Sales Return Form...</span>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px] mx-auto select-none pb-24">
+    <div className="p-6 space-y-6 max-w-[1200px] mx-auto select-none pb-28">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
             href="/sales/returns"
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] transition-colors"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)] transition-colors"
           >
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-[#0F172A]">Record Customer Sales Return</h1>
-            <p className="text-xs text-[#64748B] mt-0.5 font-medium">
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Record Customer Sales Return</h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5 font-medium">
               Process returned customer items, restore stock to godown, and automatically issue a Credit Note
             </p>
           </div>
@@ -399,20 +394,29 @@ export default function RecordSalesReturnPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Card 1: Customer, Bill & Godown Info */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 border-b border-[#F1F5F9] pb-3">
-            <User className="h-5 w-5 text-[#6366F1]" />
-            <h2 className="text-sm font-bold text-[#0F172A]">Customer & Return Context</h2>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-[var(--border-light)] pb-3">
+            <User className="h-5 w-5 text-[var(--primary)]" />
+            <h2 className="text-sm font-bold text-[var(--text-primary)]">Customer & Return Context</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Customer Select */}
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-[#374151]">Customer / Party *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Customer / Party *</label>
               <select
                 value={selectedPartyId}
-                onChange={(e) => setSelectedPartyId(e.target.value)}
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                onChange={(e) => handleCustomerChange(e.target.value)}
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                "
                 required
               >
                 <option value="">Choose Customer...</option>
@@ -426,14 +430,24 @@ export default function RecordSalesReturnPage() {
 
             {/* Sales Bill Select */}
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-[#374151]">
-                Original Sales Bill {loadingBills && <span className="text-[10px] text-[#6366F1] font-normal">(Loading bills...)</span>}
+              <label className="text-xs font-bold text-[var(--text-secondary)]">
+                Original Sales Bill {loadingBills && <span className="text-[10px] text-[var(--primary)] font-normal">(Loading bills...)</span>}
               </label>
               <select
                 value={selectedBillId}
                 onChange={(e) => setSelectedBillId(e.target.value)}
                 disabled={!selectedPartyId || loadingBills}
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none disabled:bg-slate-50 disabled:text-slate-400"
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                "
               >
                 <option value="">{selectedPartyId ? "Choose Sales Bill (Optional)" : "Select Customer First"}</option>
                 {customerBills.map((b) => (
@@ -446,11 +460,20 @@ export default function RecordSalesReturnPage() {
 
             {/* Target Godown */}
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-[#374151]">Stock Destination (Godown) *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Stock Destination (Godown) *</label>
               <select
                 value={selectedGodownId}
                 onChange={(e) => setSelectedGodownId(e.target.value)}
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                "
                 required
               >
                 <option value="">Select Godown Location...</option>
@@ -464,12 +487,21 @@ export default function RecordSalesReturnPage() {
 
             {/* Return Date */}
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-[#374151]">Return Date *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Return Date *</label>
               <input
                 type="date"
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                "
                 required
               />
             </div>
@@ -477,41 +509,41 @@ export default function RecordSalesReturnPage() {
         </div>
 
         {/* Card 2: Return Items Table */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-3">
             <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-[#6366F1]" />
-              <h2 className="text-sm font-bold text-[#0F172A]">Return Items & Quantities</h2>
+              <Package className="h-5 w-5 text-[var(--primary)]" />
+              <h2 className="text-sm font-bold text-[var(--text-primary)]">Return Items & Quantities</h2>
             </div>
             {lineItems.length > 0 && (
-              <span className="text-xs font-semibold text-[#64748B]">
+              <span className="text-xs font-semibold text-[var(--text-muted)]">
                 {lineItems.length} Sold Line Item(s) Loaded
               </span>
             )}
           </div>
 
           {!selectedPartyId ? (
-            <div className="py-12 text-center text-[#64748B] text-sm">
+            <div className="py-12 text-center text-[var(--text-muted)] text-sm">
               Please select a customer above to view available items for return.
             </div>
           ) : !selectedBillId ? (
-            <div className="py-12 text-center text-[#64748B] text-sm">
+            <div className="py-12 text-center text-[var(--text-muted)] text-sm">
               Select a Sales Bill above to automatically load exact sold designs, colours, sizes, and rates.
             </div>
           ) : loadingItems ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-[#64748B]">
-              <Loader2 className="h-6 w-6 text-[#6366F1] animate-spin" />
+            <div className="py-12 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)]">
+              <Loader2 className="h-6 w-6 text-[var(--primary)] animate-spin" />
               <span className="text-xs font-semibold">Loading items from sales bill...</span>
             </div>
           ) : lineItems.length === 0 ? (
-            <div className="py-12 text-center text-[#64748B] text-sm">
+            <div className="py-12 text-center text-[var(--text-muted)] text-sm">
               No sold items found in this sales bill.
             </div>
           ) : (
-            <div className="overflow-x-auto border border-[#E5E7EB] rounded-lg">
+            <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
+                  <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                     <th className="py-3 px-4 min-w-[220px]">Design / Product</th>
                     <th className="py-3 px-4 whitespace-nowrap">Colour</th>
                     <th className="py-3 px-4 whitespace-nowrap">Size</th>
@@ -521,25 +553,25 @@ export default function RecordSalesReturnPage() {
                     <th className="py-3 px-4 text-right whitespace-nowrap">Credit Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB]">
+                <tbody className="divide-y divide-[var(--border-light)]">
                   {lineItems.map((line, idx) => (
-                    <tr key={line.key} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 font-semibold text-[#0F172A]">
+                    <tr key={line.key} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                      <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
                         {line.design_name}
                       </td>
-                      <td className="py-3 px-4 text-[#374151] whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs font-medium text-slate-700 border border-slate-200">
-                          <span className="w-2 h-2 rounded-full bg-slate-500" />
+                      <td className="py-3 px-4 text-[var(--text-body)] whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 bg-[var(--page-bg)] px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-secondary)] border border-[var(--border)]">
+                          <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
                           {line.colour_name}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-[#374151] font-mono font-bold whitespace-nowrap">
+                      <td className="py-3 px-4 text-[var(--text-primary)] font-mono font-bold whitespace-nowrap">
                         {line.size}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-[#64748B] whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-medium text-[var(--text-muted)] whitespace-nowrap">
                         {line.sold_qty} pcs
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-[#374151] whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-mono font-semibold text-[var(--text-body)] whitespace-nowrap">
                         {formatCurrency(line.unit_rate)}
                       </td>
                       <td className="py-3 px-4">
@@ -551,11 +583,20 @@ export default function RecordSalesReturnPage() {
                             value={line.return_qty}
                             onChange={(e) => handleReturnQtyChange(idx, e.target.value)}
                             placeholder="0"
-                            className="w-24 h-9 border border-[#CBD5E1] rounded-md px-2.5 text-center font-mono font-bold text-sm focus:ring-2 focus:ring-[#6366F1] outline-none"
+                            className="
+                              w-24 h-9
+                              bg-[var(--input-bg)]
+                              border border-[var(--input-border)]
+                              text-[var(--text-primary)]
+                              placeholder:text-[var(--text-faint)]
+                              focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                              rounded-md px-2.5 text-center font-mono font-bold text-sm
+                              transition-colors
+                            "
                           />
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-[#15803D] whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         {formatCurrency(line.amount)}
                       </td>
                     </tr>
@@ -567,43 +608,61 @@ export default function RecordSalesReturnPage() {
         </div>
 
         {/* Card 3: Return Reason & Remarks */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 border-b border-[#F1F5F9] pb-3">
-            <FileText className="h-5 w-5 text-[#6366F1]" />
-            <h2 className="text-sm font-bold text-[#0F172A]">Reason for Return & Remarks</h2>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-[var(--border-light)] pb-3">
+            <FileText className="h-5 w-5 text-[var(--primary)]" />
+            <h2 className="text-sm font-bold text-[var(--text-primary)]">Reason for Return & Remarks</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#374151]">Reason for Return *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Reason for Return *</label>
               <input
                 type="text"
                 value={returnReason}
                 onChange={(e) => setReturnReason(e.target.value)}
                 placeholder="e.g. Size misplacement, Fabric damage, Customer exchange"
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                "
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#374151]">Internal Remarks (Optional)</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Internal Remarks (Optional)</label>
               <input
                 type="text"
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 placeholder="Additional notes for accounting or inventory..."
-                className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                className="
+                  w-full h-10
+                  bg-[var(--input-bg)]
+                  border border-[var(--input-border)]
+                  text-[var(--text-primary)]
+                  placeholder:text-[var(--text-faint)]
+                  focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                  rounded-lg px-3 text-sm
+                  transition-colors
+                "
               />
             </div>
           </div>
         </div>
 
         {/* Sticky Action Footer */}
-        <div className="fixed bottom-0 left-0 right-0 bg-[var(--card-bg)] border-t border-[var(--border)] p-4 shadow-lg z-30 flex items-center justify-between px-8">
+        <div className="fixed bottom-0 left-0 lg:left-64 right-0 bg-[var(--card-bg)] border-t border-[var(--border)] p-4 shadow-2xl z-30 flex items-center justify-between px-8 transition-all">
           <div className="flex items-center gap-6">
             <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Total Return Qty</span>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Return Qty</span>
               <span className="text-xl font-bold text-[var(--text-primary)]">{totalReturnedPieces} Pcs</span>
             </div>
 
@@ -636,7 +695,7 @@ export default function RecordSalesReturnPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/sales/returns"
-              className="px-4 h-10 border border-[#E5E7EB] rounded-lg text-sm font-semibold text-[#374151] hover:bg-[#F9FAFB] transition-colors flex items-center justify-center cursor-pointer"
+              className="px-4 h-10 border border-[var(--border)] rounded-lg text-sm font-semibold text-[var(--text-body)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center justify-center cursor-pointer"
             >
               Cancel
             </Link>
@@ -644,7 +703,7 @@ export default function RecordSalesReturnPage() {
             <button
               type="submit"
               disabled={submitting || totalReturnedPieces <= 0}
-              className="px-6 h-10 bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm rounded-lg shadow-md shadow-[#6366F1]/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm rounded-lg shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>

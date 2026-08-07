@@ -27,6 +27,7 @@ const returnItemSchema = z.object({
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
   invoice_qty: z.coerce.number().min(0.01),
+  available_stock: z.coerce.number().optional(),
   returned_qty: z.coerce.number().min(0, "Cannot be negative"),
   rate: z.coerce.number().min(0.01),
   discount_percent: z.coerce.number(),
@@ -387,10 +388,17 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
   // Recalculate item taxable value when returned quantity changes (for scalar accessories)
   const handleQtyChange = (index: number, qtyVal: string) => {
     const qty = Number(qtyVal || 0);
-    const maxQty = Number(watchItems[index]?.invoice_qty || 0);
+    const item = watchItems[index];
+    const maxQty = Number(item?.invoice_qty || 0);
+    const availStock = item?.available_stock !== undefined ? Math.max(0, Number(item.available_stock || 0)) : maxQty;
+    const effectiveMax = Math.min(maxQty, availStock);
 
-    if (qty > maxQty) {
-      toast.error(`Return quantity cannot exceed original invoice quantity of ${maxQty}`);
+    if (qty > effectiveMax) {
+      if (availStock < maxQty) {
+        toast.error(`Cannot return ${qty} ${item?.unit || "Units"}. Only ${availStock} ${item?.unit || "Units"} available in stock at selected godown.`);
+      } else {
+        toast.error(`Return quantity cannot exceed original invoice quantity of ${maxQty}`);
+      }
       setValue(`items.${index}.returned_qty`, 0);
       setValue(`items.${index}.taxable_value`, 0);
       setValue(`items.${index}.gst_amount`, 0);
@@ -398,7 +406,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
       return;
     }
 
-    const { taxable, gstAmt, totalAmt } = calcItemTax(watchItems[index], qty);
+    const { taxable, gstAmt, totalAmt } = calcItemTax(item, qty);
 
     setValue(`items.${index}.returned_qty`, qty);
     setValue(`items.${index}.taxable_value`, taxable);
@@ -732,7 +740,17 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                           </span>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-bold text-slate-500">Invoice Qty: {item?.invoice_qty}</span>
+                          <span className="text-xs font-bold text-[var(--text-muted)] block">Invoice Qty: {item?.invoice_qty}</span>
+                          {item?.available_stock !== undefined && (
+                            <span className={cn(
+                              "text-[11px] font-bold block mt-0.5",
+                              Number(item.available_stock || 0) > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-rose-500 font-extrabold"
+                            )}>
+                              Available Stock: {item.available_stock} {item?.unit}
+                            </span>
+                          )}
                         </div>
                       </div>
 

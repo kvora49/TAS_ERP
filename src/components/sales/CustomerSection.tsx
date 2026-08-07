@@ -28,18 +28,28 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
     }
   };
 
+  const inputClass = `
+    bg-[var(--input-bg)]
+    border border-[var(--input-border)]
+    text-[var(--text-primary)]
+    placeholder:text-[var(--text-faint)]
+    focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+    rounded-lg px-3 h-10 text-sm
+    transition-colors
+  `;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Customer Select */}
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Customer / Party *
           </label>
           <select
             value={state.partyId}
             onChange={(e) => handlePartyChange(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+            className={`${inputClass} w-full cursor-pointer`}
           >
             <option value="">Select Customer</option>
             {parties.map((p) => (
@@ -52,27 +62,27 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
 
         {/* Bill Date */}
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Bill Date *
           </label>
           <input
             type="date"
             value={state.billDate}
             onChange={(e) => state.setBillDate(e.target.value)}
-            className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className={`${inputClass} w-full`}
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Payment Terms
           </label>
           <select
             value={state.paymentTerms}
             onChange={(e) => state.setPaymentTerms(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+            className={`${inputClass} w-full cursor-pointer`}
           >
             <option value="Immediate">Immediate</option>
             <option value="Net 15">Net 15</option>
@@ -83,19 +93,19 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Due Date
           </label>
           <input
             type="date"
             value={state.dueDate}
             onChange={(e) => state.setDueDate(e.target.value)}
-            className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className={`${inputClass} w-full`}
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Reference / Challan No
           </label>
           <input
@@ -103,26 +113,26 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
             placeholder="e.g. REF-2384"
             value={state.referenceNo}
             onChange={(e) => state.setReferenceNo(e.target.value)}
-            className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className={`${inputClass} w-full`}
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
           Billing Address
         </label>
         <textarea
           rows={2}
           value={state.billingAddress}
           onChange={(e) => state.setBillingAddress(e.target.value)}
-          className="w-full p-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none resize-none"
+          className={`${inputClass} w-full p-3 h-auto resize-none`}
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Transporter Name
           </label>
           <input
@@ -130,12 +140,12 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
             placeholder="e.g. VRL Logistics"
             value={state.transporterName}
             onChange={(e) => state.setTransporterName(e.target.value)}
-            className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className={`${inputClass} w-full`}
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Vehicle Number
           </label>
           <input
@@ -143,18 +153,18 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
             placeholder="e.g. MH-12-PQ-9988"
             value={state.vehicleNo}
             onChange={(e) => state.setVehicleNo(e.target.value)}
-            className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className={`${inputClass} w-full`}
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Salesman
           </label>
           <select
             value={state.salesman}
             onChange={(e) => state.setSalesman(e.target.value)}
-            className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+            className={`${inputClass} w-full cursor-pointer`}
           >
             <option value="">Select Salesman</option>
             {salesmen.map((s) => (

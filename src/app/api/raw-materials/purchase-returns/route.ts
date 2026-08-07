@@ -85,6 +85,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one return item is required" }, { status: 400 });
     }
 
+    // Validate that return quantities do not exceed available physical stock in the selected godown
+    const checkGodownId = godown_id || body.godown_id;
+    if (checkGodownId) {
+      for (const item of items) {
+        const retQty = Number(item.returned_qty || 0);
+        if (retQty <= 0) continue;
+
+        if (item.item_type !== "finished_goods" && item.material_type_id) {
+          const { data: stockRow } = await supabase
+            .from("raw_material_current_stock")
+            .select("current_stock, material_type:raw_material_types(name, unit), godown:godowns(name)")
+            .eq("business_id", businessId)
+            .eq("material_type_id", item.material_type_id)
+            .eq("godown_id", checkGodownId)
+            .maybeSingle();
+
+          const avail = Math.max(0, Number(stockRow?.current_stock || 0));
+          if (retQty > avail) {
+            const rawMat: any = stockRow?.material_type;
+            const rawGodown: any = stockRow?.godown;
+            const matName = (Array.isArray(rawMat) ? rawMat[0]?.name : rawMat?.name) || item.material_name || "Material";
+            const unit = (Array.isArray(rawMat) ? rawMat[0]?.unit : rawMat?.unit) || item.unit || "Units";
+            const godownName = (Array.isArray(rawGodown) ? rawGodown[0]?.name : rawGodown?.name) || "selected godown";
+            return NextResponse.json(
+              {
+                error: `Cannot return ${retQty} ${unit} of '${matName}'. Only ${avail} ${unit} currently available in ${godownName}.`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
     // Auto-generate Return Number (Format: RET-YYYY-XXXX)
     const year = new Date(return_date).getFullYear() || new Date().getFullYear();
     const { data: lastRet } = await supabase

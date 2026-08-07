@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
+import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 
 export class SalesBillRepository {
   constructor(public supabase: SupabaseClient) {}
@@ -370,75 +371,39 @@ export class SalesBillRepository {
             );
           }
         } else if (!billData.is_temporary && item.design_id) {
-
-        // Fetch fresh finished_stock row to prevent stale overwrites across multiple size items
-        let { data: fsRows } = await this.supabase
-          .from("finished_stock")
-          .select("*")
-          .eq("business_id", billData.business_id)
-          .eq("design_id", item.design_id);
-
-        if (item.colour_id && fsRows && fsRows.length > 0) {
-          const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
-          if (matchCol.length > 0) fsRows = matchCol;
-        }
-
-        if (billData.godown_id && fsRows && fsRows.length > 0) {
-          const matchGodown = fsRows.filter((r) => r.godown_id === billData.godown_id);
-          if (matchGodown.length > 0) fsRows = matchGodown;
-        }
-
-        const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
-        const godownId = existingFs?.godown_id || billData.godown_id;
-
-        if (godownId) {
-          await this.supabase.from("stock_ledger").insert({
-            business_id: billData.business_id,
-            item_type: "finished_good",
-            item_id: item.design_id,
-            godown_id: godownId,
-            transaction_type: "sale_bill_outflow",
-            quantity_delta: -qty,
-            value_delta: -Number(item.amount || 0),
-            reference_table: "sale_bills",
-            reference_id: bill.id,
-            created_by: billData.created_by || null,
-          });
-        }
-
-        if (existingFs) {
-          const currentSizeQty = existingFs.size_quantities || {};
-          const sz = item.size || "all";
-          const currentSzQty = Number(currentSizeQty[sz] || 0);
-          const newSzQty = Math.max(0, currentSzQty - qty);
-          const newTotalQty = Math.max(0, Number(existingFs.total_quantity || 0) - qty);
-          const costPerPiece = Number(
-            existingFs.cost_per_piece ||
-              (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
-          );
-          const newTotalValue = newTotalQty * costPerPiece;
-
-          const updatedSizes = { ...currentSizeQty };
-          if (sz !== "all") {
-            updatedSizes[sz] = newSzQty;
+          const godownId = billData.godown_id;
+          if (godownId) {
+            await this.supabase.from("stock_ledger").insert({
+              business_id: billData.business_id,
+              item_type: "finished_good",
+              item_id: item.design_id,
+              godown_id: godownId,
+              transaction_type: "sale_bill_outflow",
+              quantity_delta: -qty,
+              value_delta: -Number(item.amount || 0),
+              reference_table: "sale_bills",
+              reference_id: bill.id,
+              created_by: billData.created_by || null,
+            });
           }
+        }
+      }
 
-          await this.supabase
-            .from("finished_stock")
-            .update({
-              size_quantities: updatedSizes,
-              total_quantity: newTotalQty,
-              total_value: newTotalValue,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingFs.id);
+      // Reconcile finished stock to update ground truth without double counting
+      if (!billData.is_temporary) {
+        try {
+          const designIdsToReconcile = Array.from(new Set(items.map((it: any) => it.design_id).filter(Boolean)));
+          for (const dId of designIdsToReconcile) {
+            await reconcileFinishedStock(this.supabase, billData.business_id, dId as string);
+          }
+        } catch (recErr) {
+          console.warn("[SalesBillRepository] Finished stock reconciliation warning:", recErr);
         }
       }
     }
-  }
 
-  return bill;
-}
+    return bill;
+  }
 
 async updateAtomic(billId: string, businessId: string, billData: any, items: any[], charges: any[]) {
     const { gstin, phone, transporter_name, vehicle_no, ...cleanData } = billData;

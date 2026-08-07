@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
 import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
+import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(
@@ -150,27 +151,9 @@ export async function DELETE(
         const qty = Number(item.quantity || 0);
         if (qty <= 0) continue;
 
-        // A. Finished Goods stock reversal
+        // A. Finished Goods stock reversal via ledger & reconciliation
         if (item.design_id) {
-          let { data: fsRows } = await supabase
-            .from("finished_stock")
-            .select("*")
-            .eq("business_id", businessId)
-            .eq("design_id", item.design_id);
-
-          if (item.colour_id && fsRows && fsRows.length > 0) {
-            const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
-            if (matchCol.length > 0) fsRows = matchCol;
-          }
-
-          if (bill.godown_id && fsRows && fsRows.length > 0) {
-            const matchGodown = fsRows.filter((r) => r.godown_id === bill.godown_id);
-            if (matchGodown.length > 0) fsRows = matchGodown;
-          }
-
-          const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
-          const godownId = existingFs?.godown_id || bill.godown_id;
-
+          const godownId = bill.godown_id;
           if (godownId) {
             await supabase.from("stock_ledger").insert({
               business_id: businessId,
@@ -184,34 +167,6 @@ export async function DELETE(
               reference_id: bill.id,
               created_by: bill.created_by || null,
             });
-          }
-
-          if (existingFs) {
-            const currentSizeQty = existingFs.size_quantities || {};
-            const sz = item.size || "all";
-            const currentSzQty = Number(currentSizeQty[sz] || 0);
-            const newSzQty = currentSzQty + qty;
-            const newTotalQty = Number(existingFs.total_quantity || 0) + qty;
-            const costPerPiece = Number(
-              existingFs.cost_per_piece ||
-                (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
-            );
-            const newTotalValue = newTotalQty * costPerPiece;
-
-            const updatedSizes = { ...currentSizeQty };
-            if (sz !== "all") {
-              updatedSizes[sz] = newSzQty;
-            }
-
-            await supabase
-              .from("finished_stock")
-              .update({
-                size_quantities: updatedSizes,
-                total_quantity: newTotalQty,
-                total_value: newTotalValue,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", existingFs.id);
           }
         }
 
@@ -298,6 +253,18 @@ export async function DELETE(
 
     if (cancelErr) {
       return NextResponse.json({ error: cancelErr.message }, { status: 500 });
+    }
+
+    // 5. Trigger real-time finished stock reconciliation to restore exact stock
+    if (bill.items && Array.isArray(bill.items)) {
+      try {
+        const designIdsToReconcile = Array.from(new Set(bill.items.map((it: any) => it.design_id).filter(Boolean)));
+        for (const dId of designIdsToReconcile) {
+          await reconcileFinishedStock(supabase, businessId, dId as string);
+        }
+      } catch (recErr) {
+        console.warn("Finished stock reconciliation warning on bill cancellation:", recErr);
+      }
     }
 
     // Fire-and-forget audit log

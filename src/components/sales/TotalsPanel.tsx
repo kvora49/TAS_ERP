@@ -34,26 +34,26 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Charges & Discount Form Panel */}
       <div className="space-y-6">
-        <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Add Bill Charge / Expense</h4>
+        <div className="bg-[var(--page-bg)] p-5 rounded-xl border border-[var(--border)] space-y-4">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)]">Add Bill Charge / Expense</h4>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Charge Name</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Charge Name</label>
               <input
                 type="text"
                 placeholder="e.g. Courier or Loading"
                 value={chargeName}
                 onChange={(e) => setChargeName(e.target.value)}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-xs focus:outline-none bg-white"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Charge Type</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Charge Type</label>
               <select
                 value={chargeType}
                 onChange={(e) => setChargeType(e.target.value as any)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs focus:outline-none cursor-pointer"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer transition-colors"
               >
                 <option value="flat">Flat Amount (₹)</option>
                 <option value="per_qty">Per Piece Qty (₹/pc)</option>
@@ -64,13 +64,13 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
 
           <div className="grid grid-cols-2 gap-4 items-center">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Amount / Rate</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Amount / Rate</label>
               <input
                 type="number"
                 min="0"
                 value={chargeAmount}
                 onChange={(e) => setChargeAmount(Number(e.target.value))}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-xs focus:outline-none bg-white"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
               />
             </div>
 
@@ -80,9 +80,9 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
                 id="isTaxable"
                 checked={isTaxable}
                 onChange={(e) => setIsTaxable(e.target.checked)}
-                className="rounded text-[#6366F1] focus:ring-[#6366F1]"
+                className="rounded text-[var(--primary)] focus:ring-[var(--input-focus)]"
               />
-              <label htmlFor="isTaxable" className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+              <label htmlFor="isTaxable" className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                 Taxable Charge
               </label>
             </div>
@@ -91,7 +91,7 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
           <Button
             type="button"
             onClick={handleAddCharge}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center gap-1.5 h-10 text-xs font-bold"
+            className="w-full bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center gap-1.5 h-10 text-xs font-bold"
           >
             <Plus size={14} />
             <span>Add Charge</span>

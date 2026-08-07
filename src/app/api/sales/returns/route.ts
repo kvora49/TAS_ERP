@@ -130,7 +130,6 @@ export async function POST(request: Request) {
         original_bill_id: original_bill_id || null,
         return_date,
         return_reason: return_reason || null,
-        godown_id: body.godown_id || null,
         gst_type: body.gst_type || "with_gst",
         taxable_amount: Number(body.taxable_amount || 0),
         cgst: Number(body.cgst || 0),
@@ -285,6 +284,14 @@ export async function POST(request: Request) {
         total_value: 0,
         created_by: userId,
       });
+    }
+
+    // Reconcile ground-truth stock
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      await reconcileFinishedStock(supabase, businessId);
+    } catch (reconcileErr) {
+      console.warn("[POST /api/sales/returns] Reconciliation warning:", reconcileErr);
     }
 
     return NextResponse.json({ return: sReturn, creditNote });
