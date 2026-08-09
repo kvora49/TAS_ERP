@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { generateDatabaseBackup } from "@/lib/backup/backupEngine";
+import { processBackupSync } from "@/lib/backup/backupSync";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -43,6 +45,8 @@ export async function GET(request: Request) {
 
       // Determine frequency interval in ms
       const FREQUENCY_MS_MAP: Record<string, number> = {
+        thrice_daily: 8 * 60 * 60 * 1000,
+        twice_daily: 12 * 60 * 60 * 1000,
         daily: 24 * 60 * 60 * 1000,
         alternate_days: 2 * 24 * 60 * 60 * 1000,
         weekly: 7 * 24 * 60 * 60 * 1000,
@@ -71,16 +75,9 @@ export async function GET(request: Request) {
 
       const fileName = `auto_backup_${biz.id}_${timestamp}.sql`;
 
-      let sqlDump = `-- TAS ERP Automated Backup\n`;
-      sqlDump += `-- Business: ${biz.name} (${biz.id})\n`;
-      sqlDump += `-- Frequency: ${frequency}\n`;
-      sqlDump += `-- Date: ${new Date().toUTCString()}\n\n`;
-
-      const { data: brands } = await supabase.from("brands").select("*").eq("business_id", biz.id);
-      sqlDump += `-- Brands Count: ${brands?.length || 0}\n`;
-
+      // Generate real SQL dump
+      const { sqlDump, fileSize } = await generateDatabaseBackup(supabase, biz.id);
       const fileBuffer = Buffer.from(sqlDump, "utf8");
-      const fileSize = fileBuffer.length;
 
       // Local fallback directory
       const localDir = path.join(process.cwd(), "public", "backups", biz.id);
@@ -102,20 +99,35 @@ export async function GET(request: Request) {
         });
       } catch (e) {}
 
-      // Enforce retention policy: delete local files older than retentionDays
-      const retentionCutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+      // Enforce 30-day (or tenant retention days) policy: delete local files & records older than retentionCutoff
+      const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
       try {
         const files = fs.readdirSync(localDir);
+        const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
         files.forEach((f) => {
           const filePath = path.join(localDir, f);
           const stat = fs.statSync(filePath);
-          if (stat.mtimeMs < retentionCutoff) {
+          if (stat.mtimeMs < cutoffMs) {
             fs.unlinkSync(filePath);
           }
         });
+
+        // Delete old history records from database
+        await supabase
+          .from("backup_history")
+          .delete()
+          .eq("business_id", biz.id)
+          .lt("created_at", retentionCutoff);
       } catch (e) {}
 
       results.push({ businessId: biz.id, fileName, publicUrl, frequency });
+    }
+
+    // Auto-trigger cross-account secondary R2 sync if backups were created
+    if (results.length > 0) {
+      try {
+        await processBackupSync();
+      } catch (_syncErr) {}
     }
 
     return NextResponse.json({

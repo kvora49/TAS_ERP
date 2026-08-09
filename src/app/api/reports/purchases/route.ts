@@ -13,47 +13,76 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
   const tab = searchParams.get("tab") ?? "all"; // 'raw' | 'finished' | 'all'
+  const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
+  const partyId = searchParams.get("party_id");
+  const paymentStatus = searchParams.get("payment_status");
   const bid = userData.business_id;
 
   try {
+    let rawQuery = supabase
+      .from("raw_material_purchases")
+      .select(`
+        id, purchase_number, invoice_date, grand_total, paid_amount,
+        payment_status, status, gst_type,
+        parties!inner(id, name, company_name)
+      `)
+      .eq("business_id", bid)
+      .neq("status", "cancelled")
+      .is("deleted_at", null)
+      .gte("invoice_date", from)
+      .lte("invoice_date", to);
+
+    let finishedQuery = supabase
+      .from("purchase_bills")
+      .select(`
+        id, bill_number, invoice_date, grand_total, paid_amount,
+        payment_status, status, bill_type,
+        parties!inner(id, name, company_name)
+      `)
+      .eq("business_id", bid)
+      .neq("status", "cancelled")
+      .gte("invoice_date", from)
+      .lte("invoice_date", to);
+
+    if (billType && (billType === "kacha" || billType === "pakka")) {
+      if (billType === "kacha") {
+        rawQuery = rawQuery.eq("gst_type", "without_gst");
+        finishedQuery = finishedQuery.eq("bill_type", "kacha");
+      } else {
+        rawQuery = rawQuery.neq("gst_type", "without_gst");
+        finishedQuery = finishedQuery.eq("bill_type", "pakka");
+      }
+    }
+
+    if (partyId && partyId !== "all") {
+      rawQuery = rawQuery.eq("party_id", partyId);
+      finishedQuery = finishedQuery.eq("party_id", partyId);
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      rawQuery = rawQuery.eq("payment_status", paymentStatus);
+      finishedQuery = finishedQuery.eq("payment_status", paymentStatus);
+    }
+
     const [rawResult, finishedResult] = await Promise.all([
-      // Raw material purchases
-      supabase
-        .from("raw_material_purchases")
-        .select(`
-          id, purchase_number, invoice_date, grand_total, paid_amount,
-          payment_status, status,
-          parties!inner(id, name, company_name)
-        `)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
-        .is("deleted_at", null)
-        .gte("invoice_date", from)
-        .lte("invoice_date", to)
+      rawQuery
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false }),
-
-      // Finished goods purchases
-      supabase
-        .from("purchase_bills")
-        .select(`
-          id, bill_number, invoice_date, grand_total, paid_amount,
-          payment_status, status,
-          parties!inner(id, name, company_name)
-        `)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
-        .gte("invoice_date", from)
-        .lte("invoice_date", to)
+      finishedQuery
         .order("invoice_date", { ascending: false })
         .order("created_at", { ascending: false }),
     ]);
 
-    const rawPurchases = (rawResult.data ?? []).map(p => ({ ...p, purchase_type: "raw_material" as const }));
+    const rawPurchases = (rawResult.data ?? []).map(p => ({
+      ...p,
+      purchase_type: "raw_material" as const,
+      bill_type: p.gst_type === "without_gst" ? ("kacha" as const) : ("pakka" as const),
+    }));
     const finishedPurchases = (finishedResult.data ?? []).map(p => ({
       ...p,
       purchase_number: p.bill_number,
       purchase_type: "finished_goods" as const,
+      bill_type: (p.bill_type === "kacha" ? "kacha" : "pakka") as "kacha" | "pakka",
     }));
 
     const allPurchases = tab === "raw"
@@ -70,6 +99,12 @@ export async function GET(req: NextRequest) {
       .filter(p => p.payment_status !== "paid")
       .reduce((s, p) => s + Number(p.grand_total) - Number(p.paid_amount), 0);
     const avgBillValue = allPurchases.length > 0 ? totalPurchases / allPurchases.length : 0;
+
+    const kachaPurchases = allPurchases.filter(p => p.bill_type === "kacha");
+    const pakkaPurchases = allPurchases.filter(p => p.bill_type === "pakka");
+
+    const kachaTotal = kachaPurchases.reduce((s, p) => s + Number(p.grand_total), 0);
+    const pakkaTotal = pakkaPurchases.reduce((s, p) => s + Number(p.grand_total), 0);
 
     // Monthly trend
     const monthMap: Record<string, number> = {};
@@ -100,6 +135,7 @@ export async function GET(req: NextRequest) {
       id: p.id,
       purchase_number: p.purchase_number,
       purchase_type: p.purchase_type,
+      bill_type: p.bill_type,
       invoice_date: p.invoice_date,
       party: (p.parties as any)?.company_name ?? (p.parties as any)?.name ?? "—",
       grand_total: Number(p.grand_total),
@@ -109,7 +145,7 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({
-      from, to, tab,
+      from, to, tab, bill_type: billType ?? "all",
       summary: {
         totalPurchases,
         totalBills: allPurchases.length,
@@ -120,6 +156,10 @@ export async function GET(req: NextRequest) {
         finishedTotal: finishedPurchases.reduce((s, p) => s + Number(p.grand_total), 0),
         rawCount: rawPurchases.length,
         finishedCount: finishedPurchases.length,
+        kachaTotal,
+        pakkaTotal,
+        kachaCount: kachaPurchases.length,
+        pakkaCount: pakkaPurchases.length,
       },
       monthlyTrend,
       topSuppliers,

@@ -110,6 +110,7 @@ export default function Step4SizeQuantity({
             showAllColorsOption={true}
             autoFillAllColors={useSameColours}
             onAutoFillAllColorsChange={setUseSameColours}
+            colourCount={selectedColours.length}
             onChange={(updated) => {
               setSizeQuantities((prev) => ({ ...prev, "all": updated }));
             }}

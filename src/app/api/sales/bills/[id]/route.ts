@@ -153,7 +153,11 @@ export async function DELETE(
 
         // A. Finished Goods stock reversal via ledger & reconciliation
         if (item.design_id) {
-          const godownId = bill.godown_id;
+          let godownId = bill.godown_id;
+          if (!godownId) {
+            const { data: godowns } = await supabase.from("godowns").select("id").eq("business_id", businessId).is("deleted_at", null).limit(1);
+            godownId = godowns && godowns.length > 0 ? godowns[0].id : null;
+          }
           if (godownId) {
             await supabase.from("stock_ledger").insert({
               business_id: businessId,

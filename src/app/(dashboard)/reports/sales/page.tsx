@@ -10,6 +10,11 @@ import { ReportAreaChart, ReportDonutChart, ReportBarChart, ChartCard, CHART_COL
 import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 
+import Link from "next/link";
+import BillTypeFilter from "@/components/reports/BillTypeFilter";
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+import FilterPills from "@/components/reports/filters/FilterPills";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BillTypeTab = "all" | "kacha" | "pakka";
@@ -18,6 +23,13 @@ const TABS: { id: BillTypeTab; label: string; badge?: string }[] = [
   { id: "all", label: "Combined" },
   { id: "kacha", label: "Kaacha" },
   { id: "pakka", label: "Pakka" },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { id: "all", label: "All Status" },
+  { id: "paid", label: "Paid", badgeClass: "bg-emerald-600 text-white shadow-xs font-semibold" },
+  { id: "partial", label: "Partial", badgeClass: "bg-amber-600 text-white shadow-xs font-semibold" },
+  { id: "unpaid", label: "Unpaid", badgeClass: "bg-rose-600 text-white shadow-xs font-semibold" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -34,12 +46,32 @@ export default function SalesReportsPage() {
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<BillTypeTab>("all");
+  const [partyId, setPartyId] = useState("all");
+  const [paymentStatus, setPaymentStatus] = useState("all");
+
+  // Fetch Parties for dropdown
+  const { data: partiesData } = useQuery({
+    queryKey: ["parties-list-customers"],
+    queryFn: async () => {
+      const res = await fetch("/api/parties?type=customer");
+      if (!res.ok) return { parties: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  const partyOptions = (partiesData?.parties ?? []).map((p: any) => ({
+    label: p.company_name ? `${p.company_name} (${p.name})` : p.name,
+    value: p.id,
+  }));
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-sales-v2", from, to, activeTab],
+    queryKey: ["report-sales-v2", from, to, activeTab, partyId, paymentStatus],
     queryFn: async () => {
       const params = new URLSearchParams({ from, to });
       if (activeTab !== "all") params.set("bill_type", activeTab);
+      if (partyId !== "all") params.set("party_id", partyId);
+      if (paymentStatus !== "all") params.set("payment_status", paymentStatus);
       const res = await fetch(`/api/reports/sales?${params}`);
       if (!res.ok) throw new Error("Failed to load sales report");
       return res.json();
@@ -87,26 +119,28 @@ export default function SalesReportsPage() {
       breadcrumbs={["Reports", "Sales Reports"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect
+            label="Customer"
+            value={partyId}
+            onChange={setPartyId}
+            options={partyOptions}
+            placeholder="All Customers"
+          />
+          <FilterPills
+            label="Payment Status"
+            value={paymentStatus}
+            onChange={setPaymentStatus}
+            options={PAYMENT_STATUS_OPTIONS}
+          />
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+            <BillTypeFilter value={activeTab} onChange={setActiveTab} />
+          </div>
+        </div>
+      }
     >
-      {/* Bill Type Tabs */}
-      <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={cn(
-              "px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer",
-              activeTab === t.id
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       <PageState
         isLoading={isLoading}
         isError={!!error}
@@ -167,7 +201,15 @@ export default function SalesReportsPage() {
                         {(data.topParties ?? []).slice(0, 8).map((p: any, i: number) => (
                           <tr key={p.id} className="hover:bg-[var(--table-row-hover)] h-10">
                             <td className="py-2 px-5 text-[var(--text-faint)] font-bold">{i + 1}</td>
-                            <td className="py-2 px-5 font-bold text-[var(--text-primary)]">{p.name}</td>
+                            <td className="py-2 px-5 font-bold text-[var(--text-primary)]">
+                              {p.id ? (
+                                <Link href={`/parties/${p.id}/ledger`} className="hover:underline text-[var(--primary)] font-bold">
+                                  {p.name}
+                                </Link>
+                              ) : (
+                                p.name
+                              )}
+                            </td>
                             <td className="py-2 px-5 text-center text-[var(--text-muted)]">{p.bills}</td>
                             <td className="py-2 px-5 text-right font-mono font-bold text-emerald-500">{fmtINR(p.total)}</td>
                           </tr>
@@ -191,13 +233,21 @@ export default function SalesReportsPage() {
                     {(data.bills ?? []).slice(0, 15).map((b: any) => (
                       <div key={b.id} className="p-3.5 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-black text-xs text-[var(--primary)]">{b.bill_number}</span>
+                          <Link href={`/sales/bills/${b.id}`} className="font-mono font-black text-xs text-[var(--primary)] hover:underline">
+                            {b.bill_number}
+                          </Link>
                           <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "bg-[var(--badge-draft-bg)] text-[var(--badge-draft-text)] border-transparent")}>
                             {b.payment_status}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[60%]">{b.party}</span>
+                          {b.party_id ? (
+                            <Link href={`/parties/${b.party_id}/ledger`} className="font-semibold text-[var(--text-primary)] hover:underline truncate max-w-[60%]">
+                              {b.party}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-[var(--text-primary)] truncate max-w-[60%]">{b.party}</span>
+                          )}
                           <span className="text-[11px] text-[var(--text-muted)]">{fmtDate(b.bill_date)}</span>
                         </div>
                         <div className="grid grid-cols-3 text-center border-t border-[var(--border-light)] pt-2">
@@ -231,7 +281,11 @@ export default function SalesReportsPage() {
                       <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
                         {(data.bills ?? []).slice(0, 15).map((b: any) => (
                           <tr key={b.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                            <td className="py-2 px-4 font-mono font-bold text-[var(--text-primary)]">{b.bill_number}</td>
+                            <td className="py-2 px-4 font-mono font-bold">
+                              <Link href={`/sales/bills/${b.id}`} className="text-[var(--primary)] hover:underline">
+                                {b.bill_number}
+                              </Link>
+                            </td>
                             <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(b.bill_date)}</td>
                             <td className="py-2 px-4">
                               <span className={cn(
@@ -243,7 +297,15 @@ export default function SalesReportsPage() {
                                 {b.bill_type === "pakka" ? "Pakka" : "Kaacha"}
                               </span>
                             </td>
-                            <td className="py-2 px-4 max-w-[140px] truncate">{b.party}</td>
+                            <td className="py-2 px-4 max-w-[140px] truncate">
+                              {b.party_id ? (
+                                <Link href={`/parties/${b.party_id}/ledger`} className="hover:underline text-[var(--text-primary)] font-semibold">
+                                  {b.party}
+                                </Link>
+                              ) : (
+                                b.party
+                              )}
+                            </td>
                             <td className="py-2 px-4 text-right font-mono font-bold">{fmtINR(b.grand_total)}</td>
                             <td className="py-2 px-4 text-right font-mono text-emerald-500">{fmtINR(b.paid_amount)}</td>
                             <td className="py-2 px-4 text-right font-mono text-rose-500">{fmtINR(b.outstanding)}</td>
@@ -262,6 +324,7 @@ export default function SalesReportsPage() {
                   </div>
                 </div>
               </div>
+
 
               {/* Right: charts sidebar */}
               <div className="space-y-4">

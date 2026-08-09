@@ -12,13 +12,52 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
   const bid = userData.business_id;
 
   try {
+    let salesQuery = supabase
+      .from("sale_bills")
+      .select("grand_total, bill_type, payment_status, paid_amount")
+      .eq("business_id", bid)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .gte("bill_date", from)
+      .lte("bill_date", to);
+
+    let rawPurchasesQuery = supabase
+      .from("raw_material_purchases")
+      .select("grand_total, payment_status, paid_amount, gst_type")
+      .eq("business_id", bid)
+      .neq("status", "cancelled")
+      .is("deleted_at", null)
+      .gte("invoice_date", from)
+      .lte("invoice_date", to);
+
+    let finishedPurchasesQuery = supabase
+      .from("purchase_bills")
+      .select("grand_total, payment_status, paid_amount, bill_type")
+      .eq("business_id", bid)
+      .neq("status", "cancelled")
+      .gte("invoice_date", from)
+      .lte("invoice_date", to);
+
+    if (billType && (billType === "kacha" || billType === "pakka")) {
+      salesQuery = salesQuery.eq("bill_type", billType);
+      if (billType === "kacha") {
+        rawPurchasesQuery = rawPurchasesQuery.eq("gst_type", "without_gst");
+        finishedPurchasesQuery = finishedPurchasesQuery.eq("bill_type", "kacha");
+      } else {
+        rawPurchasesQuery = rawPurchasesQuery.neq("gst_type", "without_gst");
+        finishedPurchasesQuery = finishedPurchasesQuery.eq("bill_type", "pakka");
+      }
+    }
+
     // Run all queries in parallel
     const [
       salesResult,
       purchasesResult,
+      finishedPurchasesResult,
       paymentsReceivedResult,
       paymentsMadeResult,
       expensesResult,
@@ -26,25 +65,9 @@ export async function GET(req: NextRequest) {
       miscIncomeResult,
       writeoffsResult,
     ] = await Promise.all([
-      // Total sales (pakka + kacha)
-      supabase
-        .from("sale_bills")
-        .select("grand_total, bill_type, payment_status, paid_amount")
-        .eq("business_id", bid)
-        .eq("status", "active")
-        .is("deleted_at", null)
-        .gte("bill_date", from)
-        .lte("bill_date", to),
-
-      // Raw material purchases
-      supabase
-        .from("raw_material_purchases")
-        .select("grand_total, payment_status, paid_amount")
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
-        .is("deleted_at", null)
-        .gte("invoice_date", from)
-        .lte("invoice_date", to),
+      salesQuery,
+      rawPurchasesQuery,
+      finishedPurchasesQuery,
 
       // Payments received from customers
       supabase
@@ -101,7 +124,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const bills = salesResult.data ?? [];
-    const purchases = purchasesResult.data ?? [];
+    const purchases = [...(purchasesResult.data ?? []), ...(finishedPurchasesResult.data ?? [])];
     const paymentsIn = paymentsReceivedResult.data ?? [];
     const paymentsOut = paymentsMadeResult.data ?? [];
     const expenses = expensesResult.data ?? [];
@@ -146,7 +169,7 @@ export async function GET(req: NextRequest) {
     }, {});
 
     // ── GST Summary ──
-    const gstBills = await supabase
+    let gstBillsQuery = supabase
       .from("sale_bills")
       .select("taxable_amount, cgst, sgst, igst, grand_total, bill_date, bill_number, parties(company_name,name)")
       .eq("business_id", bid)
@@ -154,6 +177,13 @@ export async function GET(req: NextRequest) {
       .is("deleted_at", null)
       .gte("bill_date", from)
       .lte("bill_date", to);
+
+    if (billType && (billType === "kacha" || billType === "pakka")) {
+      gstBillsQuery = gstBillsQuery.eq("bill_type", billType);
+    }
+
+    const gstBills = await gstBillsQuery;
+
 
     const gstPurchases = await supabase
       .from("raw_material_purchases")

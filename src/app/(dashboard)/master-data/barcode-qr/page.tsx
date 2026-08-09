@@ -20,7 +20,7 @@ import {
   X,
   ChevronRight,
 } from "lucide-react";
-import { isValidQRUUID, generate1DBarcode } from "@/lib/utils/barcode";
+import { isValidQRUUID, isValidBarcodePayload, generate1DBarcode } from "@/lib/utils/barcode";
 import { toast } from "sonner";
 
 export default function MasterDataBarcodeQRPage() {
@@ -99,9 +99,9 @@ export default function MasterDataBarcodeQRPage() {
     const trimmed = uuidToScan.trim();
     if (!trimmed) return;
 
-    if (!isValidQRUUID(trimmed)) {
+    if (!isValidBarcodePayload(trimmed)) {
       setScanStatus("invalid");
-      toast.error("Invalid QR payload format. Must be a valid UUID.");
+      toast.error("Invalid barcode payload format.");
       return;
     }
 

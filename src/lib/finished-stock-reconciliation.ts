@@ -29,13 +29,13 @@ export async function reconcileFinishedStock(
 
     const defaultGodownId = godowns && godowns.length > 0 ? godowns[0].id : null;
 
-    // 2. Fetch active/completed production lots with size quantities
+    // 2. Fetch completed production lots with size quantities
     let lotQuery = supabase
       .from("production_lots")
       .select("id, design_id, colour_id, status, accessory_cost, other_cost, lot_size_quantities(*)")
       .eq("business_id", businessId)
       .is("deleted_at", null)
-      .neq("status", "cancelled");
+      .eq("status", "completed");
 
     if (targetDesignId) {
       lotQuery = lotQuery.eq("design_id", targetDesignId);
@@ -45,7 +45,7 @@ export async function reconcileFinishedStock(
       console.error("[reconcileFinishedStock] Production lots query error:", lotErr);
     }
 
-    // 3. Fetch finished goods purchases
+    // 3. Fetch finished goods purchases (Phase 3 raw_material_purchase_items)
     let fgPurchaseQuery = supabase
       .from("raw_material_purchase_items")
       .select("id, purchase_id, design_id, colour_id, size_quantities, quantity, rate, amount, taxable_value, item_type, purchase:raw_material_purchases(godown_id, status)")
@@ -75,10 +75,10 @@ export async function reconcileFinishedStock(
       console.error("[reconcileFinishedStock] FG returns query error:", fgrErr);
     }
 
-    // 5. Fetch active sale bill items (correct table: sale_bill_items & sale_bills)
+    // 5. Fetch active sale bill items (correct table: sale_bill_items & sale_bills - note: sale_bills has no godown_id column)
     let salesBillQuery = supabase
       .from("sale_bill_items")
-      .select("id, bill_id, design_id, colour_id, size, size_quantities, quantity, rate, amount, bill:sale_bills(status, deleted_at)")
+      .select("id, bill_id, design_id, colour_id, size, quantity, rate, amount, bill:sale_bills(status, deleted_at, is_temporary)")
       .eq("business_id", businessId);
 
     if (targetDesignId) {
@@ -89,10 +89,10 @@ export async function reconcileFinishedStock(
       console.error("[reconcileFinishedStock] Sale bills query error:", sbErr);
     }
 
-    // 6. Fetch active sale return items (correct table: sale_return_items & sale_returns)
+    // 6. Fetch active sale return items (correct table: sales_return_items & sales_returns - note: sales_returns has no godown_id column)
     let salesReturnQuery = supabase
-      .from("sale_return_items")
-      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, quantity, rate, amount, sales_return:sale_returns(status)")
+      .from("sales_return_items")
+      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, quantity, unit_rate, rate, amount, sales_return:sales_returns(status)")
       .eq("business_id", businessId);
 
     if (targetDesignId) {
@@ -116,6 +116,34 @@ export async function reconcileFinishedStock(
     const { data: adjustments, error: adjErr } = await adjustmentQuery;
     if (adjErr) {
       console.error("[reconcileFinishedStock] Stock adjustments query error:", adjErr);
+    }
+
+    // 8. Fetch active stock transfers
+    let transferQuery = supabase
+      .from("stock_transfer_items")
+      .select("id, transfer_id, design_id, colour_id, size, quantity, unit_cost, total_value, transfer:stock_transfers(from_godown_id, to_godown_id, status)")
+      .eq("business_id", businessId);
+
+    if (targetDesignId) {
+      transferQuery = transferQuery.eq("design_id", targetDesignId);
+    }
+    const { data: stockTransfers, error: stErr } = await transferQuery;
+    if (stErr) {
+      console.error("[reconcileFinishedStock] Stock transfers query error:", stErr);
+    }
+
+    // 9. Fetch active challans
+    let challanQuery = supabase
+      .from("challan_items")
+      .select("id, challan_id, design_id, colour_id, size, quantity, unit_cost, total_value, challan:challans(from_godown_id, status)")
+      .eq("business_id", businessId);
+
+    if (targetDesignId) {
+      challanQuery = challanQuery.eq("design_id", targetDesignId);
+    }
+    const { data: challanItems, error: chErr } = await challanQuery;
+    if (chErr) {
+      console.error("[reconcileFinishedStock] Challans query error:", chErr);
     }
 
     // Build key map: `${godown_id}:${design_id}:${colour_id || 'null'}`
@@ -228,7 +256,7 @@ export async function reconcileFinishedStock(
 
     // E. Deduct Active Sales Bills (-)
     (salesBills || []).forEach((item: any) => {
-      if (item.bill?.status === "cancelled" || item.bill?.deleted_at) return;
+      if (item.bill?.status === "cancelled" || item.bill?.deleted_at || item.bill?.is_temporary) return;
       const gId = defaultGodownId;
       const dId = item.design_id;
       const cId = item.colour_id || null;
@@ -251,13 +279,13 @@ export async function reconcileFinishedStock(
 
     // F. Add Active Sales Returns (+)
     (salesReturns || []).forEach((item: any) => {
-      if (item.sales_return?.status === "cancelled") return;
+      if (item.sales_return?.status === "cancelled" || item.sales_return?.status === "rejected") return;
       const gId = defaultGodownId;
       const dId = item.design_id;
       const cId = item.colour_id || null;
       if (!gId || !dId) return;
 
-      const existing = getOrCreate(gId, dId, cId, Number(item.rate || 0));
+      const existing = getOrCreate(gId, dId, cId, Number(item.unit_rate || item.rate || 0));
       const qty = Math.abs(Number(item.returned_qty || item.quantity || 0));
 
       const sz = item.size;
@@ -272,6 +300,55 @@ export async function reconcileFinishedStock(
       existing.totalQuantity += qty;
     });
 
+    // G. Deduct / Add Stock Transfers (From Godown -, To Godown +)
+    (stockTransfers || []).forEach((item: any) => {
+      if (item.transfer?.status === "cancelled") return;
+      const fromGId = item.transfer?.from_godown_id;
+      const toGId = item.transfer?.to_godown_id;
+      const dId = item.design_id;
+      const cId = item.colour_id || null;
+      if (!dId) return;
+
+      const qty = Math.abs(Number(item.quantity || 0));
+      const sz = item.size;
+
+      // Deduct from source godown
+      if (fromGId) {
+        const sourceEst = getOrCreate(fromGId, dId, cId, Number(item.unit_cost || 0));
+        if (sz && sz !== "all" && sz !== "—") {
+          sourceEst.sizeQuantities[sz] = Math.max(0, (sourceEst.sizeQuantities[sz] || 0) - qty);
+        }
+        sourceEst.totalQuantity = Math.max(0, sourceEst.totalQuantity - qty);
+      }
+
+      // Add to target godown
+      if (toGId) {
+        const targetEst = getOrCreate(toGId, dId, cId, Number(item.unit_cost || 0));
+        if (sz && sz !== "all" && sz !== "—") {
+          targetEst.sizeQuantities[sz] = (targetEst.sizeQuantities[sz] || 0) + qty;
+        }
+        targetEst.totalQuantity += qty;
+      }
+    });
+
+    // H. Deduct Outward Challans (From Godown -)
+    (challanItems || []).forEach((item: any) => {
+      if (item.challan?.status === "cancelled") return;
+      const fromGId = item.challan?.from_godown_id || defaultGodownId;
+      const dId = item.design_id;
+      const cId = item.colour_id || null;
+      if (!fromGId || !dId) return;
+
+      const existing = getOrCreate(fromGId, dId, cId, Number(item.unit_cost || 0));
+      const qty = Math.abs(Number(item.quantity || 0));
+      const sz = item.size;
+
+      if (sz && sz !== "all" && sz !== "—") {
+        existing.sizeQuantities[sz] = Math.max(0, (existing.sizeQuantities[sz] || 0) - qty);
+      }
+      existing.totalQuantity = Math.max(0, existing.totalQuantity - qty);
+    });
+
     // 8. Clear ALL existing finished_stock rows for target design (or all) to remove duplicates & stale mutated entries
     let deleteStockQuery = supabase
       .from("finished_stock")
@@ -283,6 +360,32 @@ export async function reconcileFinishedStock(
     }
     await deleteStockQuery;
 
+    // Fetch design prices & active BOM costing fallbacks for unit cost resolution
+    const { data: designPrices } = await supabase
+      .from("designs")
+      .select("id, sale_price")
+      .eq("business_id", businessId);
+
+    const { data: designCostings } = await supabase
+      .from("design_costings")
+      .select("design_id, total_cost_per_piece")
+      .eq("business_id", businessId)
+      .eq("is_active", true);
+
+    const priceMap = new Map<string, number>();
+    (designPrices || []).forEach((d: any) => {
+      if (d.sale_price && Number(d.sale_price) > 0) {
+        priceMap.set(d.id, Number(d.sale_price));
+      }
+    });
+
+    const bomCostMap = new Map<string, number>();
+    (designCostings || []).forEach((c: any) => {
+      if (c.total_cost_per_piece && Number(c.total_cost_per_piece) > 0) {
+        bomCostMap.set(c.design_id, Number(c.total_cost_per_piece));
+      }
+    });
+
     // 9. Insert fresh single ground-truth consolidated rows
     let updatedCount = 0;
     const entriesArray = Array.from(stockMap.entries());
@@ -291,6 +394,34 @@ export async function reconcileFinishedStock(
       if (stockData.totalQuantity <= 0 && stockData.totalValue <= 0) {
         continue;
       }
+
+      // Determine unit cost using fallback hierarchy:
+      // 1. Existing costPerPiece / average cost from transactions
+      // 2. Active design_costings total_cost_per_piece
+      // 3. 60% of design sale_price
+      let unitCost = stockData.costPerPiece;
+      if (unitCost <= 0 && stockData.totalQuantity > 0 && stockData.totalValue > 0) {
+        unitCost = Number((stockData.totalValue / stockData.totalQuantity).toFixed(2));
+      }
+
+      if (unitCost <= 0) {
+        const bomCost = bomCostMap.get(stockData.designId) || 0;
+        if (bomCost > 0) {
+          unitCost = bomCost;
+        } else {
+          const salePrice = priceMap.get(stockData.designId) || 0;
+          if (salePrice > 0) {
+            unitCost = Math.round(salePrice * 0.6);
+          } else {
+            unitCost = 150; // Default estimated unit cost for un-priced items
+          }
+        }
+      }
+
+      const computedValue = stockData.totalValue > 0
+        ? Math.max(0, Number(stockData.totalValue.toFixed(2)))
+        : Math.max(0, Number((stockData.totalQuantity * unitCost).toFixed(2)));
+
       await supabase
         .from("finished_stock")
         .insert({
@@ -301,8 +432,8 @@ export async function reconcileFinishedStock(
           entry_type: "manual",
           size_quantities: stockData.sizeQuantities,
           total_quantity: Math.max(0, Math.round(stockData.totalQuantity)),
-          cost_per_piece: stockData.costPerPiece,
-          total_value: Math.max(0, stockData.totalValue),
+          cost_per_piece: Number(unitCost.toFixed(2)),
+          total_value: computedValue,
         });
       updatedCount++;
     }

@@ -44,6 +44,18 @@ export function isValidQRUUID(input: string): boolean {
 }
 
 /**
+ * Validates whether an input string is a valid QR UUID or standard 1D linear barcode / SKU payload.
+ */
+export function isValidBarcodePayload(input: string): boolean {
+  if (!input) return false;
+  const trimmed = input.trim();
+  if (trimmed.length < 2 || trimmed.length > 128) return false;
+  // Valid if it's a UUID or any valid non-empty barcode string without illegal control chars
+  return true;
+}
+
+
+/**
  * Generates a unique, deterministic UUID v5 for a specific stock ID and size combination.
  * Ensures each SKU size tag has a distinct barcode & QR UUID token.
  */

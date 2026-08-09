@@ -487,66 +487,46 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
       }
     }
 
+    // 4. Trigger ground-truth finished stock reconciliation
+    if (!billData.is_temporary) {
+      try {
+        const designIdsToReconcile = Array.from(new Set((items || []).map((it: any) => it.design_id).filter(Boolean)));
+        for (const dId of designIdsToReconcile) {
+          await reconcileFinishedStock(this.supabase, businessId, dId as string);
+        }
+      } catch (recErr) {
+        console.warn("[SalesBillRepository] Finished stock reconciliation warning on update:", recErr);
+      }
+    }
+
     return { success: true };
   }
 
   async delete(id: string, businessId: string) {
     // 1. Fetch sale bill with items to restore stock
     const bill = await this.getById(id, businessId);
-    if (bill && bill.items && bill.items.length > 0) {
-      const godownId = bill.godown_id || bill.items[0]?.godown_id;
-      if (godownId) {
-        const finishedStockRestorations: any[] = [];
-        const stockLedgerRestorations: any[] = [];
-
-        for (const item of bill.items) {
-          if (item.design_id) {
-            const sizeQty = item.size ? { [item.size]: Number(item.quantity || 0) } : {};
-            const totalQty = Number(item.quantity || 0);
-
-            finishedStockRestorations.push({
-              business_id: businessId,
-              design_id: item.design_id,
-              colour_id: item.colour_id || null,
-              godown_id: godownId,
-              entry_type: "adjustment",
-              size_quantities: sizeQty,
-              total_quantity: totalQty,
-              cost_per_piece: item.cost_per_piece || item.rate || 0,
-              total_value: (item.cost_per_piece || item.rate || 0) * totalQty,
-            });
-
-            stockLedgerRestorations.push({
-              business_id: businessId,
-              item_type: "finished_goods",
-              item_id: item.design_id,
-              godown_id: godownId,
-              transaction_type: "sales_return",
-              quantity_delta: totalQty,
-              value_delta: (item.cost_per_piece || item.rate || 0) * totalQty,
-              reference_table: "sale_bills",
-              reference_id: id,
-            });
-          }
-        }
-
-        if (finishedStockRestorations.length > 0) {
-          await this.supabase.from("finished_stock").insert(finishedStockRestorations);
-        }
-        if (stockLedgerRestorations.length > 0) {
-          await this.supabase.from("stock_ledger").insert(stockLedgerRestorations);
-        }
-      }
-    }
 
     // 2. Soft delete the sale bill
     const { error } = await this.supabase
       .from("sale_bills")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), status: "cancelled" })
       .eq("id", id)
       .eq("business_id", businessId);
 
     if (error) throw error;
+
+    // 3. Reconcile finished stock to restore accurate inventory
+    if (bill && bill.items && bill.items.length > 0) {
+      try {
+        const designIdsToReconcile = Array.from(new Set(bill.items.map((it: any) => it.design_id).filter(Boolean)));
+        for (const dId of designIdsToReconcile) {
+          await reconcileFinishedStock(this.supabase, businessId, dId as string);
+        }
+      } catch (recErr) {
+        console.warn("[SalesBillRepository] Finished stock reconciliation warning on delete:", recErr);
+      }
+    }
+
     return { success: true };
   }
 }

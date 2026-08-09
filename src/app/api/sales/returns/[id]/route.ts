@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -210,19 +211,24 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 5b. Reconcile finished stock ground-truth
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      await reconcileFinishedStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("[DELETE /api/sales/returns/[id]] Finished stock reconciliation warning:", recErr);
+    }
+
     // 6. Audit log
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "delete_sales_return",
-      table_name: "sales_returns",
-      record_id: id,
-      old_values: { return_number: sReturn.return_number, grand_total: sReturn.grand_total },
-      new_values: { deleted: true },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    await logAudit(
+      businessId,
+      "delete_sales_return",
+      "sales_returns",
+      id,
+      { deleted: true },
+      { return_number: sReturn.return_number, grand_total: sReturn.grand_total },
+      request
+    );
 
     return NextResponse.json({
       success: true,

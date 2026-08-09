@@ -121,6 +121,10 @@ export async function POST(request: Request) {
       });
     }
 
+    // Reconcile finished stock ground-truth after sales bill creation
+    const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+    void reconcileFinishedStock(supabase, businessId).catch(err => console.error("Sales bill stock reconciliation error:", err));
+
     return NextResponse.json({ data: bill });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

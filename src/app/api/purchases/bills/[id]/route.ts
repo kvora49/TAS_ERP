@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { UpdatePurchaseBillSchema } from "@/lib/schemas/purchases";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -188,21 +189,15 @@ export async function DELETE(
     }
 
     // 4. Record Audit Log
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "cancel_purchase_bill",
-      table_name: "purchase_bills",
-      record_id: id,
-      old_values: { bill_number: bill.bill_number, grand_total: bill.grand_total, status: bill.status },
-      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    await logAudit(
+      businessId,
+      "cancel_purchase_bill",
+      "purchase_bills",
+      id,
+      { status: "cancelled", deleted_at: new Date().toISOString() },
+      { bill_number: bill.bill_number, grand_total: bill.grand_total, status: bill.status },
+      request
+    );
 
     return NextResponse.json({
       success: true,

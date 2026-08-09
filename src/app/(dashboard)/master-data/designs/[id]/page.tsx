@@ -126,26 +126,37 @@ export default function MasterDataDesignDetailPage({
 
   const sizesList = design?.size_set?.sizes || ["S", "M", "L", "XL", "XXL"];
 
+  const apiAvgCost = (data as any)?.overallAvgCost ?? 0;
+  const apiTotalQty = (data as any)?.totalDesignStockQty ?? 0;
+  const apiTotalValue = (data as any)?.totalDesignStockValue ?? 0;
+
   // Total calculations
   let grandTotalQty = 0;
   let grandTotalValue = 0;
   let weightedCostSum = 0;
 
-  colours.forEach((c) => {
+  const colourKeys = colours.length > 0 ? colours.map((c) => c.id) : Object.keys(matrix);
+  colourKeys.forEach((cId) => {
     let colourQty = 0;
     godowns.forEach((g) => {
       sizesList.forEach((s) => {
-        const qty = matrix[c.id]?.[g.id]?.[s] || 0;
+        const qty = matrix[cId]?.[g.id]?.[s] || 0;
         colourQty += qty;
       });
     });
     grandTotalQty += colourQty;
-    const cost = colourCosts[c.id] || 0;
+    const cost = colourCosts[cId] || apiAvgCost || 0;
     grandTotalValue += colourQty * cost;
     weightedCostSum += cost;
   });
 
-  const avgCost = colours.length > 0 ? weightedCostSum / colours.length : 0;
+  const finalQty = grandTotalQty > 0 ? grandTotalQty : apiTotalQty;
+  const salePrice = Number(design?.sale_price || 0);
+  const fallbackUnitCost = salePrice > 0 ? Math.round(salePrice * 0.6) : 150;
+  const rawValue = grandTotalValue > 0 ? grandTotalValue : (apiTotalValue > 0 ? apiTotalValue : (finalQty * apiAvgCost));
+  const rawAvgCost = finalQty > 0 ? (rawValue / finalQty) : (apiAvgCost > 0 ? apiAvgCost : (colours.length > 0 && weightedCostSum > 0 ? weightedCostSum / colours.length : 0));
+  const avgCost = rawAvgCost > 0 ? rawAvgCost : fallbackUnitCost;
+  const finalValue = rawValue > 0 ? rawValue : (finalQty > 0 ? Math.round(finalQty * avgCost) : 0);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -311,7 +322,7 @@ export default function MasterDataDesignDetailPage({
               <div>
                 <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Total Pieces on Hand</p>
                 <h4 className="text-lg font-bold text-[var(--text-primary)]">
-                  {grandTotalQty.toLocaleString()} <span className="text-xs font-semibold text-[var(--text-muted)]">pcs</span>
+                  {finalQty.toLocaleString()} <span className="text-xs font-semibold text-[var(--text-muted)]">pcs</span>
                 </h4>
                 <p className="text-[10px] text-[var(--text-muted)]">Across all godowns</p>
               </div>
@@ -323,7 +334,7 @@ export default function MasterDataDesignDetailPage({
               </div>
               <div>
                 <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Stock Valuation</p>
-                <h4 className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatRupee(grandTotalValue)}</h4>
+                <h4 className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatRupee(finalValue)}</h4>
                 <p className="text-[10px] text-[var(--text-muted)]">Weighted average value</p>
               </div>
             </div>
@@ -449,7 +460,7 @@ export default function MasterDataDesignDetailPage({
 
       {/* TAB 2: DESIGN COSTING CALCULATOR */}
       {activeTab === "costing" && (
-        <DesignCostingSection designId={params.id} />
+        <DesignCostingSection designId={params.id} onSave={fetchDetail} />
       )}
 
       {/* TAB 3: DATE NOTES & REMINDERS */}

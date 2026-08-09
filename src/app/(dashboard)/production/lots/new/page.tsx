@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, FileText, ClipboardList } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, ClipboardList, CheckCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
@@ -684,10 +684,31 @@ export default function CreateLotPage() {
             <ArrowLeft size={16} />
           </Link>
           <div>
-            <h2 className="text-xl font-bold text-[#0F172A]">Create Production Lot</h2>
-            <p className="text-xs text-[#64748B]">Set up new production lot routing and specifications</p>
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">Create Production Lot</h2>
+            <p className="text-xs text-[var(--text-muted)]">Set up new production lot routing and specifications</p>
           </div>
         </div>
+
+        {currentStep === 7 && (
+          <button
+            type="button"
+            onClick={handleSubmitLot}
+            disabled={submitting}
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] disabled:opacity-50 text-white font-bold text-xs px-5 h-10 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Creating Lot...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                <span>Confirm & Create Lot</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Wizard Header */}
@@ -840,6 +861,8 @@ export default function CreateLotPage() {
               designReferenceText={designReferenceText}
               designReferencePhotos={designReferencePhotos}
               customQa={customQa}
+              sizeQuantities={sizeQuantities}
+              useSameColours={useSameColours}
               submitting={submitting}
               onSubmit={handleSubmitLot}
               onBack={() => setCurrentStep(6)}

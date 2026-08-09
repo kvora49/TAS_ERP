@@ -184,14 +184,20 @@ export default function NewChallanPage() {
 
     if (!designId) return;
 
-    // Load colours
+    // Load colours and average cost fallback
     try {
       const res = await fetch(`/api/finished-stock/designs/${designId}`);
       const data = await res.json();
-      if (res.ok && data.colours) {
+      if (res.ok) {
         const current = [...items];
         if (current[index].design_id === designId) {
-          current[index].coloursList = data.colours;
+          if (data.colours) {
+            current[index].coloursList = data.colours;
+          }
+          if (Number(data.overallAvgCost || 0) > 0 && current[index].unit_cost <= 0) {
+            current[index].unit_cost = Math.round(Number(data.overallAvgCost));
+            current[index].total_value = current[index].quantity * current[index].unit_cost;
+          }
           setItems(current);
         }
       }

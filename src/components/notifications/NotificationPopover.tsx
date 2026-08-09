@@ -75,9 +75,20 @@ export function NotificationPopover() {
   const [subscribingPush, setSubscribingPush] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
+    if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator) {
       if (Notification.permission === "granted") {
-        setPushGranted(true);
+        navigator.serviceWorker.ready.then(async (reg) => {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            setPushGranted(true);
+          } else {
+            // Permission granted but active SW push subscription is missing or was reset.
+            // Auto resubscribe silently using unified SW to prevent prompt resets.
+            handleSubscribeWebPush(true);
+          }
+        }).catch(() => {
+          setPushGranted(Notification.permission === "granted");
+        });
       }
     }
   }, []);
@@ -87,7 +98,6 @@ export function NotificationPopover() {
       const res = await fetch("/api/notifications");
       if (!res.ok) return;
       const data = await res.json();
-      // Apply locally-persisted read state so dismissed items stay dismissed
       const readIds = getLocalReadIds();
       const notifs: InAppNotification[] = (data.notifications || []).map(
         (n: InAppNotification) => ({
@@ -102,17 +112,15 @@ export function NotificationPopover() {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000); // refresh every minute
+    const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, []);
 
   const handleMarkAllRead = async () => {
     const allIds = notifications.map((n) => n.id);
-    // Persist all IDs to localStorage so they stay read after re-open
     saveAllLocalReadIds(allIds);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
-    // Best-effort DB update for persisted notifications
     try {
       await fetch("/api/notifications", {
         method: "PUT",
@@ -124,13 +132,11 @@ export function NotificationPopover() {
   };
 
   const handleMarkItemRead = async (id: string, linkUrl: string | null) => {
-    // Persist read state to localStorage so it survives re-open
     saveLocalReadId(id);
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
-    // Only call API for real DB IDs (not synthetic ones)
     const isSynthetic =
       id.startsWith("overdue-") ||
       id.startsWith("lowstock-") ||
@@ -151,34 +157,52 @@ export function NotificationPopover() {
     }
   };
 
-  const handleSubscribeWebPush = async () => {
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const handleSubscribeWebPush = async (silent: boolean = false) => {
     if (typeof window === "undefined" || !("Notification" in window)) {
-      toast.error("Web Push Notifications are not supported in this browser");
+      if (!silent) toast.error("Web Push Notifications are not supported in this browser");
       return;
     }
 
-    setSubscribingPush(true);
+    if (!silent) setSubscribingPush(true);
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        toast.error("Notification permission denied by user");
-        setSubscribingPush(false);
+        if (!silent) toast.error("Notification permission denied by user");
+        if (!silent) setSubscribingPush(false);
+        setPushGranted(false);
         return;
       }
 
       if ("serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.register("/sw-push.js");
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
 
         if (!sub) {
-          // Dummy VAPID / Push registration simulation
-          const applicationServerKey = "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvH123456789";
+          const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+          const options: PushSubscriptionOptionsInit = { userVisibleOnly: true };
+          if (vapidKey && !vapidKey.includes("placeholder")) {
+            options.applicationServerKey = urlBase64ToUint8Array(vapidKey);
+          }
+
           try {
-            sub = await reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: applicationServerKey as any,
-            });
-          } catch (_e) {}
+            sub = await reg.pushManager.subscribe(options);
+          } catch (_e) {
+            try {
+              sub = await reg.pushManager.subscribe({ userVisibleOnly: true });
+            } catch (_e2) {}
+          }
         }
 
         if (sub) {
@@ -192,11 +216,11 @@ export function NotificationPopover() {
       }
 
       setPushGranted(true);
-      toast.success("Mobile PWA Web Push notifications enabled!");
+      if (!silent) toast.success("Mobile PWA Web Push notifications enabled!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to register mobile notifications");
+      if (!silent) toast.error(err.message || "Failed to register mobile notifications");
     } finally {
-      setSubscribingPush(false);
+      if (!silent) setSubscribingPush(false);
     }
   };
 
@@ -204,7 +228,7 @@ export function NotificationPopover() {
     setSubscribingPush(true);
     try {
       if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration("/sw-push.js");
+        const reg = await navigator.serviceWorker.getRegistration("/sw.js");
         if (reg) {
           const sub = await reg.pushManager.getSubscription();
           if (sub) {
@@ -311,7 +335,7 @@ export function NotificationPopover() {
             </button>
           ) : (
             <button
-              onClick={handleSubscribeWebPush}
+              onClick={() => handleSubscribeWebPush(false)}
               disabled={subscribingPush}
               className="h-7 px-2.5 bg-[#6366F1] hover:bg-[#4F46E5] text-white text-[10px] font-semibold rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
             >

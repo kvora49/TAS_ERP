@@ -58,6 +58,7 @@ export default function UsersRolesSettingsPage() {
   // Search & Filter
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Modal states
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -68,6 +69,13 @@ export default function UsersRolesSettingsPage() {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+
+  // Edit User states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserName, setEditUserName] = useState("");
+  const [editUserPhone, setEditUserPhone] = useState("");
+  const [editUserRole, setEditUserRole] = useState("manager");
 
   // Edit / Dropdown actions
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -84,6 +92,7 @@ export default function UsersRolesSettingsPage() {
     try {
       const query = new URLSearchParams();
       if (roleFilter !== "all") query.append("role", roleFilter);
+      if (statusFilter !== "all") query.append("status", statusFilter);
       if (search) query.append("search", search);
       query.append("_t", Date.now().toString());
 
@@ -118,7 +127,7 @@ export default function UsersRolesSettingsPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [roleFilter, search]);
+  }, [roleFilter, statusFilter, search]);
 
   useEffect(() => {
     fetchPermissions();
@@ -160,6 +169,47 @@ export default function UsersRolesSettingsPage() {
       fetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Error creating user");
+      throw err;
+    }
+  };
+
+  // Open Edit User Modal
+  const handleOpenEditModal = (user: User) => {
+    setActiveMenuId(null);
+    setEditingUser(user);
+    setEditUserName(user.full_name || "");
+    setEditUserPhone(user.phone || "");
+    setEditUserRole(user.role || "manager");
+    setEditModalOpen(true);
+  };
+
+  // Submit Edit User
+  const handleEditUser = async () => {
+    if (!editingUser || !editUserName) {
+      toast.error("Please fill in all required fields (*)");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/settings/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editUserName,
+          phone: editUserPhone,
+          role: editUserRole,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update user");
+
+      toast.success("User updated successfully");
+      setEditModalOpen(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Error updating user");
       throw err;
     }
   };
@@ -301,6 +351,15 @@ export default function UsersRolesSettingsPage() {
             <option value="staff">Store Incharge</option>
             <option value="intern">Production User</option>
           </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full sm:w-[150px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="deactivated">Deactivated</option>
+          </select>
         </div>
 
         {/* Users Table */}
@@ -314,7 +373,7 @@ export default function UsersRolesSettingsPage() {
           skeletonRows={4}
           skeletonColumns={6}
           emptyTitle="No users found"
-          emptyDescription="No system users match the current search or role filters."
+          emptyDescription="No system users match the current search or status/role filters."
         >
           <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
             <table className="w-full text-sm text-[var(--text-body)]">
@@ -373,7 +432,14 @@ export default function UsersRolesSettingsPage() {
                             <MoreVertical className="size-4" />
                           </button>
                           {activeMenuId === u.id && (
-                            <div className="absolute right-4 mt-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-lg z-10 w-36 py-1 select-none">
+                            <div className="absolute right-4 mt-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-lg z-10 w-36 py-1 select-none text-left">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(u)}
+                                className="w-full text-left px-3 py-2 text-xs font-semibold cursor-pointer text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+                              >
+                                Edit User
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleToggleStatus(u)}
@@ -658,6 +724,104 @@ export default function UsersRolesSettingsPage() {
               className="h-10 px-4 text-sm"
             >
               Add User
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* EDIT USER MODAL */}
+      <Modal open={editModalOpen} onOpenChange={setEditModalOpen} title="Edit User" maxWidth="max-w-lg">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleEditUser();
+          }}
+          className="flex flex-col gap-4 mt-2 select-none"
+        >
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={editUserName}
+              onChange={(e) => setEditUserName(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              placeholder="e.g. John Doe"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Email Address
+            </label>
+            <input
+              type="email"
+              disabled
+              value={editingUser?.email || ""}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--page-bg)] text-[var(--text-muted)] text-sm cursor-not-allowed"
+            />
+            <p className="text-xs text-[var(--text-faint)] mt-1">Email address cannot be changed after creation.</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Phone Number
+            </label>
+            <input
+              type="text"
+              value={editUserPhone}
+              onChange={(e) => setEditUserPhone(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              placeholder="e.g. +91 9999999999"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
+              Role <span className="text-red-500">*</span>
+            </label>
+            {editingUser?.role?.toLowerCase() === "owner" ? (
+              <div className="space-y-1">
+                <select
+                  disabled
+                  value="owner"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--page-bg)] text-[var(--text-muted)] text-sm cursor-not-allowed font-medium"
+                >
+                  <option value="owner">Owner</option>
+                </select>
+                <p className="text-xs text-amber-500 font-medium">🔒 Owner role is protected and cannot be changed.</p>
+              </div>
+            ) : (
+              <select
+                value={editUserRole}
+                onChange={(e) => setEditUserRole(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+              >
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="accountant">Accountant</option>
+                <option value="staff">Store Incharge</option>
+                <option value="intern">Production User</option>
+              </select>
+            )}
+          </div>
+
+          <div className="border-t border-[var(--border)] pt-4 mt-2 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setEditModalOpen(false)}
+              className="h-10 px-4 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              onClick={handleEditUser}
+              variant="primary"
+              className="h-10 px-4 text-sm"
+            >
+              Save Changes
             </AsyncButton>
           </div>
         </form>

@@ -41,6 +41,8 @@ interface Props {
   designReferenceText: string;
   designReferencePhotos: string[];
   customQa: Array<{ question: string; answer: string }>;
+  sizeQuantities?: Record<string, Record<string, number>>;
+  useSameColours?: boolean;
   submitting: boolean;
   onSubmit: () => void;
   onBack: () => void;
@@ -51,7 +53,8 @@ export default function Step7ReviewCreate({
   lotNumber, brandName, lotName, garmentTypeName, designType, lotDate, targetDispatchDate,
   selectedColours, allocatedRolls, totalAllocatedMeters, totalQuantity, availableSizes,
   assignedStages, specSheetTemplate, specSheetValues, additionalDetails, designReferenceText,
-  designReferencePhotos, customQa, submitting, onSubmit, onBack, onEditStep,
+  designReferencePhotos, customQa, sizeQuantities = {}, useSameColours = true,
+  submitting, onSubmit, onBack, onEditStep,
 }: Props) {
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 shadow-xs space-y-6 text-[var(--text-primary)]">
@@ -226,22 +229,55 @@ export default function Step7ReviewCreate({
               </div>
               <button type="button" onClick={() => onEditStep(4)} className="text-[11px] font-bold text-[var(--primary)] bg-[var(--primary-light)] hover:opacity-90 px-2.5 py-1 rounded-lg transition-all cursor-pointer">Edit</button>
             </div>
-            <div className="p-4 text-xs space-y-3">
+            <div className="p-4 text-xs space-y-4">
               <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
                 <div>
                   <span className="block text-[10px] uppercase font-bold text-emerald-500 tracking-wider mb-0.5">Total Quantity To Produce</span>
                   <span className="text-sm font-black text-emerald-500">{totalQuantity.toLocaleString("en-IN")} Pieces</span>
                 </div>
               </div>
-              <div>
-                <span className="block text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider mb-1.5">Size Breakdown Schema</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {availableSizes.map((sz) => (
-                    <span key={sz} className="px-2.5 py-1 rounded bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] font-bold text-[10px]">
-                      {sz}
-                    </span>
-                  ))}
-                </div>
+
+              {/* Per-Colour Size Matrix Breakdown */}
+              <div className="space-y-3 pt-1">
+                <span className="block text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">
+                  Size Matrix & Piece Breakdown by Colour
+                </span>
+
+                {selectedColours.map((col) => {
+                  const colQs = useSameColours
+                    ? (sizeQuantities["all"] || {})
+                    : (sizeQuantities[col.id] || {});
+                  const colTotal = Object.values(colQs).reduce((sum, q) => sum + (Number(q) || 0), 0);
+
+                  return (
+                    <div key={col.id} className="border border-[var(--border)] rounded-lg bg-[var(--card-bg)] p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--text-primary)]">
+                          {col.colour_hex && (
+                            <span className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: col.colour_hex }} />
+                          )}
+                          <span>{col.colour_name}</span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded border border-[var(--border)]">
+                          {colTotal} Pcs Total
+                        </span>
+                      </div>
+
+                      {/* Size Matrix Grid */}
+                      <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                        {availableSizes.map((sz) => {
+                          const pcs = colQs[sz] || 0;
+                          return (
+                            <div key={sz} className="text-center bg-[var(--page-bg)] border border-[var(--border)] rounded py-1 px-0.5">
+                              <span className="block text-[9px] uppercase font-bold text-[var(--text-muted)]">{sz}</span>
+                              <span className="block text-xs font-bold text-[var(--text-primary)]">{pcs}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -300,26 +336,6 @@ export default function Step7ReviewCreate({
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-4 border-t border-[var(--border)]">
-        <button
-          type="button"
-          onClick={onBack}
-          className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={submitting}
-          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] disabled:opacity-50 text-white font-bold text-xs px-5 h-9 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
-        >
-          {submitting ? "Creating Lot..." : "Confirm & Create Lot"}
-          <CheckCircle size={14} />
-        </button>
-      </div>
     </div>
   );
 }

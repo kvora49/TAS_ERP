@@ -1,6 +1,7 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -275,21 +276,15 @@ export async function DELETE(
     }
 
     // 4. Record Audit Log
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "delete_raw_material_type",
-      table_name: "raw_material_types",
-      record_id: id,
-      old_values: { id },
-      new_values: { is_active: false, deleted_at: new Date().toISOString() },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    await logAudit(
+      businessId,
+      "delete_raw_material_type",
+      "raw_material_types",
+      id,
+      { is_active: false, deleted_at: new Date().toISOString() },
+      { id },
+      request
+    );
 
     return NextResponse.json({ success: true, message: "Raw Material type successfully deleted." });
   } catch (err: any) {

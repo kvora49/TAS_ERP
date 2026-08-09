@@ -2,16 +2,20 @@
   "regions": ["bom1"],
   "crons": [
     {
-      "path": "/api/cron/backup",
-      "schedule": "45 18 * * 0"
+      "path": "/api/cron/calendar-reminders",
+      "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/calendar-reminders",
-      "schedule": "0 6 * * *"
+      "path": "/api/cron/backup",
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/notifications",
-      "schedule": "0 8 * * *"
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/admin/backup/sync",
+      "schedule": "0 2 * * *"
     }
   ]
 }

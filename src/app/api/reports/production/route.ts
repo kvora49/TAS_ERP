@@ -12,37 +12,66 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const workerId = searchParams.get("worker_id");
+  const stageName = searchParams.get("stage_name");
+  const status = searchParams.get("status");
+  const designSearch = searchParams.get("design_search");
   const bid = userData.business_id;
 
   try {
-    const [lotsResult, stageEntriesResult] = await Promise.all([
-      supabase
-        .from("production_lots")
-        .select(`
-          id, lot_number, lot_date, status, total_quantity, completed_quantity, created_at,
-          design:designs(id, name, design_number),
-          brand:brands(id, name)
-        `)
-        .eq("business_id", bid)
-        .is("deleted_at", null)
-        .gte("lot_date", from)
-        .lte("lot_date", to)
-        .order("lot_date", { ascending: false }),
+    let lotsQuery = supabase
+      .from("production_lots")
+      .select(`
+        id, lot_number, lot_date, status, total_quantity, completed_quantity, created_at,
+        design:designs(id, name, design_number),
+        brand:brands(id, name)
+      `)
+      .eq("business_id", bid)
+      .is("deleted_at", null)
+      .gte("lot_date", from)
+      .lte("lot_date", to);
 
-      supabase
-        .from("stage_entries")
-        .select(`
-          id, entry_number, entry_date, qty_in, qty_out, wastage_qty, total_job_work_amount,
-          lot_stage:lot_production_stages(stage_name),
-          worker:workers(id, name)
-        `)
-        .eq("business_id", bid)
-        .gte("entry_date", from)
-        .lte("entry_date", to),
+    if (status && status !== "all") {
+      lotsQuery = lotsQuery.eq("status", status);
+    }
+
+    let stageEntriesQuery = supabase
+      .from("stage_entries")
+      .select(`
+        id, entry_number, entry_date, qty_in, qty_out, wastage_qty, total_job_work_amount,
+        lot_stage:lot_production_stages(stage_name),
+        worker:workers(id, name)
+      `)
+      .eq("business_id", bid)
+      .gte("entry_date", from)
+      .lte("entry_date", to);
+
+    if (workerId && workerId !== "all") {
+      stageEntriesQuery = stageEntriesQuery.eq("worker_id", workerId);
+    }
+
+    const [lotsResult, stageEntriesResult] = await Promise.all([
+      lotsQuery.order("lot_date", { ascending: false }),
+      stageEntriesQuery,
     ]);
 
-    const rawLots = lotsResult.data ?? [];
-    const stageEntries = stageEntriesResult.data ?? [];
+    let rawLots = lotsResult.data ?? [];
+    let stageEntries = stageEntriesResult.data ?? [];
+
+    if (stageName && stageName !== "all") {
+      stageEntries = stageEntries.filter((e: any) =>
+        (e.lot_stage?.stage_name || "").toLowerCase().includes(stageName.toLowerCase())
+      );
+    }
+
+    if (designSearch && designSearch.trim()) {
+      const q = designSearch.trim().toLowerCase();
+      rawLots = rawLots.filter((l: any) =>
+        (l.design?.name || "").toLowerCase().includes(q) ||
+        (l.design?.design_number || "").toLowerCase().includes(q) ||
+        (l.lot_number || "").toLowerCase().includes(q)
+      );
+    }
 
     const lots = rawLots.map((l: any) => ({
       id: l.id,

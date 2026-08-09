@@ -17,12 +17,32 @@ import { fmtINR, fmtNum, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
+import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+import FilterPills from "@/components/reports/filters/FilterPills";
+
+const TOP_N_OPTIONS = [
+  { label: "Top 5", value: "5" },
+  { label: "Top 10", value: "10" },
+  { label: "Top 20", value: "20" },
+  { label: "Top 50", value: "50" },
+];
+
+const GRANULARITY_OPTIONS = [
+  { id: "monthly", label: "Monthly" },
+  { id: "weekly", label: "Weekly" },
+  { id: "daily", label: "Daily" },
+];
+
 // ─── Analysis page — aggregates data from multiple report endpoints ───────────
 
 export default function AnalysisPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
+  const [billType, setBillType] = useState<BillType>("all");
+  const [topN, setTopN] = useState("10");
+  const [granularity, setGranularity] = useState("monthly");
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
@@ -31,9 +51,11 @@ export default function AnalysisPage() {
 
   // Sales data
   const salesQuery = useQuery({
-    queryKey: ["reports", "sales", { from, to }],
+    queryKey: ["reports", "sales", { from, to, billType }],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/sales?from=${from}&to=${to}`);
+      const params = new URLSearchParams({ from, to });
+      if (billType !== "all") params.set("bill_type", billType);
+      const res = await fetch(`/api/reports/sales?${params}`);
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -42,9 +64,24 @@ export default function AnalysisPage() {
 
   // Financial data
   const finQuery = useQuery({
-    queryKey: ["reports", "financial", { from, to }],
+    queryKey: ["reports", "financial", { from, to, billType }],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/financial?from=${from}&to=${to}`);
+      const params = new URLSearchParams({ from, to });
+      if (billType !== "all") params.set("bill_type", billType);
+      const res = await fetch(`/api/reports/financial?${params}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    staleTime: 120_000,
+  });
+
+  // Purchase data
+  const purchaseQuery = useQuery({
+    queryKey: ["reports", "purchases", { from, to, billType }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ from, to });
+      if (billType !== "all") params.set("bill_type", billType);
+      const res = await fetch(`/api/reports/purchases?${params}`);
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -59,26 +96,35 @@ export default function AnalysisPage() {
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    staleTime: 300_000,
+    staleTime: 120_000,
   });
 
-  const isLoading = salesQuery.isLoading || finQuery.isLoading || invQuery.isLoading;
+  const isLoading = salesQuery.isLoading || finQuery.isLoading || purchaseQuery.isLoading || invQuery.isLoading;
 
   const salesData = salesQuery.data;
   const finData = finQuery.data;
+  const purchaseData = purchaseQuery.data;
   const invData = invQuery.data;
 
-  // Kaacha vs Pakka analysis
-  const kpChart = [
-    { name: "Kaacha", value: salesData?.summary?.kachaRevenue ?? 0, color: CHART_COLORS[2] },
-    { name: "Pakka", value: salesData?.summary?.pakkaRevenue ?? 0, color: CHART_COLORS[0] },
+  // Chart data
+  const trendData = salesData?.monthlyTrend ?? [];
+  const topParties = (salesData?.topParties ?? []).slice(0, Number(topN));
+  const kachaVsPakka = [
+    { name: "Kaccha Sales", value: salesData?.summary?.kachaRevenue ?? 0, color: CHART_COLORS[2] },
+    { name: "Pakka Sales", value: salesData?.summary?.pakkaRevenue ?? 0, color: CHART_COLORS[0] },
+  ].filter(d => d.value > 0);
+  const kpChart = kachaVsPakka;
+
+  const purchaseKachaVsPakka = [
+    { name: "Kaccha Purchases", value: purchaseData?.summary?.kachaTotal ?? 0, color: CHART_COLORS[3] },
+    { name: "Pakka Purchases", value: purchaseData?.summary?.pakkaTotal ?? 0, color: CHART_COLORS[1] },
   ].filter(d => d.value > 0);
 
   // P&L margin
   const netMargin = finData?.pl?.net_margin_pct ?? 0;
   const grossMargin = finData?.pl?.gross_margin_pct ?? 0;
 
-  const topInvChart = (invData?.rows ?? []).slice(0, 6).map((r: any) => ({
+  const topInvChart = (invData?.rows ?? []).slice(0, Number(topN)).map((r: any) => ({
     name: r.design_number ?? r.design_name?.slice(0, 8),
     value: r.total_value,
   }));
@@ -86,10 +132,32 @@ export default function AnalysisPage() {
   return (
     <ReportShell
       title="Analysis Dashboard"
-      infoTooltip="Cross-report analytics — Sales trends, Kaacha/Pakka split, P&L margins, and inventory insights."
+      infoTooltip="Cross-report analytics — Sales & Purchase trends, Kaccha/Pakka split, P&L margins, and inventory insights."
       breadcrumbs={["Reports", "Analysis"]}
       onApply={handleApply}
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect
+            label="Top N Rank"
+            value={topN}
+            onChange={setTopN}
+            options={TOP_N_OPTIONS}
+            placeholder="Top 10"
+          />
+          <FilterPills
+            label="Granularity"
+            value={granularity}
+            onChange={setGranularity}
+            options={GRANULARITY_OPTIONS}
+          />
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+            <BillTypeFilter value={billType} onChange={setBillType} />
+          </div>
+        </div>
+      }
     >
+
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -156,24 +224,38 @@ export default function AnalysisPage() {
 
           {/* ── Section 2: Kaacha & Pakka Analysis ── */}
           <AnalysisSection
-            title="Kaacha & Pakka Analysis"
-            subtitle="Bill type split, outstanding comparison"
+            title="Kaccha & Pakka Analysis"
+            subtitle="Sales and Purchase bill type breakdown"
             icon={<PieChart size={16} />}
             href="/reports/sales"
             color="amber"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <ReportKPICard label="Kaacha Revenue" value={salesData?.summary?.kachaRevenue ?? 0} color="amber" subLabel={`${salesData?.summary?.kachaBills ?? 0} bills`} />
-                <ReportKPICard label="Pakka Revenue" value={salesData?.summary?.pakkaRevenue ?? 0} color="indigo" subLabel={`${salesData?.summary?.pakkaBills ?? 0} bills`} />
-              </div>
-              {kpChart.length > 0 && (
-                <div className="md:col-span-2">
-                  <ChartCard title="Revenue Split (Kaacha vs Pakka)">
-                    <ReportDonutChart data={kpChart} height={220} innerRadius={50} outerRadius={75} valueFormat="currency" legendPosition="bottom" />
-                  </ChartCard>
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Sales Split</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <ReportKPICard label="Kaccha Revenue" value={salesData?.summary?.kachaRevenue ?? 0} color="amber" subLabel={`${salesData?.summary?.kachaBills ?? 0} bills`} />
+                  <ReportKPICard label="Pakka Revenue" value={salesData?.summary?.pakkaRevenue ?? 0} color="indigo" subLabel={`${salesData?.summary?.pakkaBills ?? 0} bills`} />
                 </div>
-              )}
+                {kpChart.length > 0 && (
+                  <ChartCard title="Sales Revenue Split">
+                    <ReportDonutChart data={kpChart} height={180} innerRadius={45} outerRadius={70} valueFormat="currency" legendPosition="bottom" />
+                  </ChartCard>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Purchase Split</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <ReportKPICard label="Kaccha Purchases" value={purchaseData?.summary?.kachaTotal ?? 0} color="rose" subLabel={`${purchaseData?.summary?.kachaCount ?? 0} bills`} />
+                  <ReportKPICard label="Pakka Purchases" value={purchaseData?.summary?.pakkaTotal ?? 0} color="blue" subLabel={`${purchaseData?.summary?.pakkaCount ?? 0} bills`} />
+                </div>
+                {purchaseKachaVsPakka.length > 0 && (
+                  <ChartCard title="Purchase Cost Split">
+                    <ReportDonutChart data={purchaseKachaVsPakka} height={180} innerRadius={45} outerRadius={70} valueFormat="currency" legendPosition="bottom" />
+                  </ChartCard>
+                )}
+              </div>
             </div>
           </AnalysisSection>
 

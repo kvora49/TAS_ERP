@@ -34,13 +34,58 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Filter out deleted design colours on server side
-    const designsWithActiveColours = designs.map((d: any) => ({
-      ...d,
-      design_colours: d.design_colours?.filter((c: any) => c.deleted_at === null) || [],
-    }));
+    // Fetch finished_stock totals for each design
+    const { data: stockSummary } = await supabase
+      .from("finished_stock")
+      .select("design_id, total_quantity, total_value, cost_per_piece")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
 
-    return NextResponse.json({ designs: designsWithActiveColours });
+    const stockMap: Record<string, { total_quantity: number; total_value: number }> = {};
+    (stockSummary || []).forEach((row: any) => {
+      const dId = row.design_id;
+      if (!dId) return;
+      if (!stockMap[dId]) stockMap[dId] = { total_quantity: 0, total_value: 0 };
+      const qty = Number(row.total_quantity || 0);
+      const val = Number(row.total_value || (qty * Number(row.cost_per_piece || 0)));
+      stockMap[dId].total_quantity += qty;
+      stockMap[dId].total_value += val;
+    });
+
+    // Fetch active BOM costing fallbacks
+    const { data: designCostings } = await supabase
+      .from("design_costings")
+      .select("design_id, total_cost_per_piece")
+      .eq("business_id", businessId)
+      .eq("is_active", true);
+
+    const bomCostMap = new Map<string, number>();
+    (designCostings || []).forEach((c: any) => {
+      if (c.total_cost_per_piece && Number(c.total_cost_per_piece) > 0) {
+        bomCostMap.set(c.design_id, Number(c.total_cost_per_piece));
+      }
+    });
+
+    // Filter out deleted design colours on server side and attach stock info
+    const designsWithStock = (designs || []).map((d: any) => {
+      const stk = stockMap[d.id] || { total_quantity: 0, total_value: 0 };
+      const salePrice = Number(d.sale_price || 0);
+      const bomCost = bomCostMap.get(d.id) || 0;
+      const estUnitCost = bomCost > 0 ? bomCost : (salePrice > 0 ? Math.round(salePrice * 0.6) : 150);
+      
+      const computedValue = stk.total_value > 0 
+        ? stk.total_value 
+        : (stk.total_quantity > 0 ? Math.round(stk.total_quantity * estUnitCost) : 0);
+
+      return {
+        ...d,
+        design_colours: d.design_colours?.filter((c: any) => c.deleted_at === null) || [],
+        total_quantity: stk.total_quantity,
+        total_value: computedValue,
+      };
+    });
+
+    return NextResponse.json({ designs: designsWithStock });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -143,7 +188,7 @@ export async function POST(request: Request) {
         description: description || null,
         images: images || [],
         size_set_id: size_set_id || null,
-        sale_price: sale_price ? Number(sale_price) : null,
+        sale_price: sale_price !== undefined && sale_price !== null && sale_price !== "" ? Number(sale_price) : null,
         is_active: is_active !== false,
       })
       .select()

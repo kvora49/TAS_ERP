@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -195,18 +196,15 @@ export async function DELETE(
     }
 
     // 5. Log audit trail
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "delete_credit_note",
-      table_name: "credit_notes",
-      record_id: id,
-      old_values: { cn_number: creditNote.cn_number, amount: creditNote.amount },
-      new_values: { deleted: true, stock_reversed: !!returnId },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    await logAudit(
+      businessId,
+      "delete_credit_note",
+      "credit_notes",
+      id,
+      { deleted: true, stock_reversed: !!returnId },
+      { cn_number: creditNote.cn_number, amount: creditNote.amount },
+      request
+    );
 
     return NextResponse.json({
       success: true,

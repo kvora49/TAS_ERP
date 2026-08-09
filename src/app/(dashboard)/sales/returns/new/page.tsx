@@ -138,29 +138,28 @@ export default function RecordSalesReturnPage() {
     loadMasterData();
   }, []);
 
-  // 2. Fetch Customer's Bills when selectedPartyId changes
+  // 2. Fetch Bills (either for selected customer or all bills if customer not chosen)
   useEffect(() => {
-    if (!selectedPartyId) {
-      setCustomerBills([]);
-      setSelectedBillId("");
-      setLineItems([]);
-      return;
-    }
-
     async function loadCustomerBills() {
       try {
         setLoadingBills(true);
-        const res = await fetch(`/api/sales/bills?party_id=${selectedPartyId}&status=active`);
+        const url = selectedPartyId
+          ? `/api/sales/bills?party_id=${selectedPartyId}&limit=500`
+          : `/api/sales/bills?limit=500`;
+
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           const billsList: SaleBill[] = data.bills || data.data || [];
           setCustomerBills(billsList);
 
-          // If preselectedBillId matches a bill for this customer, select it
+          // If preselectedBillId matches a bill, select it
           if (preselectedBillId && billsList.some((b) => b.id === preselectedBillId)) {
             setSelectedBillId(preselectedBillId);
-          } else {
-            setSelectedBillId("");
+            const targetBill = billsList.find((b) => b.id === preselectedBillId);
+            if (targetBill?.party_id) {
+              setSelectedPartyId(targetBill.party_id);
+            }
           }
         }
       } catch (err) {
@@ -373,7 +372,7 @@ export default function RecordSalesReturnPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px] mx-auto select-none pb-28">
+    <div className="p-6 space-y-6 max-w-[1200px] mx-auto select-none pb-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -435,8 +434,17 @@ export default function RecordSalesReturnPage() {
               </label>
               <select
                 value={selectedBillId}
-                onChange={(e) => setSelectedBillId(e.target.value)}
-                disabled={!selectedPartyId || loadingBills}
+                onChange={(e) => {
+                  const bId = e.target.value;
+                  setSelectedBillId(bId);
+                  if (bId) {
+                    const b = customerBills.find((bill) => bill.id === bId);
+                    if (b?.party_id && b.party_id !== selectedPartyId) {
+                      setSelectedPartyId(b.party_id);
+                    }
+                  }
+                }}
+                disabled={loadingBills}
                 className="
                   w-full h-10
                   bg-[var(--input-bg)]
@@ -449,7 +457,13 @@ export default function RecordSalesReturnPage() {
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
               >
-                <option value="">{selectedPartyId ? "Choose Sales Bill (Optional)" : "Select Customer First"}</option>
+                <option value="">
+                  {loadingBills
+                    ? "Loading Sales Bills..."
+                    : customerBills.length === 0
+                    ? "No Sales Bills Found"
+                    : "Choose Sales Bill (Optional)..."}
+                </option>
                 {customerBills.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.bill_number} — {formatCurrency(b.grand_total)} [{b.payment_status?.toUpperCase() || "UNPAID"}] ({new Date(b.bill_date).toLocaleDateString("en-IN")})
@@ -658,8 +672,8 @@ export default function RecordSalesReturnPage() {
           </div>
         </div>
 
-        {/* Sticky Action Footer */}
-        <div className="fixed bottom-0 left-0 lg:left-64 right-0 bg-[var(--card-bg)] border-t border-[var(--border)] p-4 shadow-2xl z-30 flex items-center justify-between px-8 transition-all">
+        {/* Floating Sticky Action Footer (Bounded inside main content area) */}
+        <div className="sticky bottom-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[0_10px_35px_rgba(0,0,0,0.3)] z-30 flex flex-wrap items-center justify-between px-6 transition-all mt-6">
           <div className="flex items-center gap-6">
             <div>
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Return Qty</span>

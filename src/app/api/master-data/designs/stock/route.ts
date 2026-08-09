@@ -22,12 +22,8 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
-    // 0. Perform real-time ground-truth finished stock reconciliation
-    try {
-      await reconcileFinishedStock(supabase, businessId, designId && designId !== "all" ? designId : undefined);
-    } catch (recErr) {
-      console.warn("Finished stock reconciliation warning:", recErr);
-    }
+    // 0. Run ground-truth finished stock reconciliation
+    await reconcileFinishedStock(supabase, businessId);
 
     // 1. Fetch Finished Stock entries
     let stockQuery = supabase

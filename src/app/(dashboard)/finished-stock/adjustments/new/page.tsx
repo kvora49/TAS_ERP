@@ -125,15 +125,18 @@ export default function NewAdjustmentPage() {
       setUnitCost(Math.round(Number(selectedDesign.sale_price || 0) * 0.6));
     }
 
-    // Fetch design details for colours
+    // Fetch design details for colours and unit cost fallback
     fetch(`/api/finished-stock/designs/${designId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.colours) {
           setColours(data.colours);
         }
+        if (Number(data.overallAvgCost || 0) > 0) {
+          setUnitCost((prev) => (prev > 0 ? prev : Math.round(Number(data.overallAvgCost))));
+        }
       })
-      .catch((err) => console.error("Error loading design colours:", err));
+      .catch((err) => console.error("Error loading design details:", err));
   }, [designId, designs]);
 
   // Reset check stock on parameter change
@@ -255,16 +258,24 @@ export default function NewAdjustmentPage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/finished-stock/adjustments"
-          className="p-2 bg-white hover:bg-gray-50 border border-[#E2E8F0] rounded-xl transition-all cursor-pointer"
-        >
-          <ArrowLeft className="h-5 w-5 text-[#475569]" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">New Stock Adjustment</h1>
-          <p className="text-sm text-[#64748B]">Record damage, scrap, samples or manually correct sizing stock</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/finished-stock/adjustments"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer"
+          >
+            <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">New Stock Adjustment</h1>
+            <p className="text-sm text-[var(--text-muted)]">Record damage, scrap, samples or manually correct finished garment sizing stock</p>
+          </div>
+        </div>
+
+        {/* Exclusion Banner Badge */}
+        <div className="hidden md:flex items-center gap-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl px-3.5 py-2 text-xs text-amber-800 dark:text-amber-300 font-semibold">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span>Finished Stock Only (Raw Materials & Accessories Excluded)</span>
         </div>
       </div>
 

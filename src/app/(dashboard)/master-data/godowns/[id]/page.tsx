@@ -63,7 +63,7 @@ interface FinishedStockItem {
   cost_per_piece: number;
   total_value: number;
   size_quantities: Record<string, number>;
-  design?: { id: string; name: string; code: string };
+  design?: { id: string; name: string; code: string; sale_price?: number };
   colour?: { id: string; colour_name: string };
 }
 
@@ -344,10 +344,10 @@ export default function GodownDetailPage({ params }: { params: { id: string } })
                         {item.total_quantity.toLocaleString()}
                       </td>
                       <td className="py-3.5 px-5 text-right font-mono text-xs text-[#475569]">
-                        ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
+                        ₹{Number(item.cost_per_piece || 0) > 0 ? Number(item.cost_per_piece).toFixed(2) : (item.design?.sale_price ? (item.design.sale_price * 0.6).toFixed(2) : "0.00")}
                       </td>
                       <td className="py-3.5 px-5 text-right font-mono font-bold text-[#6366F1]">
-                        ₹{item.total_value ? item.total_value.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
+                        ₹{Number(item.total_value || 0) > 0 ? Number(item.total_value).toLocaleString("en-IN", { minimumFractionDigits: 2 }) : (item.total_quantity * (item.cost_per_piece || (item.design?.sale_price ? item.design.sale_price * 0.6 : 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))

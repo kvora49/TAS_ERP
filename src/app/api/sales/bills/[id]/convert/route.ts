@@ -150,6 +150,17 @@ export async function POST(
 
     if (updateErr) throw updateErr;
 
+    // 5. Trigger ground-truth finished stock reconciliation
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      const designIdsToReconcile = Array.from(new Set((items || []).map((it: any) => it.design_id).filter(Boolean)));
+      for (const dId of designIdsToReconcile) {
+        await reconcileFinishedStock(supabase, businessId, dId as string);
+      }
+    } catch (recErr) {
+      console.warn("[ConvertBill] Finished stock reconciliation warning:", recErr);
+    }
+
     return NextResponse.json({
       success: true,
       message: `Bill converted successfully to official invoice ${officialBillNumber}`,

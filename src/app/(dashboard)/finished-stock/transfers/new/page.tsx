@@ -9,15 +9,13 @@ import {
   Building2,
   Plus,
   Trash2,
-  RefreshCw,
   Info,
-  DollarSign,
-  AlertCircle,
   CheckCircle2,
-  ListPlus
+  ListPlus,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 
 interface Godown {
   id: string;
@@ -38,14 +36,13 @@ interface Colour {
   colour_hex?: string;
 }
 
-interface TransferItemInput {
+interface TransferMatrixRow {
+  key: string;
   design_id: string;
   colour_id: string;
-  size: string;
-  quantity: number;
-  available_stock: number;
+  size_quantities: Record<string, number>;
+  stock_matrix: Record<string, number>; // available stock per size in source godown
   unit_cost: number;
-  total_value: number;
   coloursList: Colour[];
   sizesList: string[];
 }
@@ -67,24 +64,22 @@ export default function NewTransferPage() {
   const [godowns, setGodowns] = useState<Godown[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
 
-  // Form Items State
-  const [items, setItems] = useState<TransferItemInput[]>([
+  // Form Items State (Matrix Rows)
+  const [rows, setRows] = useState<TransferMatrixRow[]>([
     {
+      key: `row-${Date.now()}-0`,
       design_id: "",
       colour_id: "",
-      size: "",
-      quantity: 1,
-      available_stock: 0,
+      size_quantities: {},
+      stock_matrix: {},
       unit_cost: 0,
-      total_value: 0,
       coloursList: [],
-      sizesList: []
-    }
+      sizesList: [],
+    },
   ]);
 
   // Load masters on mount
   useEffect(() => {
-    // 1. Fetch godowns
     fetch("/api/master-data/godowns")
       .then((res) => res.json())
       .then((data) => {
@@ -104,7 +99,6 @@ export default function NewTransferPage() {
         ]);
       });
 
-    // 2. Fetch designs
     fetch("/api/finished-stock/designs")
       .then((res) => res.json())
       .then((data) => {
@@ -116,106 +110,123 @@ export default function NewTransferPage() {
   }, []);
 
   const handleAddRow = () => {
-    setItems([
-      ...items,
+    setRows((prev) => [
+      ...prev,
       {
+        key: `row-${Date.now()}-${Math.random()}`,
         design_id: "",
         colour_id: "",
-        size: "",
-        quantity: 1,
-        available_stock: 0,
+        size_quantities: {},
+        stock_matrix: {},
         unit_cost: 0,
-        total_value: 0,
         coloursList: [],
-        sizesList: []
-      }
+        sizesList: [],
+      },
     ]);
   };
 
-  const handleRemoveRow = (index: number) => {
-    if (items.length === 1) {
+  const handleRemoveRow = (key: string) => {
+    if (rows.length === 1) {
       toast.info("At least one transfer item row is required");
       return;
     }
-    setItems(items.filter((_, idx) => idx !== index));
+    setRows((prev) => prev.filter((r) => r.key !== key));
   };
 
-  const handleDesignChange = async (index: number, designId: string) => {
+  const handleDesignChange = async (key: string, designId: string) => {
     const selectedDesign = designs.find((d) => d.id === designId);
-    const updated = [...items];
-    updated[index].design_id = designId;
-    updated[index].colour_id = "";
-    updated[index].size = "";
-    updated[index].available_stock = 0;
-    
-    if (selectedDesign) {
-      updated[index].sizesList = selectedDesign.size_set?.sizes || ["S", "M", "L", "XL", "XXL"];
-      updated[index].unit_cost = Math.round(Number(selectedDesign.sale_price || 0) * 0.6);
-      updated[index].total_value = updated[index].quantity * updated[index].unit_cost;
-    } else {
-      updated[index].sizesList = [];
-      updated[index].unit_cost = 0;
-      updated[index].total_value = 0;
-    }
+    const sizes = selectedDesign?.size_set?.sizes || ["S", "M", "L", "XL", "XXL"];
+    const defaultUnitCost = selectedDesign ? Math.round(Number(selectedDesign.sale_price || 0) * 0.6) : 0;
 
-    setItems(updated);
+    const initialSizes: Record<string, number> = {};
+    sizes.forEach((sz) => (initialSizes[sz] = 0));
+
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.key !== key) return row;
+        return {
+          ...row,
+          design_id: designId,
+          colour_id: "",
+          sizesList: sizes,
+          size_quantities: initialSizes,
+          stock_matrix: {},
+          unit_cost: defaultUnitCost,
+          coloursList: [],
+        };
+      })
+    );
 
     if (!designId) return;
 
-    // Load colours
+    // Load design colours and average cost fallback
     try {
       const res = await fetch(`/api/finished-stock/designs/${designId}`);
       const data = await res.json();
-      if (res.ok && data.colours) {
-        const current = [...items];
-        // Double check design_id hasn't changed since request
-        if (current[index].design_id === designId) {
-          current[index].coloursList = data.colours;
-          setItems(current);
-        }
+      if (res.ok) {
+        const fetchedCost = Number(data.overallAvgCost || 0) > 0 ? Number(data.overallAvgCost) : defaultUnitCost;
+        setRows((prev) =>
+          prev.map((row) => {
+            if (row.key !== key) return row;
+            return {
+              ...row,
+              coloursList: data.colours || [],
+              unit_cost: row.unit_cost > 0 ? row.unit_cost : fetchedCost,
+            };
+          })
+        );
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleItemPropertyChange = async (
-    index: number,
-    field: "colour_id" | "size" | "quantity" | "unit_cost",
-    value: any
-  ) => {
-    const updated = [...items];
-    
-    if (field === "quantity") {
-      updated[index].quantity = Math.max(1, parseInt(value, 10) || 0);
-      updated[index].total_value = updated[index].quantity * updated[index].unit_cost;
-    } else if (field === "unit_cost") {
-      updated[index].unit_cost = Math.max(0, parseFloat(value) || 0);
-      updated[index].total_value = updated[index].quantity * updated[index].unit_cost;
-    } else {
-      updated[index][field] = value;
-    }
+  const handleColourChange = async (key: string, colourId: string) => {
+    const row = rows.find((r) => r.key === key);
+    if (!row) return;
 
-    setItems(updated);
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, colour_id: colourId, stock_matrix: {} } : r))
+    );
 
-    // Fetch stock level if godown, design, colour, and size are selected
-    const item = updated[index];
-    if ((field === "colour_id" || field === "size") && fromGodownId && item.design_id && item.colour_id && item.size) {
-      try {
-        const res = await fetch(`/api/finished-stock/designs/${item.design_id}`);
-        const json = await res.json();
-        if (res.ok && json.matrix) {
-          const qty = json.matrix[item.colour_id]?.[fromGodownId]?.[item.size] || 0;
-          const current = [...items];
-          current[index].available_stock = qty;
-          setItems(current);
-        }
-      } catch (err) {
-        console.error(err);
+    if (!colourId || !row.design_id || !fromGodownId) return;
+
+    // Fetch live stock matrix for fromGodownId + designId + colourId
+    try {
+      const res = await fetch(`/api/finished-stock/designs/${row.design_id}`);
+      const json = await res.json();
+      if (res.ok && json.matrix) {
+        const availableMap: Record<string, number> = {};
+        row.sizesList.forEach((sz) => {
+          availableMap[sz] = json.matrix[colourId]?.[fromGodownId]?.[sz] || 0;
+        });
+
+        setRows((prev) =>
+          prev.map((r) => {
+            if (r.key !== key) return r;
+            return { ...r, stock_matrix: availableMap };
+          })
+        );
       }
+    } catch (err) {
+      console.error(err);
     }
   };
 
+  const handleSizeQuantitiesChange = (key: string, updatedQuantities: Record<string, number>) => {
+    setRows((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, size_quantities: updatedQuantities } : row))
+    );
+  };
+
+  const handleUnitCostChange = (key: string, val: string) => {
+    const cost = Math.max(0, parseFloat(val) || 0);
+    setRows((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, unit_cost: cost } : row))
+    );
+  };
+
+  // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -229,17 +240,55 @@ export default function NewTransferPage() {
       return;
     }
 
-    // Validate items
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (!it.design_id || !it.colour_id || !it.size || !it.quantity || !it.unit_cost) {
-        toast.error(`Please complete all fields on item row #${i + 1}`);
+    // Expand matrix rows into individual transfer items
+    const transferItemsPayload: Array<{
+      design_id: string;
+      colour_id: string;
+      size: string;
+      quantity: number;
+      unit_cost: number;
+      total_value: number;
+    }> = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row.design_id || !row.colour_id) {
+        toast.error(`Please select Design and Colour for Row #${i + 1}`);
         return;
       }
-      if (it.quantity > it.available_stock) {
-        toast.error(`Row #${i + 1}: Requested quantity (${it.quantity}) exceeds available stock (${it.available_stock} pcs) in source godown.`);
+
+      let rowQty = 0;
+      Object.entries(row.size_quantities).forEach(([sz, qty]) => {
+        const numQty = Number(qty) || 0;
+        if (numQty > 0) {
+          rowQty += numQty;
+          const avail = row.stock_matrix[sz] || 0;
+          if (numQty > avail) {
+            toast.warning(
+              `Row #${i + 1}: Transfer qty for size ${sz} (${numQty} pcs) exceeds available stock (${avail} pcs) in source godown.`
+            );
+          }
+
+          transferItemsPayload.push({
+            design_id: row.design_id,
+            colour_id: row.colour_id,
+            size: sz,
+            quantity: numQty,
+            unit_cost: row.unit_cost,
+            total_value: numQty * row.unit_cost,
+          });
+        }
+      });
+
+      if (rowQty === 0) {
+        toast.error(`Row #${i + 1}: Please enter at least 1 piece across sizes`);
         return;
       }
+    }
+
+    if (transferItemsPayload.length === 0) {
+      toast.error("No valid transfer items entered");
+      return;
     }
 
     setSubmitting(true);
@@ -255,14 +304,7 @@ export default function NewTransferPage() {
           reason,
           remarks,
           status,
-          items: items.map((it) => ({
-            design_id: it.design_id,
-            colour_id: it.colour_id,
-            size: it.size,
-            quantity: it.quantity,
-            unit_cost: it.unit_cost,
-            total_value: it.total_value,
-          })),
+          items: transferItemsPayload,
         }),
       });
 
@@ -281,61 +323,78 @@ export default function NewTransferPage() {
     }
   };
 
-  // Summaries
-  const totalQty = items.reduce((acc, it) => acc + (it.quantity || 0), 0);
-  const totalVal = items.reduce((acc, it) => acc + (it.total_value || 0), 0);
+  // Grand Summaries
+  let grandTotalQty = 0;
+  let grandTotalValue = 0;
+
+  rows.forEach((row) => {
+    const rowQty = Object.values(row.size_quantities).reduce(
+      (sum, v) => sum + (Number(v) || 0),
+      0
+    );
+    grandTotalQty += rowQty;
+    grandTotalValue += rowQty * row.unit_cost;
+  });
 
   const formatRupee = (value: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(value);
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
-        <Link href="/finished-stock" className="hover:text-[#6366F1] transition-colors">
+      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
+        <Link href="/finished-stock" className="hover:text-[var(--primary)] transition-colors">
           Finished Stock
         </Link>
         <span>/</span>
-        <Link href="/finished-stock/transfers" className="hover:text-[#6366F1] transition-colors">
+        <Link href="/finished-stock/transfers" className="hover:text-[var(--primary)] transition-colors">
           Transfers
         </Link>
         <span>/</span>
-        <span className="text-[#334155]">New</span>
+        <span className="text-[var(--text-primary)]">New</span>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/finished-stock/transfers"
-          className="p-2 bg-white hover:bg-gray-50 border border-[#E2E8F0] rounded-xl transition-all cursor-pointer"
-        >
-          <ArrowLeft className="h-5 w-5 text-[#475569]" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">New Stock Transfer</h1>
-          <p className="text-sm text-[#64748B]">Transfer finished garments between warehouse godowns</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/finished-stock/transfers"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer"
+          >
+            <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">New Stock Transfer</h1>
+            <p className="text-sm text-[var(--text-muted)]">Transfer finished garments between warehouse godowns with size matrix distribution</p>
+          </div>
+        </div>
+
+        {/* Exclusion Banner Badge */}
+        <div className="hidden md:flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3.5 py-2 text-xs text-indigo-800 dark:text-indigo-300 font-semibold">
+          <ShieldAlert className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span>Finished Stock Only (Raw Materials & Accessories Excluded)</span>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Side: Form Header & Items Table */}
+        {/* Left Side: Form Header & Size Matrix Rows */}
         <div className="lg:col-span-3 space-y-6">
           {/* Header Panel */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#1E293B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
-              <Building2 className="h-4.5 w-4.5 text-[#6366F1]" />
-              <span>Transfer Details</span>
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2 flex items-center gap-2">
+              <Building2 className="h-4.5 w-4.5 text-[var(--primary)]" />
+              <span>Transfer Header Details</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Date */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Transfer Date *
                 </label>
                 <input
@@ -343,13 +402,13 @@ export default function NewTransferPage() {
                   required
                   value={transferDate}
                   onChange={(e) => setTransferDate(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* Source Godown */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Source Godown *
                 </label>
                 <select
@@ -357,32 +416,38 @@ export default function NewTransferPage() {
                   value={fromGodownId}
                   onChange={(e) => {
                     setFromGodownId(e.target.value);
-                    // Reset stocks on godown change
-                    setItems(items.map(it => ({ ...it, available_stock: 0 })));
+                    // Refresh stock matrix for all rows
+                    rows.forEach((r) => {
+                      if (r.key && r.colour_id) handleColourChange(r.key, r.colour_id);
+                    });
                   }}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="">Select Source...</option>
                   {godowns.map((g) => (
-                    <option key={g.id} value={g.id} disabled={g.id === toGodownId}>{g.name}</option>
+                    <option key={g.id} value={g.id} disabled={g.id === toGodownId}>
+                      {g.name}
+                    </option>
                   ))}
                 </select>
               </div>
 
               {/* Destination Godown */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Destination Godown *
                 </label>
                 <select
                   required
                   value={toGodownId}
                   onChange={(e) => setToGodownId(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="">Select Destination...</option>
                   {godowns.map((g) => (
-                    <option key={g.id} value={g.id} disabled={g.id === fromGodownId}>{g.name}</option>
+                    <option key={g.id} value={g.id} disabled={g.id === fromGodownId}>
+                      {g.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -391,7 +456,7 @@ export default function NewTransferPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Ref Number */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Reference No
                 </label>
                 <input
@@ -399,20 +464,20 @@ export default function NewTransferPage() {
                   placeholder="e.g. EB-10029"
                   value={referenceNo}
                   onChange={(e) => setReferenceNo(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* Reason */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Reason for Transfer *
                 </label>
                 <select
                   required
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="Stock Rebalancing">Stock Rebalancing</option>
                   <option value="Sales Order">Sales Order Fulfillment</option>
@@ -423,13 +488,13 @@ export default function NewTransferPage() {
 
               {/* Status */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Initial Status
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white font-semibold text-slate-800"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none font-semibold"
                 >
                   <option value="pending">Pending (Stock deducted from Source)</option>
                   <option value="in_transit">In Transit (Stock deducted, in route)</option>
@@ -440,7 +505,7 @@ export default function NewTransferPage() {
 
             {/* Remarks */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+              <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                 Remarks
               </label>
               <textarea
@@ -448,173 +513,205 @@ export default function NewTransferPage() {
                 placeholder="Additional delivery instructions..."
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                className="w-full border border-[#E2E8F0] rounded-xl px-4 py-2 text-sm focus:border-[#C7D2FE] outline-none resize-none"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none resize-none"
               />
             </div>
           </div>
 
-          {/* Items Table Panel */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <ListPlus className="h-4.5 w-4.5 text-[#6366F1]" />
-                <span>Transfer Items Grid</span>
+          {/* Size Matrix Items List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <ListPlus className="h-4.5 w-4.5 text-[var(--primary)]" />
+                <span>Transfer Line Items (Size Matrix)</span>
               </h3>
               <button
                 type="button"
                 onClick={handleAddRow}
-                className="flex items-center gap-1.5 text-xs font-bold text-[#6366F1] bg-[#EEF2FF] border border-[#C7D2FE] px-3.5 py-2 rounded-xl hover:bg-[#E0E7FF] transition-all cursor-pointer shadow-sm"
+                className="flex items-center gap-1.5 text-xs font-bold text-[var(--primary)] bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-xl hover:bg-indigo-100 transition-all cursor-pointer shadow-sm"
               >
                 <Plus className="h-4 w-4" />
-                <span>Add Item Row</span>
+                <span>Add Design Row</span>
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs font-semibold text-[#475569]">
-                <thead>
-                  <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-bold text-[#475569] uppercase tracking-wider">
-                    <th className="py-3 px-4 w-8 text-center">#</th>
-                    <th className="py-3 px-4 w-48">Design</th>
-                    <th className="py-3 px-4 w-36">Colour</th>
-                    <th className="py-3 px-3 w-24 text-center">Size</th>
-                    <th className="py-3 px-3 w-28 text-center bg-slate-50/50">Available</th>
-                    <th className="py-3 px-3 w-28 text-center">Qty (Pcs)</th>
-                    <th className="py-3 px-3 w-28 text-right">Cost/Pc (₹)</th>
-                    <th className="py-3 px-4 w-32 text-right">Total Value</th>
-                    <th className="py-3 px-4 w-12 text-center">Remove</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
-                  {items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/20">
-                      <td className="py-3.5 px-4 text-center text-[#94A3B8] font-bold">{idx + 1}</td>
-                      <td className="py-3 px-2">
-                        <select
-                          required
-                          value={item.design_id}
-                          onChange={(e) => handleDesignChange(idx, e.target.value)}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white"
-                        >
-                          <option value="">Select Design...</option>
-                          {designs.map((d) => (
-                            <option key={d.id} value={d.id}>{d.design_number}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-2">
-                        <select
-                          required
-                          value={item.colour_id}
-                          onChange={(e) => handleItemPropertyChange(idx, "colour_id", e.target.value)}
-                          disabled={!item.design_id}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white disabled:bg-gray-50"
-                        >
-                          <option value="">Colour...</option>
-                          {item.coloursList.map((c) => (
-                            <option key={c.id} value={c.id}>{c.colour_name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-2">
-                        <select
-                          required
-                          value={item.size}
-                          onChange={(e) => handleItemPropertyChange(idx, "size", e.target.value)}
-                          disabled={!item.design_id}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white text-center disabled:bg-gray-50"
-                        >
-                          <option value="">Size</option>
-                          {item.sizesList.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-2 text-center bg-slate-50/30 text-[#1E293B] font-bold">
-                        {item.available_stock.toLocaleString()} <span className="text-[10px] text-[#64748B] font-normal">pcs</span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <input
-                          type="number"
-                          required
-                          min={1}
-                          max={item.available_stock || undefined}
-                          value={item.quantity}
-                          onChange={(e) => handleItemPropertyChange(idx, "quantity", e.target.value)}
-                          className="w-full text-center border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none font-bold text-[#1E293B]"
-                        />
-                      </td>
-                      <td className="py-3 px-2">
-                        <input
-                          type="number"
-                          required
-                          min={0}
-                          value={item.unit_cost}
-                          onChange={(e) => handleItemPropertyChange(idx, "unit_cost", e.target.value)}
-                          className="w-full text-right border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none"
-                        />
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-[#6366F1] text-xs">
-                        {formatRupee(item.total_value)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRow(idx)}
-                          className="text-[#94A3B8] hover:text-[#EF4444] p-1.5 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {rows.map((row, idx) => {
+              const rowTotalQty = Object.values(row.size_quantities).reduce(
+                (sum, v) => sum + (Number(v) || 0),
+                0
+              );
+              const rowTotalValue = rowTotalQty * row.unit_cost;
+
+              return (
+                <div
+                  key={row.key}
+                  className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 shadow-[var(--shadow-sm)] space-y-4 relative"
+                >
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-6 w-6 rounded-full bg-[var(--page-bg)] border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)] flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                        Design Line Item #{idx + 1}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRow(row.key)}
+                      className="text-[var(--text-muted)] hover:text-red-500 p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-all cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Design Selection */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                        Design *
+                      </label>
+                      <select
+                        required
+                        value={row.design_id}
+                        onChange={(e) => handleDesignChange(row.key, e.target.value)}
+                        className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs outline-none"
+                      >
+                        <option value="">Select Design...</option>
+                        {designs.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.design_number} - {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Colour Selection */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                        Colour *
+                      </label>
+                      <select
+                        required
+                        value={row.colour_id}
+                        onChange={(e) => handleColourChange(row.key, e.target.value)}
+                        disabled={!row.design_id}
+                        className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs outline-none disabled:opacity-50"
+                      >
+                        <option value="">Select Colour...</option>
+                        {row.coloursList.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.colour_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Unit Cost */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                        Unit Cost (₹/Pc) *
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        required
+                        value={row.unit_cost}
+                        onChange={(e) => handleUnitCostChange(row.key, e.target.value)}
+                        className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs outline-none font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stock Availability Matrix Banner (if colour & godown selected) */}
+                  {fromGodownId && row.colour_id && row.sizesList.length > 0 && (
+                    <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                      <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                        Source Godown Available Stock per Size:
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {row.sizesList.map((sz) => (
+                          <span
+                            key={sz}
+                            className="text-[10px] font-mono font-bold px-2 py-0.5 bg-[var(--card-bg)] border border-[var(--border)] rounded text-[var(--text-primary)]"
+                          >
+                            {sz}: <span className="text-emerald-600 dark:text-emerald-400">{row.stock_matrix[sz] || 0} Pcs</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Size Quantity Matrix Component */}
+                  {row.sizesList.length > 0 && (
+                    <SizeQuantityMatrix
+                      sizes={row.sizesList}
+                      sizeQuantities={row.size_quantities}
+                      onChange={(updated) => handleSizeQuantitiesChange(row.key, updated)}
+                    />
+                  )}
+
+                  {/* Row Total Summary Footer */}
+                  <div className="flex items-center justify-end gap-6 pt-2 text-xs border-t border-[var(--border)]">
+                    <span className="text-[var(--text-muted)]">
+                      Total Quantity: <strong className="text-[var(--text-primary)]">{rowTotalQty} Pcs</strong>
+                    </span>
+                    <span className="text-[var(--text-muted)]">
+                      Row Total Value: <strong className="text-[var(--primary)]">{formatRupee(rowTotalValue)}</strong>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Right Side: Total Summary Sidebar Panel */}
         <div className="space-y-6">
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#1E293B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2 flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span>Impact Summary</span>
+              <span>Transfer Impact Summary</span>
             </h3>
 
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-[#64748B]">Total Items Count:</span>
-                <span className="font-bold text-[#1E293B]">{items.length} rows</span>
+                <span className="text-[var(--text-muted)]">Total Designs:</span>
+                <span className="font-bold text-[var(--text-primary)]">{rows.length} design(s)</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[#64748B]">Total Quantity (Pcs):</span>
-                <span className="font-bold text-sm text-[#1E293B]">{totalQty.toLocaleString()} Pcs</span>
+                <span className="text-[var(--text-muted)]">Total Garment Qty:</span>
+                <span className="font-bold text-sm text-[var(--text-primary)]">
+                  {grandTotalQty.toLocaleString()} Pcs
+                </span>
               </div>
-              <div className="flex items-center justify-between border-t border-dashed border-[#F1F5F9] pt-3.5">
-                <span className="text-[#64748B] font-bold">Aggregate Value:</span>
-                <span className="font-extrabold text-base text-[#15803D]">{formatRupee(totalVal)}</span>
+              <div className="flex items-center justify-between border-t border-dashed border-[var(--border)] pt-3.5">
+                <span className="text-[var(--text-muted)] font-bold">Aggregate Value:</span>
+                <span className="font-extrabold text-base text-emerald-600 dark:text-emerald-400">
+                  {formatRupee(grandTotalValue)}
+                </span>
               </div>
             </div>
 
-            <div className="border border-amber-100 bg-amber-50/50 rounded-xl p-3 flex gap-2.5">
+            <div className="border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/30 rounded-xl p-3 flex gap-2.5">
               <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-              <div className="text-[10px] text-amber-800 leading-normal font-semibold">
-                <strong className="block mb-0.5">Inventory Timing Rule:</strong>
-                Stock is deducted from source immediately. Destination godown receives stock only when updated to Completed.
+              <div className="text-[10px] text-amber-900 dark:text-amber-300 leading-normal font-semibold">
+                <strong className="block mb-0.5">Finished Stock Rule:</strong>
+                Transfers apply exclusively to finished garments. Raw materials (fabric rolls) and accessories (zips, buttons, labels) are excluded and managed in raw material stock modules.
               </div>
             </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] py-3 rounded-xl transition-all cursor-pointer shadow-md shadow-indigo-100 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] py-3 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-50"
             >
-              {submitting ? "Saving..." : "Save Stock Transfer"}
+              {submitting ? "Saving Transfer..." : "Save Stock Transfer"}
             </button>
             <Link
               href="/finished-stock/transfers"
-              className="w-full flex items-center justify-center text-xs font-bold text-[#475569] bg-white border border-[#E2E8F0] py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-all cursor-pointer text-center"
+              className="w-full flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] py-3 rounded-xl hover:bg-[var(--table-row-hover)] transition-all cursor-pointer text-center"
             >
               Cancel
             </Link>

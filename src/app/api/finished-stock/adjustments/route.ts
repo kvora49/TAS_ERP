@@ -58,6 +58,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "All required fields must be filled" }, { status: 400 });
     }
 
+    // Verify design_id belongs to finished stock designs table (excluding raw materials & accessories)
+    const { data: validDesign } = await supabase
+      .from("designs")
+      .select("id")
+      .eq("id", design_id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (!validDesign) {
+      return NextResponse.json(
+        { error: "Invalid item selected. Only Finished Garment Designs can be adjusted here. Raw materials and accessories must be adjusted in their respective stock modules." },
+        { status: 400 }
+      );
+    }
+
     const valueImpact = quantity_change * unit_cost;
 
     // Insert adjustment record
@@ -123,25 +138,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // Insert finished stock ledger entry
-    const sizeQuantities = { [size]: quantity_change };
+    // Insert stock_ledger audit entry for adjustment
     const { error: ledgerErr } = await supabase
-      .from("finished_stock")
+      .from("stock_ledger")
       .insert({
         business_id: businessId,
-        design_id,
-        colour_id,
+        item_type: "finished_good",
+        item_id: design_id,
         godown_id,
-        entry_type: "adjustment",
-        size_quantities: sizeQuantities,
-        total_quantity: quantity_change,
-        cost_per_piece: calculatedUnitCost,
-        total_value: valueImpact,
+        transaction_type: adjustment_type === "addition" ? "adjustment_inflow" : "adjustment_outflow",
+        quantity_delta: quantity_change,
+        value_delta: valueImpact,
+        reference_table: "stock_adjustments",
+        reference_id: adjustment.id,
       });
 
     if (ledgerErr) {
-      console.error("Failed to insert stock ledger for adjustment:", ledgerErr.message);
+      console.warn("Failed to insert stock ledger for adjustment:", ledgerErr.message);
     }
+
+    // Reconcile finished stock ground-truth after adjustment creation
+    const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+    await reconcileFinishedStock(supabase, businessId, design_id);
 
     return NextResponse.json({ adjustment, calculatedUnitCost });
   } catch (err: any) {

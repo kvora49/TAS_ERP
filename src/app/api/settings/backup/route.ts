@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { generateDatabaseBackup } from "@/lib/backup/backupEngine";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -74,32 +75,12 @@ export async function POST(request: Request) {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
-    // 1. Generate SQL dump text (simulated dump containing some metadata)
+    // 1. Generate real SQL dump
     const timestamp = new Date().toISOString().replace(/[-:T.]/g, "_").substring(0, 19);
     const fileName = `backup_${businessId}_${timestamp}.sql`;
-    
-    let sqlDump = `-- TAS ERP SQL Dump\n`;
-    sqlDump += `-- Business ID: ${businessId}\n`;
-    sqlDump += `-- Date: ${new Date().toUTCString()}\n\n`;
-    sqlDump += `SET statement_timeout = 0;\n`;
-    sqlDump += `SET lock_timeout = 0;\n`;
-    sqlDump += `SET client_encoding = 'UTF8';\n\n`;
-    
-    // Simulate database content dump
-    try {
-      const { data: brands } = await supabase.from("brands").select("*").eq("business_id", businessId);
-      if (brands && brands.length > 0) {
-        sqlDump += `-- Table: brands\n`;
-        brands.forEach((b) => {
-          sqlDump += `INSERT INTO brands (id, name, business_id) VALUES ('${b.id}', '${b.name.replace(/'/g, "''")}', '${businessId}') ON CONFLICT (id) DO NOTHING;\n`;
-        });
-      }
-    } catch (dbErr) {
-      sqlDump += `-- Failed to dump tables: ${dbErr}\n`;
-    }
 
+    const { sqlDump, fileSize, tableCounts } = await generateDatabaseBackup(supabase, businessId);
     const fileBuffer = Buffer.from(sqlDump, "utf8");
-    const fileSize = fileBuffer.length;
 
     let publicUrl = "";
     let fileKey = `backups/${businessId}/${fileName}`;

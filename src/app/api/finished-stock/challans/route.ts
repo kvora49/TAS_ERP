@@ -172,6 +172,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // Reconcile finished stock ground-truth after challan creation
+    const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+    await reconcileFinishedStock(supabase, businessId);
+
     return NextResponse.json({ challan });
   } catch (err: any) {
     return NextResponse.json(

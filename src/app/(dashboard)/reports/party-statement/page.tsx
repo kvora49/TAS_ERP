@@ -10,11 +10,24 @@ import { ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/com
 import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 
+import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+
+const VOUCHER_TYPE_OPTIONS = [
+  { label: "Sales Invoices", value: "sales_invoice" },
+  { label: "Purchase Bills", value: "purchase_bill" },
+  { label: "Payments / Receipts", value: "payment" },
+  { label: "Credit Notes", value: "credit_note" },
+  { label: "Debit Notes", value: "debit_note" },
+];
+
 export default function PartyStatementPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [partyId, setPartyId] = useState("");
+  const [billType, setBillType] = useState<BillType>("all");
+  const [voucherType, setVoucherType] = useState("all");
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
@@ -34,10 +47,13 @@ export default function PartyStatementPage() {
 
   // Fetch selected party statement
   const { data: statementData, isLoading, error, refetch } = useQuery({
-    queryKey: ["party-statement", partyId, from, to],
+    queryKey: ["party-statement", partyId, from, to, billType, voucherType],
     queryFn: async () => {
       if (!partyId) return null;
-      const res = await fetch(`/api/reports/party-statement?party_id=${partyId}&from=${from}&to=${to}`);
+      const params = new URLSearchParams({ party_id: partyId, from, to });
+      if (billType !== "all") params.set("bill_type", billType);
+      if (voucherType !== "all") params.set("voucher_type", voucherType);
+      const res = await fetch(`/api/reports/party-statement?${params}`);
       if (!res.ok) throw new Error("Failed to load party statement");
       return res.json();
     },
@@ -80,23 +96,32 @@ export default function PartyStatementPage() {
       onApply={handleApply}
       onExportExcel={handleExportExcel}
       extraFilters={
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Party</span>
-          <select
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect
+            label="Party"
             value={partyId}
-            onChange={(e) => setPartyId(e.target.value)}
-            className="h-8 px-3 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent font-semibold"
-          >
-            <option value="">-- Select Customer / Supplier --</option>
-            {parties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.company_name ? `${p.company_name} (${p.name})` : p.name} — {p.party_type}
-              </option>
-            ))}
-          </select>
+            onChange={setPartyId}
+            options={parties.map((p) => ({
+              label: `${p.company_name ? `${p.company_name} (${p.name})` : p.name}${p.party_type ? ` — ${p.party_type}` : ""}`,
+              value: p.id,
+            }))}
+            placeholder="-- Select Customer / Supplier --"
+          />
+          <FilterSelect
+            label="Voucher Type"
+            value={voucherType}
+            onChange={setVoucherType}
+            options={VOUCHER_TYPE_OPTIONS}
+            placeholder="All Voucher Types"
+          />
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+            <BillTypeFilter value={billType} onChange={setBillType} />
+          </div>
         </div>
       }
     >
+
       {!partyId ? (
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-12 text-center text-[var(--text-muted)] space-y-3">
           <UserCheck size={36} className="mx-auto text-[var(--text-faint)]" />

@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
   const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
+  const partyId = searchParams.get("party_id");
+  const paymentStatus = searchParams.get("payment_status");
   const bid = userData.business_id;
 
   try {
@@ -33,6 +35,14 @@ export async function GET(req: NextRequest) {
 
     if (billType && (billType === "kacha" || billType === "pakka")) {
       query = query.eq("bill_type", billType);
+    }
+
+    if (partyId && partyId !== "all") {
+      query = query.eq("party_id", partyId);
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      query = query.eq("payment_status", paymentStatus);
     }
 
     const { data: bills, error } = await query;

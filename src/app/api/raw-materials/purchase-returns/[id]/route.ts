@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   request: Request,
@@ -418,18 +419,15 @@ export async function DELETE(
     }
 
     // 3. Record Audit Log
-    await supabase.from("audit_log").insert({
-      business_id: businessId,
-      user_id: user?.id || null,
-      user_name: user?.user_metadata?.full_name || user?.email || "System",
-      action: "cancel_purchase_return",
-      table_name: "purchase_returns",
-      record_id: id,
-      old_values: { return_number: pReturn.return_number, grand_total: pReturn.grand_total, status: pReturn.status },
-      new_values: { status: "cancelled", deleted_at: new Date().toISOString() },
-      ip_address: "127.0.0.1",
-      user_agent: "NextJS Server",
-    });
+    await logAudit(
+      businessId,
+      "cancel_purchase_return",
+      "purchase_returns",
+      id,
+      { status: "cancelled", deleted_at: new Date().toISOString() },
+      { return_number: pReturn.return_number, grand_total: pReturn.grand_total, status: pReturn.status },
+      request
+    );
 
     return NextResponse.json({ success: true, message: `Purchase Return '${pReturn.return_number}' cancelled and stock restored.` });
   } catch (err: any) {

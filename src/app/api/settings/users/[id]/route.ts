@@ -22,13 +22,36 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       );
     }
 
+    // Fetch target user's current record to protect owner role
+    const { data: existingUser, error: fetchError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .eq("business_id", businessId)
+      .single();
+
+    if (fetchError || !existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Owner role protection check
+    const isTargetOwner = existingUser.role?.toLowerCase() === "owner";
+    const newRole = role.toLowerCase();
+
+    if (isTargetOwner && newRole !== "owner") {
+      return NextResponse.json(
+        { error: "Owner role cannot be changed or demoted." },
+        { status: 400 }
+      );
+    }
+
     // 1. Update public.users table
     const { error: profileError } = await supabase
       .from("users")
       .update({
         full_name: name,
         phone: phone || null,
-        role: role.toLowerCase(),
+        role: isTargetOwner ? "owner" : newRole,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId)

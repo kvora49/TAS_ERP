@@ -414,7 +414,14 @@ export default function DesignsPage() {
     .map((brand) => {
       const brandDesigns = filteredDesigns.filter((d) => d.brand_id === brand.id);
       const totalPcs = brandDesigns.reduce((acc, curr) => acc + (curr.total_quantity || 0), 0);
-      const totalVal = brandDesigns.reduce((acc, curr) => acc + (curr.total_value || 0), 0);
+      const totalVal = brandDesigns.reduce((acc, curr) => {
+        const qty = curr.total_quantity || 0;
+        const val = curr.total_value || 0;
+        if (val > 0) return acc + val;
+        const sp = Number(curr.sale_price || 0);
+        const uc = sp > 0 ? Math.round(sp * 0.6) : 150;
+        return acc + (qty * uc);
+      }, 0);
       return {
         brand,
         designs: brandDesigns,
@@ -431,7 +438,11 @@ export default function DesignsPage() {
   const renderDesignCard = (design: any) => {
     const coverImage = design.images?.[0];
     const stockQty = design.total_quantity || 0;
-    const stockVal = design.total_value || 0;
+    const salePrice = Number(design.sale_price || 0);
+    const unitCostFallback = salePrice > 0 ? Math.round(salePrice * 0.6) : 150;
+    const stockVal = (design.total_value && design.total_value > 0)
+      ? design.total_value
+      : (stockQty > 0 ? Math.round(stockQty * unitCostFallback) : 0);
 
     return (
       <div

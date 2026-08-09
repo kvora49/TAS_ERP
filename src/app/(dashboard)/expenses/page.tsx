@@ -318,7 +318,7 @@ function ExpensesHubContent() {
 
 export default function ExpensesHubPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-xs text-[var(--text-muted)] font-semibold">Loading Expenses Hub...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-semibold">Loading Expenses...</div>}>
       <ExpensesHubContent />
     </Suspense>
   );

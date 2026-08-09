@@ -12,8 +12,29 @@ export async function GET(
   }
 
   const { id } = params;
+  const { searchParams } = new URL(request.url);
+  const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null
 
   try {
+    let purchaseBillsQuery = supabase
+      .from("purchase_bills")
+      .select("id, bill_number, invoice_date, grand_total, status, bill_type")
+      .eq("supplier_id", id)
+      .eq("business_id", businessId)
+      .neq("status", "cancelled");
+
+    let saleBillsQuery = supabase
+      .from("sale_bills")
+      .select("id, bill_number, bill_date, grand_total, status, bill_type, remarks")
+      .eq("party_id", id)
+      .eq("business_id", businessId)
+      .neq("status", "cancelled");
+
+    if (billType && (billType === "kacha" || billType === "pakka")) {
+      purchaseBillsQuery = purchaseBillsQuery.eq("bill_type", billType);
+      saleBillsQuery = saleBillsQuery.eq("bill_type", billType);
+    }
+
     // 1. Fetch Party/Worker Details and Transactions in Parallel
     const [
       partyResult,
@@ -45,18 +66,9 @@ export async function GET(
         .eq("business_id", businessId)
         .neq("status", "cancelled")
         .is("deleted_at", null),
-      supabase
-        .from("purchase_bills")
-        .select("id, bill_number, invoice_date, grand_total, status, bill_type")
-        .eq("supplier_id", id)
-        .eq("business_id", businessId)
-        .neq("status", "cancelled"),
-      supabase
-        .from("sale_bills")
-        .select("id, bill_number, bill_date, grand_total, status, bill_type, remarks")
-        .eq("party_id", id)
-        .eq("business_id", businessId)
-        .neq("status", "cancelled"),
+      purchaseBillsQuery,
+      saleBillsQuery,
+
       supabase
         .from("purchase_returns")
         .select("id, return_number, return_date, grand_total, status, purchase_id, purchase_bill_id, gst_type")

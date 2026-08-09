@@ -274,12 +274,28 @@ export default function RawMaterialStockPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
-      <PageHeader
-        title="Raw Material Inventory Stock"
-        subtitle="Real-time raw material balances, fabric inventory roll logs, and stock movements."
-        actionLabel="Direct Stock Entry / Adjustment"
-        onAction={() => router.push("/stock/raw-materials/new")}
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Raw Material Inventory Stock</h1>
+          <p className="text-xs text-[var(--text-muted)]">Real-time raw material balances, fabric inventory roll logs, and stock movements.</p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/stock/raw-materials/transfers/new"
+            className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            <span>Godown Transfer</span>
+          </Link>
+          <button
+            onClick={() => router.push("/stock/raw-materials/new")}
+            className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Direct Stock Entry / Adjustment</span>
+          </button>
+        </div>
+      </div>
 
       {/* ── MOBILE: snap-scroll KPI cards ── */}
       <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">

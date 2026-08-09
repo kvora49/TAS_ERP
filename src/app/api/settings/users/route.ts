@@ -11,6 +11,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const role = searchParams.get("role");
+  const status = searchParams.get("status"); // 'all' | 'active' | 'deactivated'
   const search = searchParams.get("search");
 
   try {
@@ -22,8 +23,13 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from("users")
       .select("*")
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
+      .eq("business_id", businessId);
+
+    if (status === "active") {
+      query = query.is("deleted_at", null);
+    } else if (status === "deactivated") {
+      query = query.not("deleted_at", "is", null);
+    }
 
     if (role && role !== "all") {
       query = query.eq("role", role.toLowerCase());

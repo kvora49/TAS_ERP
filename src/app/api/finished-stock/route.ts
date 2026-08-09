@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Run ground-truth finished stock reconciliation for current net stock
+    await reconcileFinishedStock(supabase, businessId);
     // Call RPC
     const { data: stats, error } = await supabase.rpc("get_finished_stock_stats", {
       p_business_id: businessId,
@@ -23,11 +26,12 @@ export async function GET(request: Request) {
         .select(`
           total_quantity,
           total_value,
+          cost_per_piece,
           design_id,
           colour_id,
           godown_id,
           size_quantities,
-          design:designs(id, name, design_number),
+          design:designs(id, name, design_number, sale_price),
           colour:design_colours(id, colour_name, colour_hex),
           godown:godowns(id, name)
         `)
@@ -58,7 +62,11 @@ export async function GET(request: Request) {
 
       stockEntries.forEach((row: any) => {
         const qty = Number(row.total_quantity || 0);
-        const val = Number(row.total_value || 0);
+        const costPerPiece = Number(row.cost_per_piece || 0);
+        const salePrice = Number(row.design?.sale_price || 0);
+        const unitCost = costPerPiece > 0 ? costPerPiece : (salePrice > 0 ? Math.round(salePrice * 0.6) : 0);
+        const val = Number(row.total_value || 0) > 0 ? Number(row.total_value) : (qty * unitCost);
+
         totalStock += qty;
         totalValue += val;
 

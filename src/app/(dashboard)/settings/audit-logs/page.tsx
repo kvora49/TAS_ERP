@@ -1,30 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { ModuleBadge } from "@/components/shared/ModuleBadge";
 import { ActionBadge } from "@/components/shared/ActionBadge";
 import { InfoBanner } from "@/components/shared/InfoBanner";
+import { Modal } from "@/components/shared/Modal";
 import {
   SlidersHorizontal,
   Download,
-  Calendar,
   MoreVertical,
   ChevronLeft,
   ChevronRight,
   Filter,
+  Eye,
+  ExternalLink,
+  Copy,
+  Globe,
+  Monitor,
+  UserCheck,
+  Sparkles,
+  Layers,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface AuditLog {
   id: string;
   created_at: string;
+  user_id: string | null;
   user_name: string | null;
   table_name: string;
   action: string;
+  record_id: string | null;
+  old_values: any;
   new_values: any;
   ip_address: string | null;
+  user_agent: string | null;
   users?: {
     full_name: string;
     email: string;
@@ -35,6 +49,428 @@ interface User {
   id: string;
   full_name: string;
 }
+
+// ─── Field label display map ────────────────────────────────────────────────
+const FIELD_LABEL_MAP: Record<string, string> = {
+  // Production
+  stage_name: "Stage",
+  worker_name: "Assigned Worker",
+  qty_in: "Input Quantity",
+  qty_out: "Output Quantity",
+  good_pcs: "Good Pieces",
+  rejected_pcs: "Rejected Pieces",
+  rework_pcs: "Rework Pieces",
+  shift: "Shift",
+  lot_number: "Lot Number",
+  lot_name: "Lot Name",
+  lot_date: "Lot Date",
+  total_quantity: "Total Quantity",
+  completed_quantity: "Completed Quantity",
+  target_dispatch_date: "Target Dispatch Date",
+  stage_type: "Stage Type",
+  sequence_no: "Sequence",
+  is_mandatory: "Mandatory",
+  // Billing
+  bill_number: "Bill Number",
+  invoice_number: "Invoice Number",
+  supplier_bill_no: "Supplier Bill No.",
+  bill_date: "Bill Date",
+  bill_amount: "Bill Amount",
+  total_amount: "Total Amount",
+  grand_total: "Grand Total",
+  paid_amount: "Paid Amount",
+  balance_amount: "Balance Due",
+  payment_mode: "Payment Method",
+  payment_type: "Payment Type",
+  payment_date: "Payment Date",
+  payment_status: "Payment Status",
+  direction: "Direction",
+  amount: "Amount",
+  // Parties
+  party_name: "Party / Supplier",
+  // Materials
+  material_name: "Material Name",
+  item_name: "Item Name",
+  rate: "Unit Rate",
+  rate_per_pc: "Rate per Piece",
+  daily_rate: "Daily Rate",
+  monthly_salary: "Monthly Salary",
+  unit: "Unit",
+  // Storage
+  godown_name: "Godown",
+  // Users / Workers
+  full_name: "Full Name",
+  email: "Email Address",
+  phone: "Phone Number",
+  role: "User Role",
+  is_active: "Account Active",
+  working_since: "Working Since",
+  bank_name: "Bank Name",
+  // Documents
+  doc_type: "Document Type",
+  file_name: "File Name",
+  file_size_bytes: "File Size",
+  // General
+  status: "Status",
+  notes: "Notes",
+  remarks: "Remarks",
+  cn_number: "Credit Note #",
+  return_number: "Return Number",
+  // Design
+  design_name: "Design Name",
+  design_code: "Design Code",
+  color: "Colour / Shade",
+  size: "Size",
+  type: "Type",
+  name: "Name",
+};
+
+function getFieldLabel(key: string): string {
+  const mapped = FIELD_LABEL_MAP[key.toLowerCase()];
+  if (mapped) return mapped;
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── UUID detection ──────────────────────────────────────────────────────────
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ─── Universal value formatter ────────────────────────────────────────────────
+function formatValue(key: string, val: any): string {
+  if (val === null || val === undefined) return "—";
+  if (typeof val === "boolean") return val ? "Yes" : "No";
+
+  // Arrays
+  if (Array.isArray(val)) {
+    if (val.length === 0) return "None";
+    return `${val.length} item${val.length !== 1 ? "s" : ""}`;
+  }
+
+  // Objects (non-array) — hide; too complex to render meaningfully
+  if (typeof val === "object") return "—";
+
+  // UUID strings — should be ignored via IGNORED_KEYS, but catch any that slip through
+  if (typeof val === "string" && UUID_REGEX.test(val.trim())) return "—";
+
+  const lowerKey = key.toLowerCase();
+
+  // Money: any key that sounds like a currency value
+  if (
+    typeof val === "number" &&
+    (
+      lowerKey.includes("amount") || lowerKey.includes("price") ||
+      lowerKey.includes("total") || lowerKey.includes("cost") ||
+      lowerKey.includes("rate") || lowerKey.includes("salary") ||
+      lowerKey.includes("salary") || lowerKey.includes("paid")
+    )
+  ) {
+    return `₹${val.toLocaleString("en-IN")}`;
+  }
+
+  // File size in bytes
+  if (typeof val === "number" && (lowerKey.includes("size_bytes") || lowerKey.includes("file_size"))) {
+    if (val < 1024) return `${val} B`;
+    if (val < 1024 * 1024) return `${(val / 1024).toFixed(1)} KB`;
+    return `${(val / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  // ISO date strings
+  if (
+    typeof val === "string" &&
+    /^\d{4}-\d{2}-\d{2}(T|$)/.test(val)
+  ) {
+    try {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      }
+    } catch {}
+  }
+
+  // snake_case enum values → Title Case  (e.g. piece_rate → Piece Rate)
+  if (typeof val === "string" && /^[a-z0-9]+(_[a-z0-9]+)+$/.test(val)) {
+    return val.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  // Single lowercase word → capitalise
+  if (typeof val === "string" && /^[a-z]+$/.test(val) && val.length < 30) {
+    return val.charAt(0).toUpperCase() + val.slice(1);
+  }
+
+  return String(val);
+}
+
+// ─── Value prettifier (for use inside sentences) ──────────────────────────────
+function prettyStr(val: string | undefined | null): string {
+  if (!val) return "";
+  return val.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Entity navigation routing ────────────────────────────────────────────────
+function getEntityRoute(log: AuditLog): { label: string; url: string } | null {
+  if (!log) return null;
+  const table = (log.table_name || "").toLowerCase();
+  const recordId = log.record_id;
+  const n = log.new_values || {};
+  const o = log.old_values || {};
+
+  // Stage entries → directly to the Production Lot they belong to
+  if (table === "stage_entries" || table === "lot_production_stages" || table === "production_stage_entries") {
+    const lotId = n.lot_id || o.lot_id;
+    if (lotId) {
+      const lotNo = n.lot_number || o.lot_number || "";
+      return { label: lotNo ? `View Production Lot #${lotNo}` : "View Production Lot", url: `/production/lots/${lotId}` };
+    }
+    return { label: "View Production Lots", url: "/production/lots" };
+  }
+
+  if (table === "production_lots") {
+    if (recordId) {
+      const lotNo = n.lot_number || o.lot_number || "";
+      return { label: lotNo ? `View Lot #${lotNo}` : "View Production Lot", url: `/production/lots/${recordId}` };
+    }
+    return { label: "View Production Lots", url: "/production/lots" };
+  }
+
+  if (table === "raw_material_purchases") {
+    if (recordId) return { label: "View Purchase Invoice", url: `/raw-materials/purchases/${recordId}` };
+    return { label: "View Purchases", url: "/raw-materials/purchases" };
+  }
+
+  if (table === "sale_bills" || table === "sales") {
+    if (recordId) return { label: "View Sale Bill", url: `/sales/${recordId}` };
+    return { label: "View Sales", url: "/sales" };
+  }
+
+  if (table === "workers") {
+    if (recordId) return { label: "View Worker Profile", url: `/workers/${recordId}` };
+    return { label: "View Workers", url: "/workers" };
+  }
+
+  if (table === "worker_documents") {
+    const workerId = (log.new_values || log.old_values || {} as any)?.worker_id;
+    if (workerId) return { label: "View Worker Profile", url: `/workers/${workerId}` };
+    return { label: "View Workers", url: "/workers" };
+  }
+
+  if (table === "users") {
+    return { label: "View Users & Roles", url: "/settings/users-roles" };
+  }
+
+  if (table === "payments") {
+    return { label: "View Payments", url: "/payments/supplier" };
+  }
+
+  if (table === "job_work_payments") {
+    return { label: "View Job Work Payments", url: "/production/job-work/payments" };
+  }
+
+  if (table === "parties") {
+    if (recordId) return { label: "View Party Ledger", url: `/parties/${recordId}/ledger` };
+    return { label: "View Parties", url: "/parties" };
+  }
+
+  if (table === "finished_stock" || table === "designs") {
+    return { label: "View Finished Stock", url: "/finished-stock" };
+  }
+
+  if (table === "credit_notes") {
+    return { label: "View Sales", url: "/sales" };
+  }
+
+  if (table === "sales_returns") {
+    return { label: "View Sales Returns", url: "/sales/returns" };
+  }
+
+  if (table === "purchase_returns") {
+    return { label: "View Purchase Returns", url: "/raw-materials/purchase-returns" };
+  }
+
+  if (table === "purchase_bills") {
+    return { label: "View Purchase Bills", url: "/purchases/bills" };
+  }
+
+  if (table === "raw_material_types") {
+    return { label: "View Raw Materials", url: "/master-data/raw-materials" };
+  }
+
+  return null;
+}
+
+// ─── Human-readable activity summary sentences ────────────────────────────────
+function getSummarySentence(log: AuditLog): string {
+  const user = log.user_name || log.users?.full_name || "System";
+  const action = (log.action || "").toLowerCase();
+  const table = (log.table_name || "").toLowerCase();
+  const n = log.new_values || {};
+  const o = log.old_values || {};
+
+  // Workers
+  if (table === "workers") {
+    const name = n.full_name || o.full_name || "a worker";
+    const payType = n.payment_type || o.payment_type;
+    const rate = n.rate_per_pc || n.daily_rate || n.monthly_salary || o.rate_per_pc || o.daily_rate || o.monthly_salary;
+    const payStr = payType ? ` (${prettyStr(payType)})` : "";
+    const rateStr = rate ? ` at ₹${Number(rate).toLocaleString("en-IN")}` : "";
+    if (action === "create") return `${user} added a new worker: ${name}${payStr}${rateStr}.`;
+    if (action === "update") return `${user} updated the profile for worker ${name}.`;
+    if (action === "delete") return `${user} removed worker ${name} from the system.`;
+  }
+
+  // Worker Documents
+  if (table === "worker_documents") {
+    const docType = prettyStr(n.doc_type || o.doc_type) || "document";
+    const fileName = n.file_name || o.file_name || "";
+    if (action === "upload_document") return `${user} uploaded a ${docType}${fileName ? ` (${fileName})` : ""}.`;
+    if (action === "delete_document") return `${user} deleted a ${docType}${fileName ? ` (${fileName})` : ""}.`;
+  }
+
+  // Stage Entries
+  if (table === "stage_entries" || table === "production_stage_entries") {
+    const stage = n.stage_name || o.stage_name || "a stage";
+    const lotNo = n.lot_number || o.lot_number || "";
+    const workerName = n.worker_name || o.worker_name || "";
+    const qtyIn = n.qty_in ?? o.qty_in;
+    const qtyOut = n.qty_out ?? o.qty_out;
+    if (action === "create") {
+      return `${user} submitted ${stage} entry${lotNo ? ` for Lot #${lotNo}` : ""}${workerName ? ` — Worker: ${workerName}` : ""}.`;
+    }
+    if (action === "update") {
+      return `${user} updated ${stage} entry${lotNo ? ` for Lot #${lotNo}` : ""} (In: ${qtyIn ?? "—"}, Out: ${qtyOut ?? "—"}).`;
+    }
+    if (action === "delete") return `${user} deleted a ${stage} entry${lotNo ? ` from Lot #${lotNo}` : ""}.`;
+  }
+
+  // Lot Production Stages
+  if (table === "lot_production_stages") {
+    const stage = n.stage_name || o.stage_name || "a stage";
+    if (action === "add_lot_stage") return `${user} added the "${stage}" stage to the production lot.`;
+    if (action === "update") return `${user} updated stage "${stage}" configuration.`;
+  }
+
+  // Production Lots
+  if (table === "production_lots") {
+    const lotNo = n.lot_number || o.lot_number || "";
+    const qty = n.total_quantity || o.total_quantity;
+    const label = lotNo ? `Lot #${lotNo}` : "a production lot";
+    if (action === "create") return `${user} created Production ${label}${qty ? ` with quantity ${qty}` : ""}.`;
+    if (action === "update") return `${user} updated Production ${label}.`;
+    if (action === "delete") return `${user} cancelled/deleted Production ${label}.`;
+    if (action === "complete_lot") return `${user} marked Production ${label} as Completed.`;
+  }
+
+  // Raw Material Purchases
+  if (table === "raw_material_purchases") {
+    const invNo = n.supplier_bill_no || n.invoice_number || o.supplier_bill_no || o.invoice_number || "";
+    const total = n.bill_amount || n.grand_total || o.bill_amount || o.grand_total;
+    const label = invNo ? `Invoice #${invNo}` : "a purchase invoice";
+    if (action === "create") return `${user} created Purchase ${label}${total ? ` for ₹${Number(total).toLocaleString("en-IN")}` : ""}.`;
+    if (action === "update") return `${user} updated Purchase ${label}.`;
+    if (action === "cancel") return `${user} cancelled Purchase ${label}.`;
+  }
+
+  // Sale Bills
+  if (table === "sale_bills") {
+    const billNo = n.bill_number || o.bill_number || "";
+    const total = n.grand_total || o.grand_total;
+    const label = billNo ? `Bill #${billNo}` : "a sale bill";
+    if (action === "create") return `${user} created Sale ${label}${total ? ` for ₹${Number(total).toLocaleString("en-IN")}` : ""}.`;
+    if (action === "update") return `${user} updated Sale ${label}.`;
+    if (action === "cancel") return `${user} cancelled Sale ${label}.`;
+  }
+
+  // Payments (received from customer)
+  if (table === "payments") {
+    const amt = n.amount || o.amount;
+    const mode = prettyStr(n.payment_mode || o.payment_mode);
+    const dir = n.direction || o.direction;
+    const dirLabel = dir === "received" ? "received" : "outgoing";
+    if (action === "create") {
+      return `${user} recorded a ${dirLabel} payment of ₹${Number(amt || 0).toLocaleString("en-IN")}${mode ? ` via ${mode}` : ""}.`;
+    }
+  }
+
+  // Job Work Payments
+  if (table === "job_work_payments") {
+    const amt = n.amount || n.total_amount || o.amount || o.total_amount;
+    const mode = prettyStr(n.payment_mode || o.payment_mode);
+    if (action === "record_payment") {
+      return `${user} recorded a job work payment of ₹${Number(amt || 0).toLocaleString("en-IN")}${mode ? ` via ${mode}` : ""}.`;
+    }
+  }
+
+  // Users
+  if (table === "users") {
+    const name = n.full_name || o.full_name || "a user";
+    const role = prettyStr(n.role || o.role);
+    if (action === "create") return `${user} invited ${name} as a new ${role || "user"}.`;
+    if (action === "update") return `${user} updated account settings for ${name}.`;
+    if (action === "deactivate") return `${user} deactivated user ${name}.`;
+    if (action === "activate") return `${user} reactivated user ${name}.`;
+  }
+
+  // Credit Notes
+  if (table === "credit_notes") {
+    const cnNo = n.cn_number || o.cn_number || "";
+    if (action === "delete_credit_note") return `${user} deleted Credit Note${cnNo ? ` #${cnNo}` : ""}.`;
+  }
+
+  // Sales Returns
+  if (table === "sales_returns") {
+    const retNo = n.return_number || o.return_number || "";
+    if (action === "delete_sales_return") return `${user} deleted Sales Return${retNo ? ` #${retNo}` : ""}.`;
+  }
+
+  // Purchase Returns
+  if (table === "purchase_returns") {
+    const retNo = n.return_number || o.return_number || "";
+    if (action === "cancel_purchase_return") return `${user} cancelled Purchase Return${retNo ? ` #${retNo}` : ""}.`;
+  }
+
+  // Purchase Bills
+  if (table === "purchase_bills") {
+    const billNo = n.bill_number || o.bill_number || "";
+    if (action === "cancel_purchase_bill") return `${user} cancelled Purchase Bill${billNo ? ` #${billNo}` : ""}.`;
+  }
+
+  // Raw Material Types
+  if (table === "raw_material_types") {
+    const name = n.name || o.name || "a raw material type";
+    if (action === "delete_raw_material_type") return `${user} deleted raw material type "${name}".`;
+  }
+
+  // Generic readable fallback
+  const actionLabel = prettyStr(action);
+  const tableLabel = prettyStr(table);
+  return `${user} performed "${actionLabel}" on ${tableLabel}.`;
+}
+
+// ─── Keys to always hide (system / UUID / sensitive / raw blobs) ──────────────
+const IGNORED_KEYS = new Set([
+  // System / audit metadata
+  "id", "business_id", "created_at", "updated_at", "deleted_at",
+  "created_by", "updated_by", "description",
+  // UUID foreign keys — companion *_name fields are shown instead
+  "worker_id", "stage_id", "lot_id", "lot_stage_id", "lot_production_stage_id",
+  "party_id", "design_id", "godown_id", "material_id",
+  "bank_account_id", "upi_id", "uploaded_by", "template_id",
+  "stage_entry_id", "accessory_id", "lot_accessory_id",
+  // Raw blobs / heavy nested objects — meaningless in audit view
+  "design_reference_photos", "custom_qa", "accessories",
+  "spec_values", "attachments",
+  // Storage paths
+  "file_url",
+  // Sensitive banking
+  "account_number", "ifsc_code",
+  // Redundant technical fields
+  "payment_cycle",
+]);
 
 export default function AuditLogsSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -53,8 +489,11 @@ export default function AuditLogsSettingsPage() {
   const [limit, setLimit] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Active dropdown menu
+  // Active dropdown & Detail modal
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [showAllFields, setShowAllFields] = useState(false);
 
   // Fetch Users for filters
   const fetchUsers = async () => {
@@ -115,7 +554,6 @@ export default function AuditLogsSettingsPage() {
     setSelectedAction("All Actions");
     setPage(1);
     
-    // Fetch logs with clean filters
     setTimeout(() => {
       fetchLogs(1, limit);
     }, 50);
@@ -129,9 +567,15 @@ export default function AuditLogsSettingsPage() {
     if (selectedUser !== "All Users") query.append("userId", selectedUser);
     if (selectedAction !== "All Actions") query.append("action", selectedAction);
 
-    // Redirect to CSV route trigger
     window.open(`/api/settings/audit-logs/export?${query.toString()}`, "_blank");
     toast.success("Audit logs CSV export started");
+  };
+
+  const openLogDetails = (log: AuditLog) => {
+    setActiveMenuId(null);
+    setSelectedLog(log);
+    setShowAllFields(false);
+    setDetailModalOpen(true);
   };
 
   const getAvatarBg = (name: string) => {
@@ -174,8 +618,45 @@ export default function AuditLogsSettingsPage() {
     fetchLogs(newPage, limit);
   };
 
-  // Helper pagination rendering
   const totalPages = Math.ceil(totalCount / limit) || 1;
+
+
+  // ─── Action-aware display logic ──────────────────────────────────────────────
+  const logAction = (selectedLog?.action || "").toLowerCase();
+  const isCreateLike = ["create", "upload_document", "record_payment", "add_lot_stage"].includes(logAction);
+  const isDeleteLike = [
+    "delete", "delete_document", "delete_credit_note", "delete_sales_return",
+    "cancel_purchase_return", "cancel_purchase_bill", "cancel", "delete_raw_material_type",
+  ].includes(logAction);
+  const isUpdateLike = !isCreateLike && !isDeleteLike;
+
+
+  const oldVals = selectedLog?.old_values || {};
+  const newVals = selectedLog?.new_values || {};
+  // For create: use new_values; for delete: use old_values; for update: diff of both
+  const sourceVals = isDeleteLike ? oldVals : newVals;
+
+  const baseKeys = isUpdateLike
+    ? Array.from(new Set([...Object.keys(oldVals), ...Object.keys(newVals)]))
+    : Object.keys(sourceVals);
+
+  const displayKeys = baseKeys.filter((key) => {
+    if (IGNORED_KEYS.has(key.toLowerCase())) return false;
+    const val = sourceVals[key];
+    // For create/delete: by default, skip fields that are null/undefined/empty-array
+    if (!showAllFields && (isCreateLike || isDeleteLike)) {
+      if (val === null || val === undefined || val === "") return false;
+      if (Array.isArray(val) && val.length === 0) return false;
+    }
+    // For update: by default show only changed fields
+    if (!showAllFields && isUpdateLike) {
+      return JSON.stringify(oldVals[key]) !== JSON.stringify(newVals[key]);
+    }
+    return true;
+  });
+
+  const entityRoute = selectedLog ? getEntityRoute(selectedLog) : null;
+  const summarySentence = selectedLog ? getSummarySentence(selectedLog) : "";
 
   return (
     <div className="flex flex-col gap-6 text-left">
@@ -185,7 +666,7 @@ export default function AuditLogsSettingsPage() {
         subtitle="Track system changes and user activities"
         actionLabel="Export Logs"
         onAction={handleExport}
-        actionIcon={<Download className="size-4 text-[#374151]" />}
+        actionIcon={<Download className="size-4 text-[var(--text-body)]" />}
         actionOutline
       />
 
@@ -195,7 +676,7 @@ export default function AuditLogsSettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             {/* Filter 1 — Date Range */}
             <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
+              <label className="text-sm font-semibold text-[var(--text-primary)] block mb-1.5">
                 Date Range
               </label>
               <div className="flex items-center gap-2">
@@ -204,16 +685,16 @@ export default function AuditLogsSettingsPage() {
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
-                    className="h-10 px-2 rounded-lg border border-[#D1D5DB] text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1] w-full"
+                    className="h-10 px-2 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] w-full transition-colors"
                   />
                 </div>
-                <span className="text-[#94A3B8]">-</span>
+                <span className="text-[var(--text-faint)]">-</span>
                 <div className="relative flex-1">
                   <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
-                    className="h-10 px-2 rounded-lg border border-[#D1D5DB] text-xs focus:outline-none focus:ring-2 focus:ring-[#6366F1] w-full"
+                    className="h-10 px-2 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] w-full transition-colors"
                   />
                 </div>
               </div>
@@ -227,15 +708,17 @@ export default function AuditLogsSettingsPage() {
               <select
                 value={selectedModule}
                 onChange={(e) => setSelectedModule(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer transition-colors"
               >
                 <option value="All Modules">All Modules</option>
-                <option value="Brands">Brands</option>
-                <option value="Godowns">Godowns</option>
-                <option value="Designs">Designs</option>
-                <option value="users">Users</option>
-                <option value="business_settings">Settings</option>
-                <option value="production_stages">Production</option>
+                <option value="raw_material_purchases">Purchases</option>
+                <option value="sale_bills">Sales & Billing</option>
+                <option value="production_lots">Production Lots</option>
+                <option value="stage_entries">Production Stage Entries</option>
+                <option value="workers">Workers</option>
+                <option value="users">Users & Roles</option>
+                <option value="payments">Payments</option>
+                <option value="parties">Parties</option>
               </select>
             </div>
 
@@ -247,7 +730,7 @@ export default function AuditLogsSettingsPage() {
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer transition-colors"
               >
                 <option value="All Users">All Users</option>
                 {users.map((u) => (
@@ -266,15 +749,14 @@ export default function AuditLogsSettingsPage() {
               <select
                 value={selectedAction}
                 onChange={(e) => setSelectedAction(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer transition-colors"
               >
                 <option value="All Actions">All Actions</option>
-                <option value="Create">Create</option>
-                <option value="Update">Update</option>
-                <option value="Delete">Delete</option>
-                <option value="Login">Login</option>
-                <option value="Logout">Logout</option>
-                <option value="Export">Export</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="cancel">Cancel</option>
+                <option value="complete_lot">Complete Lot</option>
               </select>
             </div>
           </div>
@@ -282,13 +764,13 @@ export default function AuditLogsSettingsPage() {
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={handleResetFilters}
-              className="h-10 px-4 border border-[#E5E7EB] hover:bg-slate-50 rounded-lg text-sm font-semibold cursor-pointer shadow-sm"
+              className="h-10 px-4 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm font-semibold cursor-pointer transition-colors"
             >
               Reset
             </button>
             <button
               onClick={handleApplyFilters}
-              className="h-10 px-4 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg text-sm font-semibold cursor-pointer shadow-sm"
+              className="h-10 px-4 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg text-sm font-semibold cursor-pointer transition-colors shadow-sm"
             >
               Apply Filters
             </button>
@@ -303,50 +785,50 @@ export default function AuditLogsSettingsPage() {
         subtitle="View all system activities and changes"
         headerRight={
           <div className="flex items-center gap-2 select-none">
-            <span className="text-xs font-semibold text-[#64748B]">Show</span>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Show</span>
             <select
               value={limit}
               onChange={(e) => handleLimitChange(Number(e.target.value))}
-              className="h-9 px-2 rounded-lg border border-[#E5E7EB] bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#6366F1] w-20"
+              className="h-9 px-2 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] w-20 cursor-pointer"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
-            <span className="text-xs font-semibold text-[#64748B]">entries</span>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">entries</span>
           </div>
         }
       >
-        <div className="overflow-x-auto border border-[#E5E7EB] rounded-lg mb-4">
-          <table className="w-full text-sm text-[#374151]">
-            <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider h-11">
+        <div className="overflow-x-auto border border-[var(--border)] rounded-lg mb-4 select-none">
+          <table className="w-full text-sm text-[var(--text-body)]">
+            <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
               <tr>
                 <th className="px-4 py-2 text-left w-[150px]">Date & Time</th>
                 <th className="px-4 py-2 text-left w-[180px]">User</th>
                 <th className="px-4 py-2 text-left w-[150px]">Module</th>
                 <th className="px-4 py-2 text-left w-[120px]">Action</th>
                 <th className="px-4 py-2 text-left">Description</th>
-                <th className="px-4 py-2 text-left w-[120px]">IP Address</th>
-                <th className="px-4 py-2 text-center w-[50px]">Action</th>
+                <th className="px-4 py-2 text-left w-[130px]">IP Address</th>
+                <th className="px-4 py-2 text-center w-[60px]">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E7EB]">
+            <tbody className="divide-y divide-[var(--border)]">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-slate-400">
+                  <td colSpan={7} className="text-center py-6 text-[var(--text-faint)]">
                     Loading audit activities...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-slate-400 italic">
+                  <td colSpan={7} className="text-center py-6 text-[var(--text-faint)] italic">
                     No logs found matching search criteria.
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => {
                   const userName = log.user_name || log.users?.full_name || "System";
-                  const desc = log.new_values?.description || `${log.action} in ${log.table_name}`;
+                  const desc = getSummarySentence(log);
                   const formattedDate = new Date(log.created_at).toLocaleDateString("en-IN", {
                     day: "2-digit",
                     month: "short",
@@ -359,14 +841,18 @@ export default function AuditLogsSettingsPage() {
                   });
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/50 h-14">
-                      <td className="px-4 py-2 text-xs text-[#374151]">
+                    <tr
+                      key={log.id}
+                      onClick={() => openLogDetails(log)}
+                      className="hover:bg-[var(--table-row-hover)] h-14 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-2 text-xs text-[var(--text-primary)]">
                         <div className="leading-relaxed">
                           <span className="font-semibold block">{formattedDate}</span>
-                          <span className="text-[10px] text-[#94A3B8]">{formattedTime}</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">{formattedTime}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 font-medium text-[#374151]">
+                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                         <div className="flex items-center gap-2">
                           <div
                             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${getAvatarBg(
@@ -378,37 +864,46 @@ export default function AuditLogsSettingsPage() {
                           <span className="truncate max-w-[120px]">{userName}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3">
                         <ModuleBadge module={log.table_name} />
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3">
                         <ActionBadge action={log.action} />
                       </td>
-                      <td className="px-4 py-2 text-[#374151] max-w-[250px] truncate" title={desc}>
+                      <td className="px-4 py-3 text-[var(--text-body)] max-w-[250px] truncate font-medium" title={desc}>
                         {desc}
                       </td>
-                      <td className="px-4 py-2 font-mono text-xs text-[#64748B]">
-                        {log.ip_address || "127.0.0.1"}
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">
+                        {log.ip_address || "—"}
                       </td>
-                      <td className="px-4 py-2 text-center relative">
+                      <td className="px-4 py-3 text-center relative" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() =>
-                            setActiveMenuId(activeMenuId === log.id ? null : log.id)
-                          }
-                          className="w-8 h-8 rounded-lg border border-[#E5E7EB] hover:bg-slate-50 inline-flex items-center justify-center transition-colors"
+                          type="button"
+                          onClick={() => setActiveMenuId(activeMenuId === log.id ? null : log.id)}
+                          className="w-8 h-8 rounded-lg border border-[var(--border)] hover:bg-[var(--page-bg)] inline-flex items-center justify-center transition-colors text-[var(--text-muted)] cursor-pointer"
                         >
-                          <MoreVertical className="size-4 text-[#64748B]" />
+                          <MoreVertical className="size-4" />
                         </button>
                         {activeMenuId === log.id && (
-                          <div className="absolute right-4 mt-1 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-10 w-28 py-1 select-none">
+                          <div className="absolute right-4 mt-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-lg z-10 w-36 py-1 select-none text-left">
                             <button
+                              type="button"
+                              onClick={() => openLogDetails(log)}
+                              className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye className="size-3.5" />
+                              View Details
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 toast.info("Audit log ID copied to clipboard");
                                 navigator.clipboard.writeText(log.id);
                                 setActiveMenuId(null);
                               }}
-                              className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-50 text-slate-700"
+                              className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] flex items-center gap-1.5 cursor-pointer"
                             >
+                              <Copy className="size-3.5" />
                               Copy Entry ID
                             </button>
                           </div>
@@ -424,7 +919,7 @@ export default function AuditLogsSettingsPage() {
 
         {/* PAGINATION FOOTER */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 select-none">
-          <span className="text-xs text-[#64748B] font-medium">
+          <span className="text-xs text-[var(--text-muted)] font-medium">
             Showing {Math.min((page - 1) * limit + 1, totalCount)} to{" "}
             {Math.min(page * limit, totalCount)} of {totalCount} entries
           </span>
@@ -433,7 +928,7 @@ export default function AuditLogsSettingsPage() {
             <button
               onClick={() => handlePageChange(page - 1)}
               disabled={page <= 1}
-              className="w-8 h-8 rounded-lg border border-[#E5E7EB] bg-white inline-flex items-center justify-center hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] inline-flex items-center justify-center hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
@@ -444,10 +939,10 @@ export default function AuditLogsSettingsPage() {
                 <button
                   key={pNum}
                   onClick={() => handlePageChange(pNum)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold inline-flex items-center justify-center transition-all ${
+                  className={`w-8 h-8 rounded-lg text-xs font-bold inline-flex items-center justify-center transition-all cursor-pointer ${
                     isCurrent
-                      ? "bg-[#6366F1] text-white shadow-sm"
-                      : "border border-[#E5E7EB] bg-white hover:bg-slate-50"
+                      ? "bg-[var(--primary)] text-white shadow-sm"
+                      : "border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
                   }`}
                 >
                   {pNum}
@@ -457,7 +952,7 @@ export default function AuditLogsSettingsPage() {
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={page >= totalPages}
-              className="w-8 h-8 rounded-lg border border-[#E5E7EB] bg-white inline-flex items-center justify-center hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] inline-flex items-center justify-center hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
@@ -470,6 +965,233 @@ export default function AuditLogsSettingsPage() {
           className="mt-4"
         />
       </SettingsCard>
+
+      {/* AUDIT LOG DETAIL MODAL */}
+      <Modal
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        title="Activity Summary"
+        maxWidth="max-w-3xl"
+      >
+        {selectedLog && (
+          <div className="flex flex-col gap-5 mt-1 select-none">
+            {/* Business English Activity Summary Banner */}
+            <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary-light)]/40 text-[var(--text-primary)] flex items-start gap-3">
+              <Sparkles className="size-5 text-[var(--primary)] shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-xs uppercase font-bold text-[var(--primary)] tracking-wider mb-1">
+                  Activity Summary
+                </h4>
+                <p className="text-sm font-medium leading-relaxed">
+                  {summarySentence}
+                </p>
+              </div>
+            </div>
+
+            {/* Header Badge Strip & Entity Link CTA */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-[var(--border)] bg-[var(--page-bg)]">
+              <div className="flex items-center gap-2.5">
+                <ActionBadge action={selectedLog.action} />
+                <ModuleBadge module={selectedLog.table_name} />
+              </div>
+
+              {entityRoute && (
+                <Link
+                  href={entityRoute.url}
+                  onClick={() => setDetailModalOpen(false)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+                >
+                  <span>{entityRoute.label}</span>
+                  <ExternalLink className="size-3.5" />
+                </Link>
+              )}
+            </div>
+
+            {/* General Metadata Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
+                  <UserCheck className="size-3.5 text-[var(--primary)]" />
+                  <span>Performed By</span>
+                </div>
+                <span className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                  {selectedLog.user_name || selectedLog.users?.full_name || "System"}
+                </span>
+                {selectedLog.users?.email && (
+                  <span className="text-xs text-[var(--text-faint)] truncate">
+                    {selectedLog.users.email}
+                  </span>
+                )}
+              </div>
+
+              <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
+                  <Globe className="size-3.5 text-[var(--primary)]" />
+                  <span>IP Address</span>
+                </div>
+                <span className="text-sm font-mono font-semibold text-[var(--text-primary)]">
+                  {selectedLog.ip_address || "—"}
+                </span>
+                <span className="text-xs text-[var(--text-faint)]">
+                  {!selectedLog.ip_address || selectedLog.ip_address === "127.0.0.1" || selectedLog.ip_address === "::1"
+                    ? "Localhost / not captured"
+                    : "Captured"}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
+                  <Monitor className="size-3.5 text-[var(--primary)]" />
+                  <span>Timestamp</span>
+                </div>
+                <span className="text-xs font-medium text-[var(--text-primary)]">
+                  {new Date(selectedLog.created_at).toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            {/* Changes Diff Table Header */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-2">
+                <Layers className="size-4 text-[var(--primary)]" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  {isUpdateLike ? "Changed Fields" : isDeleteLike ? "Deleted Record" : "Record Details"}
+                </h4>
+                <span className="text-xs text-[var(--text-muted)]">
+                  ({displayKeys.length} {displayKeys.length === 1 ? "field" : "fields"})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllFields(!showAllFields)}
+                className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                {showAllFields
+                  ? isUpdateLike ? "Show Changed Only" : "Hide Empty Fields"
+                  : isUpdateLike ? "Show All Fields" : "Show All Fields (incl. empty)"}
+              </button>
+            </div>
+
+            {/* Action-aware diff table */}
+            <div className="overflow-x-auto border border-[var(--border)] rounded-lg max-h-72 overflow-y-auto">
+              <table className="w-full text-xs text-[var(--text-body)]">
+                <thead className="bg-[var(--table-header-bg)] font-semibold text-[var(--text-muted)] uppercase tracking-wider sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left w-[200px]">Field</th>
+                    {isUpdateLike ? (
+                      <>
+                        <th className="px-4 py-2.5 text-left">Before</th>
+                        <th className="px-4 py-2.5 text-left">After</th>
+                      </>
+                    ) : (
+                      <th className="px-4 py-2.5 text-left">
+                        {isDeleteLike ? "Deleted Value" : "Value"}
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {displayKeys.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={isUpdateLike ? 3 : 2}
+                        className="text-center py-6 text-[var(--text-faint)] italic"
+                      >
+                        {isUpdateLike
+                          ? "No changed fields detected. Click \"Show All Fields\" to see all properties."
+                          : "No detail fields available for this log entry."}
+                      </td>
+                    </tr>
+                  ) : (
+                    displayKeys.map((key) => {
+                      if (isUpdateLike) {
+                        const oldVal = oldVals[key];
+                        const newVal = newVals[key];
+                        const isDifferent = JSON.stringify(oldVal) !== JSON.stringify(newVal);
+                        return (
+                          <tr
+                            key={key}
+                            className={`transition-colors ${
+                              isDifferent ? "bg-[var(--primary-light)]/20" : "hover:bg-[var(--table-row-hover)]"
+                            }`}
+                          >
+                            <td className="px-4 py-2.5 font-semibold text-[var(--text-primary)]">
+                              {getFieldLabel(key)}
+                            </td>
+                            <td className="px-4 py-2.5 text-[var(--text-muted)]">
+                              {formatValue(key, oldVal)}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isDifferent ? (
+                                <span className="font-semibold text-[var(--primary)]">
+                                  {formatValue(key, newVal)}
+                                </span>
+                              ) : (
+                                <span className="text-[var(--text-body)]">
+                                  {formatValue(key, newVal)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      } else {
+                        // Create or Delete — single value column
+                        const val = sourceVals[key];
+                        return (
+                          <tr
+                            key={key}
+                            className="hover:bg-[var(--table-row-hover)] transition-colors"
+                          >
+                            <td className="px-4 py-2.5 font-semibold text-[var(--text-primary)]">
+                              {getFieldLabel(key)}
+                            </td>
+                            <td className={`px-4 py-2.5 font-medium ${
+                              isDeleteLike
+                                ? "text-red-500/80"
+                                : "text-[var(--text-body)]"
+                            }`}>
+                              {formatValue(key, val)}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-[var(--border)] pt-4 mt-1 flex items-center justify-between gap-2">
+              {entityRoute ? (
+                <Link
+                  href={entityRoute.url}
+                  onClick={() => setDetailModalOpen(false)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer"
+                >
+                  <span>Open target record detail page</span>
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              ) : <div />}
+              <button
+                type="button"
+                onClick={() => setDetailModalOpen(false)}
+                className="h-9 px-4 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -9,6 +9,9 @@ import ReportKPICard from "@/components/reports/ReportKPICard";
 import { ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/components/reports/ReportChart";
 import { fmtINR, fmtNum, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+import FilterPills from "@/components/reports/filters/FilterPills";
 
 type ProdTab = "overview" | "workers";
 
@@ -17,22 +20,84 @@ const TABS: { id: ProdTab; label: string; icon: React.ReactNode }[] = [
   { id: "workers", label: "Worker Job Work", icon: <Users size={13} /> },
 ];
 
+const LOT_STATUS_OPTIONS = [
+  { id: "all", label: "All Lots" },
+  { id: "in_progress", label: "In Progress", badgeClass: "bg-blue-600 text-white shadow-xs font-semibold" },
+  { id: "completed", label: "Completed", badgeClass: "bg-emerald-600 text-white shadow-xs font-semibold" },
+  { id: "on_hold", label: "On Hold", badgeClass: "bg-amber-600 text-white shadow-xs font-semibold" },
+];
+
 export default function ProductionReportsPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<ProdTab>("overview");
+  const [workerId, setWorkerId] = useState("all");
+  const [stageName, setStageName] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [designSearch, setDesignSearch] = useState("");
+
+  // Fetch Workers list
+  const { data: workersData } = useQuery({
+    queryKey: ["parties-list-workers"],
+    queryFn: async () => {
+      const res = await fetch("/api/parties?type=worker");
+      if (!res.ok) return { parties: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  // Fetch Production Stages dynamically across workflow templates
+  const { data: stagesData } = useQuery({
+    queryKey: ["master-data-production-stages"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/production-stages");
+      if (!res.ok) return { stages: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  // Deduplicate and normalize stage names dynamically across templates (case-insensitive)
+  const rawStages = stagesData?.stages ?? [];
+  const stageMap = new Map<string, string>();
+
+  rawStages.forEach((s: any) => {
+    if (!s.name || !s.name.trim()) return;
+    const name = s.name.trim();
+    const key = name.toLowerCase();
+    if (!stageMap.has(key)) {
+      const formatted = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+      stageMap.set(key, formatted);
+    }
+  });
+
+  const stageOptions = Array.from(stageMap.entries()).map(([key, label]) => ({
+    label,
+    value: key,
+  }));
+
+  const workerOptions = (workersData?.parties ?? []).map((w: any) => ({
+    label: w.name,
+    value: w.id,
+  }));
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
   }, []);
 
-  // Production query (existing API)
+  // Production query
   const prodQuery = useQuery({
-    queryKey: ["report-production-v2", from, to],
+    queryKey: ["report-production-v2", from, to, workerId, stageName, status, designSearch],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/production?from=${from}&to=${to}`);
+      const params = new URLSearchParams({ from, to });
+      if (workerId !== "all") params.set("worker_id", workerId);
+      if (stageName !== "all") params.set("stage_name", stageName);
+      if (status !== "all") params.set("status", status);
+      if (designSearch.trim()) params.set("design_search", designSearch);
+      const res = await fetch(`/api/reports/production?${params}`);
       if (!res.ok) throw new Error("Failed to load production report");
       return res.json();
     },
@@ -40,11 +105,14 @@ export default function ProductionReportsPage() {
     staleTime: 60_000,
   });
 
-  // Worker query (new API)
+  // Worker query
   const workerQuery = useQuery({
-    queryKey: ["report-worker-job-work", from, to],
+    queryKey: ["report-worker-job-work", from, to, workerId, stageName],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/worker-job-work?from=${from}&to=${to}`);
+      const params = new URLSearchParams({ from, to });
+      if (workerId !== "all") params.set("worker_id", workerId);
+      if (stageName !== "all") params.set("stage_name", stageName);
+      const res = await fetch(`/api/reports/worker-job-work?${params}`);
       if (!res.ok) throw new Error("Failed to load worker job work report");
       return res.json();
     },
@@ -105,10 +173,48 @@ export default function ProductionReportsPage() {
   return (
     <ReportShell
       title="Production & Workers"
-      infoTooltip="Production lot analysis and worker job work report with efficiency tracking."
+      infoTooltip="Track lot throughput across manufacturing stages, worker job-work charges, efficiency, and outstanding worker dues."
       breadcrumbs={["Reports", "Production & Workers"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect
+            label="Process Stage"
+            value={stageName}
+            onChange={setStageName}
+            options={stageOptions}
+            placeholder="All Stages"
+          />
+          <FilterSelect
+            label="Worker"
+            value={workerId}
+            onChange={setWorkerId}
+            options={workerOptions}
+            placeholder="All Workers"
+          />
+          {activeTab === "overview" && (
+            <>
+              <FilterPills
+                label="Lot Status"
+                value={status}
+                onChange={setStatus}
+                options={LOT_STATUS_OPTIONS}
+              />
+              <div className="flex items-center gap-1.5 ml-auto">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Design</span>
+                <input
+                  type="text"
+                  placeholder="Design No. / Name..."
+                  value={designSearch}
+                  onChange={(e) => setDesignSearch(e.target.value)}
+                  className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-2.5 h-8 text-xs transition-colors w-36"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      }
     >
       {/* Tabs */}
       <div className="flex border-b border-[var(--border)] gap-0.5 -mt-2 print:hidden">
@@ -187,7 +293,11 @@ export default function ProductionReportsPage() {
                           <tbody className="divide-y divide-[var(--border-light)]">
                             {(data.lots ?? []).slice(0, 15).map((l: any) => (
                               <tr key={l.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                                <td className="py-2 px-4 font-mono font-bold text-[var(--text-primary)]">{l.lot_number}</td>
+                                <td className="py-2 px-4 font-mono font-bold text-[var(--primary)] hover:underline">
+                                  <Link href={`/production/lots/${l.id}`}>
+                                    {l.lot_number}
+                                  </Link>
+                                </td>
                                 <td className="py-2 px-4">{l.design_name}</td>
                                 <td className="py-2 px-4 text-[var(--text-muted)]">{l.brand?.name ?? "—"}</td>
                                 <td className="py-2 px-4 text-right font-mono">{fmtNum(l.total_quantity)}</td>

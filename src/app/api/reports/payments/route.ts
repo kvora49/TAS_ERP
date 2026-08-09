@@ -13,12 +13,14 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
   const tab = searchParams.get("tab") ?? "receivables";
+  const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null
+  const partyId = searchParams.get("party_id");
+  const agingBucket = searchParams.get("aging_bucket");
   const bid = userData.business_id;
 
   try {
     if (tab === "receivables") {
-      // Outstanding from customers = sale_bills not fully paid
-      const { data: bills } = await supabase
+      let billsQuery = supabase
         .from("sale_bills")
         .select(`
           id, bill_number, bill_date, bill_type, grand_total, paid_amount, payment_status,
@@ -30,6 +32,17 @@ export async function GET(req: NextRequest) {
         .neq("payment_status", "paid")
         .lte("bill_date", to)
         .order("bill_date");
+
+      if (billType && (billType === "kacha" || billType === "pakka")) {
+        billsQuery = billsQuery.eq("bill_type", billType);
+      }
+
+      if (partyId && partyId !== "all") {
+        billsQuery = billsQuery.eq("party_id", partyId);
+      }
+
+      const { data: bills } = await billsQuery;
+
 
       const rows = (bills ?? []).map(b => ({
         id: b.id,
@@ -62,23 +75,41 @@ export async function GET(req: NextRequest) {
 
     if (tab === "payables") {
       // Outstanding to suppliers = raw_material_purchases + purchase_bills not fully paid
-      const [rmResult, pgResult] = await Promise.all([
-        supabase.from("raw_material_purchases")
-          .select(`id, purchase_number, invoice_date, grand_total, paid_amount, payment_status, parties!inner(id, name, company_name)`)
-          .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").is("deleted_at", null).lte("invoice_date", to),
-        supabase.from("purchase_bills")
-          .select(`id, bill_number, invoice_date, grand_total, paid_amount, payment_status, parties!inner(id, name, company_name)`)
-          .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").lte("invoice_date", to),
-      ]);
+      let rmQuery = supabase.from("raw_material_purchases")
+        .select(`id, purchase_number, invoice_date, grand_total, paid_amount, payment_status, gst_type, parties!inner(id, name, company_name)`)
+        .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").is("deleted_at", null).lte("invoice_date", to);
+
+      let pgQuery = supabase.from("purchase_bills")
+        .select(`id, bill_number, invoice_date, grand_total, paid_amount, payment_status, bill_type, parties!inner(id, name, company_name)`)
+        .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").lte("invoice_date", to);
+
+      if (billType && (billType === "kacha" || billType === "pakka")) {
+        if (billType === "kacha") {
+          rmQuery = rmQuery.eq("gst_type", "without_gst");
+          pgQuery = pgQuery.eq("bill_type", "kacha");
+        } else {
+          rmQuery = rmQuery.neq("gst_type", "without_gst");
+          pgQuery = pgQuery.eq("bill_type", "pakka");
+        }
+      }
+
+      if (partyId && partyId !== "all") {
+        rmQuery = rmQuery.eq("party_id", partyId);
+        pgQuery = pgQuery.eq("party_id", partyId);
+      }
+
+      const [rmResult, pgResult] = await Promise.all([rmQuery, pgQuery]);
 
       const rmRows = (rmResult.data ?? []).map(p => ({
         id: p.id, number: p.purchase_number, date: p.invoice_date, type: "Raw Material",
+        bill_type: p.gst_type === "without_gst" ? "kacha" : "pakka",
         party: (p.parties as any)?.company_name ?? (p.parties as any)?.name ?? "—",
         total: Number(p.grand_total), paid: Number(p.paid_amount),
         outstanding: Number(p.grand_total) - Number(p.paid_amount), status: p.payment_status,
       }));
       const pgRows = (pgResult.data ?? []).map(p => ({
         id: p.id, number: p.bill_number, date: p.invoice_date, type: "Finished Goods",
+        bill_type: p.bill_type === "kacha" ? "kacha" : "pakka",
         party: (p.parties as any)?.company_name ?? (p.parties as any)?.name ?? "—",
         total: Number(p.grand_total), paid: Number(p.paid_amount),
         outstanding: Number(p.grand_total) - Number(p.paid_amount), status: p.payment_status,

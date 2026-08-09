@@ -16,6 +16,8 @@ import {
 import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 
+import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
 type Tab = "pl" | "balance" | "gst" | "cashflow";
@@ -35,11 +37,14 @@ export default function FinancialReportsPage() {
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<Tab>("pl");
   const [gstSection, setGstSection] = useState<"sales" | "purchases">("sales");
+  const [billType, setBillType] = useState<BillType>("all");
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-financial", from, to],
+    queryKey: ["report-financial", from, to, billType],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/financial?from=${from}&to=${to}`);
+      const params = new URLSearchParams({ from, to });
+      if (billType !== "all") params.set("bill_type", billType);
+      const res = await fetch(`/api/reports/financial?${params}`);
       if (!res.ok) throw new Error("Failed to load financial report");
       return res.json();
     },
@@ -87,7 +92,14 @@ export default function FinancialReportsPage() {
       breadcrumbs={["Reports", "Financial Reports"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+          <BillTypeFilter value={billType} onChange={setBillType} />
+        </div>
+      }
     >
+
       {/* Tab switcher */}
       <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden">
         {TABS.map((t) => (

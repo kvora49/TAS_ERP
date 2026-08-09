@@ -10,6 +10,10 @@ import { ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/com
 import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 
+import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+import FilterPills from "@/components/reports/filters/FilterPills";
+
 type PayTab = "receivables" | "payables" | "upi" | "bank" | "cash" | "combined";
 
 const TABS: { id: PayTab; label: string; icon: React.ReactNode }[] = [
@@ -30,16 +34,47 @@ const AGING_COLORS: string[] = [
   "#10B981", "#F59E0B", "#F97316", "#EF4444",
 ];
 
+const AGING_OPTIONS = [
+  { id: "all", label: "All Ages" },
+  { id: "0-30", label: "0-30 Days", badgeClass: "bg-emerald-600 text-white shadow-xs font-semibold" },
+  { id: "31-60", label: "31-60 Days", badgeClass: "bg-amber-600 text-white shadow-xs font-semibold" },
+  { id: "61-90", label: "61-90 Days", badgeClass: "bg-orange-600 text-white shadow-xs font-semibold" },
+  { id: "90+", label: "90+ Days", badgeClass: "bg-rose-600 text-white shadow-xs font-semibold" },
+];
+
 export default function PaymentReportsPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<PayTab>("receivables");
+  const [billType, setBillType] = useState<BillType>("all");
+  const [partyId, setPartyId] = useState("all");
+  const [agingBucket, setAgingBucket] = useState("all");
+
+  // Fetch Parties list
+  const { data: partiesData } = useQuery({
+    queryKey: ["parties-list-all"],
+    queryFn: async () => {
+      const res = await fetch("/api/parties");
+      if (!res.ok) return { parties: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  const partyOptions = (partiesData?.parties ?? []).map((p: any) => ({
+    label: p.company_name ? `${p.company_name} (${p.name})` : p.name,
+    value: p.id,
+  }));
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-payments", from, to, activeTab],
+    queryKey: ["report-payments", from, to, activeTab, billType, partyId, agingBucket],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/payments?from=${from}&to=${to}&tab=${activeTab}`);
+      const params = new URLSearchParams({ from, to, tab: activeTab });
+      if (billType !== "all") params.set("bill_type", billType);
+      if (partyId !== "all") params.set("party_id", partyId);
+      if (agingBucket !== "all") params.set("aging_bucket", agingBucket);
+      const res = await fetch(`/api/reports/payments?${params}`);
       if (!res.ok) throw new Error("Failed to load payment report");
       return res.json();
     },
@@ -106,7 +141,31 @@ export default function PaymentReportsPage() {
       breadcrumbs={["Reports", "Payment Reports"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect
+            label="Party"
+            value={partyId}
+            onChange={setPartyId}
+            options={partyOptions}
+            placeholder="All Parties"
+          />
+          {isReceivablesOrPayables && (
+            <FilterPills
+              label="Aging Bracket"
+              value={agingBucket}
+              onChange={setAgingBucket}
+              options={AGING_OPTIONS}
+            />
+          )}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+            <BillTypeFilter value={billType} onChange={setBillType} />
+          </div>
+        </div>
+      }
     >
+
       {/* Tab bar */}
       <div className="flex border-b border-[var(--border)] gap-0.5 -mt-2 overflow-x-auto print:hidden">
         {TABS.map((t) => (

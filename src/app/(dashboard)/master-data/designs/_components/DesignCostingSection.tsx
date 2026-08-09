@@ -41,38 +41,19 @@ interface ProcessCostItem {
   total: number;
 }
 
-const DEFAULT_FABRIC_ITEMS: FabricCostItem[] = [
-  { id: "1", fabric_name: "Cotton Denim 12oz", consumption: 1.3, unit: "mtr", rate: 180, total: 234 },
-  { id: "2", fabric_name: "Pocketing Fabric", consumption: 0.25, unit: "mtr", rate: 45, total: 11.25 },
-];
-
-const DEFAULT_TRIM_ITEMS: TrimCostItem[] = [
-  { id: "1", trim_name: "Metal Zipper 7 inch", quantity: 1, rate: 12, total: 12 },
-  { id: "2", trim_name: "Brand Metal Buttons", quantity: 4, rate: 3.5, total: 14 },
-  { id: "3", trim_name: "Main Label & Wash Care", quantity: 1, rate: 4, total: 4 },
-  { id: "4", trim_name: "Polybag Packaging", quantity: 1, rate: 3, total: 3 },
-];
-
-const DEFAULT_PROCESS_ITEMS: ProcessCostItem[] = [
-  { id: "1", process_name: "Cutting", worker_type: "In-House", rate_per_piece: 12, total: 12 },
-  { id: "2", process_name: "Stitching", worker_type: "Contractor", rate_per_piece: 65, total: 65 },
-  { id: "3", process_name: "Washing / Dyeing", worker_type: "Specialist", rate_per_piece: 35, total: 35 },
-  { id: "4", process_name: "Finishing & Ironing", worker_type: "In-House", rate_per_piece: 8, total: 8 },
-  { id: "5", process_name: "Tagging & Packing", worker_type: "In-House", rate_per_piece: 5, total: 5 },
-];
-
-export default function DesignCostingSection({ designId }: { designId: string }) {
+export default function DesignCostingSection({ designId, onSave }: { designId: string; onSave?: () => void }) {
   const queryClient = useQueryClient();
 
-  const [fabricItems, setFabricItems] = useState<FabricCostItem[]>(DEFAULT_FABRIC_ITEMS);
-  const [trimItems, setTrimItems] = useState<TrimCostItem[]>(DEFAULT_TRIM_ITEMS);
-  const [processItems, setProcessItems] = useState<ProcessCostItem[]>(DEFAULT_PROCESS_ITEMS);
+  const [fabricItems, setFabricItems] = useState<FabricCostItem[]>([]);
+  const [trimItems, setTrimItems] = useState<TrimCostItem[]>([]);
+  const [processItems, setProcessItems] = useState<ProcessCostItem[]>([]);
 
-  const [wastagePercent, setWastagePercent] = useState<number>(3);
-  const [freightPerPiece, setFreightPerPiece] = useState<number>(10);
-  const [overheadPercent, setOverheadPercent] = useState<number>(5);
+  const [wastagePercent, setWastagePercent] = useState<number>(0);
+  const [freightPerPiece, setFreightPerPiece] = useState<number>(0);
+  const [overheadPercent, setOverheadPercent] = useState<number>(0);
   const [targetMarginPercent, setTargetMarginPercent] = useState<number>(30);
   const [notes, setNotes] = useState<string>("");
+  const [importingLot, setImportingLot] = useState<boolean>(false);
 
   // Fetch Costing for designId
   const { data: costingData, isLoading } = useQuery({
@@ -86,22 +67,59 @@ export default function DesignCostingSection({ designId }: { designId: string })
     enabled: !!designId,
   });
 
+  const loadAutoPopulatedCosting = async () => {
+    if (!designId) return;
+    setImportingLot(true);
+    try {
+      const res = await fetch(`/api/master-data/designs/costing/auto-populate?design_id=${designId}`);
+      const json = await res.json();
+      if (res.ok) {
+        if (json.fabric_items?.length) setFabricItems(json.fabric_items);
+        if (json.trims_items?.length) setTrimItems(json.trims_items);
+        if (json.process_items?.length) setProcessItems(json.process_items);
+        if (json.overheads) {
+          setWastagePercent(json.overheads.wastage_percent ?? 0);
+          setFreightPerPiece(json.overheads.freight_per_piece ?? 0);
+          setOverheadPercent(json.overheads.overhead_percent ?? 0);
+          setTargetMarginPercent(json.profit_margin_percent ?? 30);
+        }
+        if (json.has_lots) {
+          toast.success(`Auto-populated BOM from ${json.lot_count} production lot(s)`);
+        } else {
+          toast.info("No production lot data found. Starting with a blank BOM template.");
+        }
+      }
+    } catch (err) {
+      console.error("Auto-populate error:", err);
+    } finally {
+      setImportingLot(false);
+    }
+  };
+
   useEffect(() => {
     const costings = costingData?.costings || [];
     if (costings.length > 0) {
       const active = costings.find((c: any) => c.is_active) || costings[0];
-      if (active.fabric_items?.length) setFabricItems(active.fabric_items);
-      if (active.trims_items?.length) setTrimItems(active.trims_items);
-      if (active.process_items?.length) setProcessItems(active.process_items);
+      setFabricItems(active.fabric_items || []);
+      setTrimItems(active.trims_items || []);
+      setProcessItems(active.process_items || []);
       if (active.overheads) {
-        setWastagePercent(active.overheads.wastage_percent ?? 3);
-        setFreightPerPiece(active.overheads.freight_per_piece ?? 10);
-        setOverheadPercent(active.overheads.overhead_percent ?? 5);
-        setTargetMarginPercent(active.profit_margin_percent ?? 30);
+        setWastagePercent(active.overheads.wastage_percent ?? 0);
+        setFreightPerPiece(active.overheads.freight_per_piece ?? 0);
+        setOverheadPercent(active.overheads.overhead_percent ?? 0);
+        setTargetMarginPercent(active.profit_margin_percent ?? active.overheads.profit_margin_percent ?? 30);
       }
       if (active.notes) setNotes(active.notes);
+    } else if (costingData && !isLoading) {
+      // Auto-populate from production lots if no saved costing exists yet
+      loadAutoPopulatedCosting();
     }
-  }, [costingData]);
+  }, [costingData, isLoading, designId]);
+
+  // Import / Auto-populate from production lot history manually
+  const handleImportFromProductionLot = async () => {
+    await loadAutoPopulatedCosting();
+  };
 
   const saveCostingMutation = useMutation({
     mutationFn: async () => {
@@ -135,6 +153,7 @@ export default function DesignCostingSection({ designId }: { designId: string })
     onSuccess: () => {
       toast.success("Design costing saved successfully!");
       queryClient.invalidateQueries({ queryKey: ["design-costing-detail", designId] });
+      onSave?.();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -250,6 +269,13 @@ export default function DesignCostingSection({ designId }: { designId: string })
         </div>
 
         <div className="flex items-center gap-3">
+          <AsyncButton
+            variant="outline"
+            onClick={handleImportFromProductionLot}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold"
+          >
+            <Layers className="h-4 w-4 inline mr-1 text-[var(--primary)]" /> Import from Lot
+          </AsyncButton>
           <button
             onClick={() => window.print()}
             className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-body)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer"

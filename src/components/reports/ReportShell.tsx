@@ -190,7 +190,7 @@ export default function ReportShell({
 
       {/* ── Filter Bar ── */}
       {showFilters && (
-        <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-6 py-3 flex flex-wrap items-end gap-3 print:hidden">
+        <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-6 py-3 flex flex-wrap items-center gap-3 print:hidden">
           {/* Preset chips */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mr-1">Period</span>

@@ -40,6 +40,10 @@ const ROUTE_LABELS: Record<string, string> = {
   analysis: "Executive Analysis",
   "master-data": "Master Data",
   stock: "Stock",
+  "raw-materials": "Raw Materials",
+  new: "New Entry / Adjustment",
+  "backup-restore": "Backup & Restore",
+  "bill-builder": "Bill Builder",
 };
 
 export default function Header() {

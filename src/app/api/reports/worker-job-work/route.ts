@@ -12,10 +12,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const workerId = searchParams.get("worker_id");
+  const stageName = searchParams.get("stage_name");
   const bid = userData.business_id;
 
   try {
-    const { data: entries } = await supabase
+    let query = supabase
       .from("stage_entries")
       .select(`
         id, entry_number, entry_date, qty_in, qty_out, total_job_work_amount, total_labor_cost, paid_amount, payment_status,
@@ -24,8 +26,20 @@ export async function GET(req: NextRequest) {
       `)
       .eq("business_id", bid)
       .gte("entry_date", from)
-      .lte("entry_date", to)
-      .order("entry_date", { ascending: false });
+      .lte("entry_date", to);
+
+    if (workerId && workerId !== "all") {
+      query = query.eq("worker_id", workerId);
+    }
+
+    const { data: rawEntriesData } = await query.order("entry_date", { ascending: false });
+    let entries = rawEntriesData ?? [];
+
+    if (stageName && stageName !== "all") {
+      entries = entries.filter((e: any) =>
+        (e.lot_stage?.stage_name || "").toLowerCase().includes(stageName.toLowerCase())
+      );
+    }
 
     const workerMap: Record<string, {
       id: string; name: string; code: string;

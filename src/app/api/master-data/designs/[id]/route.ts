@@ -55,7 +55,7 @@ export async function PUT(
         description: description || null,
         images: images || [],
         size_set_id: size_set_id || null,
-        sale_price: sale_price ? Number(sale_price) : null,
+        sale_price: sale_price !== undefined && sale_price !== null && sale_price !== "" ? Number(sale_price) : null,
         is_active: is_active !== false,
       })
       .eq("id", designId)

@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -12,8 +13,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const brandId = searchParams.get("brandId") || "all";
   const dateRange = searchParams.get("dateRange") || "this_month";
+  const billType = searchParams.get("billType") || searchParams.get("bill_type") || "all";
 
   try {
+    // 0. Trigger ground-truth finished stock reconciliation
+    await reconcileFinishedStock(supabase, businessId);
+
     // 0. Resolve brand design IDs if a specific brand is selected
     let designIds: string[] = [];
     if (brandId !== "all") {
@@ -42,7 +47,7 @@ export async function GET(request: Request) {
 
     let finishedStockValQuery = supabase
       .from("finished_stock")
-      .select("total_value")
+      .select("total_value, total_quantity, cost_per_piece, design:designs(sale_price)")
       .eq("business_id", businessId)
       .is("deleted_at", null);
     if (brandId !== "all") {
@@ -75,8 +80,17 @@ export async function GET(request: Request) {
       0
     );
 
-    // Calculate Total Stock Value
-    const finishedStockVal = finishedStockValResult.data?.reduce((sum, item) => sum + Number(item.total_value || 0), 0) || 0;
+    // Calculate Total Finished Stock Value & Total Inventory Value
+    const finishedStockVal = finishedStockValResult.data?.reduce((sum, item: any) => {
+      const qty = Number(item.total_quantity || 0);
+      let val = item.total_value ? Number(item.total_value) : (qty * Number(item.cost_per_piece || 0));
+      if (val <= 0 && qty > 0) {
+        const salePrice = Number(item.design?.sale_price || 0);
+        const unitCost = salePrice > 0 ? Math.round(salePrice * 0.6) : 150;
+        val = qty * unitCost;
+      }
+      return sum + val;
+    }, 0) || 0;
     // Note: Raw material is brand-agnostic, we only include it if no brand filter or as a constant fallback
     const rawMaterialStockVal = brandId === "all" ? (rawMaterialStockValResult.data?.reduce((sum, item) => sum + Number(item.stock_value || 0), 0) || 0) : 0;
     const totalStockValue = finishedStockVal + rawMaterialStockVal;
@@ -96,26 +110,23 @@ export async function GET(request: Request) {
       const diff = now.getDate() - day + (day === 0 ? -6 : 1);
       const startOfWeek = new Date(now);
       startOfWeek.setDate(diff);
-      startOfWeek.setHours(0, 0, 0, 0);
       startDateStr = startOfWeek.toISOString().split("T")[0];
+      endDateStr = now.toISOString().split("T")[0];
     } else if (dateRange === "this_month") {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       startDateStr = startOfMonth.toISOString().split("T")[0];
-    } else if (dateRange === "last_month") {
-      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-      startDateStr = startOfLastMonth.toISOString().split("T")[0];
-      endDateStr = endOfLastMonth.toISOString().split("T")[0];
+      endDateStr = now.toISOString().split("T")[0];
+    } else if (dateRange === "this_quarter") {
+      const currentMonth = now.getMonth();
+      const quarterStartMonth = Math.floor(currentMonth / 3) * 3;
+      const startOfQuarter = new Date(now.getFullYear(), quarterStartMonth, 1);
+      startDateStr = startOfQuarter.toISOString().split("T")[0];
+      endDateStr = now.toISOString().split("T")[0];
     } else if (dateRange === "this_year") {
-      const currentYear = now.getFullYear();
-      const fiscalStartMonth = 3; // April
-      let fiscalYearStart;
-      if (now.getMonth() >= fiscalStartMonth) {
-        fiscalYearStart = new Date(currentYear, fiscalStartMonth, 1);
-      } else {
-        fiscalYearStart = new Date(currentYear - 1, fiscalStartMonth, 1);
-      }
+      const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const fiscalYearStart = new Date(year, 3, 1);
       startDateStr = fiscalYearStart.toISOString().split("T")[0];
+      endDateStr = now.toISOString().split("T")[0];
     }
 
     // Fetch Today's Sales specifically
@@ -129,6 +140,9 @@ export async function GET(request: Request) {
       .is("deleted_at", null);
     if (brandId !== "all") {
       todaySalesQuery = todaySalesQuery.contains("brand_ids", [brandId]);
+    }
+    if (billType && billType !== "all") {
+      todaySalesQuery = todaySalesQuery.eq("bill_type", billType);
     }
     const { data: todaySalesBills } = await todaySalesQuery;
     const todaySales = todaySalesBills?.reduce((sum, b) => sum + Number(b.grand_total || 0), 0) || 0;
@@ -150,6 +164,9 @@ export async function GET(request: Request) {
     if (brandId !== "all") {
       periodSalesQuery = periodSalesQuery.contains("brand_ids", [brandId]);
     }
+    if (billType && billType !== "all") {
+      periodSalesQuery = periodSalesQuery.eq("bill_type", billType);
+    }
 
     const { data: periodSalesBills } = await periodSalesQuery;
     const periodSalesTotal = periodSalesBills?.reduce((sum, b) => sum + Number(b.grand_total || 0), 0) || 0;
@@ -164,6 +181,9 @@ export async function GET(request: Request) {
       .is("deleted_at", null);
     if (brandId !== "all") {
       unpaidBillsQuery = unpaidBillsQuery.contains("brand_ids", [brandId]);
+    }
+    if (billType && billType !== "all") {
+      unpaidBillsQuery = unpaidBillsQuery.eq("bill_type", billType);
     }
     const { data: unpaidBills } = await unpaidBillsQuery;
 

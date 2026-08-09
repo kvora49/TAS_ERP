@@ -45,7 +45,9 @@ export async function GET(request: Request) {
 
     (items || []).forEach((item: any) => {
       const baseUuid = item.qr_uuid || item.id;
-      const salePrice = Number(item.designs?.sale_price || 0);
+      const salePrice = Number(item.designs?.sale_price || 0) > 0 
+        ? Number(item.designs.sale_price) 
+        : (Number(item.cost_per_piece || 0) > 0 ? Math.round(Number(item.cost_per_piece) / 0.6) : 0);
       const designCode = item.designs?.design_number || item.designs?.name || "DES-001";
       const designName = item.designs?.name || "Garment Item";
       const colourName = item.design_colours?.colour_name || "Standard";

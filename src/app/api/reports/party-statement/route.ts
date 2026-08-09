@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const partyId = searchParams.get("party_id");
   const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
   const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null
   const bid = userData.business_id;
 
   if (!partyId) {
@@ -26,6 +27,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    let salesQuery = supabase.from("sale_bills").select("id, bill_number, bill_date, grand_total, remarks, bill_type").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled");
+    let purchaseBillsQuery = supabase.from("purchase_bills").select("id, bill_number, invoice_date, grand_total, bill_type").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled");
+    let rmPurchasesQuery = supabase.from("raw_material_purchases").select("id, purchase_number, invoice_date, grand_total, gst_type").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null);
+    let purchaseReturnsQuery = supabase.from("purchase_returns").select("id, return_number, return_date, grand_total, gst_type").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null);
+
+    if (billType && (billType === "kacha" || billType === "pakka")) {
+      salesQuery = salesQuery.eq("bill_type", billType);
+      purchaseBillsQuery = purchaseBillsQuery.eq("bill_type", billType);
+      if (billType === "kacha") {
+        rmPurchasesQuery = rmPurchasesQuery.eq("gst_type", "without_gst");
+        purchaseReturnsQuery = purchaseReturnsQuery.eq("gst_type", "without_gst");
+      } else {
+        rmPurchasesQuery = rmPurchasesQuery.neq("gst_type", "without_gst");
+        purchaseReturnsQuery = purchaseReturnsQuery.neq("gst_type", "without_gst");
+      }
+    }
+
     const [
       partyRes,
       purchasesRes,
@@ -42,19 +60,20 @@ export async function GET(req: NextRequest) {
       salaryEntriesRes,
     ] = await Promise.all([
       supabase.from("parties").select("*").eq("id", partyId).eq("business_id", bid).single(),
-      supabase.from("raw_material_purchases").select("id, purchase_number, invoice_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
-      supabase.from("purchase_bills").select("id, bill_number, invoice_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
-      supabase.from("sale_bills").select("id, bill_number, bill_date, grand_total, remarks").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
+      rmPurchasesQuery,
+      purchaseBillsQuery,
+      salesQuery,
       supabase.from("payments").select("id, payment_number, payment_date, direction, payment_mode, amount").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("write_offs").select("id, amount, written_off_at").eq("business_id", bid),
       supabase.from("credit_notes").select("id, cn_number, cn_date, amount, return_id").eq("party_id", partyId).eq("business_id", bid),
       supabase.from("debit_notes").select("id, dn_number, dn_date, amount, related_purchase_return_id").eq("party_id", partyId).eq("business_id", bid),
-      supabase.from("purchase_returns").select("id, return_number, return_date, grand_total").eq("supplier_id", partyId).eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
+      purchaseReturnsQuery,
       supabase.from("stage_entries").select("id, entry_number, entry_date, qty_out, job_work_rate, total_job_work_amount").eq("worker_id", partyId).eq("business_id", bid),
       supabase.from("job_work_payments").select("id, payment_number, payment_date, paid_amount, payment_mode").eq("worker_id", partyId).eq("business_id", bid).eq("status", "success"),
       supabase.from("salary_advances").select("id, advance_date, amount, payment_mode, notes").or(`worker_id.eq.${partyId},party_id.eq.${partyId}`).eq("business_id", bid),
       supabase.from("salary_entries").select("id, salary_month, salary_year, net_salary, payment_mode, payment_date").or(`worker_id.eq.${partyId},party_id.eq.${partyId}`).eq("business_id", bid),
     ]);
+
 
     let party = partyRes.data;
     if (!party) {
@@ -241,7 +260,22 @@ export async function GET(req: NextRequest) {
       return { ...e, runningBalance };
     });
 
-    const filteredRows = allRowsWithBalance.filter((r) => r.date >= from && r.date <= to);
+    const voucherType = searchParams.get("voucher_type");
+
+    let filteredRows = allRowsWithBalance.filter((r) => r.date >= from && r.date <= to);
+
+    if (voucherType && voucherType !== "all") {
+      const vt = voucherType.toLowerCase();
+      filteredRows = filteredRows.filter((r) => {
+        const typeStr = r.type.toLowerCase();
+        if (vt === "sales_invoice") return typeStr.includes("sale");
+        if (vt === "purchase_bill") return typeStr.includes("purchase") && !typeStr.includes("return");
+        if (vt === "payment" || vt === "receipt") return typeStr.includes("payment") || typeStr.includes("receipt");
+        if (vt === "credit_note") return typeStr.includes("credit");
+        if (vt === "debit_note") return typeStr.includes("debit");
+        return true;
+      });
+    }
 
     const totalDebit = filteredRows.reduce((s, r) => s + r.debit, 0);
     const totalCredit = filteredRows.reduce((s, r) => s + r.credit, 0);

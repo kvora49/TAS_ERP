@@ -2,13 +2,19 @@
 
 import React, { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Package, Boxes, WarehouseIcon, Tag } from "lucide-react";
+import { Package, Boxes, Warehouse as WarehouseIcon, Tag, Layers } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
 import ReportKPICard from "@/components/reports/ReportKPICard";
-import { ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/components/reports/ReportChart";
+import { ReportDonutChart, ChartCard } from "@/components/reports/ReportChart";
+import StockCategoryFilter, { StockCategory } from "@/components/reports/StockCategoryFilter";
 import { fmtINR, fmtNum, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+
+import FilterSelect from "@/components/reports/filters/FilterSelect";
+import FilterPills from "@/components/reports/filters/FilterPills";
+import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 
 type InvTab = "valuation" | "warehouse" | "design";
 
@@ -18,20 +24,69 @@ const TABS: { id: InvTab; label: string; icon: React.ReactNode }[] = [
   { id: "design", label: "Design Stock", icon: <Package size={13} /> },
 ];
 
+const STOCK_STATUS_OPTIONS = [
+  { id: "all", label: "All Items" },
+  { id: "in_stock", label: "In Stock", badgeClass: "bg-emerald-600 text-white shadow-xs font-semibold" },
+  { id: "low_stock", label: "Low Stock", badgeClass: "bg-amber-600 text-white shadow-xs font-semibold" },
+  { id: "out_of_stock", label: "Out of Stock", badgeClass: "bg-rose-600 text-white shadow-xs font-semibold" },
+];
+
 export default function InventoryReportsPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<InvTab>("valuation");
+  const [category, setCategory] = useState<StockCategory>("all");
+  const [billType, setBillType] = useState<BillType>("all");
+  const [godownId, setGodownId] = useState("all");
+  const [brandId, setBrandId] = useState("all");
+  const [stockStatus, setStockStatus] = useState("all");
+
+  // Fetch Godowns
+  const { data: godownsData } = useQuery({
+    queryKey: ["master-data-godowns-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/godowns");
+      if (!res.ok) return { godowns: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  // Fetch Brands
+  const { data: brandsData } = useQuery({
+    queryKey: ["master-data-brands-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/brands");
+      if (!res.ok) return { brands: [] };
+      return res.json();
+    },
+    staleTime: 300_000,
+  });
+
+  const godownOptions = (godownsData?.godowns ?? []).map((g: any) => ({
+    label: g.name,
+    value: g.id,
+  }));
+
+  const brandOptions = (brandsData?.brands ?? []).map((b: any) => ({
+    label: b.name,
+    value: b.id,
+  }));
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-inventory", activeTab],
+    queryKey: ["report-inventory-v3", activeTab, category, billType, godownId, brandId, stockStatus],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/inventory?tab=${activeTab}`);
+      const params = new URLSearchParams({ tab: activeTab, category });
+      if (billType !== "all") params.set("bill_type", billType);
+      if (godownId !== "all") params.set("godown_id", godownId);
+      if (brandId !== "all") params.set("brand_id", brandId);
+      if (stockStatus !== "all") params.set("stock_status", stockStatus);
+      const res = await fetch(`/api/reports/inventory?${params}`);
       if (!res.ok) throw new Error("Failed to load inventory report");
       return res.json();
     },
-    staleTime: 120_000,
+    staleTime: 60_000,
   });
 
   const handleApply = useCallback((filters: ReportFilters) => {
@@ -42,23 +97,30 @@ export default function InventoryReportsPage() {
   const handleExportExcel = useCallback(() => {
     if (!data) return;
     if (activeTab === "valuation") {
+      const exportRows = [
+        ...(data.fgRows ?? []).map((r: any) => ({ ...r, category: "Finished Goods" })),
+        ...(data.rmRows ?? []).map((r: any) => ({ ...r, design_number: "—", brand: r.category, category: r.item_type })),
+      ];
       exportToExcel(
         [
-          { key: "design_number", label: "Design No.", width: 16 },
-          { key: "design_name", label: "Design Name", width: 28 },
-          { key: "brand", label: "Brand", width: 18 },
+          { key: "category", label: "Item Type", width: 18 },
+          { key: "design_number", label: "Code / No.", width: 16 },
+          { key: "design_name", label: "Name", width: 28 },
+          { key: "brand", label: "Brand / Category", width: 18 },
           { key: "total_qty", label: "Total Qty", format: "number", width: 14 },
           { key: "total_value", label: "Stock Value (₹)", format: "currency", width: 18 },
         ],
-        data.rows ?? [],
-        `StockValuation_AsOn_${new Date().toISOString().split("T")[0]}`
+        exportRows,
+        `StockValuation_${category}_${billType}_${new Date().toISOString().split("T")[0]}`
       );
     } else if (activeTab === "warehouse") {
       exportToExcel(
         [
-          { key: "name", label: "Warehouse / Godown", width: 28 },
+          { key: "code", label: "Code", width: 12 },
+          { key: "name", label: "Godown", width: 24 },
+          { key: "address", label: "Location", width: 24 },
           { key: "qty", label: "Total Qty", format: "number", width: 14 },
-          { key: "value", label: "Stock Value (₹)", format: "currency", width: 18 },
+          { key: "value", label: "Total Value (₹)", format: "currency", width: 18 },
         ],
         data.rows ?? [],
         `WarehouseStock_${new Date().toISOString().split("T")[0]}`
@@ -67,38 +129,69 @@ export default function InventoryReportsPage() {
       exportToExcel(
         [
           { key: "design_number", label: "Design No.", width: 16 },
-          { key: "design_name", label: "Design Name", width: 28 },
-          { key: "brand", label: "Brand", width: 16 },
-          { key: "colour", label: "Colour", width: 16 },
-          { key: "godown", label: "Godown", width: 18 },
-          { key: "quantity", label: "Qty", format: "number", width: 12 },
-          { key: "cost_per_piece", label: "Cost/Pc (₹)", format: "currency", width: 14 },
-          { key: "value", label: "Value (₹)", format: "currency", width: 16 },
+          { key: "name", label: "Design Name", width: 28 },
+          { key: "brand", label: "Brand", width: 18 },
+          { key: "colorCount", label: "Colours", format: "number", width: 12 },
+          { key: "qty", label: "Stock Qty", format: "number", width: 14 },
+          { key: "val", label: "Total Value (₹)", format: "currency", width: 18 },
         ],
         data.rows ?? [],
-        `DesignStock_${new Date().toISOString().split("T")[0]}`
+        `DesignStock_${category}_${new Date().toISOString().split("T")[0]}`
       );
     }
-  }, [data, activeTab]);
+  }, [data, activeTab, category, billType]);
 
   const s = data?.summary ?? {};
 
-  // Chart data
-  const brandChart = Object.entries(data?.brandBreakdown ?? {}).map(([name, v]: any) => ({
-    name, value: v.value,
+  const brandChart = Object.entries(data?.brandBreakdown ?? {}).map(([name, v]: [string, any]) => ({
+    name, value: Number(v.value),
   }));
-  const warehouseChart = (data?.rows ?? []).map((r: any) => ({ name: r.name ?? r.design_name, total: r.value ?? r.total_value }));
+
+  const warehouseChart = (data?.rows ?? []).map((r: any) => ({
+    name: r.name,
+    value: Number(r.value),
+  }));
 
   return (
     <ReportShell
       title="Inventory & Stock"
-      infoTooltip="Stock valuation, warehouse-wise stock, and design-level inventory breakdown."
+      infoTooltip="Stock valuation across finished goods, raw materials & accessories, godown breakdown, and design variant levels."
       breadcrumbs={["Reports", "Inventory & Stock"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-3">
+          {activeTab === "valuation" && (
+            <BillTypeFilter value={billType} onChange={setBillType} />
+          )}
+          <FilterSelect
+            label="Godown"
+            value={godownId}
+            onChange={setGodownId}
+            options={godownOptions}
+            placeholder="All Warehouses"
+          />
+          <FilterSelect
+            label="Brand"
+            value={brandId}
+            onChange={setBrandId}
+            options={brandOptions}
+            placeholder="All Brands"
+          />
+          <FilterPills
+            label="Stock Status"
+            value={stockStatus}
+            onChange={setStockStatus}
+            options={STOCK_STATUS_OPTIONS}
+          />
+          <div className="flex items-center gap-1.5 ml-auto">
+            <StockCategoryFilter value={category} onChange={setCategory} />
+          </div>
+        </div>
+      }
     >
-      {/* Tabs */}
-      <div className="flex border-b border-[var(--border)] gap-0.5 -mt-2 print:hidden">
+      {/* Sub Tabs */}
+      <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -122,99 +215,197 @@ export default function InventoryReportsPage() {
         isError={!!error}
         error={(error as any)?.message}
         onRetry={refetch}
-        skeletonVariant="table"
-        skeletonRows={8}
-        skeletonColumns={5}
-        isEmpty={!isLoading && (data?.rows ?? []).length === 0}
-        emptyTitle="No stock found"
-        emptyDescription="No inventory records found. Add finished goods to see stock reports."
+        skeletonVariant="stats"
+        skeletonCount={4}
       >
         {data && (
           <div className="space-y-6">
-            {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <ReportKPICard label="Total Stock Value" value={s.totalValue ?? 0} color="indigo" icon={<Boxes size={16} />} />
-              <ReportKPICard label="Total Quantity" value={s.totalQty ?? 0} format="number" color="blue" icon={<Package size={16} />} />
-              <ReportKPICard
-                label={activeTab === "warehouse" ? "Total Warehouses" : activeTab === "valuation" ? "Total Designs" : "Total Items"}
-                value={s.totalGodowns ?? s.totalDesigns ?? s.totalItems ?? 0}
-                format="number"
-                color="violet"
-              />
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+              <ReportKPICard label="Total Stock Value" value={s.totalValue} color="emerald" icon={<Tag size={16} />} />
+              <ReportKPICard label="Pakka Stock Value" value={s.pakkaStockValue ?? 0} color="blue" icon={<Tag size={16} />} />
+              <ReportKPICard label="Kaccha Stock Value" value={s.kachaStockValue ?? 0} color="amber" icon={<Tag size={16} />} />
+              <ReportKPICard label="Finished Goods Qty" value={s.totalFGQty ?? 0} format="number" color="indigo" icon={<Package size={16} />} />
+              <ReportKPICard label="Raw Material Qty" value={s.totalRMQty ?? 0} format="number" color="violet" icon={<Boxes size={16} />} />
+              <ReportKPICard label="Accessories Qty" value={s.totalAccQty ?? 0} format="number" color="violet" icon={<Layers size={16} />} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main table */}
-              <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">
-                    {activeTab === "valuation" ? "Stock by Design" : activeTab === "warehouse" ? "Stock by Warehouse" : "Detailed Design Stock"}
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    {activeTab === "valuation" && (
-                      <>
-                        <thead>
-                          <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                            {["#", "Design No.", "Design Name", "Brand", "Total Qty", "Stock Value"].map(h => (
-                              <th key={h} className={`py-2.5 px-4 ${["Total Qty","Stock Value"].includes(h) ? "text-right" : ""}`}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border-light)]">
-                          {(data.rows ?? []).map((r: any, i: number) => (
-                            <tr key={r.design_id} className="hover:bg-[var(--table-row-hover)] h-10">
-                              <td className="py-2 px-4 text-[var(--text-faint)]">{i + 1}</td>
-                              <td className="py-2 px-4 font-mono font-bold text-[var(--text-primary)]">{r.design_number}</td>
-                              <td className="py-2 px-4">{r.design_name}</td>
-                              <td className="py-2 px-4 text-[var(--text-muted)]">{r.brand}</td>
-                              <td className="py-2 px-4 text-right font-mono">{fmtNum(r.total_qty)}</td>
-                              <td className="py-2 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.total_value)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)]">
-                          <tr>
-                            <td colSpan={4} className="py-3 px-4 text-[10px] font-extrabold uppercase text-[var(--text-muted)]">Total</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold">{fmtNum(s.totalQty)}</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
-                          </tr>
-                        </tfoot>
-                      </>
+              {/* Main Content Area */}
+              <div className="lg:col-span-2 space-y-6">
+
+                {/* ── TAB 1: STOCK VALUATION ── */}
+                {activeTab === "valuation" && (
+                  <div className="space-y-6">
+                    {/* Finished Goods Table */}
+                    {(category === "all" || category === "finished_goods") && (
+                      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+                          <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-primary)]">
+                            Finished Goods Stock (by Design)
+                          </h3>
+                          <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalDesigns ?? 0} Designs</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                                {["#", "Design No.", "Design Name", "Brand", "Total Qty", "Stock Value"].map(h => (
+                                  <th key={h} className={`py-2.5 px-4 ${["Total Qty","Stock Value"].includes(h) ? "text-right" : ""}`}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border-light)]">
+                              {(data.fgRows ?? []).map((r: any, i: number) => (
+                                <tr key={r.design_id} className="hover:bg-[var(--table-row-hover)] h-10">
+                                  <td className="py-2 px-4 text-[var(--text-faint)]">{i + 1}</td>
+                                  <td className="py-2 px-4 font-mono font-bold text-[var(--primary)]">
+                                    {r.design_id && r.design_id !== "unknown" ? (
+                                      <Link href={`/finished-stock/designs/${r.design_id}`} className="hover:underline">
+                                        {r.design_number}
+                                      </Link>
+                                    ) : (
+                                      r.design_number
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-4 font-semibold text-[var(--text-primary)]">{r.design_name}</td>
+                                  <td className="py-2 px-4 text-[var(--text-muted)]">{r.brand}</td>
+                                  <td className="py-2 px-4 text-right font-mono">{fmtNum(r.total_qty)}</td>
+                                  <td className="py-2 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.total_value)}</td>
+                                </tr>
+                              ))}
+                              {(data.fgRows ?? []).length === 0 && (
+                                <tr><td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">No finished goods stock records found.</td></tr>
+                              )}
+                            </tbody>
+                            <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
+                              <tr>
+                                <td colSpan={4} className="py-3 px-4 text-[10px] uppercase text-[var(--text-muted)]">Total Finished Goods</td>
+                                <td className="py-3 px-4 text-right font-mono">{fmtNum(s.totalFGQty)}</td>
+                                <td className="py-3 px-4 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalFGValue)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
                     )}
 
-                    {activeTab === "warehouse" && (
-                      <>
+                    {/* Raw Materials & Accessories Table */}
+                    {(category === "all" || category === "raw_material" || category === "accessory") && (
+                      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+                          <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-primary)]">
+                            Raw Materials & Accessories Stock
+                          </h3>
+                          <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalRMTypes ?? 0} Materials</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                                {["#", "Material Name", "Category", "Unit", "Total Qty", "Stock Value"].map(h => (
+                                  <th key={h} className={`py-2.5 px-4 ${["Total Qty","Stock Value"].includes(h) ? "text-right" : ""}`}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border-light)]">
+                              {(data.rmRows ?? []).map((r: any, i: number) => (
+                                <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
+                                  <td className="py-2 px-4 text-[var(--text-faint)]">{i + 1}</td>
+                                  <td className="py-2 px-4 font-bold text-[var(--text-primary)]">{r.name}</td>
+                                  <td className="py-2 px-4">
+                                    <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border bg-[var(--table-header-bg)] text-[var(--text-muted)] border-[var(--border)] uppercase">
+                                      {r.category}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-4 text-[var(--text-muted)] capitalize">{r.unit}</td>
+                                  <td className="py-2 px-4 text-right font-mono">{fmtNum(r.total_qty)}</td>
+                                  <td className="py-2 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.total_value)}</td>
+                                </tr>
+                              ))}
+                              {(data.rmRows ?? []).length === 0 && (
+                                <tr><td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">No raw material or accessory stock records found.</td></tr>
+                              )}
+                            </tbody>
+                            <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
+                              <tr>
+                                <td colSpan={4} className="py-3 px-4 text-[10px] uppercase text-[var(--text-muted)]">Total Raw Materials & Accessories</td>
+                                <td className="py-3 px-4 text-right font-mono">{fmtNum((s.totalRMQty ?? 0) + (s.totalAccQty ?? 0))}</td>
+                                <td className="py-3 px-4 text-right font-mono text-[var(--primary)]">{fmtINR((s.totalRMValue ?? 0) + (s.totalAccValue ?? 0))}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── TAB 2: WAREHOUSE / GODOWN STOCK ── */}
+                {activeTab === "warehouse" && (
+                  <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-primary)]">
+                        Warehouse & Godown Stock Breakdown
+                      </h3>
+                      <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalGodowns ?? 0} Active Godowns</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                            {["#", "Warehouse / Godown", "Total Qty", "Stock Value"].map(h => (
-                              <th key={h} className={`py-2.5 px-4 ${["Total Qty","Stock Value"].includes(h) ? "text-right" : ""}`}>{h}</th>
+                            {["#", "Warehouse / Godown", "Location", "FG Qty", "RM Qty", "Accessories", "Total Qty", "Stock Value"].map(h => (
+                              <th key={h} className={`py-2.5 px-3 ${["FG Qty","RM Qty","Accessories","Total Qty","Stock Value"].includes(h) ? "text-right" : ""}`}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border-light)]">
                           {(data.rows ?? []).map((r: any, i: number) => (
                             <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                              <td className="py-2 px-4 text-[var(--text-faint)]">{i + 1}</td>
-                              <td className="py-2 px-4 font-bold text-[var(--text-primary)]">{r.name}</td>
-                              <td className="py-2 px-4 text-right font-mono">{fmtNum(r.qty)}</td>
-                              <td className="py-2 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.value)}</td>
+                              <td className="py-2 px-3 text-[var(--text-faint)]">{i + 1}</td>
+                              <td className="py-2 px-3 font-bold text-[var(--primary)]">
+                                <Link href="/master-data/godowns" className="hover:underline">
+                                  {r.name}
+                                </Link>
+                              </td>
+                              <td className="py-2 px-3 text-[var(--text-muted)] max-w-[150px] truncate">{r.address || r.location || "Facility"}</td>
+                              <td className="py-2 px-3 text-right font-mono">{fmtNum(r.fg_qty)}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{fmtNum(r.rm_qty)}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{fmtNum(r.acc_qty)}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold">{fmtNum(r.qty)}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.value)}</td>
                             </tr>
                           ))}
+                          {(data.rows ?? []).length === 0 && (
+                            <tr><td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">No warehouse stock found.</td></tr>
+                          )}
                         </tbody>
-                        <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)]">
+                        <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
                           <tr>
-                            <td colSpan={2} className="py-3 px-4 text-[10px] font-extrabold uppercase text-[var(--text-muted)]">Total</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold">{fmtNum(s.totalQty)}</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
+                            <td colSpan={3} className="py-3 px-3 text-[10px] uppercase text-[var(--text-muted)]">Total Across Godowns</td>
+                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalFGQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalRMQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalAccQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
                           </tr>
                         </tfoot>
-                      </>
-                    )}
+                      </table>
+                    </div>
+                  </div>
+                )}
 
-                    {activeTab === "design" && (
-                      <>
+                {/* ── TAB 3: DESIGN STOCK ── */}
+                {activeTab === "design" && (
+                  <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-primary)]">
+                        Detailed Design & Variant Stock
+                      </h3>
+                      <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalItems ?? 0} Variant Items</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             {["Design No.", "Name", "Brand", "Colour", "Godown", "Qty", "Cost/Pc", "Value"].map(h => (
@@ -225,54 +416,68 @@ export default function InventoryReportsPage() {
                         <tbody className="divide-y divide-[var(--border-light)]">
                           {(data.rows ?? []).map((r: any) => (
                             <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                              <td className="py-2 px-3 font-mono font-bold text-[var(--text-primary)]">{r.design_number}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-[var(--primary)]">
+                                {r.design_id ? (
+                                  <Link href={`/finished-stock/designs/${r.design_id}`} className="hover:underline">
+                                    {r.design_number}
+                                  </Link>
+                                ) : (
+                                  r.design_number
+                                )}
+                              </td>
                               <td className="py-2 px-3 max-w-[100px] truncate">{r.design_name}</td>
                               <td className="py-2 px-3 text-[var(--text-muted)]">{r.brand}</td>
                               <td className="py-2 px-3 text-[var(--text-muted)]">{r.colour}</td>
-                              <td className="py-2 px-3 text-[var(--text-muted)]">{r.godown}</td>
+                              <td className="py-2 px-3 text-[var(--text-muted)]">
+                                <Link href="/master-data/godowns" className="text-[var(--primary)] hover:underline">
+                                  {r.godown}
+                                </Link>
+                              </td>
                               <td className="py-2 px-3 text-right font-mono">{fmtNum(r.quantity)}</td>
                               <td className="py-2 px-3 text-right font-mono">{fmtINR(r.cost_per_piece)}</td>
                               <td className="py-2 px-3 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.value)}</td>
                             </tr>
                           ))}
+                          {(data.rows ?? []).length === 0 && (
+                            <tr><td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">No design variant stock records found.</td></tr>
+                          )}
                         </tbody>
-                        <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)]">
+                        <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
                           <tr>
-                            <td colSpan={5} className="py-3 px-3 text-[10px] font-extrabold uppercase text-[var(--text-muted)]">Total</td>
-                            <td className="py-3 px-3 text-right font-mono font-bold">{fmtNum(s.totalQty)}</td>
+                            <td colSpan={5} className="py-3 px-3 text-[10px] uppercase text-[var(--text-muted)]">Total Design Variant Stock</td>
+                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalQty)}</td>
                             <td />
-                            <td className="py-3 px-3 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
                           </tr>
                         </tfoot>
-                      </>
-                    )}
-                  </table>
-                </div>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Charts sidebar */}
+              {/* Sidebar Charts & Summary */}
               <div className="space-y-4">
                 {activeTab === "valuation" && brandChart.length > 0 && (
-                  <ChartCard title="Value by Brand">
-                    <ReportDonutChart data={brandChart} height={200} innerRadius={50} outerRadius={78} valueFormat="currency" />
+                  <ChartCard title="Valuation by Brand">
+                    <ReportDonutChart data={brandChart.filter(b => b.value > 0)} height={200} innerRadius={50} outerRadius={75} valueFormat="currency" />
                   </ChartCard>
                 )}
+
                 {activeTab === "warehouse" && warehouseChart.length > 0 && (
-                  <ChartCard title="Warehouse Stock Value">
-                    <ReportBarChart
-                      data={warehouseChart}
-                      xKey="name"
-                      bars={[{ key: "total", label: "Value", color: CHART_COLORS[0] }]}
-                      height={220}
-                    />
+                  <ChartCard title="Warehouse Stock Valuation">
+                    <ReportDonutChart data={warehouseChart.filter((w: any) => w.value > 0)} height={200} innerRadius={50} outerRadius={75} valueFormat="currency" />
                   </ChartCard>
                 )}
-                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2.5">
+
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2.5 shadow-[var(--shadow-sm)]">
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Stock Summary</h3>
                   {[
                     { label: "Total Stock Value", value: fmtINR(s.totalValue) },
-                    { label: "Total Quantity", value: fmtNum(s.totalQty) + " pcs" },
-                    { label: activeTab === "warehouse" ? "Warehouses" : "Designs / Items", value: String(s.totalGodowns ?? s.totalDesigns ?? s.totalItems ?? 0) },
+                    { label: "Total Combined Quantity", value: fmtNum(s.totalQty) },
+                    { label: "Finished Goods Stock", value: `${fmtNum(s.totalFGQty)} pcs (${fmtINR(s.totalFGValue)})` },
+                    { label: "Raw Materials Stock", value: `${fmtNum(s.totalRMQty)} units (${fmtINR(s.totalRMValue)})` },
+                    { label: "Accessories Stock", value: `${fmtNum(s.totalAccQty)} units (${fmtINR(s.totalAccValue)})` },
                   ].map(r => (
                     <div key={r.label} className="flex justify-between text-xs border-b border-[var(--border-light)] pb-2">
                       <span className="text-[var(--text-muted)]">{r.label}</span>

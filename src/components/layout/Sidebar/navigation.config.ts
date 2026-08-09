@@ -71,6 +71,7 @@ export const IMPLEMENTED_ROUTES = [
   "/finished-stock/challans",
   "/finished-stock/challans/new",
   "/finished-stock/barcode-qr",
+  "/stock/raw-materials/transfers/new",
   "/scan",
 ];
 
@@ -79,17 +80,7 @@ export const isWhitelisted = (href: string): boolean => {
     IMPLEMENTED_ROUTES.includes(href) ||
     href.startsWith("/master-data") ||
     href.startsWith("/production/job-work/ledger") ||
-    href === "/settings/general" ||
-    href === "/settings/company-profile" ||
-    href === "/settings/users-roles" ||
-    href === "/settings/financial" ||
-    href === "/settings/inventory" ||
-    href === "/settings/production" ||
-    href === "/settings/integrations" ||
-    href === "/settings/notifications" ||
-    href === "/settings/backup-restore" ||
-    href === "/settings/audit-logs" ||
-    href === "/settings/communication" ||
+    href.startsWith("/settings") ||
     href.startsWith("/master-data/workers/") ||
     href.startsWith("/master-data/production-stages/templates/") ||
     href.startsWith("/production/lots/") ||
@@ -142,7 +133,7 @@ export const handlePrefetch = (href: string, queryClient: QueryClient) => {
     queryClient.prefetchQuery({
       queryKey: ["cheques", "received", "", "", 1],
       queryFn: async () => {
-        const res = await fetch("/api/finance/cheques?direction=received&page=1&limit=10");
+        const res = await fetch("/api/finance/cheques?page=1&limit=10");
         return res.json();
       }
     });
@@ -265,6 +256,8 @@ export const navItems: NavItem[] = [
       { name: "Inventory", href: "/settings/inventory" },
       { name: "Production", href: "/settings/production" },
       { name: "Notifications", href: "/settings/notifications" },
+      { name: "Backup & Restore", href: "/settings/backup-restore" },
+      { name: "Bill Builder", href: "/settings/bill-builder" },
       { name: "Audit Logs", href: "/settings/audit-logs" },
     ],
   },

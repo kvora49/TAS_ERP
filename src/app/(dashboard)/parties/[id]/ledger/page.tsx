@@ -69,14 +69,18 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
     ledger: LedgerEntry[];
     remainingAdvance: number;
   }>(
-    ["ledger", id],
+    ["ledger", id, activeBillTab],
     async () => {
-      const res = await fetch(`/api/parties/${id}/ledger`);
+      const url = activeBillTab === "total"
+        ? `/api/parties/${id}/ledger`
+        : `/api/parties/${id}/ledger?bill_type=${activeBillTab}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to load ledger details");
       return res.json();
     },
     { skeleton: "table" }
   );
+
 
   const party = partyData || null;
   const rawLedger = ledgerResponse?.ledger || [];

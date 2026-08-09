@@ -19,8 +19,6 @@ import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBrandsList } from "@/hooks/queries/useMasterData";
 import { toast } from "sonner";
-import { BrandBillConfigPanel, BillConfigValues } from "./_components/BrandBillConfigPanel";
-
 const brandSchema = z.object({
   name: z.string().min(2, "Brand Name must be at least 2 characters"),
   gstin: z.string().optional(),
@@ -68,31 +66,10 @@ export default function BrandsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"general" | "billFormat">("general");
-  
-  const defaultBillConfig: BillConfigValues = {
-    pakkaTemplateId: "00000000-0000-0000-0000-000000000001",
-    kachaTemplateId: "00000000-0000-0000-0000-000000000001",
-    primaryColor: "#6366F1",
-    headerText: "",
-    footerText: "Thank you for your business!",
-    signatureName: "",
-    signatureDesignation: "Authorized Signatory",
-    showHsn: true,
-    showBatchNo: false,
-    showDiscountColumn: true,
-    showTransportDetails: true,
-    bankAccountId: "",
-    uploadedReferenceFileUrl: null,
-  };
-  const [billConfig, setBillConfig] = useState<BillConfigValues>(defaultBillConfig);
-  const updateBillConfig = (updates: Partial<BillConfigValues>) => setBillConfig(prev => ({ ...prev, ...updates }));
-
   // TanStack Query hook
   const { data: brandsData, isLoading: loading, error, refetch } = useBrandsList();
 
   const brands: Brand[] = brandsData?.brands || [];
-  const bankAccounts = brandsData?.bankAccounts || [];
 
   const {
     register,
@@ -109,7 +86,6 @@ export default function BrandsPage() {
 
   const handleOpenAdd = () => {
     setEditingBrand(null);
-    setActiveTab("general");
     reset({
       name: "",
       gstin: "",
@@ -125,13 +101,11 @@ export default function BrandsPage() {
       is_primary: false,
       is_active: true,
     });
-    setBillConfig(defaultBillConfig);
     setModalOpen(true);
   };
 
   const handleOpenEdit = (brand: Brand) => {
     setEditingBrand(brand);
-    setActiveTab("general");
     reset({
       name: brand.name,
       gstin: brand.gstin || "",
@@ -147,33 +121,6 @@ export default function BrandsPage() {
       is_primary: brand.is_primary,
       is_active: brand.is_active,
     });
-
-    setBillConfig(defaultBillConfig);
-
-    fetch(`/api/master-data/brands/${brand.id}/bill-config`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.config) {
-          const c = data.config;
-          setBillConfig({
-            pakkaTemplateId: c.pakka_template_id || "00000000-0000-0000-0000-000000000001",
-            kachaTemplateId: c.kacha_template_id || "00000000-0000-0000-0000-000000000001",
-            primaryColor: c.primary_color || "#6366F1",
-            headerText: c.header_text || "",
-            footerText: c.footer_text || "",
-            signatureName: c.signature_name || "",
-            signatureDesignation: c.signature_designation || "Authorized Signatory",
-            showHsn: c.show_hsn !== false,
-            showBatchNo: !!c.show_batch_no,
-            showDiscountColumn: c.show_discount_column !== false,
-            showTransportDetails: c.show_transport_details !== false,
-            bankAccountId: c.bank_account_id || "",
-            uploadedReferenceFileUrl: c.uploaded_reference_file_url || null,
-          });
-        }
-      })
-      .catch((err) => console.error("Error fetching bill config:", err));
-
     setModalOpen(true);
   };
 
@@ -200,33 +147,9 @@ export default function BrandsPage() {
         throw new Error(data.error || "Failed to save brand");
       }
 
-      const savedBrandId = editingBrand ? editingBrand.id : data.brand?.id;
-
-      if (savedBrandId) {
-        await fetch(`/api/master-data/brands/${savedBrandId}/bill-config`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            pakka_template_id: billConfig.pakkaTemplateId,
-            kacha_template_id: billConfig.kachaTemplateId,
-            primary_color: billConfig.primaryColor,
-            header_text: billConfig.headerText,
-            footer_text: billConfig.footerText,
-            signature_name: billConfig.signatureName,
-            signature_designation: billConfig.signatureDesignation,
-            show_hsn: billConfig.showHsn,
-            show_batch_no: billConfig.showBatchNo,
-            show_discount_column: billConfig.showDiscountColumn,
-            show_transport_details: billConfig.showTransportDetails,
-            bank_account_id: billConfig.bankAccountId || null,
-            uploaded_reference_file_url: billConfig.uploadedReferenceFileUrl || null,
-          }),
-        });
-      }
-
       toast.success(
         editingBrand
-          ? "Brand and invoice configuration updated successfully"
+          ? "Brand updated successfully"
           : "Brand created successfully"
       );
       setModalOpen(false);
@@ -435,35 +358,7 @@ export default function BrandsPage() {
         maxWidth="max-w-2xl"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          {/* Tab Buttons */}
-          <div className="flex border-b border-[var(--border)] mb-4 select-none">
-            <button
-              type="button"
-              onClick={() => setActiveTab("general")}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-                activeTab === "general"
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              General Info
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("billFormat")}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-                activeTab === "billFormat"
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Bill Format Configuration
-            </button>
-          </div>
-
-          {activeTab === "general" ? (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Logo Upload */}
                 <div className="sm:col-span-2 flex flex-col gap-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -647,19 +542,6 @@ export default function BrandsPage() {
                   />
                 </div>
               </div>
-            </>
-          ) : (
-            <BrandBillConfigPanel
-              values={billConfig}
-              onChange={updateBillConfig}
-              bankAccounts={bankAccounts}
-              brandName={watch("name")}
-              brandAddress={watch("address")}
-              brandGstin={watch("gstin")}
-              billPrefixPakka={watch("bill_prefix_pakka")}
-              logoUrl={logoUrl}
-            />
-          )}
 
           <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-2">
             <button

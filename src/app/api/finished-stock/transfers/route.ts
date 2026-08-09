@@ -59,6 +59,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Source and destination godowns must be different" }, { status: 400 });
     }
 
+    // Verify all design_ids belong to finished stock designs table (excluding raw materials & accessories)
+    for (const item of items) {
+      if (!item.design_id) continue;
+      const { data: validDesign } = await supabase
+        .from("designs")
+        .select("id")
+        .eq("id", item.design_id)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (!validDesign) {
+        return NextResponse.json(
+          { error: "Invalid item selected. Only Finished Garment Designs can be transferred here. Raw materials and accessories are managed in their respective stock modules." },
+          { status: 400 }
+        );
+      }
+    }
+
     const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
     const serverSettings = await getBusinessServerSettings(supabase, businessId);
 
@@ -192,6 +210,10 @@ export async function POST(request: Request) {
           });
       }
     }
+
+    // Reconcile finished stock ground-truth after transfer creation
+    const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+    await reconcileFinishedStock(supabase, businessId);
 
     return NextResponse.json({ transfer });
   } catch (err: any) {

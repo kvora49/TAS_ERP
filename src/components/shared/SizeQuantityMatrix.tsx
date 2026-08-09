@@ -12,6 +12,7 @@ interface SizeQuantityMatrixProps {
   autoFillAllColors?: boolean;
   onAutoFillAllColorsChange?: (checked: boolean) => void;
   showAllColorsOption?: boolean;
+  colourCount?: number;
   sizeSetName?: string;
   className?: string;
   readOnly?: boolean;
@@ -24,6 +25,7 @@ export function SizeQuantityMatrix({
   autoFillAllColors = false,
   onAutoFillAllColorsChange,
   showAllColorsOption = false,
+  colourCount = 1,
   sizeSetName,
   className = "",
   readOnly = false,
@@ -84,7 +86,13 @@ export function SizeQuantityMatrix({
               <input
                 type="checkbox"
                 checked={autoFillAllColors}
-                onChange={(e) => onAutoFillAllColorsChange && onAutoFillAllColorsChange(e.target.checked)}
+                onChange={(e) => {
+                  const isChecked = e.target.checked;
+                  onAutoFillAllColorsChange && onAutoFillAllColorsChange(isChecked);
+                  if (isChecked && totalPcs > 0 && colourCount && colourCount > 1) {
+                    toast.info(`Applied ${totalPcs} Pcs each across ${colourCount} colours (${totalPcs * colourCount} Pcs Grand Total)`);
+                  }
+                }}
                 className="h-3.5 w-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
               <span>Apply to All Colours</span>
@@ -97,8 +105,17 @@ export function SizeQuantityMatrix({
             </span>
           )}
 
-          <span className="text-[10px] font-mono font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)]">
-            Total: {totalPcs} Pcs
+          <span className="text-[10px] font-mono font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-2.5 py-0.5 rounded border border-[var(--border)]">
+            {autoFillAllColors && colourCount && colourCount > 1 ? (
+              <>
+                <span className="text-[var(--primary)]">{totalPcs} Pcs each</span>
+                <span className="text-[var(--text-muted)] font-normal ml-1">
+                  across {colourCount} colours ({totalPcs * colourCount} Pcs Total)
+                </span>
+              </>
+            ) : (
+              <>Total: {totalPcs} Pcs</>
+            )}
           </span>
         </div>
       </div>

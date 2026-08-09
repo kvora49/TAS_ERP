@@ -159,18 +159,31 @@ export async function GET(
         cost_per_piece,
         total_value,
         size_quantities,
-        design:designs(id, name, code:design_number),
+        design:designs(id, name, code:design_number, sale_price),
         colour:design_colours(id, colour_name)
       `)
       .eq("godown_id", id)
       .eq("business_id", businessId)
       .gt("total_quantity", 0);
 
+    const resolvedFinishedStock = (finishedStockItems || []).map((item: any) => {
+      const qty = Number(item.total_quantity || 0);
+      const costPerPiece = Number(item.cost_per_piece || 0);
+      const salePrice = Number(item.design?.sale_price || 0);
+      const unitCost = costPerPiece > 0 ? costPerPiece : (salePrice > 0 ? Math.round(salePrice * 0.6) : 0);
+      const totalVal = Number(item.total_value || 0) > 0 ? Number(item.total_value) : (qty * unitCost);
+      return {
+        ...item,
+        cost_per_piece: unitCost,
+        total_value: totalVal,
+      };
+    });
+
     return NextResponse.json({
       godown,
       stock: resolvedStock,
       movements: resolvedMovements,
-      finishedStock: finishedStockItems || [],
+      finishedStock: resolvedFinishedStock,
     });
   } catch (err: any) {
     return NextResponse.json(

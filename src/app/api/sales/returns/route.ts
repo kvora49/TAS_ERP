@@ -197,65 +197,13 @@ export async function POST(request: Request) {
       .update({ credit_note_id: creditNote.id })
       .eq("id", sReturn.id);
 
-    // 6. Add back returned stock into finished_stock
+    // 6. Record returned stock in stock_ledger
     const targetGodownId = body.godown_id || null;
 
     if (returnItems.length > 0 && targetGodownId) {
       for (const item of returnItems) {
         const qty = Number(item.return_qty || item.quantity || 0);
         if (qty <= 0) continue;
-
-        let { data: fsRows } = await supabase
-          .from("finished_stock")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("design_id", item.design_id);
-
-        if (item.colour_id && fsRows && fsRows.length > 0) {
-          const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
-          if (matchCol.length > 0) fsRows = matchCol;
-        }
-
-        if (fsRows && fsRows.length > 0) {
-          const fs = fsRows[0];
-          const currentSizes = fs.size_quantities || {};
-          const sz = item.size || "all";
-          const newSzQty = Number(currentSizes[sz] || 0) + qty;
-          const newTotalQty = Number(fs.total_quantity || 0) + qty;
-          const costPerPiece = Number(fs.cost_per_piece || (item.unit_rate || item.rate || 0));
-          const newTotalValue = newTotalQty * costPerPiece;
-
-          const updatedSizes = { ...currentSizes };
-          if (sz !== "all") {
-            updatedSizes[sz] = newSzQty;
-          }
-
-          await supabase
-            .from("finished_stock")
-            .update({
-              size_quantities: updatedSizes,
-              total_quantity: newTotalQty,
-              total_value: newTotalValue,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", fs.id);
-        } else {
-          const sz = item.size || "all";
-          const sizeQty = sz !== "all" ? { [sz]: qty } : {};
-          const costPerPiece = Number(item.unit_rate || item.rate || 0);
-          await supabase.from("finished_stock").insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id || null,
-            godown_id: targetGodownId,
-            entry_type: "sales_return",
-            size_quantities: sizeQty,
-            total_quantity: qty,
-            cost_per_piece: costPerPiece,
-            total_value: qty * costPerPiece,
-            created_by: userId,
-          });
-        }
 
         await supabase.from("stock_ledger").insert({
           business_id: businessId,
@@ -270,20 +218,6 @@ export async function POST(request: Request) {
           created_by: userId,
         });
       }
-    } else if (design_id && colour_id && godown_id && size_quantities && total_quantity > 0) {
-      // Legacy single-item fallback
-      await supabase.from("finished_stock").insert({
-        business_id: businessId,
-        design_id,
-        colour_id,
-        godown_id,
-        entry_type: "sales_return",
-        size_quantities: size_quantities,
-        total_quantity: Number(total_quantity),
-        cost_per_piece: 0,
-        total_value: 0,
-        created_by: userId,
-      });
     }
 
     // Reconcile ground-truth stock
