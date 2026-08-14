@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSalesBill } from "@/hooks/useSalesBill";
 import { CustomerSection } from "./CustomerSection";
+import { ConsigneeSection } from "./ConsigneeSection";
 import { ItemsTable } from "./ItemsTable";
 import { TotalsPanel } from "./TotalsPanel";
 import { BillValidation } from "./BillValidation";
@@ -14,6 +15,10 @@ import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
 import { PostInvoiceSuccessModal, CreatedInvoiceInfo } from "./PostInvoiceSuccessModal";
 import { useGeneralSettings } from "@/hooks/useGeneralSettings";
+import { Modal } from "@/components/shared/Modal";
+import { PakkaBillTemplate } from "./PakkaBillTemplate";
+import { KachaBillTemplate } from "./KachaBillTemplate";
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -29,9 +34,27 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   // Post invoice success modal states
   const [createdInvoice, setCreatedInvoice] = useState<CreatedInvoiceInfo | null>(null);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Initialize unified state hook
   const { state, totals, loading: loadingBill } = useSalesBill(billId);
+
+  // Company profile for preview
+  const { business, getEffectiveLogo } = useCompanyProfile();
+
+  // Brand config for preview
+  const { data: brandData } = useERPQuery(["brand-config-preview"], async () => {
+    const res = await fetch("/api/settings/company-profile");
+    if (!res.ok) return null;
+    return res.json();
+  }, { staleTime: 60_000 });
+
+  // Bill config for bank details & terms preview
+  const { data: billConfigData } = useERPQuery(["settings-bill-config-preview"], async () => {
+    const res = await fetch("/api/settings/bill-config");
+    if (!res.ok) return null;
+    return res.json();
+  }, { staleTime: 30_000 });
 
   // Set default type if creating
   useEffect(() => {
@@ -203,11 +226,30 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       phone: state.phone || null,
       gstin: state.gstin || null,
       gst_treatment: state.gstTreatment,
-      transporter_name: showEway ? (state.transporterName || null) : null,
-      vehicle_no: showEway ? (state.vehicleNo || null) : null,
+      transporter_name: state.transporterName || null,
+      vehicle_no: state.vehicleNo || null,
       salesman: state.salesman || null,
       remarks: state.remarks || null,
       is_temporary: isTemporary,
+      // Consignee / Ship-To
+      ship_to_same_as_bill_to: state.shipToSameAsBillTo,
+      consignee_name: state.shipToSameAsBillTo ? null : (state.consigneeName || null),
+      consignee_address: state.shipToSameAsBillTo ? null : (state.consigneeAddress || null),
+      consignee_gstin: state.shipToSameAsBillTo ? null : (state.consigneeGstin || null),
+      consignee_state: state.shipToSameAsBillTo ? null : (state.consigneeState || null),
+      consignee_state_code: state.shipToSameAsBillTo ? null : (state.consigneeStateCode || null),
+      // Dispatch details
+      buyer_order_no: state.buyerOrderNo || null,
+      buyer_order_date: state.buyerOrderDate || null,
+      dispatch_doc_no: state.dispatchDocNo || null,
+      delivery_note: state.deliveryNote || null,
+      delivery_note_date: state.deliveryNoteDate || null,
+      dispatched_through: state.dispatchedThrough || null,
+      destination: state.destination || null,
+      terms_of_delivery: state.termsOfDelivery || null,
+      mode_of_payment: state.modeOfPayment || null,
+      // Print exclusions
+      print_exclusions: state.printExclusions || {},
       items: state.items.map((it: any) => ({
         item_type: it.item_type || (it.material_type_id ? "fabric" : "finished_goods"),
         design_id: it.design_id || null,
@@ -215,13 +257,14 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         item_name: it.item_name || null,
         colour_id: it.colour_id || null,
         size: it.size || null,
-        quantity: it.quantity,
+        size_quantities: it.size_quantities || (it.sizes ? it.sizes : null),
+        quantity: Number(it.quantity || 0),
         unit: it.unit || "Pcs",
-        rate: it.rate,
-        discount_percent: it.discount_percent || 0,
-        tax_percent: it.tax_percent || 0,
-        amount: it.amount,
-        cost_per_piece: it.cost_per_piece || 0,
+        rate: Number(it.rate || 0),
+        discount_percent: Number(it.discount_percent || 0),
+        tax_percent: Number(it.tax_percent || 0),
+        amount: Number(it.amount || 0),
+        cost_per_piece: Number(it.cost_per_piece || 0),
         description: it.description || null,
         hsn_sac: it.hsn_sac || null,
         rolls: it.rolls && Array.isArray(it.rolls) ? it.rolls : undefined,
@@ -258,8 +301,109 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     { title: "Customer & Info", description: "Select customer and dates" },
     { title: "Line Items", description: "Add products, quantities & rates" },
     { title: "Totals & Calculation", description: "Reconcile tax splits and discounts" },
-    { title: "Review & Save", description: "Final validation & publish" },
+    { title: "Consignee & Dispatch", description: "Ship-to address & dispatch details" },
+    { title: "Review & Save", description: "Print options, preview & publish" },
   ];
+
+  // Billing party info for consignee pre-fill
+  const selectedParty = parties.find((p: any) => p.id === state.partyId);
+  const billingParty = selectedParty ? {
+    name: selectedParty.company_name || selectedParty.name,
+    address: state.billingAddress,
+    gstin: state.gstin,
+    state: "",
+    state_code: "",
+  } : undefined;
+
+  // Print exclusion toggles definition
+  const EXCLUSION_OPTIONS = [
+    { key: "excludeBuyerOrderNo", label: "Buyer's Order No." },
+    { key: "excludeBuyerOrderDate", label: "Buyer Order Date" },
+    { key: "excludeDispatchDocNo", label: "Dispatch Doc No." },
+    { key: "excludeDeliveryNote", label: "Delivery Note" },
+    { key: "excludeModeOfPayment", label: "Mode / Terms of Payment" },
+    { key: "excludeDispatchedThrough", label: "Dispatched Through" },
+    { key: "excludeDestination", label: "Destination" },
+    { key: "excludeTermsOfDelivery", label: "Terms of Delivery" },
+    { key: "excludeHsnTable", label: "HSN/SAC Summary Table" },
+    { key: "excludeTermsConditions", label: "Terms & Conditions" },
+    { key: "excludeBankDetails", label: "Bank Details" },
+    { key: "excludeDeclaration", label: "Declaration" },
+    { key: "excludeSignatory", label: "Authorised Signatory" },
+  ] as const;
+
+  const toggleExclusion = (key: string) => {
+    state.setPrintExclusions((prev: Record<string, boolean>) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // Build preview bill data from current state
+  const previewBillData = {
+    bill_number: "PREVIEW",
+    bill_date: state.billDate,
+    due_date: state.dueDate,
+    payment_terms: state.paymentTerms,
+    billing_address: state.billingAddress,
+    phone: state.phone,
+    gstin: state.gstin,
+    ship_to_same_as_bill_to: state.shipToSameAsBillTo,
+    consignee_name: state.consigneeName,
+    consignee_address: state.consigneeAddress,
+    consignee_gstin: state.consigneeGstin,
+    consignee_state: state.consigneeState,
+    consignee_state_code: state.consigneeStateCode,
+    buyer_order_no: state.buyerOrderNo,
+    dispatch_doc_no: state.dispatchDocNo,
+    delivery_note: state.deliveryNote,
+    delivery_note_date: state.deliveryNoteDate,
+    dispatched_through: state.dispatchedThrough,
+    destination: state.destination,
+    terms_of_delivery: state.termsOfDelivery,
+    mode_of_payment: state.modeOfPayment,
+    item_total: totals.item_total,
+    charges_total: totals.charges_total,
+    discount_amount: totals.discount_amount,
+    taxable_amount: totals.taxable_amount,
+    cgst: totals.cgst,
+    sgst: totals.sgst,
+    igst: totals.igst,
+    round_off: totals.round_off,
+    grand_total: totals.grand_total,
+    party: {
+      name: selectedParty?.name || "",
+      company_name: selectedParty?.company_name,
+      gstin: state.gstin || selectedParty?.gstin,
+      phone: state.phone || selectedParty?.phone,
+      billing_address_line1: state.billingAddress || selectedParty?.billing_address_line1,
+      billing_state: (selectedParty as any)?.billing_state || (selectedParty as any)?.state,
+    },
+    items: state.items.map((it: any) => {
+      const design = designs.find((d: any) => d.id === it.design_id);
+      const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
+      return {
+        ...it,
+        design: design
+          ? { id: design.id, design_number: design.design_number, name: design.name, hsn_sac: design.hsn_sac }
+          : it.design,
+        design_code: it.design_code || design?.design_number,
+        colour_name: it.colour_name || colour?.colour_name,
+        hsn_sac: it.hsn_sac || design?.hsn_sac || "—",
+      };
+    }),
+    charges: state.charges,
+  };
+
+  const companyProfile = {
+    name: business?.name || (brandData?.brand?.name) || "",
+    address: business?.address || (brandData?.brand?.address) || "",
+    gstin: business?.gstin || (brandData?.brand?.gstin) || "",
+    phone: business?.phone || (brandData?.brand?.phone) || "",
+    email: (business as any)?.email || (brandData?.brand?.email) || "",
+  };
+
+  const brandConfig = billConfigData?.config || brandData?.brandConfig || null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-6 pb-20 md:pb-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
@@ -280,7 +424,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
             {mode} {type} Invoice
           </h1>
           <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
-            Step {step} of 4: {steps[step - 1].title}
+            Step {step} of 5: {steps[step - 1].title}
           </p>
         </div>
       </div>
@@ -298,11 +442,27 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
           <TotalsPanel state={state} totals={totals} />
         )}
         {step === 4 && (
+          <ConsigneeSection state={state} billingParty={billingParty} />
+        )}
+        {step === 5 && (
           <div className="space-y-6">
+            {/* Preview Bill Button + Step Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider font-mono">Review &amp; Save</h3>
+              <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] text-xs font-bold transition-colors"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Preview Bill
+              </button>
+            </div>
+
             <BillValidation state={state} />
 
             <div className="border border-[var(--border)] rounded-xl p-6 bg-[var(--card-bg)] space-y-6">
-              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider font-mono">Review & E-Way Details</h3>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider font-mono">Review Details</h3>
               
               {/* Invoice Overview */}
               <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
@@ -343,13 +503,13 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] text-[var(--text-muted)] uppercase font-mono font-bold tracking-wider">
-                      <th className="py-2 px-3">Design</th>
-                      <th className="py-2 px-3">Colour</th>
+                      <th className="py-2 px-3">Item</th>
+                      <th className="py-2 px-3">Details</th>
                       <th className="py-2 px-3">Size</th>
                       <th className="py-2 px-3 text-right">Qty</th>
                       <th className="py-2 px-3 text-right">Rate</th>
                       <th className="py-2 px-3 text-right">Dis %</th>
-                      <th className="py-2 px-3 text-right">Tax %</th>
+                      {effectiveType === "pakka" && <th className="py-2 px-3 text-right">Tax %</th>}
                       <th className="py-2 px-3 text-right">Amount</th>
                     </tr>
                   </thead>
@@ -357,15 +517,37 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                     {state.items.map((it: any, idx: number) => {
                       const design = designs.find((d: any) => d.id === it.design_id);
                       const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
+                      const isFabric = it.item_type === "fabric" || !!it.material_type_id || !!it.material_type;
+                      const itemName = it.item_name || design?.name || (isFabric ? "Fabric Material" : "Item");
+                      const itemCode = it.design_code || design?.design_number;
+
+                      let detailsDisplay = colour?.colour_name || it.colour_name || "—";
+                      if (isFabric) {
+                        if (it.rolls?.length) {
+                          detailsDisplay = `${it.rolls.length} Rolls: ` + it.rolls.map((r: any) => `#${r.roll_number} (${r.meters}m)`).join(", ");
+                        } else {
+                          detailsDisplay = it.description || "Fabric Material";
+                        }
+                      } else if (it.size_quantities && Object.keys(it.size_quantities).length > 0) {
+                        const sq = Object.entries(it.size_quantities)
+                          .filter(([, q]) => Number(q) > 0)
+                          .map(([s, q]) => `${s}:${q}`)
+                          .join(", ");
+                        if (sq) detailsDisplay += ` [Sizes: ${sq}]`;
+                      }
+
                       return (
                         <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                          <td className="py-2 px-3 text-[var(--primary)] font-mono font-bold">{design?.design_number || "Unknown"}</td>
-                          <td className="py-2 px-3 text-[var(--text-secondary)]">{colour?.colour_name || "—"}</td>
-                          <td className="py-2 px-3 font-mono">{it.size}</td>
-                          <td className="py-2 px-3 text-right font-mono">{it.quantity}</td>
+                          <td className="py-2 px-3 text-[var(--primary)] font-mono font-bold">
+                            {itemName}
+                            {itemCode && <span className="text-[10px] text-[var(--text-muted)] font-normal block font-sans">Art: {itemCode}</span>}
+                          </td>
+                          <td className="py-2 px-3 text-[var(--text-secondary)]">{detailsDisplay}</td>
+                          <td className="py-2 px-3 font-mono">{it.size || (isFabric ? "Meters" : "Pcs")}</td>
+                          <td className="py-2 px-3 text-right font-mono">{it.quantity} {it.unit || (isFabric ? "MTR" : "PCS")}</td>
                           <td className="py-2 px-3 text-right font-mono">₹{it.rate}</td>
-                          <td className="py-2 px-3 text-right font-mono">{it.discount_percent}%</td>
-                          <td className="py-2 px-3 text-right font-mono">{it.tax_percent}%</td>
+                          <td className="py-2 px-3 text-right font-mono">{it.discount_percent || 0}%</td>
+                          {effectiveType === "pakka" && <td className="py-2 px-3 text-right font-mono">{it.tax_percent || 0}%</td>}
                           <td className="py-2 px-3 text-right font-mono font-bold">₹{it.amount}</td>
                         </tr>
                       );
@@ -382,14 +564,24 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                     <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Sub Total</span>
                     <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{totals.sub_total.toFixed(2)}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Taxable Amount</span>
-                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{totals.taxable_amount.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">GST Total</span>
-                    <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{(totals.cgst + totals.sgst + totals.igst).toFixed(2)}</span>
-                  </div>
+                  {effectiveType === "pakka" && (
+                    <>
+                      <div>
+                        <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Taxable Amount</span>
+                        <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{totals.taxable_amount.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">GST Total</span>
+                        <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{(totals.cgst + totals.sgst + totals.igst).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  {effectiveType === "kacha" && (
+                    <div>
+                      <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Round Off</span>
+                      <span className="text-xs font-bold text-[var(--text-primary)] font-mono">₹{(totals.round_off || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-lg p-2 flex flex-col justify-center">
                     <span className="text-[9px] text-[var(--primary)] font-bold block uppercase">Grand Total</span>
                     <span className="text-sm font-black text-indigo-700 dark:text-indigo-300 font-mono">₹{totals.grand_total.toFixed(2)}</span>
@@ -397,50 +589,31 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 </div>
               </div>
 
-              {/* E-way details toggle and inputs */}
-              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-bold text-[var(--text-primary)] block">Generate E-Way Bill details</span>
-                    <p className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider leading-normal">
-                      Include e-way transport and vehicle details with this invoice
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showEway}
-                      onChange={(e) => setShowEway(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-                  </label>
+              {/* Print Display Options */}
+              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-[var(--text-primary)] block">Print Display Options</span>
+                  <p className="text-[10px] text-[var(--text-muted)] leading-normal">
+                    Uncheck items you want to <span className="font-bold">exclude</span> from the printed bill. Changes apply to print/preview only.
+                  </p>
                 </div>
-
-                {showEway && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[var(--border-light)] animate-in slide-in-from-top-2 duration-150">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Transporter Name</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-[var(--border-light)]">
+                  {EXCLUSION_OPTIONS.filter((opt) => effectiveType === "pakka" || opt.key !== "excludeHsnTable").map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none group">
                       <input
-                        type="text"
-                        value={state.transporterName}
-                        onChange={(e) => state.setTransporterName(e.target.value)}
-                        className="w-full h-9 rounded-lg border border-[var(--input-border)] px-3 text-xs focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] transition-colors"
-                        placeholder="e.g. VRL Logistics"
+                        type="checkbox"
+                        checked={!state.printExclusions[key]}
+                        onChange={() => toggleExclusion(key)}
+                        className="w-3.5 h-3.5 rounded accent-[var(--primary)] cursor-pointer"
                       />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Vehicle Number</label>
-                      <input
-                        type="text"
-                        value={state.vehicleNo}
-                        onChange={(e) => state.setVehicleNo(e.target.value)}
-                        className="w-full h-9 rounded-lg border border-[var(--input-border)] px-3 text-xs focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] transition-colors"
-                        placeholder="e.g. GJ-01-XX-1234"
-                      />
-                    </div>
-                  </div>
-                )}
+                      <span className={`text-[10px] font-semibold transition-colors ${
+                        state.printExclusions[key]
+                          ? "line-through text-[var(--text-faint)]"
+                          : "text-[var(--text-body)]"
+                      }`}>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -515,7 +688,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         </Button>
 
         <div className="flex items-center gap-2">
-          {step === 4 && (
+          {step === 5 && (
             <>
               <Button
                 onClick={() => handleSaveBill("draft")}
@@ -547,9 +720,9 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
             </>
           )}
 
-          {step < 4 && (
+          {step < 5 && (
             <Button
-              onClick={() => setStep((s) => Math.min(s + 1, 4))}
+              onClick={() => setStep((s) => Math.min(s + 1, 5))}
               disabled={step === 1 && !state.partyId}
               className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold"
             >
@@ -570,9 +743,9 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
           Previous
         </Button>
 
-        {step < 4 ? (
+        {step < 5 ? (
           <Button
-            onClick={() => setStep((s) => Math.min(s + 1, 4))}
+            onClick={() => setStep((s) => Math.min(s + 1, 5))}
             disabled={step === 1 && !state.partyId}
             className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs h-10 px-5 flex-1 max-w-[180px]"
           >
@@ -590,6 +763,33 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         )}
       </div>
 
+
+      {/* Preview Bill Modal */}
+      {previewOpen && (
+        <Modal
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Bill Preview"
+          description={`This is how your ${effectiveType === "kacha" ? "Kaccha Bill" : "Pakka Tax Invoice"} will look when printed.`}
+          maxWidth="max-w-4xl"
+        >
+          <div className="overflow-auto max-h-[75vh] p-2">
+            {effectiveType === "kacha" ? <KachaBillTemplate
+              bill={previewBillData as any}
+              company={companyProfile}
+              config={brandConfig}
+              exclusions={state.printExclusions}
+              logoUrl={getEffectiveLogo(brandData?.brand?.logo_url)}
+            /> : <PakkaBillTemplate
+              bill={previewBillData as any}
+              company={companyProfile}
+              config={brandConfig}
+              exclusions={state.printExclusions}
+              logoUrl={getEffectiveLogo(brandData?.brand?.logo_url)}
+            />}
+          </div>
+        </Modal>
+      )}
 
       {/* Success Modal with Preview, Print, Download options */}
       <PostInvoiceSuccessModal

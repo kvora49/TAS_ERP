@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { dispatchSystemPushAlert } from "@/lib/notifications/push-dispatcher";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
     }
 
     const createdNotifications: any[] = [];
+    let totalWebPushSent = 0;
 
     for (const biz of businesses) {
       // Fetch enabled notification rules for this business
@@ -142,7 +144,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Deduplicate and insert unique notifications for last 24h
+    // Deduplicate, insert unique notifications and dispatch mobile push
     if (createdNotifications.length > 0) {
       for (const notif of createdNotifications.slice(0, 20)) {
         const { data: existing } = await supabase
@@ -156,6 +158,19 @@ export async function GET(request: Request) {
 
         if (!existing) {
           await supabase.from("in_app_notifications").insert(notif);
+
+          // Dispatch Web Push notification to mobile devices
+          const pushRes = await dispatchSystemPushAlert({
+            businessId: notif.business_id,
+            title: notif.title,
+            message: notif.message,
+            linkUrl: notif.link_url || "/",
+            tag: `tas-erp-${notif.rule_type}`,
+          });
+
+          if (pushRes?.sentCount) {
+            totalWebPushSent += pushRes.sentCount;
+          }
         }
       }
     }
@@ -163,6 +178,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       processed: createdNotifications.length,
+      webPushSentCount: totalWebPushSent,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Cron notification runner failed" }, { status: 500 });
@@ -172,3 +188,4 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return GET(request);
 }
+

@@ -51,6 +51,7 @@ export async function dispatchSystemPushAlert(payload: PushPayload) {
     }
 
     const vapidPublicKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+    const vapidPrivateKey = process.env.FIREBASE_VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY;
     const adminKeyRaw = process.env.FIREBASE_ADMIN_SDK_KEY;
 
     const pushContent = JSON.stringify({
@@ -65,19 +66,25 @@ export async function dispatchSystemPushAlert(payload: PushPayload) {
 
     let sentCount = 0;
     const expiredIds: string[] = [];
+    let isVapidConfigured = false;
 
-    // Configure VAPID details if key is available
+    // Configure VAPID details if keys are available
     if (vapidPublicKey && !vapidPublicKey.includes("placeholder")) {
       try {
-        let privateKey = "";
-        if (adminKeyRaw && !adminKeyRaw.includes("placeholder")) {
-          const parsed = JSON.parse(adminKeyRaw);
-          privateKey = parsed.private_key || "";
+        let privateKey = vapidPrivateKey || "";
+        if (!privateKey && adminKeyRaw && !adminKeyRaw.includes("placeholder")) {
+          try {
+            const parsed = JSON.parse(adminKeyRaw);
+            privateKey = parsed.private_key || "";
+          } catch (_err) {}
         }
         if (privateKey) {
           webPush.setVapidDetails("mailto:admin@taserp.com", vapidPublicKey, privateKey);
+          isVapidConfigured = true;
         }
-      } catch (_e) {}
+      } catch (e: any) {
+        console.warn("[Push Dispatcher] Warning setting VAPID details:", e.message);
+      }
     }
 
     // 2. Send Web Push payload to each subscription endpoint

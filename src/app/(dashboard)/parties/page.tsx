@@ -14,7 +14,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePartiesList } from "@/hooks/queries/useParties";
-import { cn } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
+import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
 
 interface Party {
   id: string;
@@ -75,7 +76,7 @@ export default function PartiesPage() {
       }
       toast.success("Party deleted successfully");
       setDeleteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["master-data", "parties"] });
+      invalidatePartyRelatedQueries(queryClient);
     } catch (err: any) {
       toast.error(err.message || "An error occurred during deletion");
     } finally {

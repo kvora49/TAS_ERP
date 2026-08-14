@@ -52,8 +52,47 @@ export async function GET(
       brandConfig: detail.brandConfig,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // A print/preview must remain available even if an optional nested relation
+    // (for example a legacy roll or brand configuration relation) is missing.
+    // Retrieve the essential invoice data independently as a safe fallback.
+    try {
+      const [{ data: bill, error: billError }, { data: brand }] = await Promise.all([
+        supabase.from("sale_bills").select("*").eq("id", params.id).eq("business_id", businessId).is("deleted_at", null).maybeSingle(),
+        supabase.from("brands").select("id, name, gstin, address, logo_url, phone, email").eq("business_id", businessId).eq("is_primary", true).maybeSingle(),
+      ]);
+      if (billError) throw billError;
+      if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
+
+      const [partyResult, itemsResult, chargesResult, configResult] = await Promise.all([
+        supabase.from("parties").select("*").eq("id", bill.party_id).maybeSingle(),
+        supabase.from("sale_bill_items").select("*, design:designs(id, design_number, name, hsn_code), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category, hsn_code)").eq("bill_id", bill.id),
+        supabase.from("sale_bill_charges").select("*").eq("bill_id", bill.id),
+        brand ? supabase.from("brand_bill_config").select("*").eq("brand_id", brand.id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      const items = itemsResult.data || [];
+      if (items.length > 0) {
+        try {
+          const itemIds = items.map((it: any) => it.id);
+          const { data: rollsData } = await supabase.from("sale_rolls").select("*").in("sale_item_id", itemIds);
+          if (rollsData && rollsData.length > 0) {
+            const rollsByItem: Record<string, any[]> = {};
+            for (const r of rollsData) {
+              if (!rollsByItem[r.sale_item_id]) rollsByItem[r.sale_item_id] = [];
+              rollsByItem[r.sale_item_id].push(r);
+            }
+            for (const it of items) {
+              it.rolls = rollsByItem[it.id] || [];
+            }
+          }
+        } catch {
+          // Safe non-blocking fallback
+        }
+      }
+      return NextResponse.json({ bill: { ...bill, party: partyResult.data, items, charges: chargesResult.data || [] }, profit: null, brand: brand || null, brandConfig: configResult.data || null });
+    } catch (fallbackError: unknown) {
+      const message = fallbackError instanceof Error ? fallbackError.message : "Internal Server Error";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
   }
 }
 

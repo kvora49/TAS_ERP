@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { toast } from "sonner";
+import { getPartyPhone } from "@/lib/utils/whatsapp";
 import {
   ArrowLeft,
   Pencil,
@@ -377,7 +378,7 @@ export default function PartyDetailPage() {
                   <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Telephone Directory</p>
                   <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-body)]">
                     <Phone size={14} className="text-[var(--text-faint)]" />
-                    <span>{party.phone || "No phone listed"}</span>
+                    <span>{getPartyPhone(party) || "No phone listed"}</span>
                   </div>
                 </div>
               )}

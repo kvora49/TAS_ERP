@@ -9,18 +9,29 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { data: business, error } = await supabase
-      .from("businesses")
-      .select("*")
-      .eq("id", businessId)
-      .limit(1)
-      .maybeSingle();
+    const [businessRes, brandRes] = await Promise.all([
+      supabase.from("businesses").select("*").eq("id", businessId).maybeSingle(),
+      supabase.from("brands").select("*").eq("business_id", businessId).eq("is_primary", true).maybeSingle(),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (businessRes.error) {
+      return NextResponse.json({ error: businessRes.error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ business });
+    const business = businessRes.data;
+    const brand = brandRes.data;
+    let brandConfig = null;
+
+    if (brand) {
+      const { data: cfg } = await supabase
+        .from("brand_bill_config")
+        .select("*")
+        .eq("brand_id", brand.id)
+        .maybeSingle();
+      brandConfig = cfg;
+    }
+
+    return NextResponse.json({ business, brand, brandConfig });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

@@ -14,6 +14,7 @@ import AsyncButton from "@/components/shared/AsyncButton";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { Modal } from "@/components/shared/Modal";
 import { usePWAWebPush } from "@/hooks/usePWAWebPush";
+import { getPartyPhone, openWhatsApp } from "@/lib/utils/whatsapp";
 import { cn } from "@/lib/utils";
 import { CalendarPlannerTab } from "./CalendarPlannerTab";
 
@@ -35,6 +36,7 @@ interface WhatsAppTemplate {
   id: string;
   template_type: string;
   template_text: string;
+  name?: string;
   is_active: boolean;
 }
 
@@ -53,18 +55,34 @@ const TEMPLATE_TYPES = [
   { key: "overdue_reminder", label: "Overdue Alert" },
   { key: "bill_share", label: "Bill Share" },
   { key: "pdc_reminder", label: "PDC / Cheque Reminder" },
+  { key: "vendor_payment_advice", label: "Vendor Payment Advice" },
+  { key: "payment_schedule_notice", label: "Payment Schedule Notice" },
+  { key: "payable_reminder", label: "Payable Reminder" },
 ];
 
 const DEFAULT_TEMPLATES: Record<string, string> = {
-  payment_reminder: "Dear {name}, your bill {bill} of ₹{amount} is due on {due}. Kindly make payment at earliest. Thank you.",
-  overdue_reminder: "Dear {name}, your bill {bill} of ₹{amount} is overdue by {days} days. Please clear your dues immediately.",
-  bill_share: "Dear {name}, please find your bill {bill} for ₹{amount} dated {date}. Thank you for your business.",
-  pdc_reminder: "Dear {name}, your PDC cheque of ₹{amount} for bill {bill} is due on {due}. Please ensure sufficient balance.",
+  payment_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is due on {{due_date}}. Kindly make payment at earliest. Thank you.",
+  overdue_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is overdue by {{days}} days. Please clear your dues immediately.",
+  bill_share: "Dear {{party_name}}, please find your bill {{invoice_no}} for ₹{{amount}} dated {{date}}.\n\nView Bill:\n{{bill_url}}\n\nThank you for your business.",
+  pdc_reminder: "Dear {{party_name}}, your PDC cheque of ₹{{amount}} for bill {{invoice_no}} is due on {{due_date}}. Please ensure sufficient balance.",
+  payable_reminder: "Dear {{party_name}}, regarding purchase bill {{invoice_no}} of ₹{{amount}} due on {{due_date}}. Kindly confirm payment processing status. Thank you.",
+  vendor_payment_advice: "Dear {{party_name}}, payment of ₹{{amount}} for purchase bill {{invoice_no}} due on {{due_date}} is being processed. Thank you for your partnership.",
+  payment_schedule_notice: "Dear {{party_name}}, purchase bill {{invoice_no}} for ₹{{amount}} has been scheduled for payment on {{due_date}}.",
 };
+
+const TAG_CHIPS = [
+  { label: "Party Name", tag: "{{party_name}}" },
+  { label: "Invoice No", tag: "{{invoice_no}}" },
+  { label: "Amount", tag: "{{amount}}" },
+  { label: "Due Date", tag: "{{due_date}}" },
+  { label: "Days Overdue", tag: "{{days}}" },
+  { label: "Bill Link", tag: "{{bill_url}}" },
+];
 
 export default function RemindersPage() {
   const queryClient = useQueryClient();
   const { permission, requestNotificationPermission } = usePWAWebPush();
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Active Tab: 'calendar' | 'receivables' | 'payables' | 'cheques' | 'templates'
   const [activeTab, setActiveTab] = useState<"calendar" | "receivables" | "payables" | "cheques" | "templates">("calendar");
@@ -72,6 +90,7 @@ export default function RemindersPage() {
   const [selectedTemplateType, setSelectedTemplateType] = useState<string>("payment_reminder");
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string>("payment_reminder");
+  const [templateDisplayName, setTemplateDisplayName] = useState<string>("");
   const [templateText, setTemplateText] = useState("");
   const [reminderLinks, setReminderLinks] = useState<ReminderLink[]>([]);
   const [showLinksModal, setShowLinksModal] = useState(false);
@@ -159,7 +178,7 @@ export default function RemindersPage() {
   });
 
   const saveTemplateMutation = useMutation({
-    mutationFn: async (payload: { template_type: string; template_text: string }) => {
+    mutationFn: async (payload: { template_type: string; template_text: string; name?: string }) => {
       const res = await fetch("/api/reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -243,7 +262,9 @@ export default function RemindersPage() {
 
   TEMPLATE_TYPES.forEach((t) => {
     const norm = t.key.toLowerCase().replace(/\s+/g, "_");
-    rawTemplateTypes.push({ key: t.key, label: t.label, isCustom: false });
+    const foundTmpl = templates.find((tmp: any) => (tmp.template_type || "").toLowerCase().replace(/\s+/g, "_") === norm);
+    const displayLabel = foundTmpl?.name || t.label;
+    rawTemplateTypes.push({ key: t.key, label: displayLabel, isCustom: false });
     seenKeys.add(norm);
   });
 
@@ -256,9 +277,9 @@ export default function RemindersPage() {
       seenKeys.add(norm);
       rawTemplateTypes.push({
         key: norm,
-        label: norm.startsWith("custom_")
+        label: tmpl.name || (norm.startsWith("custom_")
           ? "Custom Template (" + norm.slice(-4) + ")"
-          : rawKey.replace(/_/g, " "),
+          : rawKey.replace(/_/g, " ")),
         isCustom: true,
       });
     }
@@ -274,13 +295,66 @@ export default function RemindersPage() {
       const key = (t.template_type || t.code || "").trim().toLowerCase().replace(/\s+/g, "_");
       return key === norm;
     });
-    return found?.template_text || (found as any)?.content || DEFAULT_TEMPLATES[norm] || "";
+    return found?.template_text || (found as any)?.content || DEFAULT_TEMPLATES[norm] || DEFAULT_TEMPLATES.payment_reminder;
   };
 
   const handleOpenTemplateEditor = (type: string) => {
     setEditingTemplate(type);
+    const norm = type.toLowerCase().replace(/\s+/g, "_");
+    const found = templates.find((t: any) => (t.template_type || "").toLowerCase().replace(/\s+/g, "_") === norm);
+    const predefined = TEMPLATE_TYPES.find((t) => t.key === norm);
+    setTemplateDisplayName(found?.name || predefined?.label || "Custom Template");
     setTemplateText(getTemplate(type));
     setShowTemplateEditor(true);
+  };
+
+  const handleInsertTag = (tag: string) => {
+    if (!textareaRef.current) {
+      setTemplateText((prev) => prev + " " + tag);
+      return;
+    }
+    const start = textareaRef.current.selectionStart || 0;
+    const end = textareaRef.current.selectionEnd || 0;
+    const newText = templateText.slice(0, start) + tag + templateText.slice(end);
+    setTemplateText(newText);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start + tag.length, start + tag.length);
+      }
+    }, 0);
+  };
+
+  const formatSingleBillMessage = (bill: OverdueBill, templateKey: string) => {
+    const rawText = getTemplate(templateKey);
+    const partyName = (bill.party?.company_name || bill.party?.name || (activeTab === "payables" ? "Supplier" : "Customer")).trim();
+    const amountStr = Number(bill.outstanding_amount || 0).toLocaleString("en-IN");
+    const dueDateStr = bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "";
+    const daysStr = Math.max(0, bill.days_overdue || 0).toString();
+    const billDateStr = bill.bill_date ? new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "") : origin;
+    const billUrl = appBaseUrl ? `${appBaseUrl}/${activeTab === "payables" ? "purchases" : "p/bill"}/${bill.id}` : "";
+
+    return rawText
+      .replace(/\{\{party_name\}\}/g, partyName)
+      .replace(/\{name\}/g, partyName)
+      .replace(/\{\{invoice_no\}\}/g, bill.bill_number)
+      .replace(/\{bill\}/g, bill.bill_number)
+      .replace(/\{\{amount\}\}/g, amountStr)
+      .replace(/\{amount\}/g, amountStr)
+      .replace(/\{\{due_date\}\}/g, dueDateStr)
+      .replace(/\{due\}/g, dueDateStr)
+      .replace(/\{\{date\}\}/g, billDateStr)
+      .replace(/\{date\}/g, billDateStr)
+      .replace(/\{\{days\}\}/g, daysStr)
+      .replace(/\{days\}/g, daysStr)
+      .replace(/\{\{bill_url\}\}/g, billUrl ? `\n\n${billUrl}\n\n` : "")
+      .replace(/\{bill_url\}/g, billUrl ? `\n\n${billUrl}\n\n` : "")
+      .replace(/\s+,/g, ",")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   };
 
   const handleToggleBill = (id: string) => {
@@ -340,15 +414,29 @@ export default function RemindersPage() {
               </button>
             )}
 
-            {activeTab !== "templates" && (
-              <AsyncButton
-                onClick={() => handleSendReminders()}
-                disabled={selectedBills.size === 0}
-                className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Send WhatsApp ({selectedBills.size})
-              </AsyncButton>
+            {activeTab !== "templates" && activeTab !== "calendar" && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={selectedTemplateType}
+                  onChange={(e) => setSelectedTemplateType(e.target.value)}
+                  className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-9 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {allTemplateTypes.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      Template: {t.label}
+                    </option>
+                  ))}
+                </select>
+
+                <AsyncButton
+                  onClick={() => handleSendReminders()}
+                  disabled={selectedBills.size === 0}
+                  className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {activeTab === "payables" ? "Send Advice" : "Send WhatsApp"} ({selectedBills.size})
+                </AsyncButton>
+              </div>
             )}
           </div>
         </div>
@@ -565,16 +653,18 @@ export default function RemindersPage() {
                                 💤 Snoozed till {bill.snoozed_until}
                               </span>
                             )}
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200">
-                              Every {bill.recurring_interval_days || 2}d
-                            </span>
+                            {activeTab !== "payables" && (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                                Every {bill.recurring_interval_days || 2}d
+                              </span>
+                            )}
                           </div>
 
                           <div className="text-xs text-[var(--text-body)] font-semibold">
                             {bill.party?.company_name || bill.party?.name || "Party"}
-                            {bill.party?.phone && (
+                            {getPartyPhone(bill.party) && (
                               <span className="text-[var(--text-muted)] font-normal ml-2">
-                                📞 {bill.party.phone}
+                                📞 {getPartyPhone(bill.party)}
                               </span>
                             )}
                           </div>
@@ -602,25 +692,26 @@ export default function RemindersPage() {
                             <span>Snooze</span>
                           </button>
 
-                          <button
-                            onClick={() => setRecurringTargetBill(bill)}
-                            className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                            title="Change recurring reminder interval"
-                          >
-                            <Repeat size={12} className="text-[var(--primary)]" />
-                            <span>Interval</span>
-                          </button>
+                          {activeTab !== "payables" && (
+                            <button
+                              onClick={() => setRecurringTargetBill(bill)}
+                              className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              title="Change recurring reminder interval"
+                            >
+                              <Repeat size={12} className="text-[var(--primary)]" />
+                              <span>Interval</span>
+                            </button>
+                          )}
 
-                          {bill.party?.phone && (
-                            <a
-                              href={`https://web.whatsapp.com/send?phone=91${bill.party.phone.replace(/\D/g, "")}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="h-8 w-8 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-all cursor-pointer"
-                              title="Direct WhatsApp chat"
+                          {getPartyPhone(bill.party) && (
+                            <button
+                              onClick={() => openWhatsApp(getPartyPhone(bill.party), formatSingleBillMessage(bill, selectedTemplateType))}
+                              className="h-8 px-2.5 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Direct WhatsApp chat with active template"
                             >
                               <MessageSquare size={14} />
-                            </a>
+                              <span>{activeTab === "payables" ? "Advice" : "Chat"}</span>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -699,45 +790,73 @@ export default function RemindersPage() {
       {/* TEMPLATE EDITOR MODAL */}
       <Modal open={showTemplateEditor} onOpenChange={setShowTemplateEditor} title="Edit WhatsApp Template">
         <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Template Key / Type</label>
-            <input
-              type="text"
-              value={editingTemplate}
-              onChange={(e) => setEditingTemplate(e.target.value)}
-              className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-semibold text-[var(--text-primary)]"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Display Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Urgent Vendor Overdue Notice"
+                value={templateDisplayName}
+                onChange={(e) => setTemplateDisplayName(e.target.value)}
+                className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-xs font-semibold transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Template Key / Type</label>
+              <input
+                type="text"
+                value={editingTemplate}
+                onChange={(e) => setEditingTemplate(e.target.value)}
+                className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-xs font-mono text-[var(--text-muted)] transition-colors"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Template Content</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-[var(--text-primary)]">Template Content</label>
+              <span className="text-[10px] text-[var(--text-muted)] font-medium">Click chip below to insert tag</span>
+            </div>
+
+            {/* Clickable Tag Chips */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {TAG_CHIPS.map((chip) => (
+                <button
+                  key={chip.tag}
+                  type="button"
+                  onClick={() => handleInsertTag(chip.tag)}
+                  className="px-2 py-1 bg-[var(--primary-light)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white rounded border border-[var(--primary)]/20 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>+ {chip.label}</span>
+                </button>
+              ))}
+            </div>
+
             <textarea
+              ref={textareaRef}
               rows={4}
               value={templateText}
               onChange={(e) => setTemplateText(e.target.value)}
-              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs font-mono text-[var(--text-primary)]"
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-xs font-mono transition-colors"
             />
-            <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">
-              Available tags: &#123;&#123;party_name&#125;&#125;, &#123;&#123;invoice_no&#125;&#125;, &#123;&#123;amount&#125;&#125;, &#123;&#123;due_date&#125;&#125;, &#123;&#123;days&#125;&#125;, &#123;&#123;bill_url&#125;&#125;
-            </p>
           </div>
 
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={() => deleteTemplateMutation.mutate(editingTemplate)}
-              className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
             >
               <Trash2 size={13} />
               Delete Template
             </button>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowTemplateEditor(false)} className="text-xs font-bold">
+              <Button variant="outline" onClick={() => setShowTemplateEditor(false)} className="text-xs font-bold cursor-pointer">
                 Cancel
               </Button>
               <AsyncButton
-                onClick={() => saveTemplateMutation.mutateAsync({ template_type: editingTemplate, template_text: templateText })}
-                className="text-xs font-bold bg-[var(--primary)] text-white px-4 py-2 rounded-lg"
+                onClick={() => saveTemplateMutation.mutateAsync({ template_type: editingTemplate, template_text: templateText, name: templateDisplayName })}
+                className="text-xs font-bold bg-[var(--primary)] text-white px-4 py-2 rounded-lg cursor-pointer"
               >
                 Save Template
               </AsyncButton>

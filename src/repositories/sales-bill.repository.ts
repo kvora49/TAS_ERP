@@ -145,7 +145,7 @@ export class SalesBillRepository {
       .select(`
         *,
         party:parties(*),
-        items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category), rolls:sale_rolls(*)),
+        items:sale_bill_items(*, design:designs(id, design_number, name, hsn_code), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category, hsn_code)),
         charges:sale_bill_charges(*)
       `)
       .eq("id", id)
@@ -156,6 +156,24 @@ export class SalesBillRepository {
     if (error) throw error;
     if (bill) {
       bill.is_temporary = (bill.bill_number?.startsWith("TEMP-") || bill.remarks?.includes("[TEMPORARY]")) ?? false;
+      if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
+        try {
+          const itemIds = bill.items.map((it: any) => it.id);
+          const { data: rollsData } = await this.supabase.from("sale_rolls").select("*").in("sale_item_id", itemIds);
+          if (rollsData && rollsData.length > 0) {
+            const rollsByItem: Record<string, any[]> = {};
+            for (const r of rollsData) {
+              if (!rollsByItem[r.sale_item_id]) rollsByItem[r.sale_item_id] = [];
+              rollsByItem[r.sale_item_id].push(r);
+            }
+            for (const it of bill.items) {
+              it.rolls = rollsByItem[it.id] || [];
+            }
+          }
+        } catch {
+          // Non-blocking fallback if sale_rolls is not populated
+        }
+      }
     }
     return bill;
   }
@@ -168,7 +186,7 @@ export class SalesBillRepository {
         .select(`
           *,
           party:parties(*),
-          items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category), rolls:sale_rolls(*)),
+          items:sale_bill_items(*, design:designs(id, design_number, name, hsn_code), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, category, hsn_code)),
           charges:sale_bill_charges(*)
         `)
         .eq("id", id)
@@ -189,14 +207,33 @@ export class SalesBillRepository {
     if (!bill) return null;
     bill.is_temporary = (bill.bill_number?.startsWith("TEMP-") || bill.remarks?.includes("[TEMPORARY]")) ?? false;
 
+    if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
+      try {
+        const itemIds = bill.items.map((it: any) => it.id);
+        const { data: rollsData } = await this.supabase.from("sale_rolls").select("*").in("sale_item_id", itemIds);
+        if (rollsData && rollsData.length > 0) {
+          const rollsByItem: Record<string, any[]> = {};
+          for (const r of rollsData) {
+            if (!rollsByItem[r.sale_item_id]) rollsByItem[r.sale_item_id] = [];
+            rollsByItem[r.sale_item_id].push(r);
+          }
+          for (const it of bill.items) {
+            it.rolls = rollsByItem[it.id] || [];
+          }
+        }
+      } catch {
+        // Non-blocking fallback if sale_rolls is not populated
+      }
+    }
+
     const brand = brandResult.data || null;
 
     // Fetch brand config and profit data in second parallel wave (depend on bill/brand)
     const [configResult, profitResult] = await Promise.all([
       brand
         ? this.supabase
-            .from("brand_invoice_configs")
-            .select("*")
+            .from("brand_bill_config")
+            .select("*, bank_account:bank_accounts(id, type, name, bank_name, account_number, ifsc, branch, upi_id)")
             .eq("brand_id", brand.id)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -206,7 +243,32 @@ export class SalesBillRepository {
         .eq("bill_id", id),
     ]);
 
-    const brandConfig = configResult.data || null;
+    let brandConfig = configResult.data || null;
+
+    if (!brandConfig || !brandConfig.bank_account) {
+      const { data: defaultBank } = await this.supabase
+        .from("bank_accounts")
+        .select("id, type, name, bank_name, account_number, ifsc, branch, upi_id")
+        .eq("business_id", businessId)
+        .eq("is_active", true)
+        .neq("type", "cash")
+        .not("name", "ilike", "%cash%")
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (defaultBank) {
+        brandConfig = {
+          ...(brandConfig || {}),
+          bank_account: defaultBank,
+          bank_name: (brandConfig as any)?.bank_name || defaultBank.bank_name || defaultBank.name,
+          bank_account_no: (brandConfig as any)?.bank_account_no || defaultBank.account_number,
+          bank_ifsc: (brandConfig as any)?.bank_ifsc || defaultBank.ifsc,
+          bank_branch: (brandConfig as any)?.bank_branch || defaultBank.branch,
+          bank_account_type: (brandConfig as any)?.bank_account_type || defaultBank.type || "Current Account",
+        };
+      }
+    }
 
     // Calculate profit from items cost data
     let profit = null;
@@ -227,9 +289,9 @@ export class SalesBillRepository {
     const { gstin, phone, transporter_name, vehicle_no, is_temporary, ...cleanData } = billData;
     const insertableData = {
       ...cleanData,
-      eway_transporter: transporter_name || null,
+      eway_transporter: transporter_name || cleanData.dispatched_through || null,
       eway_vehicle_no: vehicle_no || null,
-      generate_eway_bill: !!transporter_name,
+      generate_eway_bill: !!(transporter_name || cleanData.dispatched_through),
     };
 
     // 1. Insert parent bill
@@ -245,26 +307,30 @@ export class SalesBillRepository {
     let insertedItems: any[] = [];
     if (items.length > 0) {
       const itemsToInsert = items.map((it) => {
-        const { rolls, item_name, cost_per_piece, ...cleanItem } = it;
         const payload: Record<string, any> = {
-          ...cleanItem,
-          bill_id: bill.id,
           business_id: billData.business_id,
+          bill_id: bill.id,
+          item_type: it.item_type || (it.material_type_id ? "fabric" : "finished_goods"),
+          material_type_id: it.material_type_id || null,
+          design_id: it.design_id || null,
+          colour_id: it.colour_id || null,
+          size: it.size || null,
+          brand_id: it.brand_id || null,
+          hsn_sac: it.hsn_sac || null,
+          quantity: Number(it.quantity || 0),
+          unit: it.unit || "Pcs",
+          rate: Number(it.rate || 0),
+          discount_percent: Number(it.discount_percent || 0),
+          tax_percent: Number(it.tax_percent || 0),
+          amount: Number(it.amount || 0),
+          cost_per_piece: it.cost_per_piece !== undefined ? Number(it.cost_per_piece) : null,
+          description: it.description || null,
         };
 
-        // Omit optional fields if undefined/null or default
-        if (!payload.item_type || payload.item_type === "finished_goods") {
-          delete payload.item_type;
-        }
-        if (!payload.material_type_id) {
-          delete payload.material_type_id;
-        }
-        if (!payload.design_id) {
-          delete payload.design_id;
-        }
-        if (!payload.colour_id) {
-          delete payload.colour_id;
-        }
+        if (!payload.material_type_id) delete payload.material_type_id;
+        if (!payload.design_id) delete payload.design_id;
+        if (!payload.colour_id) delete payload.colour_id;
+        if (!payload.brand_id) delete payload.brand_id;
 
         return payload;
       });

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +23,7 @@ interface PartyFormProps {
 
 export function PartyForm({ initialData, id }: PartyFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [godowns, setGodowns] = useState<Godown[]>([]);
   const [loadingGodowns, setLoadingGodowns] = useState(false);
   const [sameAsBilling, setSameAsBilling] = useState(false);
@@ -208,6 +211,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
       if (!res.ok) throw new Error(result.error || "Something went wrong");
 
       toast.success(id ? "Party updated successfully" : "Party created successfully");
+      invalidatePartyRelatedQueries(queryClient);
       router.push("/parties");
       router.refresh();
     } catch (err: unknown) {

@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Calendar, FileText, CheckCircle2, XCircle, Download
 import Link from "next/link";
 import { toast } from "sonner";
 import { DebitNoteModal } from "@/components/modals/DebitNoteModal";
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { useRouter } from "next/navigation";
 
 interface ReturnItem {
@@ -64,6 +65,8 @@ interface PurchaseReturn {
   purchase?: {
     purchase_number: string;
     invoice_no: string;
+    invoice_date?: string;
+    grand_total?: number;
   };
   items: ReturnItem[];
 }
@@ -127,6 +130,16 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
     }).format(val);
   };
 
+  const { business, brandConfig, logoUrl } = useCompanyProfile();
+
+  const refDoc = pReturn?.purchase ? {
+    invoice_number: pReturn.purchase.invoice_no || pReturn.purchase.purchase_number,
+    invoice_date: pReturn.purchase.invoice_date || "",
+    invoice_amount: pReturn.purchase.grand_total || 0,
+    payment_made: 0,
+    note_amount: pReturn?.grand_total || 0,
+  } : null;
+
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -145,7 +158,8 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header */}
+      <div className="space-y-6 print:hidden">
+        {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
         <div className="flex items-center gap-3">
           <Link href="/purchases?tab=returns" className="p-2 hover:bg-[#F1F5F9] rounded-lg transition-colors">
@@ -334,6 +348,8 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
         </div>
       </div>
 
+      </div>
+
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog
         open={cancelModalOpen}
@@ -351,6 +367,16 @@ export default function PurchaseReturnDetailPage({ params }: { params: { id: str
           open={debitNoteModalOpen}
           onClose={() => setDebitNoteModalOpen(false)}
           pReturn={pReturn}
+          company={business ? {
+            name: business.name,
+            address: business.address,
+            gstin: business.gstin,
+            phone: business.phone,
+            email: business.email,
+          } : undefined}
+          config={brandConfig}
+          logoUrl={logoUrl}
+          referenceDoc={refDoc}
         />
       )}
     </div>

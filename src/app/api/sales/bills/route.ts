@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
     const serverSettings = await getBusinessServerSettings(supabase, businessId);
 
-    if (body.type === "kacha" && !serverSettings.enable_kacha_billing) {
+    if (body.bill_type === "kacha" && !serverSettings.enable_kacha_billing) {
       return NextResponse.json(
         { error: "Kaacha (Estimate) billing is currently disabled in system settings." },
         { status: 400 }

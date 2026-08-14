@@ -19,8 +19,8 @@ export async function GET(
       .from("sales_returns")
       .select(`
         *,
-        party:parties(id, name, company_name, phone, email, gstin, billing_address_line1, billing_city, billing_state, billing_pincode),
-        bill:sale_bills(id, bill_number, bill_date, grand_total),
+        party:parties(*),
+        bill:sale_bills(*),
         credit_note:credit_notes(*)
       `)
       .eq("id", id)
@@ -37,9 +37,16 @@ export async function GET(
     // Fetch return items from sales_return_items if present
     const { data: returnItems } = await supabase
       .from("sales_return_items")
-      .select("*, design:designs(id, name, design_number), colour:design_colours(id, colour_name)")
+      .select("*, design:designs(*, size_set:size_sets(*)), colour:design_colours(*)")
       .eq("return_id", id)
       .eq("business_id", businessId);
+
+    const enrichedReturnItems = (returnItems || []).map((it: any) => ({
+      ...it,
+      design_number: it.design?.design_number || it.design_code,
+      colour_name: it.colour?.colour_name || it.colour_name,
+      size_quantities: it.size_quantities || (it.size ? { [it.size]: it.quantity } : null),
+    }));
 
     // Fetch stock ledger entries linked to this return to reconstruct item list fallback
     const { data: rawLedger } = await supabase
@@ -56,7 +63,7 @@ export async function GET(
       if (designIds.length > 0) {
         const { data: designs } = await supabase
           .from("designs")
-          .select("id, name, design_number")
+          .select("*, size_set:size_sets(*)")
           .in("id", designIds);
 
         (designs || []).forEach((d) => designMap.set(d.id, d));
@@ -65,13 +72,14 @@ export async function GET(
       ledgerEntries = rawLedger.map((r) => ({
         ...r,
         design: designMap.get(r.item_id) || { name: "Returned Item", design_number: "SR-ITEM" },
+        size_quantities: r.size ? { [r.size]: Math.abs(r.change_qty) } : null,
       }));
     }
 
     return NextResponse.json({
       return: {
         ...sReturn,
-        items: returnItems || [],
+        items: enrichedReturnItems.length > 0 ? enrichedReturnItems : ledgerEntries,
       },
       ledgerEntries,
     });

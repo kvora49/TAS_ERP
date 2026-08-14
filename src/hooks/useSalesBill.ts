@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
+import { useERPQuery } from "@/hooks/useERPQuery";
 import { SalesBillService } from "@/services/sales-bill.service";
 import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { createClient } from "@/lib/supabase/client";
@@ -26,7 +26,29 @@ export function useSalesBill(id?: string) {
   const [discountType, setDiscountType] = useState<"flat" | "percentage" | null>(null);
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [status, setStatus] = useState<"draft" | "active">("draft");
-  
+
+  // Consignee / Ship-To state
+  const [shipToSameAsBillTo, setShipToSameAsBillTo] = useState(true);
+  const [consigneeName, setConsigneeName] = useState("");
+  const [consigneeAddress, setConsigneeAddress] = useState("");
+  const [consigneeGstin, setConsigneeGstin] = useState("");
+  const [consigneeState, setConsigneeState] = useState("");
+  const [consigneeStateCode, setConsigneeStateCode] = useState("");
+
+  // Dispatch details state
+  const [buyerOrderNo, setBuyerOrderNo] = useState("");
+  const [buyerOrderDate, setBuyerOrderDate] = useState("");
+  const [dispatchDocNo, setDispatchDocNo] = useState("");
+  const [deliveryNote, setDeliveryNote] = useState("");
+  const [deliveryNoteDate, setDeliveryNoteDate] = useState("");
+  const [dispatchedThrough, setDispatchedThrough] = useState("");
+  const [destination, setDestination] = useState("");
+  const [termsOfDelivery, setTermsOfDelivery] = useState("");
+  const [modeOfPayment, setModeOfPayment] = useState("");
+
+  // Print section exclusions (which fields/sections to hide in the bill)
+  const [printExclusions, setPrintExclusions] = useState<Record<string, boolean>>({});
+
   const [items, setItems] = useState<any[]>([]);
   const [charges, setCharges] = useState<any[]>([]);
   const [isInterstate, setIsInterstate] = useState(false);
@@ -65,6 +87,28 @@ export function useSalesBill(id?: string) {
       setDiscountType(b.discount_type || null);
       setDiscountValue(Number(b.discount_value || 0));
       setStatus(b.status || "draft");
+
+      // Consignee / Ship-To
+      setShipToSameAsBillTo(b.ship_to_same_as_bill_to !== false);
+      setConsigneeName(b.consignee_name || "");
+      setConsigneeAddress(b.consignee_address || "");
+      setConsigneeGstin(b.consignee_gstin || "");
+      setConsigneeState(b.consignee_state || "");
+      setConsigneeStateCode(b.consignee_state_code || "");
+
+      // Dispatch
+      setBuyerOrderNo(b.buyer_order_no || "");
+      setBuyerOrderDate(b.buyer_order_date || "");
+      setDispatchDocNo(b.dispatch_doc_no || "");
+      setDeliveryNote(b.delivery_note || "");
+      setDeliveryNoteDate(b.delivery_note_date || "");
+      setDispatchedThrough(b.dispatched_through || "");
+      setDestination(b.destination || "");
+      setTermsOfDelivery(b.terms_of_delivery || "");
+      setModeOfPayment(b.mode_of_payment || "");
+
+      // Print exclusions
+      setPrintExclusions(b.print_exclusions || {});
 
       const rawItems = b.items || [];
       const normalizedItems = rawItems.map((it: any) => ({
@@ -116,6 +160,25 @@ export function useSalesBill(id?: string) {
       items, setItems,
       charges, setCharges,
       isInterstate, setIsInterstate,
+      // Consignee
+      shipToSameAsBillTo, setShipToSameAsBillTo,
+      consigneeName, setConsigneeName,
+      consigneeAddress, setConsigneeAddress,
+      consigneeGstin, setConsigneeGstin,
+      consigneeState, setConsigneeState,
+      consigneeStateCode, setConsigneeStateCode,
+      // Dispatch
+      buyerOrderNo, setBuyerOrderNo,
+      buyerOrderDate, setBuyerOrderDate,
+      dispatchDocNo, setDispatchDocNo,
+      deliveryNote, setDeliveryNote,
+      deliveryNoteDate, setDeliveryNoteDate,
+      dispatchedThrough, setDispatchedThrough,
+      destination, setDestination,
+      termsOfDelivery, setTermsOfDelivery,
+      modeOfPayment, setModeOfPayment,
+      // Print exclusions
+      printExclusions, setPrintExclusions,
     },
     totals,
     loading,

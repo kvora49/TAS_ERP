@@ -112,14 +112,17 @@ export async function PUT(
       return NextResponse.json({ error: "At least one Party Type is required" }, { status: 400 });
     }
 
+    const finalPhone = (phone && phone.trim()) || (whatsapp_number && whatsapp_number.trim()) || null;
+    const finalWhatsApp = (whatsapp_number && whatsapp_number.trim()) || (phone && phone.trim()) || null;
+
     // Update party
     const { data: party, error: partyError } = await supabase
       .from("parties")
       .update({
         name,
         type,
-        phone: phone || null,
-        whatsapp_number: whatsapp_number || null,
+        phone: finalPhone,
+        whatsapp_number: finalWhatsApp,
         company_name: company_name || null,
         email: email || null,
         website: website || null,

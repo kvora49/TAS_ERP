@@ -92,7 +92,7 @@ export async function reconcileFinishedStock(
     // 6. Fetch active sale return items (correct table: sales_return_items & sales_returns - note: sales_returns has no godown_id column)
     let salesReturnQuery = supabase
       .from("sales_return_items")
-      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, quantity, unit_rate, rate, amount, sales_return:sales_returns(status)")
+      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, unit_rate, amount, sales_return:sales_returns(status)")
       .eq("business_id", businessId);
 
     if (targetDesignId) {

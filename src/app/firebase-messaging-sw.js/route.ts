@@ -1,16 +1,24 @@
-// Scripts for imported Firebase SDKs
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "placeholder-api-key";
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "tas-erp.firebaseapp.com";
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "tas-erp";
+  const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "tas-erp.appspot.com";
+  const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789012";
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789012:web:placeholderapphash";
+
+  const swContent = `// Dynamic Firebase Messaging Service Worker
 importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js");
 
-// Initialize the Firebase app inside the service worker
-// Environment placeholders will be replaced by your Firebase config values
 firebase.initializeApp({
-  apiKey: "placeholder-api-key",
-  authDomain: "tas-erp.firebaseapp.com",
-  projectId: "tas-erp",
-  storageBucket: "tas-erp.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:placeholderapphash",
+  apiKey: "${apiKey}",
+  authDomain: "${authDomain}",
+  projectId: "${projectId}",
+  storageBucket: "${storageBucket}",
+  messagingSenderId: "${messagingSenderId}",
+  appId: "${appId}"
 });
 
 const messaging = firebase.messaging();
@@ -28,8 +36,8 @@ messaging.onBackgroundMessage((payload) => {
     badge: "/favicon.ico",
     tag: payload.data?.tag || "tas-erp-lockscreen-alert",
     renotify: true,
-    requireInteraction: true, // Keeps notification visible on lock screen until user interacts
-    vibrate: [200, 100, 200, 100, 200], // Haptic pulse pattern for locked devices
+    requireInteraction: true,
+    vibrate: [200, 100, 200, 100, 200],
     data: {
       url: targetUrl,
       timestamp: Date.now(),
@@ -47,7 +55,6 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      // If a tab is already open, focus it and navigate
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
         if (client.url.includes(self.location.origin) && "focus" in client) {
@@ -55,10 +62,18 @@ self.addEventListener("notificationclick", (event) => {
           return client.navigate(urlToOpen);
         }
       }
-      // If no tab is open, open a new window/PWA frame
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
     })
   );
 });
+`;
+
+  return new NextResponse(swContent, {
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=0, must-revalidate",
+    },
+  });
+}

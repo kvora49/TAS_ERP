@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getPartyPhone, getWhatsAppUrl } from "@/lib/utils/whatsapp";
 
 function parseDaysFromTerms(terms?: string | null): number {
   if (!terms) return 0;
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
           .from("cheques")
           .select(`
             id, cheque_number, bank_name, amount, cheque_date, status, direction,
-            party:parties(id, name, company_name, phone)
+            party:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)
           `)
           .eq("business_id", businessId)
           .eq("direction", "received")
@@ -93,16 +94,26 @@ export async function GET(request: Request) {
     }
 
     if (type === "payables") {
-      // Vendor Purchase Invoices to Pay
-      const [purchasesRes, templatesRes] = await Promise.all([
+      // Vendor Purchase Invoices to Pay (from both raw_material_purchases and purchase_bills)
+      const [rmPurchasesRes, fgPurchaseBillsRes, templatesRes] = await Promise.all([
         supabase
-          .from("purchases")
+          .from("raw_material_purchases")
           .select(`
-            id, invoice_no, doc_number, invoice_date, due_date, payment_terms, grand_total, paid_amount,
-            payment_status, status, supplier:parties(id, name, company_name, phone)
+            id, purchase_number, invoice_no, invoice_date, due_date, payment_terms, grand_total, paid_amount,
+            payment_status, status, supplier:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)
           `)
           .eq("business_id", businessId)
-          .is("deleted_at", null)
+          .neq("status", "cancelled")
+          .neq("payment_status", "paid")
+          .order("invoice_date", { ascending: false }),
+        supabase
+          .from("purchase_bills")
+          .select(`
+            id, bill_number, invoice_no, invoice_date, due_date, payment_terms, grand_total, paid_amount,
+            payment_status, status, supplier:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)
+          `)
+          .eq("business_id", businessId)
+          .neq("status", "cancelled")
           .neq("payment_status", "paid")
           .order("invoice_date", { ascending: false }),
         supabase
@@ -111,26 +122,38 @@ export async function GET(request: Request) {
           .eq("business_id", businessId),
       ]);
 
-      const pendingPayables = (purchasesRes.data || [])
-        .map((p: any) => {
-          const grandTotal = Number(p.grand_total || 0);
-          const paidAmount = Number(p.paid_amount || 0);
-          const outstandingAmount = Math.max(0, grandTotal - paidAmount);
-          const effectiveDueDate = computeDueDate(p.invoice_date, p.due_date, p.payment_terms);
-          const dueMs = new Date(effectiveDueDate).getTime();
+      const rmPayables = (rmPurchasesRes.data || []).map((p: any) => ({
+        id: p.id,
+        bill_number: p.purchase_number || p.invoice_no || "RM Purchase",
+        bill_date: p.invoice_date,
+        due_date: computeDueDate(p.invoice_date, p.due_date, p.payment_terms),
+        grand_total: Number(p.grand_total || 0),
+        paid_amount: Number(p.paid_amount || 0),
+        payment_status: p.payment_status || "unpaid",
+        outstanding_amount: Math.max(0, Number(p.grand_total || 0) - Number(p.paid_amount || 0)),
+        party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+      }));
+
+      const fgPayables = (fgPurchaseBillsRes.data || []).map((p: any) => ({
+        id: p.id,
+        bill_number: p.bill_number || p.invoice_no || "Purchase Bill",
+        bill_date: p.invoice_date,
+        due_date: computeDueDate(p.invoice_date, p.due_date, p.payment_terms),
+        grand_total: Number(p.grand_total || 0),
+        paid_amount: Number(p.paid_amount || 0),
+        payment_status: p.payment_status || "unpaid",
+        outstanding_amount: Math.max(0, Number(p.grand_total || 0) - Number(p.paid_amount || 0)),
+        party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+      }));
+
+      const pendingPayables = [...rmPayables, ...fgPayables]
+        .map((p) => {
+          const dueMs = new Date(p.due_date).getTime();
           const daysOverdue = Math.floor((todayMs - dueMs) / (1000 * 60 * 60 * 24));
           const schedule = scheduleMap.get(`payable_${p.id}`);
 
           return {
-            id: p.id,
-            bill_number: p.doc_number || p.invoice_no || "Purchase Bill",
-            bill_date: p.invoice_date,
-            due_date: effectiveDueDate,
-            grand_total: grandTotal,
-            paid_amount: paidAmount,
-            payment_status: p.payment_status || "unpaid",
-            outstanding_amount: outstandingAmount,
-            party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+            ...p,
             days_overdue: daysOverdue,
             snoozed_until: schedule?.snoozed_until || null,
             recurring_interval_days: schedule?.recurring_interval_days || 2,
@@ -159,7 +182,7 @@ export async function GET(request: Request) {
         .from("sale_bills")
         .select(`
           id, bill_number, bill_date, due_date, payment_terms, grand_total, paid_amount,
-          payment_status, status, remarks, party:parties(id, name, company_name, phone)
+          payment_status, status, remarks, party:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)
         `)
         .eq("business_id", businessId)
         .eq("status", "active")
@@ -275,10 +298,18 @@ export async function POST(request: Request) {
         .toLowerCase()
         .replace(/\s+/g, "_");
 
+      const nameToSave = body.name || template_type || "Custom Template";
+
       const { data, error } = await supabase
         .from("whatsapp_templates")
         .upsert(
-          { business_id: businessId, template_type: normalizedType, template_text, updated_at: new Date().toISOString() },
+          {
+            business_id: businessId,
+            template_type: normalizedType,
+            template_text,
+            name: nameToSave,
+            updated_at: new Date().toISOString()
+          },
           { onConflict: "business_id,template_type" }
         )
         .select()
@@ -313,7 +344,7 @@ export async function POST(request: Request) {
         const [chequesRes, templateRes] = await Promise.all([
           supabase
             .from("cheques")
-            .select("id, cheque_number, bank_name, amount, cheque_date, status, party:parties(id, name, company_name, phone)")
+            .select("id, cheque_number, bank_name, amount, cheque_date, status, party:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)")
             .in("id", bill_ids)
             .eq("business_id", businessId),
           supabase
@@ -334,14 +365,15 @@ export async function POST(request: Request) {
         const groupedByParty: Record<string, { party: any; items: any[] }> = {};
         for (const c of cheques) {
           const party = Array.isArray(c.party) ? c.party[0] : c.party;
-          const key = party?.id || party?.phone || party?.name || "unknown";
+          const phoneResolved = getPartyPhone(party);
+          const key = party?.id || phoneResolved || party?.name || "unknown";
           if (!groupedByParty[key]) groupedByParty[key] = { party, items: [] };
           groupedByParty[key].items.push(c);
         }
 
         const links = Object.values(groupedByParty).map(({ party, items: partyCheques }) => {
           const partyName = party?.company_name || party?.name || "Customer";
-          const phone = (party?.phone || "").replace(/\D/g, "");
+          const phone = getPartyPhone(party);
 
           const chequeNos = partyCheques.map((c) => c.cheque_number ? `PDC #${c.cheque_number}` : "Cheque").join(", ");
           const totalAmount = partyCheques.reduce((sum, c) => sum + Number(c.amount || 0), 0);
@@ -366,7 +398,7 @@ export async function POST(request: Request) {
             party_name: partyName,
             phone,
             message: msg,
-            whatsapp_url: phone ? `https://web.whatsapp.com/send?phone=91${phone}&text=${encodeURIComponent(msg)}` : null,
+            whatsapp_url: phone ? getWhatsAppUrl(phone, msg) : null,
           };
         });
 
@@ -384,21 +416,38 @@ export async function POST(request: Request) {
 
       let bills: any[] = [];
       if (isPayable) {
-        const res = await supabase
-          .from("purchases")
-          .select("id, invoice_no, doc_number, grand_total, paid_amount, invoice_date, due_date, payment_terms, supplier:parties(id, name, company_name, phone)")
-          .in("id", bill_ids)
-          .eq("business_id", businessId);
-        bills = (res.data || []).map((p: any) => ({
+        const [rmRes, fgRes] = await Promise.all([
+          supabase
+            .from("raw_material_purchases")
+            .select("id, purchase_number, invoice_no, grand_total, paid_amount, invoice_date, due_date, payment_terms, supplier:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)")
+            .in("id", bill_ids)
+            .eq("business_id", businessId),
+          supabase
+            .from("purchase_bills")
+            .select("id, bill_number, invoice_no, grand_total, paid_amount, invoice_date, due_date, payment_terms, supplier:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)")
+            .in("id", bill_ids)
+            .eq("business_id", businessId),
+        ]);
+
+        const rmBills = (rmRes.data || []).map((p: any) => ({
           ...p,
-          bill_number: p.doc_number || p.invoice_no || "Purchase Bill",
+          bill_number: p.purchase_number || p.invoice_no || "RM Purchase",
           bill_date: p.invoice_date,
           party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
         }));
+
+        const fgBills = (fgRes.data || []).map((p: any) => ({
+          ...p,
+          bill_number: p.bill_number || p.invoice_no || "Purchase Bill",
+          bill_date: p.invoice_date,
+          party: Array.isArray(p.supplier) ? p.supplier[0] : p.supplier,
+        }));
+
+        bills = [...rmBills, ...fgBills];
       } else {
         const res = await supabase
           .from("sale_bills")
-          .select("id, bill_number, grand_total, paid_amount, bill_date, due_date, payment_terms, party:parties(id, name, company_name, phone)")
+          .select("id, bill_number, grand_total, paid_amount, bill_date, due_date, payment_terms, party:parties(id, name, company_name, phone, whatsapp_number, contact_numbers)")
           .in("id", bill_ids)
           .eq("business_id", businessId);
         bills = (res.data || []).map((b: any) => ({
@@ -409,9 +458,12 @@ export async function POST(request: Request) {
 
       const defaultTemplates: Record<string, string> = {
         payment_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is due on {{due_date}}. Kindly make payment at earliest. Thank you.",
-        overdue_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is overdue by {days} days. Please clear your dues immediately.",
-        bill_share: "Dear {{party_name}}, please find your bill {{invoice_no}} for ₹{{amount}} dated {date}.\n\nView Bill:\n{bill_url}\n\nThank you for your business.",
+        overdue_reminder: "Dear {{party_name}}, your bill {{invoice_no}} of ₹{{amount}} is overdue by {{days}} days. Please clear your dues immediately.",
+        bill_share: "Dear {{party_name}}, please find your bill {{invoice_no}} for ₹{{amount}} dated {{date}}.\n\nView Bill:\n{{bill_url}}\n\nThank you for your business.",
         pdc_reminder: "Dear {{party_name}}, your PDC cheque of ₹{{amount}} for bill {{invoice_no}} is due on {{due_date}}. Please ensure sufficient balance.",
+        payable_reminder: "Dear {{party_name}}, regarding purchase bill {{invoice_no}} of ₹{{amount}} due on {{due_date}}. Kindly confirm payment processing status. Thank you.",
+        vendor_payment_advice: "Dear {{party_name}}, payment of ₹{{amount}} for purchase bill {{invoice_no}} due on {{due_date}} is being processed. Thank you for your partnership.",
+        payment_schedule_notice: "Dear {{party_name}}, purchase bill {{invoice_no}} for ₹{{amount}} has been scheduled for payment on {{due_date}}.",
       };
 
       const rawTemplateText = templateRes.data?.template_text || defaultTemplates[selectedTemplateType] || defaultTemplates.payment_reminder;
@@ -425,7 +477,8 @@ export async function POST(request: Request) {
 
       for (const b of bills) {
         const partyObj = b.party;
-        const key = partyObj?.id || partyObj?.phone || partyObj?.name || "unknown";
+        const phoneResolved = getPartyPhone(partyObj);
+        const key = partyObj?.id || phoneResolved || partyObj?.name || "unknown";
         if (!groupedByParty[key]) {
           groupedByParty[key] = { party: partyObj, bills: [] };
         }
@@ -434,7 +487,7 @@ export async function POST(request: Request) {
 
       const links = Object.values(groupedByParty).map(({ party, bills: partyBills }) => {
         const partyName = (party?.company_name || party?.name || (isPayable ? "Supplier" : "Customer")).trim();
-        const phone = (party?.phone || "").replace(/\D/g, "");
+        const phone = getPartyPhone(party);
 
         const billNumbers = partyBills.map((b) => isPayable ? (b.doc_number || b.invoice_no) : b.bill_number).join(", ");
         const totalOutstanding = partyBills.reduce((sum, b) => {
@@ -482,6 +535,7 @@ export async function POST(request: Request) {
           .replace(/\{\{date\}\}/g, uniqueBillDates)
           .replace(/\{date\}/g, uniqueBillDates)
           .replace(/\{\{days\}\}/g, maxDaysOverdue.toString())
+          .replace(/\{days\}/g, maxDaysOverdue.toString())
           .replace(/\{\{bill_url\}\}/g, billUrl ? `\n\n${billUrl}\n\n` : "")
           .replace(/\{bill_url\}/g, billUrl ? `\n\n${billUrl}\n\n` : "")
           .replace(/\s+,/g, ",")
@@ -495,7 +549,7 @@ export async function POST(request: Request) {
           party_name: partyName,
           phone,
           message: msg,
-          whatsapp_url: phone ? `https://web.whatsapp.com/send?phone=91${phone}&text=${encodeURIComponent(msg)}` : null,
+          whatsapp_url: phone ? getWhatsAppUrl(phone, msg) : null,
         };
       });
 
@@ -507,3 +561,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

@@ -218,9 +218,10 @@ export async function GET(request: Request) {
         .eq("direction", "issued")
         .in("status", ["pending", "deposited"]),
       supabase
-        .from("purchase_bills")
+        .from("purchases")
         .select("grand_total, paid_amount, invoice_date, supplier:parties(name)")
         .eq("business_id", businessId)
+        .is("deleted_at", null)
         .neq("status", "cancelled")
         .neq("payment_status", "paid")
     ]);

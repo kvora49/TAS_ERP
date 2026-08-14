@@ -13,6 +13,7 @@ interface ItemsTableProps {
 }
 
 export function ItemsTable({ state, designs }: ItemsTableProps) {
+  const isKacha = state.type === "kacha" || state.gstTreatment === "exempt" || state.isKacha;
   const [selectedDesignId, setSelectedDesignId] = useState("");
   const [selectedColourId, setSelectedColourId] = useState("");
   const [rate, setRate] = useState<number>(0);
@@ -107,6 +108,13 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
     }
   }, [selectedDesignId]);
 
+  // Auto-populate hsnCode when design changes
+  useEffect(() => {
+    if (selectedDesign?.hsn_sac) {
+      setHsnCode(selectedDesign.hsn_sac);
+    }
+  }, [selectedDesignId, selectedDesign]);
+
   // Handle single size input change with optional Auto-Fill all sizes capability
   const handleSizeQtyChange = (changedSize: string, value: number) => {
     const qtyVal = Math.max(0, value);
@@ -175,9 +183,10 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
               size: sz,
               quantity: qtyVal,
               unit: "Pcs",
+              hsn_sac: hsnCode || selectedDesign?.hsn_sac || null,
               rate: Number(rate || 0),
               discount_percent: Number(discountPercent || 0),
-              tax_percent: Number(taxPercent || 0),
+              tax_percent: isKacha ? 0 : Number(taxPercent || 0),
               amount: lineAmount,
             });
           }
@@ -198,6 +207,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             size: "—",
             quantity: qtyVal,
             unit: "Pcs",
+            hsn_sac: hsnCode || selectedDesign?.hsn_sac || null,
             rate: Number(rate || 0),
             discount_percent: Number(discountPercent || 0),
             tax_percent: Number(taxPercent || 0),
@@ -462,35 +472,39 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             />
           </div>
 
-          {/* HSN Code */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
-              HSN Code
-            </label>
-            <input
-              type="text"
-              value={hsnCode}
-              onChange={(e) => setHsnCode(e.target.value)}
-              placeholder="6204"
-              className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
-            />
-          </div>
+          {!isKacha && (
+            <>
+              {/* HSN Code */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+                  HSN Code
+                </label>
+                <input
+                  type="text"
+                  value={hsnCode}
+                  onChange={(e) => setHsnCode(e.target.value)}
+                  placeholder="6204"
+                  className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
+                />
+              </div>
 
-          {/* GST % */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
-              GST %
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="28"
-              value={taxPercent}
-              onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
-              placeholder="12"
-              className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
-            />
-          </div>
+              {/* GST % */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+                  GST %
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="28"
+                  value={taxPercent}
+                  onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)}
+                  placeholder="12"
+                  className="w-full h-10 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-xs text-center text-[var(--text-primary)] focus:outline-none"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* 2. Sizing & Quantity Matrix Box */}
@@ -560,7 +574,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
               <th className="p-3.5 text-right">Qty</th>
               <th className="p-3.5 text-right">Rate</th>
               <th className="p-3.5 text-right">Disc %</th>
-              <th className="p-3.5 text-right">Tax %</th>
+              {!isKacha && <th className="p-3.5 text-right">Tax %</th>}
               <th className="p-3.5 text-right">Total</th>
               <th className="p-3.5 text-center">Remove</th>
             </tr>
@@ -631,7 +645,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                     />
                   </td>
                   <td className="p-3 text-right text-[var(--text-muted)]">{it.discount_percent}%</td>
-                  <td className="p-3 text-right text-[var(--text-muted)]">{it.tax_percent}%</td>
+                  {!isKacha && <td className="p-3 text-right text-[var(--text-muted)]">{it.tax_percent}%</td>}
                   <td className="p-3 text-right font-extrabold text-[var(--text-primary)]">₹{(Number(it.amount) || 0).toFixed(2)}</td>
                   <td className="p-3 text-center">
                     <button
@@ -648,7 +662,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
             })}
             {state.items.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-[var(--text-faint)] italic">
+                <td colSpan={isKacha ? 9 : 10} className="p-8 text-center text-[var(--text-faint)] italic">
                   No items added yet. Select a design or click &quot;+ Sell Fabric Rolls&quot; above to add invoice items.
                 </td>
               </tr>

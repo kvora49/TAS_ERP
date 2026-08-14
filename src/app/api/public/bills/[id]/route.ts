@@ -16,7 +16,7 @@ export async function GET(
       .select(`
         *,
         party:parties(*),
-        items:sale_bill_items(*, design:designs(id, design_number, name), colour:design_colours(id, colour_name)),
+        items:sale_bill_items(*, design:designs(id, design_number, name, hsn_code), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, hsn_code)),
         charges:sale_bill_charges(*)
       `)
       .eq("id", params.id)
@@ -26,6 +26,25 @@ export async function GET(
     if (billErr) throw billErr;
     if (!bill) {
       return NextResponse.json({ error: "Invoice not found or expired" }, { status: 404 });
+    }
+
+    if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
+      try {
+        const itemIds = bill.items.map((it: any) => it.id);
+        const { data: rollsData } = await supabase.from("sale_rolls").select("*").in("sale_item_id", itemIds);
+        if (rollsData && rollsData.length > 0) {
+          const rollsByItem: Record<string, any[]> = {};
+          for (const r of rollsData) {
+            if (!rollsByItem[r.sale_item_id]) rollsByItem[r.sale_item_id] = [];
+            rollsByItem[r.sale_item_id].push(r);
+          }
+          for (const it of bill.items) {
+            it.rolls = rollsByItem[it.id] || [];
+          }
+        }
+      } catch {
+        // Safe non-blocking fallback
+      }
     }
 
     // Fetch primary brand details for business
@@ -40,7 +59,7 @@ export async function GET(
     let brandConfig = null;
     if (brand) {
       const { data: cfg } = await supabase
-        .from("brand_invoice_configs")
+        .from("brand_bill_config")
         .select("*")
         .eq("brand_id", brand.id)
         .maybeSingle();

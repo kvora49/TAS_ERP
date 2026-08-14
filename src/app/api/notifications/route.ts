@@ -21,13 +21,12 @@ function computeDueDate(
 }
 
 export async function GET(request: Request) {
-  const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const supabase = createClient();
+    const businessId = await getSessionBusinessId();
+    if (!businessId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -209,13 +208,13 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const supabase = createClient();
+    const businessId = await getSessionBusinessId();
+    if (!businessId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { notificationIds, markAllRead } = body;
 

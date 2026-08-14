@@ -18,7 +18,7 @@ export async function GET(
     // 1. Fetch Return
     const { data: pReturn, error: returnError } = await supabase
       .from("purchase_returns")
-      .select("*, supplier:parties(id, name, company_name), purchase:raw_material_purchases(id, purchase_number, invoice_no)")
+      .select("*, supplier:parties(*), purchase:raw_material_purchases(*)")
       .eq("id", id)
       .eq("business_id", businessId)
       .is("deleted_at", null)
@@ -31,14 +31,36 @@ export async function GET(
     // 2. Fetch Return Items
     const { data: items, error: itemsError } = await supabase
       .from("purchase_return_items")
-      .select("*, material_type:raw_material_types(name, category), design:designs(id, design_number, name), colour:design_colours(id, colour_name, colour_hex)")
+      .select(`
+        *,
+        material_type:raw_material_types(*),
+        design:designs(*),
+        colour:design_colours(*),
+        purchase_item:raw_material_purchase_items(*, rolls:purchase_rolls(*))
+      `)
       .eq("return_id", id)
       .eq("business_id", businessId);
+
+    const enrichedItems = (items || []).map((it: any) => {
+      const pItem = it.purchase_item;
+      return {
+        ...it,
+        rolls: (it.rolls && Array.isArray(it.rolls) && it.rolls.length > 0)
+          ? it.rolls
+          : (pItem?.rolls || []),
+        width: it.width || pItem?.width || it.material_type?.width,
+        gsm: it.gsm || pItem?.gsm || it.material_type?.gsm,
+        shade: it.shade || pItem?.shade || pItem?.shade_no || it.colour?.colour_name,
+        roll_no: it.roll_no || pItem?.roll_no || pItem?.batch_no,
+        size_quantities: it.size_quantities || pItem?.size_quantities,
+        description: it.description || pItem?.remarks || pItem?.item_details,
+      };
+    });
 
     return NextResponse.json({
       return: {
         ...pReturn,
-        items: items || [],
+        items: enrichedItems,
       },
     });
   } catch (err: any) {

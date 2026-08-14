@@ -65,18 +65,30 @@ interface DashboardData {
 }
 
 import { useGeneralSettings } from "@/hooks/useGeneralSettings";
+import { useChartTheme } from "@/hooks/useChartTheme";
+import PageState from "@/components/shared/PageState";
 
 export default function DashboardPage() {
   const user = useAppStore((state) => state.user);
   const filters = useAppStore((state) => state.filters);
   const queryClient = useQueryClient();
+  const chartTheme = useChartTheme();
   const { lowStockAlerts: isLowStockAlertsEnabled, formatAppCurrency } = useGeneralSettings();
 
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardData | null>({
+  const {
+    data: dashboardData,
+    isLoading: dashboardLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<DashboardData | null>({
     queryKey: ["dashboard", filters.brandId, filters.dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/dashboard?brandId=${filters.brandId}&dateRange=${filters.dateRange}`);
-      if (!res.ok) throw new Error("Failed to load dashboard data");
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Failed to load dashboard data");
+      }
       const result = await res.json();
       return result;
     },
@@ -135,127 +147,119 @@ export default function DashboardPage() {
     return formatAppCurrency(val);
   };
 
-  if (loading || !data) {
-    return (
-      <div className="space-y-6 select-none animate-pulse">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="bg-[var(--card-bg)] rounded-xl p-5 border border-[var(--border)] shadow-[var(--shadow-sm)] flex items-start justify-between">
-              <div className="space-y-3 w-full">
-                <div className="h-2.5 w-2/3 bg-[var(--border)] rounded" />
-                <div className="h-6 w-1/2 bg-[var(--border)] rounded" />
-                <div className="h-2 w-3/4 bg-[var(--border)] rounded" />
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-[var(--border)] shrink-0" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const { kpis, productionDonut, lowStockAlerts, upcomingPayments, salesChart, godownStock, bankBalances } = data;
-
   return (
-    <div className="space-y-6">
-      {/* Row 1: KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <KPICard
-          title="Total Stock Value"
-          value={formatCurrency(kpis.totalStockValue.value)}
-          change={kpis.totalStockValue.change}
-          positive={kpis.totalStockValue.positive}
-          icon={ShoppingBag}
-          iconBgClass="bg-[#EEF2FF] text-[#6366F1] dark:bg-[#1E1B4B] dark:text-[#818CF8]"
-        />
+    <PageState
+      isLoading={loading}
+      isError={isError}
+      error={error?.message}
+      onRetry={refetch}
+      isEmpty={!data}
+      skeletonVariant="stats"
+      skeletonCount={5}
+    >
+      {data && (() => {
+        const { kpis, productionDonut, lowStockAlerts, upcomingPayments, salesChart, godownStock, bankBalances } = data;
 
-        <KPICard
-          title="Today's Sales"
-          value={formatCurrency(kpis.todaySales.value)}
-          change={kpis.todaySales.change}
-          positive={kpis.todaySales.positive}
-          icon={IndianRupee}
-          iconBgClass="bg-[#F0FDF4] text-[#16A34A] dark:bg-[#064E3B] dark:text-[#4ADE80]"
-        />
+        return (
+          <div className="space-y-6">
+            {/* Row 1: KPI Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KPICard
+                title="Total Stock Value"
+                value={formatCurrency(kpis.totalStockValue.value)}
+                change={kpis.totalStockValue.change}
+                positive={kpis.totalStockValue.positive}
+                icon={ShoppingBag}
+                iconBgClass="bg-[#EEF2FF] text-[#6366F1] dark:bg-[#1E1B4B] dark:text-[#818CF8]"
+              />
 
-        <KPICard
-          title={
-            filters.dateRange === "today"
-              ? "Today's Sales"
-              : filters.dateRange === "this_week"
-              ? "This Week Sales"
-              : filters.dateRange === "last_month"
-              ? "Last Month Sales"
-              : filters.dateRange === "this_year"
-              ? "This Year Sales"
-              : "This Month Sales"
-          }
-          value={formatCurrency(kpis.thisMonthSales.value)}
-          change={kpis.thisMonthSales.change}
-          positive={kpis.thisMonthSales.positive}
-          icon={TrendingUp}
-          iconBgClass="bg-[#FFF7ED] text-[#EA580C] dark:bg-[#431407] dark:text-[#FB923C]"
-        />
+              <KPICard
+                title="Today's Sales"
+                value={formatCurrency(kpis.todaySales.value)}
+                change={kpis.todaySales.change}
+                positive={kpis.todaySales.positive}
+                icon={IndianRupee}
+                iconBgClass="bg-[#F0FDF4] text-[#16A34A] dark:bg-[#064E3B] dark:text-[#4ADE80]"
+              />
 
-        <KPICard
-          title="Pending Dues"
-          value={formatCurrency(kpis.pendingDues.value)}
-          change={kpis.pendingDues.change}
-          positive={kpis.pendingDues.positive}
-          icon={UserCircle}
-          iconBgClass="bg-[#FEF9C3] text-[#D97706] dark:bg-[#451A03] dark:text-[#FBBF24]"
-          inverseColorDirection={true}
-        />
+              <KPICard
+                title={
+                  filters.dateRange === "today"
+                    ? "Today's Sales"
+                    : filters.dateRange === "this_week"
+                    ? "This Week Sales"
+                    : filters.dateRange === "last_month"
+                    ? "Last Month Sales"
+                    : filters.dateRange === "this_year"
+                    ? "This Year Sales"
+                    : "This Month Sales"
+                }
+                value={formatCurrency(kpis.thisMonthSales.value)}
+                change={kpis.thisMonthSales.change}
+                positive={kpis.thisMonthSales.positive}
+                icon={TrendingUp}
+                iconBgClass="bg-[#FFF7ED] text-[#EA580C] dark:bg-[#431407] dark:text-[#FB923C]"
+              />
 
-        <KPICard
-          title="Cash in Hand"
-          value={formatCurrency(kpis.cashInHand.value)}
-          change={kpis.cashInHand.change}
-          positive={kpis.cashInHand.positive}
-          icon={Wallet}
-          iconBgClass="bg-[#FDF2F8] text-[#DB2777] dark:bg-[#500724] dark:text-[#F472B6]"
-        />
-      </div>
+              <KPICard
+                title="Pending Dues"
+                value={formatCurrency(kpis.pendingDues.value)}
+                change={kpis.pendingDues.change}
+                positive={kpis.pendingDues.positive}
+                icon={UserCircle}
+                iconBgClass="bg-[#FEF9C3] text-[#D97706] dark:bg-[#451A03] dark:text-[#FBBF24]"
+                inverseColorDirection={true}
+              />
 
-      {/* Row 2: Production Donut & Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Production Status Donut */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Production Stages</h3>
-            <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">
-              Lots Distribution
-            </span>
-          </div>
+              <KPICard
+                title="Cash in Hand"
+                value={formatCurrency(kpis.cashInHand.value)}
+                change={kpis.cashInHand.change}
+                positive={kpis.cashInHand.positive}
+                icon={Wallet}
+                iconBgClass="bg-[#FDF2F8] text-[#DB2777] dark:bg-[#500724] dark:text-[#F472B6]"
+              />
+            </div>
 
-          <div className="h-56 relative flex items-center justify-center my-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={productionDonut}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={85}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {productionDonut.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => [`${value} Lots`, "Count"]}
-                  contentStyle={{
-                    background: "#0F172A",
-                    color: "#F8FAFC",
-                    borderRadius: "8px",
-                    border: "1px solid #334155",
-                    fontSize: "11px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {/* Row 2: Production Donut & Lists */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Production Status Donut */}
+              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Production Stages</h3>
+                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">
+                    Lots Distribution
+                  </span>
+                </div>
+
+                <div className="h-56 relative flex items-center justify-center my-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={productionDonut}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {productionDonut.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => [`${value} Lots`, "Count"]}
+                        contentStyle={{
+                          background: chartTheme.tooltipBg,
+                          color: chartTheme.text,
+                          borderRadius: "8px",
+                          border: `1px solid ${chartTheme.tooltipBorder}`,
+                          fontSize: "11px",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
 
             {/* Inner Label */}
             <div className="absolute flex flex-col items-center justify-center text-center">
@@ -399,35 +403,35 @@ export default function DashboardPage() {
           <div className="h-56 w-full my-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={salesChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
                 <XAxis
                   dataKey="date"
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "var(--text-muted)", fontSize: 10, fontWeight: 600 }}
+                  tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
                   dy={10}
                 />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `₹${val / 1000}k`}
-                  tick={{ fill: "var(--text-muted)", fontSize: 10, fontWeight: 600 }}
+                  tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
                   dx={-10}
                 />
                 <Tooltip
                   formatter={(value) => [formatCurrency(Number(value)), "Sales"]}
                   contentStyle={{
-                    background: "#0F172A",
-                    color: "#F8FAFC",
+                    background: chartTheme.tooltipBg,
+                    color: chartTheme.text,
                     borderRadius: "8px",
-                    border: "1px solid #334155",
+                    border: `1px solid ${chartTheme.tooltipBorder}`,
                     fontSize: "11px",
                   }}
                 />
                 <Line
                   type="monotone"
                   dataKey="sales"
-                  stroke="#6366F1"
+                  stroke="var(--primary)"
                   strokeWidth={3}
                   dot={{ r: 4, strokeWidth: 1, fill: "var(--card-bg)" }}
                   activeDot={{ r: 6 }}
@@ -565,6 +569,9 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+        );
+      })()}
+    </PageState>
   );
 }
 

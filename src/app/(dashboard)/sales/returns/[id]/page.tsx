@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { CreditNoteModal } from "@/components/modals/CreditNoteModal";
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 
 interface CreditNote {
   id: string;
@@ -55,6 +56,7 @@ interface SalesReturn {
   return_number: string;
   return_date: string;
   return_reason: string | null;
+  reason?: string | null;
   taxable_amount?: number;
   cgst?: number;
   sgst?: number;
@@ -67,6 +69,7 @@ interface SalesReturn {
   original_bill_id: string | null;
   credit_note_id: string | null;
   party?: Party;
+  items?: any[];
   bill?: Bill | null;
   credit_note?: CreditNote | CreditNote[] | null;
 }
@@ -119,11 +122,21 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(val);
 
+  const { business, brandConfig, logoUrl } = useCompanyProfile();
+
   const creditNote = sReturn?.credit_note
     ? Array.isArray(sReturn.credit_note)
       ? sReturn.credit_note[0]
       : sReturn.credit_note
     : null;
+
+  const refDoc = sReturn?.bill ? {
+    invoice_number: sReturn.bill.bill_number,
+    invoice_date: sReturn.bill.bill_date || "",
+    invoice_amount: sReturn.bill.grand_total || 0,
+    payment_made: (sReturn.bill as any)?.paid_amount || (sReturn.bill as any)?.received_amount || 0,
+    note_amount: creditNote?.amount || sReturn.grand_total || 0,
+  } : null;
 
   if (loading) {
     return (
@@ -143,7 +156,8 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header */}
+      <div className="space-y-6 print:hidden">
+        {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
           <Link href="/sales/returns" className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors text-[var(--text-muted)]">
@@ -276,43 +290,69 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
                 Items Returned to Inventory Stock
               </h2>
             </div>
-            {ledgerEntries.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[var(--text-faint)] italic">
-                No stock movement entries found for this return.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold">
-                      <th className="p-3">Design / Product</th>
-                      <th className="p-3 text-right">Qty Returned</th>
-                      <th className="p-3 text-right">Credit Value (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {ledgerEntries.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-[var(--table-row-hover)]">
-                        <td className="p-3">
-                          <p className="font-bold text-[var(--text-primary)]">
-                            {entry.design?.name || "—"}
-                          </p>
-                          {entry.design?.design_number && (
-                            <p className="text-[10px] text-[var(--text-muted)] font-mono">{entry.design.design_number}</p>
-                          )}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-600">
-                          +{Math.abs(entry.quantity_delta)} pcs
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-[var(--text-primary)]">
-                          {formatCurrency(Math.abs(entry.value_delta))}
-                        </td>
+            {(() => {
+              const displayList = (sReturn.items && sReturn.items.length > 0) ? sReturn.items : ledgerEntries;
+              if (displayList.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-[var(--text-faint)] italic">
+                    No stock movement entries found for this return.
+                  </div>
+                );
+              }
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold">
+                        <th className="p-3">Design / Product</th>
+                        <th className="p-3 text-right">Qty Returned</th>
+                        <th className="p-3 text-right">Credit Value (₹)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {displayList.map((entry: any, idx: number) => {
+                        const dName = entry.design?.name || entry.item_name || (entry.design ? entry.design.design_number : "Returned Product");
+                        const dCode = entry.design?.design_number || entry.design_code || entry.article_no || "";
+                        const colour = entry.colour?.colour_name || entry.colour_name || entry.colour || "";
+                        const qty = entry.returned_qty || entry.quantity || Math.abs(entry.quantity_delta || 0);
+                        const val = entry.amount || Math.abs(entry.value_delta || 0) || (qty * Number(entry.rate || entry.unit_rate || 0));
+                        const sq = entry.size_quantities;
+                        const hasSq = sq && typeof sq === "object" && Object.keys(sq).length > 0;
+                        const sqEntries = hasSq ? Object.entries(sq).filter(([_, q]) => Number(q) > 0) : [];
+
+                        return (
+                          <tr key={entry.id || idx} className="hover:bg-[var(--table-row-hover)]">
+                            <td className="p-3">
+                              <p className="font-bold text-[var(--text-primary)]">{dName}</p>
+                              <div className="flex items-center gap-2 mt-0.5 text-[10px]">
+                                {dCode && <span className="text-[var(--text-muted)] font-mono">Art: {dCode}</span>}
+                                {colour && colour !== "Standard" && <span className="text-[var(--text-muted)]">Col: {colour}</span>}
+                                {entry.size && entry.size !== "—" && <span className="font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.2 rounded border border-indigo-200">Size: {entry.size}</span>}
+                              </div>
+                              {sqEntries.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {sqEntries.map(([s, q]) => (
+                                    <span key={s} className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-[var(--text-primary)] rounded border border-[var(--border)]">
+                                      {s}: {String(q)} pcs
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                              +{qty} {entry.unit || "pcs"}
+                            </td>
+                            <td className="p-3 text-right font-mono font-bold text-[var(--text-primary)]">
+                              {formatCurrency(val)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Return Reason */}
@@ -414,14 +454,13 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
                     <FileText className="h-3.5 w-3.5" />
                     Open Credit Note Voucher
                   </button>
-                  <Link
-                    href={`/sales/credit-notes/${creditNote.id}/print`}
-                    target="_blank"
-                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[var(--text-primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] rounded-lg transition-all"
+                  <button
+                    onClick={() => setCnModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[var(--text-primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] rounded-lg transition-all cursor-pointer"
                   >
                     <Printer className="h-3.5 w-3.5" />
                     Print / Download A4 PDF
-                  </Link>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -436,29 +475,26 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
             <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Activity</h2>
             <div className="space-y-2.5 text-xs">
               <div className="flex items-center gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="text-[var(--text-muted)]">Return recorded on</span>
-                <span className="font-semibold text-[var(--text-primary)]">{sReturn.return_date}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-[var(--text-muted)]">Return recorded on <strong>{sReturn.return_date}</strong></span>
               </div>
               {creditNote && (
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0"></span>
-                  <span className="text-[var(--text-muted)]">Credit Note</span>
-                  <span className="font-mono font-semibold text-[var(--primary)]">{creditNote.cn_number}</span>
-                  <span className="text-[var(--text-muted)]">issued</span>
+                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span className="text-[var(--text-muted)]">Credit Note <strong>{creditNote.cn_number}</strong> issued</span>
                 </div>
               )}
               {ledgerEntries.length > 0 && (
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                  <span className="text-[var(--text-muted)]">
-                    {ledgerEntries.length} stock entries restored to inventory
-                  </span>
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-[var(--text-muted)]">{ledgerEntries.length} stock entries restored to inventory</span>
                 </div>
               )}
             </div>
           </div>
         </div>
+      </div>
+
       </div>
 
       {/* Delete Confirm Dialog */}
@@ -472,7 +508,7 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
         onConfirm={handleDelete}
       />
 
-      {/* Credit Note Voucher Modal */}
+      {/* Credit Note Modal */}
       {creditNote && (
         <CreditNoteModal
           open={cnModalOpen}
@@ -480,8 +516,13 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
           creditNote={{
             cn_number: creditNote.cn_number,
             cn_date: creditNote.cn_date,
-            amount: creditNote.amount,
-            reason: creditNote.reason,
+            amount: Number(creditNote.amount || sReturn.grand_total),
+            taxable_amount: (creditNote as any).taxable_amount || (sReturn as any).taxable_amount || 0,
+            cgst: (creditNote as any).cgst || (sReturn as any).cgst || 0,
+            sgst: (creditNote as any).sgst || (sReturn as any).sgst || 0,
+            igst: (creditNote as any).igst || (sReturn as any).igst || 0,
+            round_off: (creditNote as any).round_off || (sReturn as any).round_off || 0,
+            reason: creditNote.reason || sReturn.return_reason || sReturn.reason || "Sales Return",
             party: sReturn.party,
             return: {
               return_number: sReturn.return_number,
@@ -489,7 +530,17 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
               bill: sReturn.bill ? { bill_number: sReturn.bill.bill_number, bill_date: sReturn.bill.bill_date } : null,
             },
           }}
-          items={ledgerEntries}
+          items={(sReturn.items && sReturn.items.length > 0) ? sReturn.items : ledgerEntries}
+          company={business ? {
+            name: business.name,
+            address: business.address,
+            gstin: business.gstin,
+            phone: business.phone,
+            email: business.email,
+          } : undefined}
+          config={brandConfig}
+          logoUrl={logoUrl}
+          referenceDoc={refDoc}
         />
       )}
     </div>

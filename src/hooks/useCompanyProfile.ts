@@ -15,6 +15,8 @@ export interface CompanyProfileResponse {
     currency: string;
     updated_at: string;
   } | null;
+  brand?: any;
+  brandConfig?: any;
 }
 
 export function useCompanyProfile() {
@@ -33,6 +35,8 @@ export function useCompanyProfile() {
   });
 
   const business = query.data?.business;
+  const brand = query.data?.brand;
+  const brandConfig = query.data?.brandConfig;
 
   /**
    * Universal logo resolution hierarchy (User Preference):
@@ -44,6 +48,9 @@ export function useCompanyProfile() {
     }
     if (brandLogoUrl && brandLogoUrl.trim().length > 0) {
       return brandLogoUrl;
+    }
+    if (brand?.logo_url && brand.logo_url.trim().length > 0) {
+      return brand.logo_url;
     }
     return null;
   };
@@ -58,14 +65,16 @@ export function useCompanyProfile() {
   return {
     ...query,
     business,
-    companyName: business?.name || "",
+    brand,
+    brandConfig,
+    companyName: business?.name || "Company",
     gstin: business?.gstin || "",
     pan: business?.pan || "",
     address: business?.address || "",
     phone: business?.phone || "",
     email: business?.email || "",
     website: business?.website || "",
-    logoUrl: business?.logo_url || "",
+    logoUrl: getEffectiveLogo(),
     fiscalYear: business?.financial_year_start || "1 April – 31 March",
     currency: business?.currency || "INR (₹)",
     // Helpers

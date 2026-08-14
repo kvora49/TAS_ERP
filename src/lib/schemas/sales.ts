@@ -7,6 +7,7 @@ export const SaleBillItemSchema = z.object({
   item_name: z.string().optional().nullable(),
   colour_id: z.string().optional().nullable(),
   size: z.string().optional().nullable(),
+  size_quantities: z.record(z.string(), z.number()).optional().nullable(),
   quantity: z.number().positive("Quantity must be greater than 0"),
   rate: z.number().nonnegative("Rate must be a non-negative number"),
   discount_percent: z.number().min(0).max(100).optional().default(0),
@@ -47,6 +48,25 @@ export const CreateSaleBillSchema = z.object({
   is_temporary: z.boolean().optional().default(false),
   items: z.array(SaleBillItemSchema).min(1, "At least one item is required"),
   charges: z.array(SaleBillChargeSchema).optional().default([]),
+  // Consignee / Ship-To
+  ship_to_same_as_bill_to: z.boolean().optional().default(true),
+  consignee_name: z.string().optional().nullable(),
+  consignee_address: z.string().optional().nullable(),
+  consignee_gstin: z.string().optional().nullable(),
+  consignee_state: z.string().optional().nullable(),
+  consignee_state_code: z.string().optional().nullable(),
+  // Dispatch details
+  buyer_order_no: z.string().optional().nullable(),
+  buyer_order_date: z.string().optional().nullable(),
+  dispatch_doc_no: z.string().optional().nullable(),
+  delivery_note: z.string().optional().nullable(),
+  delivery_note_date: z.string().optional().nullable(),
+  dispatched_through: z.string().optional().nullable(),
+  destination: z.string().optional().nullable(),
+  terms_of_delivery: z.string().optional().nullable(),
+  mode_of_payment: z.string().optional().nullable(),
+  // Print exclusions (JSONB)
+  print_exclusions: z.record(z.string(), z.boolean()).optional().default({}),
 });
 
 export const UpdateSaleBillSchema = CreateSaleBillSchema.partial();
