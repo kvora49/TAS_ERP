@@ -25,6 +25,8 @@ import RecordSalaryModal from "./_components/RecordSalaryModal";
 import RecordMiscIncomeModal from "./_components/RecordMiscIncomeModal";
 import ReverseWriteOffModal from "./_components/ReverseWriteOffModal";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
 
 import {
   DropdownMenu,
@@ -185,10 +187,15 @@ function ExpensesHubContent() {
         ))}
       </div>
 
-      {/* ── DESKTOP: 4-col stat grid ── */}
-      <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── DESKTOP: 4-col stat grid — animated ── */}
+      <motion.div
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      >
         {/* Expenses */}
-        <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1">
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1 transition-shadow">
           <div className="flex items-center justify-between text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             <span>Expenses (This Month)</span>
             <Wallet className="w-4 h-4 text-indigo-500" />
@@ -196,10 +203,10 @@ function ExpensesHubContent() {
           <div className="text-xl font-bold text-[var(--text-primary)]">
             {formatCurrency(totalExpensesThisMonth)}
           </div>
-        </div>
+        </motion.div>
 
         {/* Salary Paid */}
-        <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1">
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1 transition-shadow">
           <div className="flex items-center justify-between text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             <span>Salary Paid (This Month)</span>
             <Users className="w-4 h-4 text-emerald-500" />
@@ -207,10 +214,10 @@ function ExpensesHubContent() {
           <div className="text-xl font-bold text-[var(--text-primary)]">
             {formatCurrency(totalSalaryThisMonth)}
           </div>
-        </div>
+        </motion.div>
 
         {/* Misc Income */}
-        <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1">
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1 transition-shadow">
           <div className="flex items-center justify-between text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             <span>Misc Income (This Month)</span>
             <ArrowDownLeft className="w-4 h-4 text-amber-500" />
@@ -218,10 +225,10 @@ function ExpensesHubContent() {
           <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
             {formatCurrency(totalMiscIncomeThisMonth)}
           </div>
-        </div>
+        </motion.div>
 
         {/* Write-offs */}
-        <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1">
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] space-y-1 transition-shadow">
           <div className="flex items-center justify-between text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             <span>Active Write-offs</span>
             <AlertCircle className="w-4 h-4 text-rose-500" />
@@ -229,68 +236,61 @@ function ExpensesHubContent() {
           <div className="text-xl font-bold text-rose-600 dark:text-rose-400">
             {formatCurrency(activeWriteOffsTotal)}
           </div>
-        </div>
-      </div>{/* end desktop KPI grid */}
+        </motion.div>
+      </motion.div>{/* end desktop KPI grid */}
 
       {/* Tab Switcher */}
       <div className="flex items-center gap-2 border-b border-[var(--border)] overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => handleTabChange("expenses")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all shrink-0 ${
-            activeTab === "expenses"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          📂 Operating Expenses
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("salary")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all shrink-0 ${
-            activeTab === "salary"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          👥 Worker Salary & Payroll
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("misc-income")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all shrink-0 ${
-            activeTab === "misc-income"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          💵 Misc Income Inflows
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("write-offs")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all shrink-0 ${
-            activeTab === "write-offs"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          📝 Write-offs & Adjustments
-        </button>
+        {[
+          { id: "expenses", label: "📂 Operating Expenses" },
+          { id: "salary", label: "👥 Worker Salary & Payroll" },
+          { id: "misc-income", label: "💵 Misc Income Inflows" },
+          { id: "write-offs", label: "📝 Write-offs & Adjustments" },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleTabChange(tab.id)}
+              className={cn(
+                "relative pb-3 px-4 text-xs font-bold transition-colors shrink-0 cursor-pointer",
+                isActive
+                  ? "text-[var(--primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              {tab.label}
+              {isActive && (
+                <motion.div
+                  layoutId="expenses-tab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content Rendering */}
       <div>
-        {activeTab === "expenses" && <ExpensesTab />}
-        {activeTab === "salary" && <SalaryTab />}
-        {activeTab === "misc-income" && <MiscIncomeTab />}
-        {activeTab === "write-offs" && (
-          <WriteOffsTab onOpenReverseModal={(id) => setSelectedWriteOffId(id)} />
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          >
+            {activeTab === "expenses" && <ExpensesTab />}
+            {activeTab === "salary" && <SalaryTab />}
+            {activeTab === "misc-income" && <MiscIncomeTab />}
+            {activeTab === "write-offs" && (
+              <WriteOffsTab onOpenReverseModal={(id) => setSelectedWriteOffId(id)} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Modals */}

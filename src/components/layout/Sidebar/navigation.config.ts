@@ -250,6 +250,7 @@ export const navItems: NavItem[] = [
     icon: Settings,
     subItems: [
       { name: "General", href: "/settings/general" },
+      { name: "Companies", href: "/settings/companies" },
       { name: "Company Profile", href: "/settings/company-profile" },
       { name: "Users & Roles", href: "/settings/users-roles" },
       { name: "Financial", href: "/settings/financial" },

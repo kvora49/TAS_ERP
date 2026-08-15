@@ -1,27 +1,30 @@
-import { createClient as createServerClient, getSessionBusinessId } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createServerClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { user, businessId } = guard.ctx;
+  const targetUserId = params.id;
+
+  if (user.id === targetUserId) {
+    return NextResponse.json(
+      { error: "You cannot deactivate or suspend your own account", code: "CANNOT_DEACTIVATE_SELF" },
+      { status: 400 }
+    );
   }
 
-  const userId = params.id;
+  const supabase = createClient();
 
   try {
     const { action } = await request.json().catch(() => ({ action: "deactivate" }));
-
-    // Initialize Supabase Admin Client
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = createAdminClient();
 
     if (action === "activate") {
-      // Activate: reset deleted_at and set active
+      // 1. Activate profile
       const { error: profileError } = await supabase
         .from("users")
         .update({
@@ -29,21 +32,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           is_active: true,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", userId)
+        .eq("id", targetUserId)
         .eq("business_id", businessId);
 
-      if (profileError) {
-        return NextResponse.json({ error: profileError.message }, { status: 500 });
-      }
+      if (profileError) throw profileError;
 
-      // Re-enable in auth
-      await supabaseAdmin.auth.admin.updateUserById(userId, {
-        ban_duration: "none",
-      });
+      // 2. Activate company_members row
+      await supabaseAdmin
+        .from("company_members")
+        .update({ status: "active", updated_at: new Date().toISOString() })
+        .eq("user_id", targetUserId)
+        .eq("company_id", businessId);
 
       return NextResponse.json({ success: true, active: true });
     } else {
-      // Deactivate: set deleted_at and inactive
+      // 1. Deactivate profile
       const { error: profileError } = await supabase
         .from("users")
         .update({
@@ -51,30 +54,22 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           is_active: false,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", userId)
+        .eq("id", targetUserId)
         .eq("business_id", businessId);
 
-      if (profileError) {
-        return NextResponse.json({ error: profileError.message }, { status: 500 });
-      }
+      if (profileError) throw profileError;
 
-      // Ban/disable user session in Auth
-      try {
-        await supabaseAdmin.auth.admin.signOut(userId);
-        // Ban for 10 years to prevent login
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
-          ban_duration: "87600h", // 10 years
-        });
-      } catch (authErr: any) {
-        console.warn("Could not completely invalidate auth session:", authErr.message);
-      }
+      // 2. Suspend company_members row
+      await supabaseAdmin
+        .from("company_members")
+        .update({ status: "suspended", updated_at: new Date().toISOString() })
+        .eq("user_id", targetUserId)
+        .eq("company_id", businessId);
 
       return NextResponse.json({ success: true, active: false });
     }
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

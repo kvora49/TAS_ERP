@@ -87,25 +87,55 @@ export async function reconcileRawMaterialStock(
     const godownStockMap = new Map<string, { currentStock: number; totalValue: number; totalCostSum: number; costCount: number }>();
 
     if (rolls.length > 0) {
-      // Roll-based materials: Stock per godown is exact sum of purchase_rolls.remaining_meters
-      rolls.forEach((r: any) => {
+      // Fetch active lot allocations for these rolls
+      const rollIds = rolls.map((r: any) => r.id);
+      const { data: rawLotRolls } = await supabase
+        .from("lot_rolls")
+        .select("purchase_roll_id, allocated_meters, lot:production_lots(status)")
+        .in("purchase_roll_id", rollIds);
+
+      const { data: rawSaleItems } = await supabase
+        .from("sale_bill_items")
+        .select("purchase_roll_id, quantity, bill:sale_bills(status)")
+        .in("purchase_roll_id", rollIds);
+
+      // Roll-based materials: Stock per godown is exact sum of audited purchase_rolls.remaining_meters
+      for (const r of rolls) {
         const info = pItemGodownMap.get(r.purchase_item_id);
         const gId = info?.godownId || defaultGodownId;
         const rate = info?.rate || 0;
-        if (!gId) return;
+        if (!gId) continue;
 
-        const remMeters = Math.max(0, Number(r.remaining_meters || 0));
-        const val = remMeters * rate;
+        const totalAllocated = (rawLotRolls || [])
+          .filter((lr: any) => lr.purchase_roll_id === r.id && lr.lot?.status !== "cancelled")
+          .reduce((sum: number, lr: any) => sum + Number(lr.allocated_meters || 0), 0);
+
+        const totalSold = (rawSaleItems || [])
+          .filter((sbi: any) => sbi.purchase_roll_id === r.id && sbi.bill?.status !== "cancelled")
+          .reduce((sum: number, sbi: any) => sum + Number(sbi.quantity || 0), 0);
+
+        const initialMeters = Number(r.meters || 0);
+        const auditedRemaining = Math.max(0, initialMeters - totalAllocated - totalSold);
+
+        // Self-heal database record if out of sync
+        if (Number(r.remaining_meters) !== auditedRemaining) {
+          await supabase
+            .from("purchase_rolls")
+            .update({ remaining_meters: auditedRemaining })
+            .eq("id", r.id);
+        }
+
+        const val = auditedRemaining * rate;
 
         const existing = godownStockMap.get(gId) || { currentStock: 0, totalValue: 0, totalCostSum: 0, costCount: 0 };
-        existing.currentStock += remMeters;
+        existing.currentStock += auditedRemaining;
         existing.totalValue += val;
         if (rate > 0) {
           existing.totalCostSum += rate;
           existing.costCount += 1;
         }
         godownStockMap.set(gId, existing);
-      });
+      }
     } else {
       // Non-roll materials: Sum of Purchased Qty
       validPItems.forEach((pi: any) => {

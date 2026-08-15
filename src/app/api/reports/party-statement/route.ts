@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       rmPurchasesQuery,
       purchaseBillsQuery,
       salesQuery,
-      supabase.from("payments").select("id, payment_number, payment_date, direction, payment_mode, amount").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
+      supabase.from("payments").select("id, payment_number, payment_date, direction, payment_mode, amount, bank_account:bank_accounts(id, name, account_category)").eq("party_id", partyId).eq("business_id", bid).neq("status", "cancelled"),
       supabase.from("write_offs").select("id, amount, written_off_at").eq("business_id", bid),
       supabase.from("credit_notes").select("id, cn_number, cn_date, amount, return_id").eq("party_id", partyId).eq("business_id", bid),
       supabase.from("debit_notes").select("id, dn_number, dn_date, amount, related_purchase_return_id").eq("party_id", partyId).eq("business_id", bid),
@@ -190,11 +190,18 @@ export async function GET(req: NextRequest) {
     });
 
     // Unified Payments
-    (paymentsRes.data ?? []).forEach((p) => {
+    (paymentsRes.data ?? []).forEach((p: any) => {
+      const bankCat = p.bank_account?.account_category || (p.payment_mode === "cash" ? "kacha" : undefined);
+      if (billType === "kacha" && bankCat && bankCat !== "kacha" && bankCat !== "both") return;
+      if (billType === "pakka" && bankCat && bankCat !== "pakka" && bankCat !== "both") return;
+
+      const bankStr = p.bank_account?.name ? ` — ${p.bank_account.name}` : "";
+      const catTag = bankCat === "pakka" ? " [🏷️ Pakka]" : bankCat === "kacha" ? " [📝 Kaccha]" : "";
+
       if (p.direction === "received") {
         entries.push({
           date: p.payment_date,
-          type: `Payment Received (${p.payment_mode})`,
+          type: `Payment Received (${p.payment_mode}${bankStr})${catTag}`,
           reference: p.payment_number,
           debit: 0,
           credit: Number(p.amount),
@@ -202,7 +209,7 @@ export async function GET(req: NextRequest) {
       } else {
         entries.push({
           date: p.payment_date,
-          type: `Payment Made (${p.payment_mode})`,
+          type: `Payment Made (${p.payment_mode}${bankStr})${catTag}`,
           reference: p.payment_number,
           debit: Number(p.amount),
           credit: 0,

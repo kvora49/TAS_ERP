@@ -15,6 +15,7 @@ import {
 } from "@/components/reports/ReportChart";
 import { fmtINR, fmtDate, exportToExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 
@@ -102,21 +103,31 @@ export default function FinancialReportsPage() {
 
       {/* Tab switcher */}
       <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={cn(
-              "px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer",
-              activeTab === t.id
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const isActive = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={cn(
+                "relative px-5 py-3 text-sm font-semibold transition-colors cursor-pointer",
+                isActive
+                  ? "text-[var(--primary)] font-bold"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-body)]"
+              )}
+            >
+              {t.label}
+              {isActive && (
+                <motion.div
+                  layoutId="financial-reports-tab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <PageState
@@ -128,14 +139,22 @@ export default function FinancialReportsPage() {
         skeletonCount={4}
       >
         {data && (
-          <>
-            {activeTab === "pl" && <PLTab data={data} />}
-            {activeTab === "balance" && <BalanceTab data={data} />}
-            {activeTab === "gst" && (
-              <GSTTab data={data} section={gstSection} setSection={setGstSection} />
-            )}
-            {activeTab === "cashflow" && <CashFlowTab data={data} />}
-          </>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {activeTab === "pl" && <PLTab data={data} />}
+              {activeTab === "balance" && <BalanceTab data={data} />}
+              {activeTab === "gst" && (
+                <GSTTab data={data} section={gstSection} setSection={setGstSection} />
+              )}
+              {activeTab === "cashflow" && <CashFlowTab data={data} />}
+            </motion.div>
+          </AnimatePresence>
         )}
       </PageState>
     </ReportShell>
@@ -269,12 +288,30 @@ function BalanceTab({ data }: { data: any }) {
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-blue-500">Assets</h3>
           </div>
           <div className="divide-y divide-[var(--border-light)] text-xs font-semibold">
-            {Object.entries(bs.assets).map(([key, val]) => (
-              <div key={key} className="flex justify-between px-5 py-3">
-                <span className="text-[var(--text-muted)] capitalize">{key.replace(/_/g, " ")}</span>
-                <span className="font-bold font-mono text-[var(--text-primary)]">{fmtINR(Number(val))}</span>
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-[var(--text-muted)]">Trade Receivables</span>
+              <span className="font-bold font-mono text-[var(--text-primary)]">{fmtINR(Number(bs.assets.trade_receivables || 0))}</span>
+            </div>
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-[var(--text-muted)]">Total Cash & Bank</span>
+              <span className="font-bold font-mono text-[var(--text-primary)]">{fmtINR(Number(bs.assets.cash_and_bank || 0))}</span>
+            </div>
+            {bs.assets.pakka_bank_balance !== undefined && (
+              <div className="flex justify-between px-5 py-2.5 pl-8 bg-indigo-500/5">
+                <span className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-bold">
+                  🏷️ Pakka Bank Accounts
+                </span>
+                <span className="font-bold font-mono text-indigo-600 dark:text-indigo-400">{fmtINR(Number(bs.assets.pakka_bank_balance || 0))}</span>
               </div>
-            ))}
+            )}
+            {bs.assets.kacha_bank_balance !== undefined && (
+              <div className="flex justify-between px-5 py-2.5 pl-8 bg-amber-500/5">
+                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-bold">
+                  📝 Kaccha / Cash Accounts
+                </span>
+                <span className="font-bold font-mono text-amber-600 dark:text-amber-400">{fmtINR(Number(bs.assets.kacha_bank_balance || 0))}</span>
+              </div>
+            )}
             <div className="flex justify-between px-5 py-3 bg-blue-500/5 border-t border-[var(--border)]">
               <span className="font-extrabold text-[10px] uppercase text-blue-500">Total Assets</span>
               <span className="font-extrabold font-mono text-blue-500">{fmtINR(totalAssets)}</span>
@@ -472,15 +509,41 @@ function CashFlowTab({ data }: { data: any }) {
         "rounded-xl p-5 text-white shadow-md",
         isPositive ? "bg-emerald-600" : "bg-rose-600"
       )}>
-        <p className="text-xs font-bold uppercase tracking-widest opacity-80">Net Cash Flow</p>
-        <p className="text-3xl font-extrabold mt-1">{fmtINR(cf.net_cash_flow)}</p>
-        <p className="text-xs opacity-70 mt-1">{data.from} → {data.to}</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80">Net Cash Flow</p>
+            <p className="text-3xl font-extrabold mt-1">{fmtINR(cf.net_cash_flow)}</p>
+            <p className="text-xs opacity-70 mt-1">{data.from} → {data.to}</p>
+          </div>
+          <div className="flex gap-2">
+            <div className="bg-black/20 rounded-lg px-3 py-1.5 text-right">
+              <span className="text-[10px] opacity-75 font-semibold block">🏷️ Pakka Net</span>
+              <span className="font-mono font-bold text-xs">{fmtINR(cf.net_pakka_flow ?? 0)}</span>
+            </div>
+            <div className="bg-black/20 rounded-lg px-3 py-1.5 text-right">
+              <span className="text-[10px] opacity-75 font-semibold block">📝 Kaccha Net</span>
+              <span className="font-mono font-bold text-xs">{fmtINR(cf.net_kacha_flow ?? 0)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4">
-        <ReportKPICard label="Total Cash Inflows" value={cf.total_inflows} color="emerald" icon={<ArrowDownLeft size={16} />} />
-        <ReportKPICard label="Total Cash Outflows" value={cf.total_outflows} color="rose" icon={<ArrowUpRight size={16} />} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ReportKPICard
+          label="Total Cash Inflows"
+          value={cf.total_inflows}
+          color="emerald"
+          icon={<ArrowDownLeft size={16} />}
+          subLabel={`Pakka: ${fmtINR(cf.pakka_inflow ?? 0)} · Kaccha: ${fmtINR(cf.kacha_inflow ?? 0)}`}
+        />
+        <ReportKPICard
+          label="Total Cash Outflows"
+          value={cf.total_outflows}
+          color="rose"
+          icon={<ArrowUpRight size={16} />}
+          subLabel={`Pakka: ${fmtINR(cf.pakka_outflow ?? 0)} · Kaccha: ${fmtINR(cf.kacha_outflow ?? 0)}`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -31,12 +31,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const syncUser = async () => {
       try {
-        // Race session fetch against a 10-second timeout so the
-        // spinner never blocks the app indefinitely.
         const sessionResult = await Promise.race([
           supabase.auth.getSession(),
           new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error("Session timeout")), 10_000)
+            setTimeout(() => reject(new Error("Auth timeout")), 10_000)
           ),
         ]);
 
@@ -54,10 +52,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        const user = session.user;
+
+        // 1. Fetch user base profile
         const { data: profile, error } = await supabase
           .from("users")
           .select("id, email, full_name, role, business_id")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .is("deleted_at", null)
           .maybeSingle();
 
@@ -69,14 +70,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // 2. Fetch active membership if available
+        let cookieBizId: string | null = null;
+        if (typeof document !== "undefined") {
+          const match = document.cookie.match(/(?:^|;\s*)(?:active_company_id|sb-business-id)=([^;]+)/);
+          cookieBizId = match ? decodeURIComponent(match[1]) : null;
+        }
+
+        let activeBizId = cookieBizId || profile.business_id;
+        let activeRole = profile.role;
+
+        const { data: memberships } = await supabase
+          .from("company_members")
+          .select("company_id, role")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: true });
+
+        if (memberships && memberships.length > 0) {
+          const matched =
+            (cookieBizId && memberships.find((m) => m.company_id === cookieBizId)) ||
+            memberships.find((m) => m.company_id === profile.business_id) ||
+            memberships[0];
+          activeBizId = matched.company_id;
+          activeRole = matched.role;
+        }
+
         setUser({
           id: profile.id,
           email: profile.email,
           fullName: profile.full_name,
-          role: profile.role as any,
-          businessId: profile.business_id,
+          role: (activeRole || "staff") as any,
+          businessId: activeBizId,
         });
-        setSelectedBusinessId(profile.business_id);
+        setSelectedBusinessId(activeBizId);
       } catch (err) {
         console.error("Error syncing user session:", err);
         if (!cancelled) {

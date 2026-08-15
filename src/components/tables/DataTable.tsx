@@ -1,7 +1,12 @@
+"use client";
+
 import React from "react";
 import { TableSkeleton } from "./TableSkeleton";
 import { EmptyState } from "../shared/EmptyState";
 import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { motion } from "framer-motion";
+import { tableRowVariants } from "@/lib/animations";
+import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -39,6 +44,9 @@ export function DataTable<T>({
   emptyActionLabel,
   onRowClick,
 }: DataTableProps<T>) {
+  const profile = useExperienceProfile();
+  const isUltraFast = profile?.level === "ultraFast";
+
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const startIdx = total === 0 ? 0 : (page - 1) * perPage + 1;
   const endIdx = Math.min(page * perPage, total);
@@ -81,24 +89,50 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              data.map((row, rIdx) => (
-                <tr
-                  key={rIdx}
-                  onClick={() => onRowClick?.(row)}
-                  className={`hover:bg-[var(--table-row-hover)] transition-colors border-b border-[var(--border)] last:border-b-0 ${
-                    onRowClick ? "cursor-pointer" : ""
-                  }`}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className="px-4 py-3.5 align-middle font-medium text-[var(--text-body)]"
+              data.map((row, rIdx) => {
+                const rowContent = (
+                  <>
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className="px-4 py-3.5 align-middle font-medium text-[var(--text-body)]"
+                      >
+                        {col.render(row)}
+                      </td>
+                    ))}
+                  </>
+                );
+
+                if (isUltraFast) {
+                  return (
+                    <tr
+                      key={rIdx}
+                      onClick={() => onRowClick?.(row)}
+                      className={`hover:bg-[var(--table-row-hover)] transition-colors border-b border-[var(--border)] last:border-b-0 ${
+                        onRowClick ? "cursor-pointer" : ""
+                      }`}
                     >
-                      {col.render(row)}
-                    </td>
-                  ))}
-                </tr>
-              ))
+                      {rowContent}
+                    </tr>
+                  );
+                }
+
+                return (
+                  <motion.tr
+                    key={rIdx}
+                    variants={tableRowVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    onClick={() => onRowClick?.(row)}
+                    className={`hover:bg-[var(--table-row-hover)] transition-colors border-b border-[var(--border)] last:border-b-0 ${
+                      onRowClick ? "cursor-pointer" : ""
+                    }`}
+                  >
+                    {rowContent}
+                  </motion.tr>
+                );
+              })
             )}
           </tbody>
         </table>

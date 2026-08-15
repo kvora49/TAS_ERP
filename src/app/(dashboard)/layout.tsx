@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { CompanyProvider } from "@/components/providers/CompanyProvider";
 import { ModuleGuard } from "@/components/shared/ModuleGuard";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -18,7 +19,8 @@ export default function DashboardLayout({
 
   return (
     <AuthProvider>
-      <div className="flex h-screen overflow-hidden bg-[var(--page-bg)] text-[var(--text-body)] print:h-auto print:overflow-visible">
+      <CompanyProvider>
+        <div className="flex h-screen overflow-hidden bg-[var(--page-bg)] text-[var(--text-body)] print:h-auto print:overflow-visible">
         {/* Navigation Sidebar */}
         <Sidebar />
 
@@ -41,6 +43,7 @@ export default function DashboardLayout({
           <BottomNav />
         </div>
       </div>
+      </CompanyProvider>
     </AuthProvider>
   );
 }

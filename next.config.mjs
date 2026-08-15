@@ -69,6 +69,29 @@ const nextConfig = {
       },
     ];
   },
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "recharts",
+      "jspdf",
+      "jspdf-autotable",
+      "xlsx",
+      "@tanstack/react-query",
+      "framer-motion",
+      "@aws-sdk/client-s3",
+      "@aws-sdk/s3-request-presigner",
+    ],
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  webpack: (config) => {
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface InAppNotification {
   id: string;
@@ -40,7 +41,9 @@ const LS_KEY = "tas_notif_read_ids";
 function getLocalReadIds(): Set<string> {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
   } catch {
     return new Set();
   }
@@ -67,12 +70,40 @@ function saveAllLocalReadIds(ids: string[]) {
 
 export function NotificationPopover() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [pushGranted, setPushGranted] = useState(false);
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [subscribingPush, setSubscribingPush] = useState(false);
+
+  const { data: notifData } = useQuery<{
+    notifications: InAppNotification[];
+    unreadCount: number;
+  }>({
+    queryKey: ["notifications", "in-app"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) return { notifications: [], unreadCount: 0 };
+      return res.json();
+    },
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (notifData) {
+      const readIds = getLocalReadIds();
+      const notifs: InAppNotification[] = (notifData.notifications || []).map(
+        (n: InAppNotification) => ({
+          ...n,
+          is_read: n.is_read || readIds.has(n.id),
+        })
+      );
+      setNotifications(notifs);
+      setUnreadCount(notifs.filter((n) => !n.is_read).length);
+    }
+  }, [notifData]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator) {
@@ -82,8 +113,6 @@ export function NotificationPopover() {
           if (sub) {
             setPushGranted(true);
           } else {
-            // Permission granted but active SW push subscription is missing or was reset.
-            // Auto resubscribe silently using unified SW to prevent prompt resets.
             handleSubscribeWebPush(true);
           }
         }).catch(() => {
@@ -91,29 +120,6 @@ export function NotificationPopover() {
         });
       }
     }
-  }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch("/api/notifications");
-      if (!res.ok) return;
-      const data = await res.json();
-      const readIds = getLocalReadIds();
-      const notifs: InAppNotification[] = (data.notifications || []).map(
-        (n: InAppNotification) => ({
-          ...n,
-          is_read: n.is_read || readIds.has(n.id),
-        })
-      );
-      setNotifications(notifs);
-      setUnreadCount(notifs.filter((n) => !n.is_read).length);
-    } catch (_err) {}
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleMarkAllRead = async () => {
@@ -277,7 +283,7 @@ export function NotificationPopover() {
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (isOpen) fetchNotifications(); }}>
+    <DropdownMenu open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (isOpen) queryClient.invalidateQueries({ queryKey: ["notifications", "in-app"] }); }}>
       <DropdownMenuTrigger
         className="relative w-9 h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer outline-none select-none"
       >

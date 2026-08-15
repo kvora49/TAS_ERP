@@ -159,8 +159,24 @@ export default function SalesReportsPage() {
               <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Sales" value={summary.totalRevenue} color="emerald" icon={<TrendingUp size={16} />} /></div>
               <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Bills" value={summary.totalBills} format="number" color="blue" icon={<Receipt size={16} />} /></div>
               <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Avg. Bill Value" value={summary.avgBillValue} color="violet" icon={<IndianRupee size={16} />} /></div>
-              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Total Received" value={summary.totalPaid} color="indigo" icon={<ShoppingBag size={16} />} /></div>
-              <div className="snap-start shrink-0 w-[148px] md:w-auto"><ReportKPICard label="Outstanding" value={summary.totalOutstanding} color="rose" icon={<Users size={16} />} /></div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto">
+                <ReportKPICard
+                  label="Total Received"
+                  value={summary.totalPaid}
+                  color="indigo"
+                  icon={<ShoppingBag size={16} />}
+                  subLabel={`Pakka: ${fmtINR(summary.pakkaPaid ?? 0)} · Kaccha: ${fmtINR(summary.kachaPaid ?? 0)}`}
+                />
+              </div>
+              <div className="snap-start shrink-0 w-[148px] md:w-auto">
+                <ReportKPICard
+                  label="Outstanding"
+                  value={summary.totalOutstanding}
+                  color="rose"
+                  icon={<Users size={16} />}
+                  subLabel={`Pakka: ${fmtINR(summary.pakkaOutstanding ?? 0)} · Kaccha: ${fmtINR(summary.kachaOutstanding ?? 0)}`}
+                />
+              </div>
             </div>
 
 

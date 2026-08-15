@@ -1,5 +1,7 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
+import { CreatePartySchema } from "@/lib/schemas/parties.schema";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -49,17 +51,15 @@ export async function GET(request: Request) {
     const { data: parties, error } = await query.order("name", { ascending: true });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     return NextResponse.json({ parties });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -207,9 +207,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ party });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }

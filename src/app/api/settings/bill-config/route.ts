@@ -58,11 +58,13 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { requireAuthGuard } = await import("@/lib/auth/guards");
+  const { handleApiError } = await import("@/lib/api-response");
+
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -119,6 +121,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
+

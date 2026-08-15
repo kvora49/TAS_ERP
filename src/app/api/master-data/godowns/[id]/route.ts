@@ -14,159 +14,150 @@ export async function GET(
   const { id } = params;
 
   try {
-    // 1. Fetch godown details
-    const { data: godown, error: godownError } = await supabase
-      .from("godowns")
-      .select("*")
-      .eq("id", id)
-      .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .single();
+    // 1. Parallelize initial queries
+    const [godownRes, stockItemsRes, movementsRes, finishedStockItemsRes] = await Promise.all([
+      supabase
+        .from("godowns")
+        .select("*")
+        .eq("id", id)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .single(),
+      supabase
+        .from("raw_material_current_stock")
+        .select(`
+          id,
+          current_stock,
+          stock_value,
+          material_type_id
+        `)
+        .eq("godown_id", id)
+        .eq("business_id", businessId)
+        .gt("current_stock", 0),
+      supabase
+        .from("stock_ledger")
+        .select(`
+          id,
+          item_type,
+          item_id,
+          transaction_type,
+          quantity_delta,
+          value_delta,
+          created_at
+        `)
+        .eq("godown_id", id)
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("finished_stock")
+        .select(`
+          id,
+          total_quantity,
+          cost_per_piece,
+          total_value,
+          size_quantities,
+          design:designs(id, name, code:design_number, sale_price),
+          colour:design_colours(id, colour_name)
+        `)
+        .eq("godown_id", id)
+        .eq("business_id", businessId)
+        .gt("total_quantity", 0),
+    ]);
 
-    if (godownError || !godown) {
+    const godown = godownRes.data;
+    if (godownRes.error || !godown) {
       return NextResponse.json({ error: "Godown not found" }, { status: 404 });
     }
 
-    // 2. Fetch live stock summary of raw materials in this godown
-    const { data: stockItems, error: stockError } = await supabase
-      .from("raw_material_current_stock")
-      .select(`
-        id,
-        current_stock,
-        stock_value,
-        material_type_id
-      `)
-      .eq("godown_id", id)
-      .eq("business_id", businessId)
-      .gt("current_stock", 0);
+    const stockItems = stockItemsRes.data || [];
+    const movements = movementsRes.data || [];
+    const finishedStockItems = finishedStockItemsRes.data || [];
 
-    // Resolve material details for current stock
-    let resolvedStock: any[] = [];
-    if (stockItems && stockItems.length > 0) {
-      const materialIds = stockItems.map((item) => item.material_type_id);
-      const { data: rawMaterials } = await supabase
-        .from("raw_material_types")
-        .select("id, name, category, unit")
-        .in("id", materialIds);
+    // 2. Resolve polymorphic references for raw material stock
+    const materialIds = stockItems.map((item) => item.material_type_id);
+    const rawMaterialIds = movements
+      .filter((m) => m.item_type === "raw_material")
+      .map((m) => m.item_id);
+    const allMaterialIds = Array.from(new Set([...materialIds, ...rawMaterialIds]));
 
-      const materialsLookup = (rawMaterials || []).reduce((acc: any, curr) => {
-        acc[curr.id] = curr;
-        return acc;
-      }, {});
+    const finishedGoodIds = Array.from(
+      new Set(
+        movements
+          .filter((m) => m.item_type === "finished_good")
+          .map((m) => m.item_id)
+      )
+    );
 
-      resolvedStock = stockItems.map((item) => ({
-        id: item.id,
-        current_stock: Number(item.current_stock),
-        stock_value: Number(item.stock_value),
-        material_type: materialsLookup[item.material_type_id] || {
-          name: "Unknown Material",
-          category: "Other",
-          unit: "Pieces",
-        },
-      }));
-    }
+    const [materialsRes, designsRes] = await Promise.all([
+      allMaterialIds.length > 0
+        ? supabase
+            .from("raw_material_types")
+            .select("id, name, category, unit")
+            .in("id", allMaterialIds)
+        : Promise.resolve({ data: [] }),
+      finishedGoodIds.length > 0
+        ? supabase
+            .from("designs")
+            .select("id, name, code:design_number")
+            .in("id", finishedGoodIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
-    // 3. Fetch recent 50 movements from stock_ledger for this godown
-    const { data: movements, error: movementsError } = await supabase
-      .from("stock_ledger")
-      .select(`
-        id,
-        item_type,
-        item_id,
-        transaction_type,
-        quantity_delta,
-        value_delta,
-        created_at
-      `)
-      .eq("godown_id", id)
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const materialsLookup = (materialsRes.data || []).reduce((acc: any, curr: any) => {
+      acc[curr.id] = curr;
+      return acc;
+    }, {});
 
-    // Resolve item names for movements polymorphic references
-    let resolvedMovements: any[] = [];
-    if (movements && movements.length > 0) {
-      const rawMaterialIds = movements
-        .filter((m) => m.item_type === "raw_material")
-        .map((m) => m.item_id);
+    const designsLookup = (designsRes.data || []).reduce((acc: any, curr: any) => {
+      acc[curr.id] = curr;
+      return acc;
+    }, {});
 
-      const finishedGoodIds = movements
-        .filter((m) => m.item_type === "finished_good")
-        .map((m) => m.item_id);
+    // Resolve stock
+    const resolvedStock = stockItems.map((item) => ({
+      id: item.id,
+      current_stock: Number(item.current_stock),
+      stock_value: Number(item.stock_value),
+      material_type: materialsLookup[item.material_type_id] || {
+        name: "Unknown Material",
+        category: "Other",
+        unit: "Pieces",
+      },
+    }));
 
-      // Query raw material details
-      let materialsLookup: any = {};
-      if (rawMaterialIds.length > 0) {
-        const { data: rawMaterials } = await supabase
-          .from("raw_material_types")
-          .select("id, name, unit")
-          .in("id", rawMaterialIds);
-        materialsLookup = (rawMaterials || []).reduce((acc: any, curr) => {
-          acc[curr.id] = curr;
-          return acc;
-        }, {});
-      }
+    // Resolve movements
+    const resolvedMovements = movements.map((m) => {
+      let itemName = "Unknown Item";
+      let unit = "pcs";
 
-      // Query finished goods (designs) details
-      let designsLookup: any = {};
-      if (finishedGoodIds.length > 0) {
-        const { data: designs } = await supabase
-          .from("designs")
-          .select("id, name, code")
-          .in("id", finishedGoodIds);
-        designsLookup = (designs || []).reduce((acc: any, curr) => {
-          acc[curr.id] = curr;
-          return acc;
-        }, {});
-      }
-
-      resolvedMovements = movements.map((m) => {
-        let itemName = "Unknown Item";
-        let unit = "pcs";
-
-        if (m.item_type === "raw_material") {
-          const mat = materialsLookup[m.item_id];
-          if (mat) {
-            itemName = mat.name;
-            unit = mat.unit || "Meters";
-          }
-        } else if (m.item_type === "finished_good") {
-          const des = designsLookup[m.item_id];
-          if (des) {
-            itemName = des.code ? `${des.code} - ${des.name}` : des.name;
-          }
+      if (m.item_type === "raw_material") {
+        const mat = materialsLookup[m.item_id];
+        if (mat) {
+          itemName = mat.name;
+          unit = mat.unit || "Meters";
         }
+      } else if (m.item_type === "finished_good") {
+        const des = designsLookup[m.item_id];
+        if (des) {
+          itemName = des.code ? `${des.code} - ${des.name}` : des.name;
+        }
+      }
 
-        return {
-          id: m.id,
-          item_type: m.item_type,
-          transaction_type: m.transaction_type,
-          quantity_delta: Number(m.quantity_delta),
-          value_delta: Number(m.value_delta),
-          created_at: m.created_at,
-          itemName,
-          unit,
-        };
-      });
-    }
+      return {
+        id: m.id,
+        item_type: m.item_type,
+        transaction_type: m.transaction_type,
+        quantity_delta: Number(m.quantity_delta),
+        value_delta: Number(m.value_delta),
+        created_at: m.created_at,
+        itemName,
+        unit,
+      };
+    });
 
-    // 4. Fetch finished stock in this godown
-    const { data: finishedStockItems } = await supabase
-      .from("finished_stock")
-      .select(`
-        id,
-        total_quantity,
-        cost_per_piece,
-        total_value,
-        size_quantities,
-        design:designs(id, name, code:design_number, sale_price),
-        colour:design_colours(id, colour_name)
-      `)
-      .eq("godown_id", id)
-      .eq("business_id", businessId)
-      .gt("total_quantity", 0);
-
-    const resolvedFinishedStock = (finishedStockItems || []).map((item: any) => {
+    // Resolve finished stock
+    const resolvedFinishedStock = finishedStockItems.map((item: any) => {
       const qty = Number(item.total_quantity || 0);
       const costPerPiece = Number(item.cost_per_piece || 0);
       const salePrice = Number(item.design?.sale_price || 0);

@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { PurchaseService } from "@/services/purchase.service";
 import { logAudit } from "@/lib/audit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -20,11 +21,7 @@ export async function GET(request: Request) {
     const purchases = await service.listPurchases(businessId, { status, paymentStatus, search });
     return NextResponse.json({ purchases });
   } catch (err: any) {
-    console.error("[/api/raw-materials/purchases] ERROR:", JSON.stringify(err), err?.message, err?.code, err?.details);
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
 
@@ -51,10 +48,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ purchase });
   } catch (err: any) {
-    const status = err.message?.includes("required") ? 400 : 500;
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status }
-    );
+    return handleApiError(err);
   }
 }
+

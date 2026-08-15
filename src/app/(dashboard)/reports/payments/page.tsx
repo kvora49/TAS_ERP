@@ -48,6 +48,8 @@ export default function PaymentReportsPage() {
   const [to, setTo] = useState(defaultDates.to);
   const [activeTab, setActiveTab] = useState<PayTab>("receivables");
   const [billType, setBillType] = useState<BillType>("all");
+  const [accountCategory, setAccountCategory] = useState<"all" | "pakka" | "kacha">("all");
+  const [directionFilter, setDirectionFilter] = useState<"all" | "received" | "paid">("all");
   const [partyId, setPartyId] = useState("all");
   const [agingBucket, setAgingBucket] = useState("all");
 
@@ -68,10 +70,12 @@ export default function PaymentReportsPage() {
   }));
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-payments", from, to, activeTab, billType, partyId, agingBucket],
+    queryKey: ["report-payments", from, to, activeTab, billType, accountCategory, directionFilter, partyId, agingBucket],
     queryFn: async () => {
       const params = new URLSearchParams({ from, to, tab: activeTab });
       if (billType !== "all") params.set("bill_type", billType);
+      if (accountCategory !== "all") params.set("account_category", accountCategory);
+      if (directionFilter !== "all") params.set("direction", directionFilter);
       if (partyId !== "all") params.set("party_id", partyId);
       if (agingBucket !== "all") params.set("aging_bucket", agingBucket);
       const res = await fetch(`/api/reports/payments?${params}`);
@@ -109,6 +113,8 @@ export default function PaymentReportsPage() {
           { key: "date", label: "Date", format: "date", width: 14 },
           { key: "direction", label: "Direction", width: 12 },
           { key: "mode", label: "Mode", width: 14 },
+          { key: "account_name", label: "Account", width: 22 },
+          { key: "account_category", label: "Nature", width: 14 },
           { key: "party", label: "Party", width: 30 },
           { key: "amount", label: "Amount (₹)", format: "currency", width: 18 },
           { key: "reference", label: "Reference", width: 18 },
@@ -137,7 +143,7 @@ export default function PaymentReportsPage() {
   return (
     <ReportShell
       title="Payment Reports"
-      infoTooltip="Track receivables, payables, and payment mode analysis (UPI, Bank, Cash) in one place."
+      infoTooltip="Track receivables, payables, and payment mode analysis (UPI, Bank, Cash) with Pakka/Kaccha differentiation."
       breadcrumbs={["Reports", "Payment Reports"]}
       onApply={handleApply}
       onExportExcel={handleExportExcel}
@@ -158,9 +164,96 @@ export default function PaymentReportsPage() {
               options={AGING_OPTIONS}
             />
           )}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
-            <BillTypeFilter value={billType} onChange={setBillType} />
+
+          {/* Direction Filter for Transactions */}
+          {!isReceivablesOrPayables && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Flow:</span>
+              <div className="flex gap-0.5 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setDirectionFilter("all")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    directionFilter === "all"
+                      ? "bg-[var(--primary)] text-white shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectionFilter("received")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    directionFilter === "received"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-emerald-500"
+                  }`}
+                >
+                  Received In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectionFilter("paid")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    directionFilter === "paid"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-rose-500"
+                  }`}
+                >
+                  Paid Out
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Account Category Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Account:</span>
+            <div className="flex gap-0.5 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountCategory("all");
+                  setBillType("all");
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  accountCategory === "all" && billType === "all"
+                    ? "bg-[var(--primary)] text-white shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountCategory("pakka");
+                  setBillType("pakka");
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  accountCategory === "pakka"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-indigo-500"
+                }`}
+              >
+                🏷️ Pakka
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountCategory("kacha");
+                  setBillType("kacha");
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  accountCategory === "kacha"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-amber-500"
+                }`}
+              >
+                📝 Kaccha
+              </button>
+            </div>
           </div>
         </div>
       }
@@ -195,7 +288,7 @@ export default function PaymentReportsPage() {
         skeletonCount={3}
         isEmpty={!isLoading && (data?.rows ?? []).length === 0}
         emptyTitle="No records found"
-        emptyDescription={`No ${activeTab} records found for the selected period.`}
+        emptyDescription={`No ${activeTab} records found for the selected filter.`}
       >
         {data && (
           <div className="space-y-6">
@@ -215,13 +308,25 @@ export default function PaymentReportsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <ReportKPICard label="Total Received" value={s.totalIn ?? 0} color="emerald" icon={<ArrowDownLeft size={16} />} />
-                <ReportKPICard label="Total Paid Out" value={s.totalOut ?? 0} color="rose" icon={<ArrowUpRight size={16} />} />
+                <ReportKPICard
+                  label="Total Received"
+                  value={s.totalIn ?? 0}
+                  color="emerald"
+                  icon={<ArrowDownLeft size={16} />}
+                  subLabel={`Pakka: ${fmtINR(s.totalInPakka ?? 0)} · Kaccha: ${fmtINR(s.totalInKacha ?? 0)}`}
+                />
+                <ReportKPICard
+                  label="Total Paid Out"
+                  value={s.totalOut ?? 0}
+                  color="rose"
+                  icon={<ArrowUpRight size={16} />}
+                  subLabel={`Pakka: ${fmtINR(s.totalOutPakka ?? 0)} · Kaccha: ${fmtINR(s.totalOutKacha ?? 0)}`}
+                />
                 <ReportKPICard
                   label="Net Flow"
                   value={Math.abs(s.net ?? 0)}
                   color={(s.net ?? 0) >= 0 ? "emerald" : "rose"}
-                  subLabel={(s.net ?? 0) >= 0 ? "Net Inflow" : "Net Outflow"}
+                  subLabel={(s.net ?? 0) >= 0 ? "Net Inflow (+)" : "Net Outflow (-)"}
                 />
               </div>
             )}
@@ -229,10 +334,15 @@ export default function PaymentReportsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main table */}
               <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
+                <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex items-center justify-between">
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">
                     {isReceivablesOrPayables ? "Outstanding Bills" : "Transactions"}
                   </h3>
+                  {!isReceivablesOrPayables && (
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold">
+                      Showing {(data.rows ?? []).length} records
+                    </span>
+                  )}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -242,7 +352,7 @@ export default function PaymentReportsPage() {
                           ? ["Bill No.", "Date", "Party", "Total", "Paid", "Outstanding", "Status"].map(h => (
                               <th key={h} className={`py-2.5 px-4 ${["Total","Paid","Outstanding"].includes(h) ? "text-right" : ""}`}>{h}</th>
                             ))
-                          : ["Payment No.", "Date", "Direction", "Mode", "Party", "Amount"].map(h => (
+                          : ["Payment No.", "Date", "Direction", "Account & Nature", "Party", "Amount"].map(h => (
                               <th key={h} className={`py-2.5 px-4 ${h === "Amount" ? "text-right" : ""}`}>{h}</th>
                             ))
                         }
@@ -250,7 +360,7 @@ export default function PaymentReportsPage() {
                     </thead>
                     <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
                       {isReceivablesOrPayables
-                        ? (data.rows ?? []).slice(0, 20).map((r: any) => (
+                        ? (data.rows ?? []).slice(0, 30).map((r: any) => (
                             <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
                               <td className="py-2 px-4 font-mono font-bold text-[var(--text-primary)]">{r.number}</td>
                               <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
@@ -270,7 +380,7 @@ export default function PaymentReportsPage() {
                               </td>
                             </tr>
                           ))
-                        : (data.rows ?? []).slice(0, 20).map((r: any) => (
+                        : (data.rows ?? []).slice(0, 30).map((r: any) => (
                             <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
                               <td className="py-2 px-4 font-mono font-bold text-[var(--text-primary)]">{r.number}</td>
                               <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
@@ -285,9 +395,20 @@ export default function PaymentReportsPage() {
                                 </span>
                               </td>
                               <td className="py-2 px-4">
-                                <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
-                                  {MODE_LABEL[r.mode] ?? r.mode}
-                                </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-semibold text-[var(--text-primary)] truncate max-w-[130px]">{r.account_name}</span>
+                                  <div>
+                                    {r.account_category === "pakka" ? (
+                                      <span className="inline-flex items-center text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20">
+                                        🏷️ Pakka
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                                        📝 Kaccha
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </td>
                               <td className="py-2 px-4 max-w-[120px] truncate">{r.party}</td>
                               <td className={cn(

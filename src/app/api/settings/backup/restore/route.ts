@@ -1,13 +1,14 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { restoreDatabaseBackup } from "@/lib/backup/backupEngine";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(request: Request) {
+  const guard = await requireAuthGuard(["owner"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const formData = await request.formData();
@@ -41,9 +42,7 @@ export async function POST(request: Request) {
       restoredCounts: restoreResult.restoredCounts,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Database restoration failed." },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

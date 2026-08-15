@@ -1,6 +1,9 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { APP_MODULES } from "@/components/layout/Sidebar/navigation.config";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
+import { UpdateRolePermissionsSchema } from "@/lib/schemas/settings.schema";
 
 const ROLES = ["owner", "admin", "manager", "accountant", "staff", "intern"];
 
@@ -184,24 +187,20 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
-    const body = await request.json();
-    const { permissions } = body; // Array of permission updates
-
-    if (!Array.isArray(permissions)) {
-      return NextResponse.json(
-        { error: "Permissions must be an array" },
-        { status: 400 }
-      );
+    const valResult = await validateRequestBody(request, UpdateRolePermissionsSchema);
+    if (!valResult.success) {
+      return valResult.response;
     }
 
-    const upserts = permissions.map((p: any) => ({
+    const { permissions } = valResult.data;
+
+    const upserts = permissions.map((p) => ({
       business_id: businessId,
       role: p.role,
       module: p.module,
@@ -218,14 +217,12 @@ export async function PUT(request: Request) {
       .upsert(upserts, { onConflict: "business_id,role,module" });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

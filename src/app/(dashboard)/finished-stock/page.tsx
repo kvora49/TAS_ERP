@@ -33,6 +33,8 @@ import {
 import ColourDot from "@/components/shared/ColourDot";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
 
 interface GodownBreakdown {
   godown_name: string;
@@ -125,29 +127,29 @@ export default function FinishedStockOverviewPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">Finished Stock Overview</h1>
-          <p className="text-sm text-[#64748B]">Real-time garments inventory status and ledger control</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Finished Stock Overview</h1>
+          <p className="text-sm text-[var(--text-muted)]">Real-time garments inventory status and ledger control</p>
         </div>
 
         {/* Quick Actions Panel */}
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/finished-stock/adjustments/new"
-            className="flex items-center gap-2 text-xs font-semibold text-[#DC2626] bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl hover:bg-red-100/70 active:bg-red-100 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 px-4 py-2.5 rounded-xl hover:bg-rose-500/20 active:bg-rose-500/20 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Adjust Stock</span>
           </Link>
           <Link
             href="/finished-stock/transfers/new"
-            className="flex items-center gap-2 text-xs font-semibold text-[#6366F1] bg-[#EEF2FF] border border-[#C7D2FE] px-4 py-2.5 rounded-xl hover:bg-[#E0E7FF] active:bg-[#C7D2FE] transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] px-4 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Transfer Stock</span>
           </Link>
           <Link
             href="/finished-stock/challans/new"
-            className="flex items-center gap-2 text-xs font-semibold text-[#15803D] bg-green-50 border border-green-200 px-4 py-2.5 rounded-xl hover:bg-green-100/70 active:bg-green-100 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 rounded-xl hover:bg-emerald-500/20 active:bg-emerald-500/20 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Create Challan</span>
@@ -156,7 +158,12 @@ export default function FinishedStockOverviewPage() {
       </div>
 
       {/* KPI Cards Grid — 2-col on mobile, expands on desktop */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+      <motion.div
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4"
+      >
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 space-y-3 animate-pulse shadow-[var(--shadow-sm)]">
@@ -169,57 +176,57 @@ export default function FinishedStockOverviewPage() {
           ))
         ) : (
           <>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-[var(--primary-light)] rounded-xl flex items-center justify-center mb-3">
                 <Boxes className="h-5 w-5 text-[var(--primary)]" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Stock (Pcs)</p>
               <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{(stats?.total_stock || 0).toLocaleString()}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Godowns</p>
-            </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            </motion.div>
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-3">
                 <Palette className="h-5 w-5 text-emerald-600" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Designs</p>
               <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_designs || 0}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Brands</p>
-            </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            </motion.div>
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center mb-3">
                 <Droplets className="h-5 w-5 text-orange-600" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Colours</p>
               <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_colours || 0}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Designs</p>
-            </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            </motion.div>
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center mb-3">
                 <Ruler className="h-5 w-5 text-amber-600" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Sizes</p>
               <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.total_sizes || 0}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">XS–XXL range</p>
-            </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            </motion.div>
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3">
                 <IndianRupee className="h-5 w-5 text-purple-600" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Total Value</p>
               <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5 mt-0.5">{formatRupee(stats?.total_value || 0)}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">At Cost</p>
-            </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+            </motion.div>
+            <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow">
               <div className="w-10 h-10 bg-[var(--primary-light)] rounded-xl flex items-center justify-center mb-3">
                 <Building2 className="h-5 w-5 text-[var(--primary)]" />
               </div>
               <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider leading-none mb-1">Active Godowns</p>
               <h3 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mb-0.5">{stats?.active_godowns || 0}</h3>
               <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none">All Locations</p>
-            </div>
+            </motion.div>
           </>
         )}
-      </div>
+      </motion.div>
 
       {/* Charts Section — desktop only */}
       <div className="hidden md:grid grid-cols-1 lg:grid-cols-5 gap-6">

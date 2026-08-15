@@ -41,8 +41,8 @@ export async function GET(request: Request) {
         .from("business_settings")
         .insert({
           business_id: businessId,
-          enable_batch_tracking: business.enable_batch_tracking ?? true,
-          allow_negative_stock: business.allow_negative_stock ?? false,
+          enable_batch_tracking: business?.enable_batch_tracking ?? true,
+          allow_negative_stock: business?.allow_negative_stock ?? false,
           low_stock_threshold: 10,
         })
         .select()
@@ -58,7 +58,19 @@ export async function GET(request: Request) {
     const enableKachaBilling = settings ? settings.job_work_default_bill_type !== "kacha_disabled" : true;
 
     return NextResponse.json({
-      business,
+      business: business || {
+        id: businessId,
+        name: "TAS ERP",
+        currency: "INR",
+        date_format: "DD MMM YYYY",
+        timezone: "Asia/Kolkata",
+        items_per_page: 10,
+        enable_gst: true,
+        enable_batch_tracking: true,
+        allow_negative_stock: false,
+        low_stock_alerts: true,
+        updated_at: new Date().toISOString(),
+      },
       settings: {
         ...(settings || {}),
         enable_kacha_billing: enableKachaBilling,
@@ -74,11 +86,13 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { requireAuthGuard } = await import("@/lib/auth/guards");
+  const { handleApiError } = await import("@/lib/api-response");
+
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -111,12 +125,12 @@ export async function PUT(request: Request) {
       .single();
 
     if (currentError) {
-      return NextResponse.json({ error: "Failed to verify record version" }, { status: 500 });
+      throw new Error("Failed to verify record version");
     }
 
     if (client_updated_at && currentBus && currentBus.updated_at !== client_updated_at) {
       return NextResponse.json(
-        { error: "Conflict: This record has been modified by another user. Please refresh." },
+        { error: "Conflict: This record has been modified by another user. Please refresh.", code: "VERSION_CONFLICT" },
         { status: 409 }
       );
     }
@@ -139,7 +153,7 @@ export async function PUT(request: Request) {
       .eq("id", businessId);
 
     if (busUpdateError) {
-      return NextResponse.json({ error: busUpdateError.message }, { status: 500 });
+      throw busUpdateError;
     }
 
     // 2. Update business_settings table
@@ -165,7 +179,7 @@ export async function PUT(request: Request) {
         .eq("business_id", businessId);
 
       if (setUpdateError) {
-        return NextResponse.json({ error: setUpdateError.message }, { status: 500 });
+        throw setUpdateError;
       }
     } else {
       const { error: setInsertError } = await supabase
@@ -180,15 +194,13 @@ export async function PUT(request: Request) {
         });
 
       if (setInsertError) {
-        return NextResponse.json({ error: setInsertError.message }, { status: 500 });
+        throw setInsertError;
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

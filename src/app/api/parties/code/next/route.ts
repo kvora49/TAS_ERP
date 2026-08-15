@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -9,12 +10,17 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type") || "supplier"; // default to supplier
+  const type = searchParams.get("type") || "supplier";
 
-  let prefix = "PRT";
-  if (type === "supplier") prefix = "SUP";
-  else if (type === "customer") prefix = "CUS";
-  else if (type === "worker") prefix = "WRK";
+  const allowedPrefixes: Record<string, string> = {
+    supplier: "SUP",
+    customer: "CUS",
+    worker: "WRK",
+    jobworker: "WRK",
+    party: "PRT",
+  };
+
+  const prefix = allowedPrefixes[type.toLowerCase()] || "PRT";
 
   try {
     const { data: parties, error } = await supabase
@@ -25,7 +31,7 @@ export async function GET(request: Request) {
       .order("code", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     let nextNum = 1;
@@ -45,9 +51,7 @@ export async function GET(request: Request) {
     const nextCode = `${prefix}-${String(nextNum).padStart(4, "0")}`;
     return NextResponse.json({ code: nextCode });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

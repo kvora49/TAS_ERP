@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
+import { safeSheetToJson } from "@/lib/report-export";
 import {
   Upload,
   FileSpreadsheet,
@@ -91,8 +92,8 @@ export default function BulkImportPage() {
           return;
         }
 
-        const headers = data[0].map((h: any) => String(h || "").trim());
-        const rows = XLSX.utils.sheet_to_json<any>(ws);
+        const headers = data[0].map((h: any) => String(h || "").trim()).filter((h: string) => h !== "__proto__" && h !== "constructor" && h !== "prototype");
+        const rows = safeSheetToJson<any>(ws);
 
         setRawHeaders(headers);
         setParsedRows(rows);

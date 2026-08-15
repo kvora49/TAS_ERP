@@ -1,16 +1,16 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const backupId = params.id;
 
   try {
@@ -27,17 +27,20 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     // 2. Delete file from storage
-    if (record.file_url.startsWith("/backups/")) {
+    if (record.file_url?.includes("private-storage/backups/") || record.file_url?.startsWith("/backups/")) {
       // Local file deletion
       try {
-        const localPath = path.join(process.cwd(), "public", record.file_url);
+        const localPath = record.file_url.startsWith("/")
+          ? path.join(process.cwd(), "public", record.file_url)
+          : path.join(process.cwd(), record.file_url);
+
         if (fs.existsSync(localPath)) {
           fs.unlinkSync(localPath);
         }
       } catch (err: any) {
         console.warn("Failed to delete local backup file:", err.message);
       }
-    } else {
+    } else if (record.file_key && process.env.R2_ACCOUNT_ID) {
       // R2 file deletion
       try {
         const s3 = new S3Client({
@@ -64,17 +67,16 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const { error: deleteError } = await supabase
       .from("backup_history")
       .delete()
-      .eq("id", backupId);
+      .eq("id", backupId)
+      .eq("business_id", businessId);
 
     if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+      throw deleteError;
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

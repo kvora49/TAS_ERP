@@ -1,13 +1,14 @@
-import { createClient as createServerClient, getSessionBusinessId } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { CreateUserSchema } from "@/lib/schemas/settings.schema";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
 
 export async function GET(request: Request) {
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAuthGuard(["owner", "admin", "manager"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
 
   const { searchParams } = new URL(request.url);
   const role = searchParams.get("role");
@@ -15,34 +16,65 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const supabaseAdmin = serviceRoleKey
-      ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
-      : createServerClient();
+    const supabaseAdmin = createAdminClient();
 
-    let query = supabaseAdmin
-      .from("users")
-      .select("*")
-      .eq("business_id", businessId);
-
-    if (status === "active") {
-      query = query.is("deleted_at", null);
-    } else if (status === "deactivated") {
-      query = query.not("deleted_at", "is", null);
-    }
+    // 1. Fetch memberships for the active company
+    let memberQuery = supabaseAdmin
+      .from("company_members")
+      .select("id, user_id, role, status, created_at")
+      .eq("company_id", businessId);
 
     if (role && role !== "all") {
-      query = query.eq("role", role.toLowerCase());
+      memberQuery = memberQuery.eq("role", role.toLowerCase());
     }
 
-    const { data: users, error } = await query.order("created_at", { ascending: false });
+    if (status === "active") {
+      memberQuery = memberQuery.eq("status", "active");
+    } else if (status === "deactivated" || status === "suspended") {
+      memberQuery = memberQuery.eq("status", "suspended");
+    }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: memberRows, error: memberError } = await memberQuery;
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    const userIds = (memberRows || []).map((m) => m.user_id);
+
+    // 2. Fetch profiles for these users
+    let usersList: any[] = [];
+    if (userIds.length > 0) {
+      const { data: userProfiles, error: profileError } = await supabaseAdmin
+        .from("users")
+        .select("id, full_name, email, phone, is_active, last_login_at, created_at, deleted_at")
+        .in("id", userIds);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const profileMap = new Map<string, any>((userProfiles || []).map((p: any) => [p.id, p]));
+
+      usersList = (memberRows || []).map((m: any) => {
+        const p: any = profileMap.get(m.user_id) || {};
+        return {
+          id: m.user_id,
+          membership_id: m.id,
+          full_name: p.full_name || "User",
+          email: p.email || "",
+          phone: p.phone || null,
+          role: m.role,
+          status: m.status,
+          is_active: m.status === "active" && !p.deleted_at,
+          last_login_at: p.last_login_at || null,
+          created_at: m.created_at || p.created_at,
+        };
+      });
     }
 
     // Client-side simple search filter
-    let filteredUsers = users || [];
+    let filteredUsers = usersList;
     if (search) {
       const s = search.toLowerCase();
       filteredUsers = filteredUsers.filter(
@@ -55,94 +87,136 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ users: filteredUsers });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
 
 export async function POST(request: Request) {
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
 
   try {
-    const body = await request.json();
-    const { name, email, phone, role, password } = body;
-
-    if (!name || !email || !role || !password) {
-      return NextResponse.json(
-        { error: "Missing required fields (name, email, role, password)" },
-        { status: 400 }
-      );
+    const valResult = await validateRequestBody(request, CreateUserSchema);
+    if (!valResult.success) {
+      return valResult.response;
     }
 
-    // Initialize Supabase Admin Client
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey) {
-      return NextResponse.json(
-        { error: "Server configuration missing: SUPABASE_SERVICE_ROLE_KEY is required to manage users" },
-        { status: 500 }
-      );
-    }
+    const { name, email, phone, role, password } = valResult.data;
+    const supabaseAdmin = createAdminClient();
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey
+    // 1. Check if an auth user with this email already exists
+    const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = listData?.users?.find(
+      (u) => u.email?.toLowerCase() === email.trim().toLowerCase()
     );
 
-    // 1. Create auth user in Supabase Auth via Admin Client
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: name },
-    });
+    let userId: string;
 
-    if (authError || !authData.user) {
-      return NextResponse.json(
-        { error: authError?.message || "Failed to create authentication credentials" },
-        { status: 500 }
+    if (existingUser) {
+      // User exists in Auth — check if already member of this company
+      userId = existingUser.id;
+
+      const { data: existingMember } = await supabaseAdmin
+        .from("company_members")
+        .select("id, status")
+        .eq("user_id", userId)
+        .eq("company_id", businessId)
+        .maybeSingle();
+
+      if (existingMember && existingMember.status === "active") {
+        return NextResponse.json(
+          { error: "This user is already an active member of this company", code: "ALREADY_MEMBER" },
+          { status: 400 }
+        );
+      }
+
+      // Upsert membership into company_members
+      const { error: memberError } = await supabaseAdmin
+        .from("company_members")
+        .upsert(
+          {
+            user_id: userId,
+            company_id: businessId,
+            role: role.toLowerCase(),
+            status: "active",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id, company_id" }
+        );
+
+      if (memberError) {
+        throw memberError;
+      }
+    } else {
+      // New user — password is required
+      if (!password) {
+        return NextResponse.json(
+          { error: "Password is required for new users", code: "PASSWORD_REQUIRED" },
+          { status: 400 }
+        );
+      }
+
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.trim(),
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: name },
+      });
+
+      if (authError || !authData.user) {
+        return NextResponse.json(
+          { error: authError?.message || "Failed to create user credentials" },
+          { status: 400 }
+        );
+      }
+
+      userId = authData.user.id;
+
+      // Upsert profile in public.users
+      await supabaseAdmin.from("users").upsert(
+        {
+          id: userId,
+          business_id: businessId,
+          full_name: name,
+          email: email.trim(),
+          phone: phone || null,
+          role: role.toLowerCase(),
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
       );
+
+      // Insert membership into company_members
+      const { error: memberError } = await supabaseAdmin
+        .from("company_members")
+        .upsert(
+          {
+            user_id: userId,
+            company_id: businessId,
+            role: role.toLowerCase(),
+            status: "active",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id, company_id" }
+        );
+
+      if (memberError) {
+        throw memberError;
+      }
     }
 
-    const userId = authData.user.id;
-
-    // 2. Insert or Upsert profile record in public.users table (handles DB triggers smoothly)
-    const { error: profileError } = await supabaseAdmin.from("users").upsert(
-      {
-        id: userId,
-        business_id: businessId,
-        full_name: name,
-        email,
-        phone: phone || null,
-        role: role.toLowerCase(),
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
-
-    if (profileError) {
-      // Rollback auth user creation
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
-    }
-
-    // Fire-and-forget audit log
+    // Audit log
     void logAudit(businessId, "create", "users", userId, {
       full_name: name,
-      email,
+      email: email.trim(),
       role: role.toLowerCase(),
     });
 
     return NextResponse.json({ success: true, userId });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

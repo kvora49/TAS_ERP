@@ -1,6 +1,12 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
+
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -11,129 +17,148 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const brandId = searchParams.get("brandId") || "all";
+  const rawBrandId = searchParams.get("brandId") || searchParams.get("brand_id");
+  let brandId =
+    !rawBrandId ||
+    rawBrandId === "all" ||
+    rawBrandId === "undefined" ||
+    rawBrandId === "null" ||
+    rawBrandId.trim() === ""
+      ? "all"
+      : rawBrandId.trim();
+
   const dateRange = searchParams.get("dateRange") || "this_month";
   const billType = searchParams.get("billType") || searchParams.get("bill_type") || "all";
 
   try {
-    // 0. Trigger ground-truth finished stock reconciliation
-    await reconcileFinishedStock(supabase, businessId);
-
-    // 0. Resolve brand design IDs if a specific brand is selected
+    // 1. Verify Brand ID existence for this business
     let designIds: string[] = [];
     if (brandId !== "all") {
-      const { data: brandDesigns } = await supabase
-        .from("designs")
+      const { data: brandRow } = await supabase
+        .from("brands")
         .select("id")
-        .eq("brand_id", brandId)
+        .eq("id", brandId)
         .eq("business_id", businessId)
-        .is("deleted_at", null);
-      designIds = brandDesigns?.map((d) => d.id) || [];
-    }
+        .is("deleted_at", null)
+        .maybeSingle();
 
-    // 1. Fetch Bank Balances, Brands, Godowns, and Stages in Parallel
-    const bankAccountsPromise = supabase
-      .from("bank_accounts")
-      .select("id, name, type, upi_provider, account_number, upi_id, opening_balance, current_balance, is_active")
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
-
-    const stagesPromise = supabase
-      .from("production_stages")
-      .select("id, name, color")
-      .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
-
-    let finishedStockValQuery = supabase
-      .from("finished_stock")
-      .select("total_value, total_quantity, cost_per_piece, design:designs(sale_price)")
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
-    if (brandId !== "all") {
-      if (designIds.length > 0) {
-        finishedStockValQuery = finishedStockValQuery.in("design_id", designIds);
+      if (!brandRow) {
+        brandId = "all";
       } else {
-        // Force no results if brand has no designs
-        finishedStockValQuery = finishedStockValQuery.eq("design_id", "00000000-0000-0000-0000-000000000000");
+        const { data: brandDesigns } = await supabase
+          .from("designs")
+          .select("id")
+          .eq("brand_id", brandId)
+          .eq("business_id", businessId)
+          .is("deleted_at", null);
+        designIds = (brandDesigns || []).map((d) => d.id);
       }
     }
 
-    const rawMaterialStockValQuery = supabase
-      .from("raw_material_current_stock")
-      .select("stock_value")
-      .eq("business_id", businessId);
-
-    const [bankAccountsResult, stagesResult, finishedStockValResult, rawMaterialStockValResult] = await Promise.all([
-      bankAccountsPromise,
-      stagesPromise,
-      finishedStockValQuery,
-      rawMaterialStockValQuery
-    ]);
-
-    const bankAccounts = bankAccountsResult.data || [];
-    const stages = stagesResult.data || [];
-
-    // Calculate Cash In Hand summing current_balance
-    const cashInHand = bankAccounts.reduce(
-      (sum, acc) => sum + Number(acc.current_balance || 0),
-      0
-    );
-
-    // Calculate Total Finished Stock Value & Total Inventory Value
-    const finishedStockVal = finishedStockValResult.data?.reduce((sum, item: any) => {
-      const qty = Number(item.total_quantity || 0);
-      let val = item.total_value ? Number(item.total_value) : (qty * Number(item.cost_per_piece || 0));
-      if (val <= 0 && qty > 0) {
-        const salePrice = Number(item.design?.sale_price || 0);
-        const unitCost = salePrice > 0 ? Math.round(salePrice * 0.6) : 150;
-        val = qty * unitCost;
-      }
-      return sum + val;
-    }, 0) || 0;
-    // Note: Raw material is brand-agnostic, we only include it if no brand filter or as a constant fallback
-    const rawMaterialStockVal = brandId === "all" ? (rawMaterialStockValResult.data?.reduce((sum, item) => sum + Number(item.stock_value || 0), 0) || 0) : 0;
-    const totalStockValue = finishedStockVal + rawMaterialStockVal;
-
-    // Calculate Date Boundaries
+    // 2. Compute Local Date Boundaries
     const now = new Date();
+    const todayStr = toLocalDateStr(now);
     let startDateStr = "";
-    let endDateStr = "";
+    let endDateStr = todayStr;
 
     if (dateRange === "today") {
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
-      startDateStr = todayStart.toISOString().split("T")[0];
-      endDateStr = startDateStr;
+      startDateStr = todayStr;
+      endDateStr = todayStr;
     } else if (dateRange === "this_week") {
       const day = now.getDay();
       const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(diff);
-      startDateStr = startOfWeek.toISOString().split("T")[0];
-      endDateStr = now.toISOString().split("T")[0];
+      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diff);
+      startDateStr = toLocalDateStr(startOfWeek);
     } else if (dateRange === "this_month") {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      startDateStr = startOfMonth.toISOString().split("T")[0];
-      endDateStr = now.toISOString().split("T")[0];
+      startDateStr = toLocalDateStr(startOfMonth);
+    } else if (dateRange === "last_month") {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      startDateStr = toLocalDateStr(startOfLastMonth);
+      endDateStr = toLocalDateStr(endOfLastMonth);
     } else if (dateRange === "this_quarter") {
       const currentMonth = now.getMonth();
       const quarterStartMonth = Math.floor(currentMonth / 3) * 3;
       const startOfQuarter = new Date(now.getFullYear(), quarterStartMonth, 1);
-      startDateStr = startOfQuarter.toISOString().split("T")[0];
-      endDateStr = now.toISOString().split("T")[0];
+      startDateStr = toLocalDateStr(startOfQuarter);
     } else if (dateRange === "this_year") {
-      const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const fiscalYearStart = new Date(year, 3, 1);
-      startDateStr = fiscalYearStart.toISOString().split("T")[0];
-      endDateStr = now.toISOString().split("T")[0];
+      const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const fiscalYearStart = new Date(startYear, 3, 1);
+      startDateStr = toLocalDateStr(fiscalYearStart);
     }
 
-    // Fetch Today's Sales specifically
-    const todayStr = now.toISOString().split("T")[0];
+    // Chart Start Date
+    let chartStartDate = new Date(now);
+    if (dateRange === "this_year") {
+      const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      chartStartDate = new Date(startYear, 3, 1);
+    } else if (dateRange === "last_month") {
+      chartStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    } else if (dateRange === "this_month") {
+      chartStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (dateRange === "this_week") {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      chartStartDate = new Date(now.getFullYear(), now.getMonth(), diff);
+    } else {
+      chartStartDate.setDate(chartStartDate.getDate() - 30);
+    }
+    const chartStartDateStr = toLocalDateStr(chartStartDate);
+
+    // 3. Build Parallel Queries
+    const bankAccountsPromise = supabase
+      .from("bank_accounts")
+      .select("id, name, type, bank_name, upi_provider, account_number, upi_id, opening_balance, current_balance, is_active")
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+
+    const stagesPromise = supabase
+      .from("production_stages")
+      .select("id, name, color, sort_order")
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true });
+
+    let lotsPromise = supabase
+      .from("production_lots")
+      .select("id, status, current_stage_id, brand_id, stage:production_stages(id, name, color)")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+    if (brandId !== "all") {
+      lotsPromise = lotsPromise.eq("brand_id", brandId);
+    }
+
+    let finishedStockPromise = supabase
+      .from("finished_stock")
+      .select("godown_id, design_id, total_quantity, total_value, cost_per_piece, design:designs(sale_price, brand_id)")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+    if (brandId !== "all") {
+      if (designIds.length > 0) {
+        finishedStockPromise = finishedStockPromise.in("design_id", designIds);
+      } else {
+        finishedStockPromise = finishedStockPromise.eq("design_id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
+
+    const rawMaterialStockPromise = supabase
+      .from("raw_material_current_stock")
+      .select("godown_id, current_stock, stock_value, unit_cost, material_type:raw_material_types(name, category, unit, reorder_level)")
+      .eq("business_id", businessId);
+
+    const godownsPromise = supabase
+      .from("godowns")
+      .select("id, name")
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+
+    // Sales Queries
     let todaySalesQuery = supabase
       .from("sale_bills")
-      .select("grand_total")
+      .select("grand_total, brand_ids")
       .eq("business_id", businessId)
       .eq("bill_date", todayStr)
       .neq("status", "cancelled")
@@ -144,17 +169,13 @@ export async function GET(request: Request) {
     if (billType && billType !== "all") {
       todaySalesQuery = todaySalesQuery.eq("bill_type", billType);
     }
-    const { data: todaySalesBills } = await todaySalesQuery;
-    const todaySales = todaySalesBills?.reduce((sum, b) => sum + Number(b.grand_total || 0), 0) || 0;
 
-    // Fetch Period Sales
     let periodSalesQuery = supabase
       .from("sale_bills")
-      .select("grand_total, paid_amount, payment_status, bill_date")
+      .select("grand_total, paid_amount, payment_status, bill_date, brand_ids")
       .eq("business_id", businessId)
       .neq("status", "cancelled")
       .is("deleted_at", null);
-
     if (startDateStr) {
       periodSalesQuery = periodSalesQuery.gte("bill_date", startDateStr);
     }
@@ -168,13 +189,9 @@ export async function GET(request: Request) {
       periodSalesQuery = periodSalesQuery.eq("bill_type", billType);
     }
 
-    const { data: periodSalesBills } = await periodSalesQuery;
-    const periodSalesTotal = periodSalesBills?.reduce((sum, b) => sum + Number(b.grand_total || 0), 0) || 0;
-
-    // Calculate Pending Dues
     let unpaidBillsQuery = supabase
       .from("sale_bills")
-      .select("grand_total, paid_amount")
+      .select("grand_total, paid_amount, bill_number, remarks, brand_ids")
       .eq("business_id", businessId)
       .neq("status", "cancelled")
       .neq("payment_status", "paid")
@@ -185,219 +202,314 @@ export async function GET(request: Request) {
     if (billType && billType !== "all") {
       unpaidBillsQuery = unpaidBillsQuery.eq("bill_type", billType);
     }
-    const { data: unpaidBills } = await unpaidBillsQuery;
-
-    const pendingDues = unpaidBills?.reduce((sum, b) => sum + (Number(b.grand_total || 0) - Number(b.paid_amount || 0)), 0) || 0;
-
-    // Fetch Low Stock Alerts (Unfiltered by brand as materials don't map to brands)
-    const { data: lowStock } = await supabase
-      .from("raw_material_current_stock")
-      .select("current_stock, material_type:raw_material_types(name, category, unit, reorder_level)")
-      .eq("business_id", businessId);
-
-    const lowStockAlerts = (lowStock || [])
-      .filter((s: any) => {
-        const current = Number(s.current_stock || 0);
-        const reorder = Number(s.material_type?.reorder_level || 0);
-        return current < reorder;
-      })
-      .map((s: any) => ({
-        name: s.material_type?.name || "Unknown",
-        category: s.material_type?.category || "Unknown",
-        qty: `${s.current_stock} ${s.material_type?.unit || ""}`.trim(),
-        reorder: `${s.material_type?.reorder_level || 0} ${s.material_type?.unit || ""}`.trim(),
-      }))
-      .slice(0, 5);
-
-    // Fetch Upcoming Payments (Unfiltered by brand)
-    const [chequesResult, purchaseBillsResult] = await Promise.all([
-      supabase
-        .from("cheques")
-        .select("cheque_number, bank_name, due_date, amount")
-        .eq("business_id", businessId)
-        .eq("direction", "issued")
-        .in("status", ["pending", "deposited"]),
-      supabase
-        .from("purchases")
-        .select("grand_total, paid_amount, invoice_date, supplier:parties(name)")
-        .eq("business_id", businessId)
-        .is("deleted_at", null)
-        .neq("status", "cancelled")
-        .neq("payment_status", "paid")
-    ]);
-
-    const formattedCheques = (chequesResult.data || []).map(c => ({
-      desc: `PDC Cheque #${c.cheque_number} - ${c.bank_name}`,
-      date: c.due_date ? new Date(c.due_date).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) : "N/A",
-      amount: Number(c.amount || 0),
-      type: "cheque"
-    }));
-
-    const formattedPurchases = (purchaseBillsResult.data || []).map(p => ({
-      desc: `Supplier: ${(p.supplier as any)?.name || "Unknown"}`,
-      date: p.invoice_date ? new Date(p.invoice_date).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) : "N/A",
-      amount: Number(p.grand_total || 0) - Number(p.paid_amount || 0),
-      type: "unpaid"
-    }));
-
-    const upcomingPayments = [...formattedCheques, ...formattedPurchases]
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 5);
-
-    // Query production lots counts grouped by status
-    let lotsQuery = supabase
-      .from("production_lots")
-      .select("status")
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
-    if (brandId !== "all") {
-      lotsQuery = lotsQuery.eq("brand_id", brandId);
-    }
-    const { data: lots } = await lotsQuery;
-
-    const lotCounts = {
-      draft: 0,
-      in_progress: 0,
-      completed: 0,
-      on_hold: 0,
-      cancelled: 0,
-    };
-
-    lots?.forEach((lot: any) => {
-      if (lot.status in lotCounts) {
-        lotCounts[lot.status as keyof typeof lotCounts]++;
-      }
-    });
-
-    const statusColors: Record<string, string> = {
-      draft: "#94A3B8",
-      in_progress: "#6366F1",
-      completed: "#10B981",
-      on_hold: "#F59E0B",
-      cancelled: "#EF4444",
-    };
-
-    const statusNames: Record<string, string> = {
-      draft: "Draft",
-      in_progress: "In Progress",
-      completed: "Completed",
-      on_hold: "On Hold",
-      cancelled: "Cancelled",
-    };
-
-    const productionDonut = Object.entries(lotCounts)
-      .map(([status, count]) => ({
-        name: statusNames[status],
-        value: count,
-        color: statusColors[status],
-      }))
-      .filter(item => item.value > 0);
-
-    // Dynamic Sales Chart data matching dateRange / last 30 days
-    const chartStartDate = new Date();
-    if (dateRange === "this_year") {
-      chartStartDate.setMonth(chartStartDate.getMonth() - 12);
-    } else if (dateRange === "last_month") {
-      chartStartDate.setMonth(chartStartDate.getMonth() - 2);
-    } else {
-      chartStartDate.setDate(chartStartDate.getDate() - 30);
-    }
-    const chartStartDateStr = chartStartDate.toISOString().split("T")[0];
 
     let chartSalesQuery = supabase
       .from("sale_bills")
-      .select("bill_date, grand_total")
+      .select("bill_date, grand_total, brand_ids")
       .eq("business_id", businessId)
       .neq("status", "cancelled")
       .is("deleted_at", null)
-      .gte("bill_date", chartStartDateStr);
-
+      .gte("bill_date", chartStartDateStr)
+      .lte("bill_date", endDateStr);
     if (brandId !== "all") {
       chartSalesQuery = chartSalesQuery.contains("brand_ids", [brandId]);
     }
-    const { data: chartSales } = await chartSalesQuery;
 
-    const salesGrouped: Record<string, number> = {};
-    for (let i = 29; i >= 0; i -= 5) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
-      salesGrouped[dateStr] = 0;
-    }
-
-    chartSales?.forEach(bill => {
-      const d = new Date(bill.bill_date);
-      let closestStr = Object.keys(salesGrouped)[0];
-      let minDiff = Infinity;
-      Object.keys(salesGrouped).forEach(key => {
-        const keyDate = new Date(key + " " + new Date().getFullYear());
-        const diff = Math.abs(d.getTime() - keyDate.getTime());
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestStr = key;
-        }
-      });
-      salesGrouped[closestStr] += Number(bill.grand_total || 0);
-    });
-
-    const salesChart = Object.entries(salesGrouped)
-      .map(([date, sales]) => ({ date, sales }))
-      .sort((a, b) => new Date(a.date + " " + new Date().getFullYear()).getTime() - new Date(b.date + " " + new Date().getFullYear()).getTime());
-
-    // Godown Stocks
-    const godownsQuery = supabase
-      .from("godowns")
-      .select("id, name")
+    // Payables Queries
+    const rmPurchasesPromise = supabase
+      .from("raw_material_purchases")
+      .select("grand_total, paid_amount, status, payment_status")
       .eq("business_id", businessId)
-      .is("deleted_at", null);
+      .neq("status", "cancelled")
+      .neq("payment_status", "paid");
 
-    let finishedStockQuery = supabase
-      .from("finished_stock")
-      .select("godown_id, total_quantity, total_value")
+    const purchasesPromise = supabase
+      .from("purchases")
+      .select("grand_total, paid_amount, status, payment_status")
       .eq("business_id", businessId)
-      .is("deleted_at", null);
-    if (brandId !== "all") {
-      if (designIds.length > 0) {
-        finishedStockQuery = finishedStockQuery.in("design_id", designIds);
-      } else {
-        finishedStockQuery = finishedStockQuery.eq("design_id", "00000000-0000-0000-0000-000000000000");
-      }
-    }
+      .is("deleted_at", null)
+      .neq("status", "cancelled")
+      .neq("payment_status", "paid");
 
-    const rawStockQuery = supabase
-      .from("raw_material_current_stock")
-      .select("godown_id, current_stock, stock_value")
-      .eq("business_id", businessId);
-
-    const [godownsResult, finishedStockResult, rawStockResult] = await Promise.all([
-      godownsQuery,
-      finishedStockQuery,
-      rawStockQuery
+    // 4. Await All in Parallel
+    const [
+      bankAccountsRes,
+      stagesRes,
+      lotsRes,
+      finishedStockRes,
+      rawMaterialStockRes,
+      godownsRes,
+      todaySalesRes,
+      periodSalesRes,
+      unpaidBillsRes,
+      chartSalesRes,
+      rmPurchasesRes,
+      purchasesRes,
+    ] = await Promise.all([
+      bankAccountsPromise,
+      stagesPromise,
+      lotsPromise,
+      finishedStockPromise,
+      rawMaterialStockPromise,
+      godownsPromise,
+      todaySalesQuery,
+      periodSalesQuery,
+      unpaidBillsQuery,
+      chartSalesQuery,
+      rmPurchasesPromise,
+      purchasesPromise,
     ]);
 
-    const godownStockMap: Record<string, { name: string, pieces: number, value: number }> = {};
-    godownsResult.data?.forEach(g => {
+    // 5. Process Bank Balances & Cash In Hand
+    const bankAccounts = (bankAccountsRes.data || []).map((acc: any) => {
+      const balance = acc.current_balance !== null && acc.current_balance !== undefined
+        ? Number(acc.current_balance)
+        : Number(acc.opening_balance || 0);
+      return {
+        ...acc,
+        current_balance: balance,
+      };
+    });
+
+    const cashInHand = bankAccounts.reduce(
+      (sum, acc) => sum + Number(acc.current_balance || 0),
+      0
+    );
+
+    // 6. Calculate Finished Stock and Raw Material Stock
+    const finishedStockRows = finishedStockRes.data || [];
+    const rawMaterialStockRows = rawMaterialStockRes.data || [];
+
+    const finishedStockVal = finishedStockRows.reduce((sum, item: any) => {
+      const qty = Number(item.total_quantity || 0);
+      let val = Number(item.total_value || 0);
+      if (val <= 0 && qty > 0) {
+        const costPerPiece = Number(item.cost_per_piece || 0);
+        const salePrice = Number(item.design?.sale_price || 0);
+        const unitCost = costPerPiece > 0 ? costPerPiece : (salePrice > 0 ? Math.round(salePrice * 0.6) : 150);
+        val = qty * unitCost;
+      }
+      return sum + val;
+    }, 0);
+
+    const rawMaterialStockVal = brandId === "all"
+      ? rawMaterialStockRows.reduce((sum, item: any) => {
+          const val = Number(item.stock_value || 0);
+          if (val > 0) return sum + val;
+          const qty = Number(item.current_stock || 0);
+          const unitCost = Number(item.unit_cost || 0);
+          return sum + (qty * unitCost);
+        }, 0)
+      : 0;
+
+    const totalStockValue = finishedStockVal + rawMaterialStockVal;
+
+    // 7. Calculate Sales KPIs
+    const todaySales = (todaySalesRes.data || []).reduce(
+      (sum, b: any) => sum + Number(b.grand_total || 0),
+      0
+    );
+
+    const periodSalesTotal = (periodSalesRes.data || []).reduce(
+      (sum, b: any) => sum + Number(b.grand_total || 0),
+      0
+    );
+
+    // 8. Calculate Pending Receivables & Payables
+    const validUnpaidBills = (unpaidBillsRes.data || []).filter(
+      (b: any) => !b.bill_number?.startsWith("TEMP-") && !b.remarks?.includes("[TEMPORARY]")
+    );
+
+    const pendingDues = validUnpaidBills.reduce(
+      (sum, b: any) => sum + Math.max(0, Number(b.grand_total || 0) - Number(b.paid_amount || 0)),
+      0
+    );
+
+    const rmPayables = (rmPurchasesRes.data || []).reduce(
+      (sum, p: any) => sum + Math.max(0, Number(p.grand_total || 0) - Number(p.paid_amount || 0)),
+      0
+    );
+    const purchasesPayables = (purchasesRes.data || []).reduce(
+      (sum, p: any) => sum + Math.max(0, Number(p.grand_total || 0) - Number(p.paid_amount || 0)),
+      0
+    );
+    const totalSupplierPayables = rmPayables + purchasesPayables;
+    const totalSupplierPayablesCount = (rmPurchasesRes.data?.length || 0) + (purchasesRes.data?.length || 0);
+
+    // 9. Production Lots Distribution
+    const stages = stagesRes.data || [];
+    const lots = lotsRes.data || [];
+
+    const stageMap = new Map<string, { name: string; color: string; count: number }>();
+    stages.forEach((stg: any) => {
+      stageMap.set(stg.id, {
+        name: stg.name,
+        color: stg.color || "#6366F1",
+        count: 0,
+      });
+    });
+
+    const statusCounts: Record<string, { name: string; color: string; count: number }> = {
+      draft: { name: "Draft", color: "#94A3B8", count: 0 },
+      in_progress: { name: "In Progress", color: "#6366F1", count: 0 },
+      completed: { name: "Completed", color: "#10B981", count: 0 },
+      on_hold: { name: "On Hold", color: "#F59E0B", count: 0 },
+      cancelled: { name: "Cancelled", color: "#EF4444", count: 0 },
+    };
+
+    lots.forEach((lot: any) => {
+      if (lot.current_stage_id && stageMap.has(lot.current_stage_id)) {
+        stageMap.get(lot.current_stage_id)!.count++;
+      } else if (lot.status && statusCounts[lot.status]) {
+        statusCounts[lot.status].count++;
+      } else {
+        statusCounts.in_progress.count++;
+      }
+    });
+
+    const stageItems = Array.from(stageMap.values())
+      .filter((s) => s.count > 0)
+      .map((s) => ({ name: s.name, value: s.count, color: s.color }));
+
+    const statusItems = Object.values(statusCounts)
+      .filter((s) => s.count > 0)
+      .map((s) => ({ name: s.name, value: s.count, color: s.color }));
+
+    const productionDonut = stageItems.length > 0 ? stageItems : statusItems;
+
+    // 10. Low Stock Alerts
+    const lowStockAlerts = rawMaterialStockRows
+      .filter((s: any) => {
+        const current = Number(s.current_stock || 0);
+        const reorder = Number(s.material_type?.reorder_level || 0);
+        return reorder > 0 && current < reorder;
+      })
+      .map((s: any) => ({
+        name: s.material_type?.name || "Unknown Material",
+        category: s.material_type?.category || "Raw Material",
+        qty: `${s.current_stock} ${s.material_type?.unit || "Units"}`.trim(),
+        reorder: `${s.material_type?.reorder_level || 0} ${s.material_type?.unit || "Units"}`.trim(),
+      }))
+      .slice(0, 5);
+
+    // 11. Godown Stock Aggregation
+    const godowns = godownsRes.data || [];
+    const godownStockMap: Record<string, { name: string; pieces: number; value: number }> = {};
+    godowns.forEach((g: any) => {
       godownStockMap[g.id] = { name: g.name, pieces: 0, value: 0 };
     });
 
-    finishedStockResult.data?.forEach(item => {
-      if (godownStockMap[item.godown_id]) {
-        godownStockMap[item.godown_id].pieces += Number(item.total_quantity || 0);
-        godownStockMap[item.godown_id].value += Number(item.total_value || 0);
+    finishedStockRows.forEach((item: any) => {
+      if (item.godown_id && godownStockMap[item.godown_id]) {
+        const qty = Number(item.total_quantity || 0);
+        let val = Number(item.total_value || 0);
+        if (val <= 0 && qty > 0) {
+          const costPerPiece = Number(item.cost_per_piece || 0);
+          const salePrice = Number(item.design?.sale_price || 0);
+          const unitCost = costPerPiece > 0 ? costPerPiece : (salePrice > 0 ? Math.round(salePrice * 0.6) : 150);
+          val = qty * unitCost;
+        }
+        godownStockMap[item.godown_id].pieces += qty;
+        godownStockMap[item.godown_id].value += val;
       }
     });
 
-    // Only add raw material stock to godown totals if filtering for "all" brands
     if (brandId === "all") {
-      rawStockResult.data?.forEach(item => {
-        if (godownStockMap[item.godown_id]) {
-          godownStockMap[item.godown_id].pieces += Number(item.current_stock || 0);
-          godownStockMap[item.godown_id].value += Number(item.stock_value || 0);
+      rawMaterialStockRows.forEach((item: any) => {
+        if (item.godown_id && godownStockMap[item.godown_id]) {
+          const qty = Number(item.current_stock || 0);
+          let val = Number(item.stock_value || 0);
+          if (val <= 0 && qty > 0) {
+            val = qty * Number(item.unit_cost || 0);
+          }
+          godownStockMap[item.godown_id].pieces += qty;
+          godownStockMap[item.godown_id].value += val;
         }
       });
     }
 
     const godownStock = Object.values(godownStockMap);
+
+    // 12. Dynamic Sales Chart Generation
+    const chartSales = chartSalesRes.data || [];
+    const salesGrouped: Record<string, number> = {};
+
+    if (dateRange === "this_week" || dateRange === "today") {
+      // 7 days interval
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = toLocalDateStr(d);
+        salesGrouped[key] = 0;
+      }
+    } else if (dateRange === "this_year") {
+      // Monthly buckets
+      const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      for (let m = 0; m < 12; m++) {
+        const d = new Date(startYear, 3 + m, 1);
+        if (d > now) break;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        salesGrouped[key] = 0;
+      }
+    } else {
+      // 6 intervals across the selected period or last 30 days
+      const daysCount = 30;
+      const step = 5;
+      for (let i = daysCount - step; i >= 0; i -= step) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = toLocalDateStr(d);
+        salesGrouped[key] = 0;
+      }
+    }
+
+    chartSales.forEach((bill: any) => {
+      if (!bill.bill_date) return;
+      const billDateStr = bill.bill_date.split("T")[0];
+      const amount = Number(bill.grand_total || 0);
+
+      if (dateRange === "this_year") {
+        const billMonthKey = billDateStr.substring(0, 7);
+        if (salesGrouped[billMonthKey] !== undefined) {
+          salesGrouped[billMonthKey] += amount;
+        }
+      } else if (salesGrouped[billDateStr] !== undefined) {
+        salesGrouped[billDateStr] += amount;
+      } else {
+        // Find closest date key
+        let closestKey = Object.keys(salesGrouped)[0];
+        let minDiff = Infinity;
+        const billTime = new Date(billDateStr).getTime();
+        Object.keys(salesGrouped).forEach((k) => {
+          const diff = Math.abs(new Date(k).getTime() - billTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestKey = k;
+          }
+        });
+        if (closestKey) {
+          salesGrouped[closestKey] += amount;
+        }
+      }
+    });
+
+    const salesChart = Object.entries(salesGrouped).map(([key, sales]) => {
+      let formattedLabel = key;
+      if (dateRange === "this_year") {
+        const [y, m] = key.split("-");
+        const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+        formattedLabel = d.toLocaleDateString("en-US", { month: "short" });
+      } else {
+        const d = new Date(key + "T00:00:00");
+        formattedLabel = isNaN(d.getTime())
+          ? key
+          : d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+      }
+      return {
+        date: formattedLabel,
+        sales: Math.round(sales),
+      };
+    });
 
     return NextResponse.json({
       kpis: {
@@ -409,15 +521,26 @@ export async function GET(request: Request) {
       },
       productionDonut,
       lowStockAlerts,
-      upcomingPayments,
       salesChart,
       godownStock,
       bankBalances: bankAccounts,
+      remindersSummary: {
+        receivables: {
+          total_overdue: validUnpaidBills.length,
+          total_outstanding: pendingDues,
+        },
+        payables: {
+          total_overdue: totalSupplierPayablesCount,
+          total_outstanding: totalSupplierPayables,
+        },
+      },
     });
   } catch (err: any) {
+    console.error("[GET /api/dashboard] Error:", err);
     return NextResponse.json(
       { error: err.message || "Failed to load dashboard metrics" },
       { status: 500 }
     );
   }
 }
+

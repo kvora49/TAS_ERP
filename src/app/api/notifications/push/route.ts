@@ -44,8 +44,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       webPushSentCount: webPushResult.sentCount || 0,
-      fcmSuccess: fcmResult.success,
-      message: "Lock screen push notification dispatched to active devices.",
+      fcmSuccess: !!fcmResult.success,
+      warning: (webPushResult.sentCount === 0 && !fcmResult.success)
+        ? (webPushResult.error || "No active web push subscriptions found for this user.")
+        : undefined,
+      message: (webPushResult.sentCount || 0) > 0
+        ? `Lock screen push notification dispatched to ${webPushResult.sentCount} device(s).`
+        : "Push request processed.",
     });
   } catch (err: any) {
     console.error("[API Notifications Push] Internal Server Error:", err);

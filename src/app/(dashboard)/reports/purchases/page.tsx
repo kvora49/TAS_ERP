@@ -177,8 +177,20 @@ export default function PurchaseReportsPage() {
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <ReportKPICard label="Total Purchases" value={s.totalPurchases} color="rose" icon={<TrendingDown size={16} />} />
-              <ReportKPICard label="Pakka Purchases" value={s.pakkaTotal} color="blue" icon={<FileText size={16} />} />
-              <ReportKPICard label="Kaccha Purchases" value={s.kachaTotal} color="amber" icon={<StickyNote size={16} />} />
+              <ReportKPICard
+                label="Pakka Purchases"
+                value={s.pakkaTotal}
+                color="blue"
+                icon={<FileText size={16} />}
+                subLabel={`Paid: ${fmtINR(s.pakkaPaid ?? 0)} · Due: ${fmtINR(s.pakkaOutstanding ?? 0)}`}
+              />
+              <ReportKPICard
+                label="Kaccha Purchases"
+                value={s.kachaTotal}
+                color="amber"
+                icon={<StickyNote size={16} />}
+                subLabel={`Paid: ${fmtINR(s.kachaPaid ?? 0)} · Due: ${fmtINR(s.kachaOutstanding ?? 0)}`}
+              />
               <ReportKPICard label="Avg. Bill Value" value={s.avgBillValue} color="violet" icon={<IndianRupee size={16} />} />
               <ReportKPICard label="Total Paid" value={s.totalPaid} color="emerald" icon={<Package size={16} />} />
               <ReportKPICard label="Outstanding Payables" value={s.totalOutstanding} color="amber" icon={<Users size={16} />} />

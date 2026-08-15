@@ -30,6 +30,8 @@ import AsyncButton from "@/components/shared/AsyncButton";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -246,8 +248,13 @@ export default function ProductionLotsPage() {
       </div>
 
         {/* 5 Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 md:grid-cols-5 gap-4"
+        >
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
             <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
               <ClipboardList className="h-6 w-6" />
             </div>
@@ -256,9 +263,9 @@ export default function ProductionLotsPage() {
               <p className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{stats.total}</p>
               <span className="text-[10px] text-[var(--text-muted)] font-medium block mt-0.5">All time</span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
             <div className="p-3 bg-blue-500/10 rounded-lg text-blue-500 shrink-0">
               <Clock className="h-6 w-6" />
             </div>
@@ -269,9 +276,9 @@ export default function ProductionLotsPage() {
                 {percentages.in_progress}%
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
             <div className="p-3 bg-green-500/10 rounded-lg text-green-500 shrink-0">
               <CheckCircle2 className="h-6 w-6" />
             </div>
@@ -282,9 +289,9 @@ export default function ProductionLotsPage() {
                 {percentages.completed}%
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
             <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
               <PauseCircle className="h-6 w-6" />
             </div>
@@ -295,9 +302,9 @@ export default function ProductionLotsPage() {
                 {percentages.on_hold}%
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
             <div className="p-3 bg-red-500/10 rounded-lg text-red-500 shrink-0">
               <XCircle className="h-6 w-6" />
             </div>
@@ -308,8 +315,8 @@ export default function ProductionLotsPage() {
                 {percentages.cancelled}%
               </span>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Filter Bar */}
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-4">
@@ -645,8 +652,11 @@ export default function ProductionLotsPage() {
                     : lot.colour ? [lot.colour] : [];
 
                   return (
-                    <tr
+                    <motion.tr
                       key={lot.id}
+                      variants={tableRowVariants}
+                      initial="initial"
+                      animate="animate"
                       onClick={() => router.push(`/production/lots/${lot.id}`)}
                       className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
                     >
@@ -813,7 +823,7 @@ export default function ProductionLotsPage() {
                           </DropdownMenu>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   );
                 })}
               </tbody>

@@ -94,12 +94,16 @@ export function usePWAWebPush() {
       setPermission(result);
       if (result === "granted") {
         toast.success("Mobile PWA Notifications enabled!");
+        triggerLocalMobilePush("TAS ERP Notifications Enabled", {
+          body: "You will now receive alerts for low stock, overdue payments, and reminders.",
+          link_url: "/",
+        });
         const token = await requestFCMToken();
         if (token) setFcmToken(token);
         await registerAndSavePushSubscription();
         return true;
       } else {
-        toast.error("Notification permission was denied.");
+        toast.error("Notification permission was denied. Please allow notifications in browser/system settings.");
         return false;
       }
     } catch (err) {
@@ -111,30 +115,52 @@ export function usePWAWebPush() {
   const triggerLocalMobilePush = (title: string, options?: NotificationOptions & { link_url?: string }) => {
     if (typeof window === "undefined" || Notification.permission !== "granted") return;
 
+    const notifOptions = {
+      body: options?.body || "",
+      icon: "/icons/icon-192x192.png",
+      badge: "/favicon.ico",
+      data: { url: options?.link_url || "/" },
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 200],
+      ...options,
+    };
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, {
-          body: options?.body || "",
-          icon: "/icons/icon-192x192.png",
-          badge: "/favicon.ico",
-          data: { url: options?.link_url || "/" },
-          requireInteraction: true,
-          vibrate: [200, 100, 200, 100, 200],
-          ...options,
-        } as any);
+        registration.showNotification(title, notifOptions as any);
+      }).catch(() => {
+        try {
+          new Notification(title, notifOptions);
+        } catch (_e) {}
       });
     } else {
-      new Notification(title, options);
+      try {
+        new Notification(title, notifOptions);
+      } catch (_e) {}
     }
   };
 
   const sendTestLockScreenPush = async (title?: string, body?: string) => {
+    const testTitle = title || "⚠️ Low Stock Alert (Test)";
+    const testBody = body || "Item #1042 reached reorder level. Tap to view inventory.";
+
+    // 1. Immediately trigger local OS notification on this device
+    if (Notification.permission === "granted") {
+      triggerLocalMobilePush(testTitle, {
+        body: testBody,
+        link_url: "/stock/raw-materials",
+      });
+    } else {
+      const granted = await requestNotificationPermission();
+      if (!granted) return false;
+    }
+
     let tokenToUse = fcmToken;
     if (!tokenToUse) {
       tokenToUse = await requestFCMToken();
     }
 
-    // Always attempt to save push subscription before sending test push
+    // Attempt to ensure active push subscription is registered on server
     await registerAndSavePushSubscription();
 
     try {
@@ -143,16 +169,20 @@ export function usePWAWebPush() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: tokenToUse,
-          title: title || "⚠️ Low Stock Alert",
-          body: body || "Item #1042 reached reorder level. Tap to view inventory.",
-          url: "/inventory",
+          title: testTitle,
+          body: testBody,
+          url: "/stock/raw-materials",
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send push notification");
 
-      toast.success("Lock screen push notification sent to device!");
+      if (data.webPushSentCount > 0 || data.fcmSuccess) {
+        toast.success(`Lock screen push dispatched to ${data.webPushSentCount || 1} registered device(s)!`);
+      } else {
+        toast.success("Local test notification triggered on this device!");
+      }
       return true;
     } catch (err: any) {
       console.error("[Test Lock Screen Push Error]:", err);

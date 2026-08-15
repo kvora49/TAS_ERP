@@ -1,31 +1,32 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { sendLockScreenPushNotification } from "@/lib/firebase/admin";
+import { dispatchSystemPushAlert } from "@/lib/notifications/push-dispatcher";
+import { handleApiError } from "@/lib/api-response";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 /**
  * GET /api/cron/calendar-reminders
  *
- * Cron job: runs every 5 minutes via Vercel cron.
- * 1. Finds unfired reminders due within the next 5 minutes
- * 2. Inserts in_app_notifications for each (bell notification)
- * 3. Fetches FCM tokens and sends lock-screen push notifications
- * 4. Marks reminders as fired
- * 5. Schedules next occurrence for repeating reminders
- * 6. Marks overdue calendar entries
- *
- * Security: requires CRON_SECRET header or query param in production.
+ * Cron job: runs every 5 minutes via Vercel cron or cron-job.org.
+ * Security: requires CRON_SECRET header or query param.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret") ||
     request.headers.get("authorization")?.replace("Bearer ", "");
-  const cronSecret = process.env.CRON_SECRET || "tas-erp-cron-secret";
+  const cronSecret = process.env.CRON_SECRET;
 
-  if (secret !== cronSecret && process.env.NODE_ENV === "production") {
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET is not configured on server" }, { status: 500 });
+  }
+
+  if (secret !== cronSecret) {
     return NextResponse.json({ error: "Unauthorized cron request" }, { status: 401 });
   }
 
-  const supabase = createClient();
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     const now = new Date();
@@ -82,31 +83,16 @@ export async function GET(request: Request) {
 
       if (notification) notificationsCreated.push(notification.id);
 
-      // ── 3. Send FCM push to person_responsible or created_by ─────
-      const targetUserId = entry.person_responsible || entry.created_by;
-      if (targetUserId) {
-        const { data: pushSubs } = await supabase
-          .from("push_subscriptions")
-          .select("fcm_token")
-          .eq("user_id", targetUserId)
-          .not("fcm_token", "is", null);
-
-        for (const sub of pushSubs || []) {
-          if (sub.fcm_token) {
-            await sendLockScreenPushNotification({
-              token: sub.fcm_token,
-              title,
-              body,
-              url: `/reminders?tab=calendar&date=${entry.entry_date}`,
-              tag: `calendar-reminder-${reminder.id}`,
-              data: {
-                reminder_id: reminder.id,
-                entry_id: entry.id,
-                entry_date: entry.entry_date,
-              },
-            });
-          }
-        }
+      // ── 3. Send web push to person_responsible or created_by ─────
+      if (reminder.business_id) {
+        await dispatchSystemPushAlert({
+          businessId: reminder.business_id,
+          userId: entry.person_responsible || entry.created_by || undefined,
+          title,
+          message: body,
+          linkUrl: `/reminders?tab=calendar&date=${entry.entry_date}`,
+          tag: `calendar-reminder-${reminder.id}`,
+        });
       }
 
       // ── 4. Mark reminder as fired ─────────────────────────────────
@@ -166,8 +152,7 @@ export async function GET(request: Request) {
       timestamp: now.toISOString(),
     });
   } catch (err: any) {
-    console.error("[Calendar Cron] Unexpected error:", err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
 

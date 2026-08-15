@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
       salaryResult,
       miscIncomeResult,
       writeoffsResult,
+      bankAccountsResult,
     ] = await Promise.all([
       salesQuery,
       rawPurchasesQuery,
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
       // Payments received from customers
       supabase
         .from("payments")
-        .select("amount, payment_mode")
+        .select("amount, payment_mode, bank_account:bank_accounts(id, name, type, account_category)")
         .eq("business_id", bid)
         .eq("direction", "received")
         .eq("status", "completed")
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       // Payments made to suppliers
       supabase
         .from("payments")
-        .select("amount, payment_mode")
+        .select("amount, payment_mode, bank_account:bank_accounts(id, name, type, account_category)")
         .eq("business_id", bid)
         .eq("direction", "paid")
         .eq("status", "completed")
@@ -121,6 +122,13 @@ export async function GET(req: NextRequest) {
         .eq("business_id", bid)
         .gte("write_off_date", from)
         .lte("write_off_date", to),
+
+      // Bank accounts live balances
+      supabase
+        .from("bank_accounts")
+        .select("id, name, bank_name, type, account_category, current_balance")
+        .eq("business_id", bid)
+        .is("deleted_at", null),
     ]);
 
     const bills = salesResult.data ?? [];
@@ -131,6 +139,7 @@ export async function GET(req: NextRequest) {
     const salaries = salaryResult.data ?? [];
     const miscIncome = miscIncomeResult.data ?? [];
     const writeoffs = writeoffsResult.data ?? [];
+    const bankAccounts = (bankAccountsResult as any)?.data ?? [];
 
     // ── P&L Calculations ──
     const totalRevenue = bills.reduce((s, b) => s + Number(b.grand_total), 0);
@@ -158,10 +167,32 @@ export async function GET(req: NextRequest) {
     const payablesRM = purchases.filter(p => p.payment_status !== "paid")
       .reduce((s, p) => s + Number(p.grand_total) - Number(p.paid_amount), 0);
 
+    const totalBankBalance = bankAccounts.reduce((s: number, b: any) => s + Number(b.current_balance || 0), 0);
+    const pakkaBankBalance = bankAccounts
+      .filter((b: any) => b.account_category === "pakka" || b.account_category === "both")
+      .reduce((s: number, b: any) => s + Number(b.current_balance || 0), 0);
+    const kachaBankBalance = bankAccounts
+      .filter((b: any) => b.account_category === "kacha" || b.type === "cash")
+      .reduce((s: number, b: any) => s + Number(b.current_balance || 0), 0);
+
     // ── Cash Flow ──
     const totalCashIn = paymentsIn.reduce((s, p) => s + Number(p.amount), 0);
     const totalCashOut = paymentsOut.reduce((s, p) => s + Number(p.amount), 0);
     const netCashFlow = totalCashIn - totalCashOut;
+
+    const pakkaCashIn = paymentsIn
+      .filter((p: any) => p.bank_account?.account_category === "pakka" || p.bank_account?.account_category === "both" || (!p.bank_account && p.payment_mode !== "cash"))
+      .reduce((s, p) => s + Number(p.amount), 0);
+    const kachaCashIn = paymentsIn
+      .filter((p: any) => p.bank_account?.account_category === "kacha" || p.payment_mode === "cash")
+      .reduce((s, p) => s + Number(p.amount), 0);
+
+    const pakkaCashOut = paymentsOut
+      .filter((p: any) => p.bank_account?.account_category === "pakka" || p.bank_account?.account_category === "both" || (!p.bank_account && p.payment_mode !== "cash"))
+      .reduce((s, p) => s + Number(p.amount), 0);
+    const kachaCashOut = paymentsOut
+      .filter((p: any) => p.bank_account?.account_category === "kacha" || p.payment_mode === "cash")
+      .reduce((s, p) => s + Number(p.amount), 0);
 
     const cashByMode = paymentsIn.reduce<Record<string, number>>((acc, p) => {
       acc[p.payment_mode] = (acc[p.payment_mode] || 0) + Number(p.amount);
@@ -183,7 +214,6 @@ export async function GET(req: NextRequest) {
     }
 
     const gstBills = await gstBillsQuery;
-
 
     const gstPurchases = await supabase
       .from("raw_material_purchases")
@@ -218,7 +248,9 @@ export async function GET(req: NextRequest) {
       balance_sheet: {
         assets: {
           trade_receivables: outstanding,
-          cash_and_bank: totalCashIn - totalCashOut,
+          cash_and_bank: totalBankBalance > 0 ? totalBankBalance : totalCashIn - totalCashOut,
+          pakka_bank_balance: pakkaBankBalance,
+          kacha_bank_balance: kachaBankBalance,
           inventory_value: 0, // populated by stock valuation separately
         },
         liabilities: {
@@ -259,8 +291,14 @@ export async function GET(req: NextRequest) {
         net_cash_flow: netCashFlow,
         total_inflows: totalCashIn,
         total_outflows: totalCashOut,
+        pakka_inflow: pakkaCashIn,
+        kacha_inflow: kachaCashIn,
+        pakka_outflow: pakkaCashOut,
+        kacha_outflow: kachaCashOut,
+        net_pakka_flow: pakkaCashIn - pakkaCashOut,
+        net_kacha_flow: kachaCashIn - kachaCashOut,
         inflows: {
-          customer_payments: paymentsIn.filter(p => !["neft","rtgs","bank_transfer","cheque","upi","cash"].includes("x")).reduce((s, p) => s + Number(p.amount), totalCashIn - totalCashIn) || totalCashIn,
+          customer_payments: totalCashIn,
           misc_income: totalMiscIncome,
         },
         outflows: {

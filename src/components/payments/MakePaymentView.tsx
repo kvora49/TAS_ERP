@@ -22,6 +22,8 @@ interface BankAccount {
   account_name: string;
   bank_name: string;
   account_number: string;
+  account_category?: "pakka" | "kacha" | "both";
+  type?: string;
   is_default?: boolean;
 }
 
@@ -296,11 +298,15 @@ export default function MakePaymentView({
                   onChange={(e) => setBankAccountId(e.target.value)}
                   className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
                 >
-                  {bankAccounts.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.account_name || b.name} ({b.bank_name})
-                    </option>
-                  ))}
+                  {bankAccounts.map((b) => {
+                    const cat = b.account_category || (b.type === "cash" ? "kacha" : "pakka");
+                    const catLabel = cat === "pakka" ? "🏷️ Pakka" : cat === "kacha" ? "📝 Kaccha" : "🔄 Both";
+                    return (
+                      <option key={b.id} value={b.id}>
+                        [{catLabel}] {b.account_name || b.name} ({b.bank_name})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}

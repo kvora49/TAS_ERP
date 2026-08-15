@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getInvoicePdfFromStorage } from "@/lib/storage/invoice-storage";
+import { handleApiError } from "@/lib/api-response";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   request: Request,
@@ -8,6 +11,10 @@ export async function GET(
 ) {
   try {
     const { id } = params;
+    if (!id || !UUID_REGEX.test(id)) {
+      return NextResponse.json({ error: "Invalid invoice identifier format", code: "INVALID_ID" }, { status: 400 });
+    }
+
     const url = new URL(request.url);
     const forceDownload = url.searchParams.get("download") === "true";
 
@@ -37,13 +44,14 @@ export async function GET(
       .maybeSingle();
 
     if (billErr || !bill) {
-      return NextResponse.json({ error: "Invoice not found or expired" }, { status: 404 });
+      return NextResponse.json({ error: "Invoice not found or expired", code: "NOT_FOUND" }, { status: 404 });
     }
 
     // 3. Fallback: Redirect to public bill view with auto-print/download mode
     const origin = url.origin || process.env.NEXT_PUBLIC_APP_URL || "";
     return NextResponse.redirect(`${origin}/p/bill/${id}?autoPrint=true`);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to resolve PDF" }, { status: 500 });
+    return handleApiError(err);
   }
 }
+

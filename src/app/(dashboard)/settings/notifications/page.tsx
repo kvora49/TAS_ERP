@@ -49,7 +49,6 @@ export default function NotificationsSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // General Notification Preferences states
-  const [notifDefaultTime, setNotifDefaultTime] = useState("09:00 AM");
   const [notifEmailSenderName, setNotifEmailSenderName] = useState("ABC Garments Pvt. Ltd.");
   const [notifEmailReplyTo, setNotifEmailReplyTo] = useState("noreply@abcgarments.com");
   const [notifWeekend, setNotifWeekend] = useState(true);
@@ -94,7 +93,6 @@ export default function NotificationsSettingsPage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load notification settings`);
 
       if (data.settings) {
-        setNotifDefaultTime(data.settings.notif_default_time || "09:00 AM");
         setNotifEmailSenderName(data.settings.notif_email_sender_name || "ABC Garments Pvt. Ltd.");
         setNotifEmailReplyTo(data.settings.notif_email_reply_to || "noreply@abcgarments.com");
         setNotifWeekend(data.settings.notif_weekend ?? true);
@@ -120,7 +118,6 @@ export default function NotificationsSettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          notif_default_time: notifDefaultTime,
           notif_email_sender_name: notifEmailSenderName,
           notif_email_reply_to: notifEmailReplyTo,
           notif_weekend: notifWeekend,
@@ -411,27 +408,8 @@ export default function NotificationsSettingsPage() {
         subtitle="General notification preferences"
       >
         <div className="flex flex-col gap-6">
-          {/* Top row - Input grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-semibold text-[#374151] block mb-1.5">
-                Default Time
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={notifDefaultTime}
-                  onChange={(e) => setNotifDefaultTime(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-[#D1D5DB] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                  placeholder="09:00 AM"
-                />
-                <Clock className="size-4 text-[#94A3B8] absolute right-3 top-1/2 -translate-y-1/2" />
-              </div>
-              <p className="text-xs text-[#94A3B8] mt-1.5">
-                Default time to send notifications
-              </p>
-            </div>
-
+          {/* Input grid — Email Sender Name + Reply To */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-semibold text-[#374151] block mb-1.5">
                 Email Sender Name

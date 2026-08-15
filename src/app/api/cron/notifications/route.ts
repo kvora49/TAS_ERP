@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { dispatchSystemPushAlert } from "@/lib/notifications/push-dispatcher";
+import { handleApiError } from "@/lib/api-response";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -8,9 +9,14 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret") || request.headers.get("authorization")?.replace("Bearer ", "");
-  const cronSecret = process.env.CRON_SECRET || "tas-erp-cron-secret";
+  const cronSecret = process.env.CRON_SECRET;
+  const force = searchParams.get("force") === "true";
 
-  if (secret !== cronSecret && process.env.NODE_ENV === "production") {
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET is not configured on server" }, { status: 500 });
+  }
+
+  if (secret !== cronSecret) {
     return NextResponse.json({ error: "Unauthorized cron request" }, { status: 401 });
   }
 
@@ -46,7 +52,7 @@ export async function GET(request: Request) {
       for (const rule of rules) {
         const days = Number(rule.days_before || 0);
 
-        // 1. Low Stock Rule
+        // 1. Low Stock Rule (includes items with 0 stock)
         if (rule.type === "low_stock") {
           const { data: stockItems } = await supabase
             .from("raw_material_current_stock")
@@ -56,7 +62,7 @@ export async function GET(request: Request) {
           (stockItems || []).forEach((item: any) => {
             const qty = Number(item.current_stock || 0);
             const threshold = Number(item.material_type?.reorder_level) || defaultThreshold;
-            if (qty > 0 && qty < threshold) {
+            if (qty < threshold) {
               const name = item.material_type?.name || "Raw Material";
               createdNotifications.push({
                 business_id: biz.id,
@@ -147,14 +153,18 @@ export async function GET(request: Request) {
     // Deduplicate, insert unique notifications and dispatch mobile push
     if (createdNotifications.length > 0) {
       for (const notif of createdNotifications.slice(0, 20)) {
-        const { data: existing } = await supabase
-          .from("in_app_notifications")
-          .select("id")
-          .eq("business_id", notif.business_id)
-          .eq("rule_type", notif.rule_type)
-          .eq("title", notif.title)
-          .gte("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
-          .maybeSingle();
+        let existing = null;
+        if (!force) {
+          const { data } = await supabase
+            .from("in_app_notifications")
+            .select("id")
+            .eq("business_id", notif.business_id)
+            .eq("rule_type", notif.rule_type)
+            .eq("title", notif.title)
+            .gte("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
+            .maybeSingle();
+          existing = data;
+        }
 
         if (!existing) {
           await supabase.from("in_app_notifications").insert(notif);
@@ -181,7 +191,7 @@ export async function GET(request: Request) {
       webPushSentCount: totalWebPushSent,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Cron notification runner failed" }, { status: 500 });
+    return handleApiError(err);
   }
 }
 

@@ -1,26 +1,21 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(req: Request) {
   // 1. Verify User Session
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user;
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAuthGuard();
+  if (!guard.success) return guard.response;
+  const { user } = guard.ctx;
 
   try {
     const { filename, contentType, folder } = await req.json();
 
     if (!filename || !contentType || !folder) {
       return NextResponse.json(
-        { error: "Missing file details" },
+        { error: "Missing file details (filename, contentType, folder)", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -70,14 +65,14 @@ export async function POST(req: Request) {
 
     if (!allowedFolders.includes(folder)) {
       return NextResponse.json(
-        { error: "Invalid upload directory" },
+        { error: "Invalid upload directory", code: "INVALID_FOLDER" },
         { status: 400 }
       );
     }
 
     if (!allowedTypes[folder]?.includes(contentType)) {
       return NextResponse.json(
-        { error: `File type not allowed for ${folder}` },
+        { error: `File type not allowed for ${folder}`, code: "INVALID_CONTENT_TYPE" },
         { status: 400 }
       );
     }
@@ -94,7 +89,7 @@ export async function POST(req: Request) {
     const allowedExts = safeExtensions[contentType];
     if (!allowedExts || !fileExt || !allowedExts.includes(fileExt)) {
       return NextResponse.json(
-        { error: "File extension does not match content type" },
+        { error: "File extension does not match content type", code: "INVALID_EXTENSION" },
         { status: 400 }
       );
     }
@@ -150,9 +145,7 @@ export async function POST(req: Request) {
       publicUrl,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Presigned URL generation failed" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-response";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Public API endpoint for customer invoice viewing (no auth required)
 export async function GET(
@@ -7,6 +10,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const billId = params.id;
+    if (!billId || !UUID_REGEX.test(billId)) {
+      return NextResponse.json({ error: "Invalid invoice identifier format", code: "INVALID_ID" }, { status: 400 });
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -19,13 +27,13 @@ export async function GET(
         items:sale_bill_items(*, design:designs(id, design_number, name, hsn_code), colour:design_colours(id, colour_name), material_type:raw_material_types(id, name, unit, hsn_code)),
         charges:sale_bill_charges(*)
       `)
-      .eq("id", params.id)
+      .eq("id", billId)
       .is("deleted_at", null)
       .maybeSingle();
 
     if (billErr) throw billErr;
     if (!bill) {
-      return NextResponse.json({ error: "Invoice not found or expired" }, { status: 404 });
+      return NextResponse.json({ error: "Invoice not found or expired", code: "NOT_FOUND" }, { status: 404 });
     }
 
     if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
@@ -75,6 +83,7 @@ export async function GET(
       brandConfig,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to load invoice" }, { status: 500 });
+    return handleApiError(err);
   }
 }
+

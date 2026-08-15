@@ -4,6 +4,8 @@ import React from "react";
 import { AlertCircle, Inbox, RefreshCw } from "lucide-react";
 import { EmptyState } from "./EmptyState";
 import { Skeleton } from "@/components/experience/Skeleton";
+import { motion, AnimatePresence } from "framer-motion";
+import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
 
 interface PageStateProps {
   isLoading: boolean;
@@ -45,12 +47,18 @@ export default function PageState({
   skeletonCount = 4,
   children,
 }: PageStateProps) {
+  const profile = useExperienceProfile();
+  const isUltraFast = profile?.level === "ultraFast";
   const emptyMessage = emptyDescription || emptyMessageProp || "No records found matching the query.";
   const hasError = isError !== undefined ? isError : Boolean(error);
 
+  let stateKey = "ready";
+  let content: React.ReactNode = null;
+
   if (isLoading) {
+    stateKey = "loading";
     if (skeletonVariant === "table") {
-      return (
+      content = (
         <div className="w-full space-y-3">
           <div className="flex justify-between items-center pb-2">
             <Skeleton className="h-8 w-48 rounded-lg" />
@@ -76,10 +84,8 @@ export default function PageState({
           </div>
         </div>
       );
-    }
-
-    if (skeletonVariant === "stats") {
-      return (
+    } else if (skeletonVariant === "stats") {
+      content = (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <div
@@ -96,10 +102,8 @@ export default function PageState({
           ))}
         </div>
       );
-    }
-
-    if (skeletonVariant === "card") {
-      return (
+    } else if (skeletonVariant === "card") {
+      content = (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <div
@@ -113,10 +117,8 @@ export default function PageState({
           ))}
         </div>
       );
-    }
-
-    if (skeletonVariant === "form") {
-      return (
+    } else if (skeletonVariant === "form") {
+      content = (
         <div className="w-full p-6 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] space-y-4">
           <Skeleton className="h-6 w-48 rounded" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -132,23 +134,22 @@ export default function PageState({
           <Skeleton className="h-24 w-full rounded-lg" />
         </div>
       );
-    }
-
-    // Default loader
-    return (
-      <div className="flex h-[40vh] w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-semibold text-[var(--text-muted)]">
-            Loading data...
-          </span>
+    } else {
+      // Default loader
+      content = (
+        <div className="flex h-[40vh] w-full items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold text-[var(--text-muted)]">
+              Loading data...
+            </span>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  if (hasError) {
-    return (
+      );
+    }
+  } else if (hasError) {
+    stateKey = "error";
+    content = (
       <div className="flex h-[40vh] w-full items-center justify-center p-6">
         <div className="flex flex-col items-center gap-3 text-center max-w-md bg-[var(--card-bg)] border border-[var(--border)] p-6 rounded-xl shadow-[var(--shadow-md)]">
           <div className="h-12 w-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center">
@@ -173,10 +174,9 @@ export default function PageState({
         </div>
       </div>
     );
-  }
-
-  if (isEmpty) {
-    return (
+  } else if (isEmpty) {
+    stateKey = "empty";
+    content = (
       <div className="flex w-full items-center justify-center bg-[var(--card-bg)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow-sm)]">
         <EmptyState
           icon={<Inbox className="h-8 w-8 text-[var(--text-muted)]" />}
@@ -188,7 +188,26 @@ export default function PageState({
         {emptyAction && <div className="p-4">{emptyAction}</div>}
       </div>
     );
+  } else {
+    content = children;
   }
 
-  return <>{children}</>;
+  if (isUltraFast) {
+    return <>{content}</>;
+  }
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={stateKey}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.16, ease: "easeOut" }}
+        className="w-full"
+      >
+        {content}
+      </motion.div>
+    </AnimatePresence>
+  );
 }

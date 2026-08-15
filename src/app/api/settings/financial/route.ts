@@ -49,11 +49,13 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { requireAuthGuard } = await import("@/lib/auth/guards");
+  const { handleApiError } = await import("@/lib/api-response");
+
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -83,7 +85,7 @@ export async function PUT(request: Request) {
       );
 
     if (setError) {
-      return NextResponse.json({ error: setError.message }, { status: 500 });
+      throw setError;
     }
 
     // 2. Bulk update brand numbering settings if provided
@@ -102,16 +104,14 @@ export async function PUT(request: Request) {
           .eq("business_id", businessId);
 
         if (brandUpdateErr) {
-          return NextResponse.json({ error: `Brand ${brand.name} update failed: ${brandUpdateErr.message}` }, { status: 500 });
+          throw new Error(`Brand ${brand.name || ""} update failed: ${brandUpdateErr.message}`);
         }
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

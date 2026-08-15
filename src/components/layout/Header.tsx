@@ -21,6 +21,8 @@ import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 
 
+import { CompanySwitcher } from "./CompanySwitcher";
+
 // Header component with collapsible sidebar support
 
 interface BrandItem {
@@ -44,6 +46,8 @@ const ROUTE_LABELS: Record<string, string> = {
   new: "New Entry / Adjustment",
   "backup-restore": "Backup & Restore",
   "bill-builder": "Bill Builder",
+  companies: "Companies",
+  "company-profile": "Company Profile",
 };
 
 export default function Header() {
@@ -72,6 +76,10 @@ export default function Header() {
 
       if (!error && data) {
         setBrands(data);
+        const currentBrandId = useAppStore.getState().filters?.brandId;
+        if (currentBrandId && currentBrandId !== "all" && !data.some((b) => b.id === currentBrandId)) {
+          setFilters({ brandId: "all" });
+        }
       }
     };
     fetchBrands();
@@ -103,7 +111,7 @@ export default function Header() {
       {/* Left: Logo block + Hamburger + Breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
 
-        {/* Branding block — always visible in header */}
+        {/* Branding & Company Switcher block */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
           {/* Hamburger toggle */}
           <button
@@ -115,24 +123,8 @@ export default function Header() {
             <Menu size={18} />
           </button>
 
-          {/* Logo */}
-          <img
-            src={logoUrl || "/logo.png"}
-            alt={companyName || "TAS ERP Logo"}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain bg-white dark:bg-[#1E293B] border border-[var(--border)] p-0.5 shadow-xs shrink-0"
-          />
-
-          {/* App title + company name */}
-          <div className="flex flex-col justify-center leading-tight min-w-0">
-            <span className="font-extrabold text-[var(--text-primary)] tracking-wide text-xs sm:text-sm leading-none truncate">
-              TAS ERP
-            </span>
-            {companyName && (
-              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--primary)] tracking-wider uppercase leading-tight mt-0.5 truncate hidden sm:inline-block max-w-[100px] md:max-w-[150px]">
-                {companyName}
-              </span>
-            )}
-          </div>
+          {/* Company Switcher (Static if 1 company, Dropdown if 2+) */}
+          <CompanySwitcher />
         </div>
 
         {/* Divider */}
@@ -201,9 +193,9 @@ export default function Header() {
             <DropdownMenuTrigger className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 transition-colors cursor-pointer outline-none">
               <Sliders size={13} className="text-[var(--text-muted)] shrink-0" />
               <span className="hidden md:inline truncate max-w-[90px]">
-                {filters?.brandId === "all"
+                {filters?.brandId === "all" || !filters?.brandId
                   ? "All Brands"
-                  : brands.find((b) => b.id === filters?.brandId)?.name || "Select Brand"}
+                  : brands.find((b) => b.id === filters?.brandId)?.name || "All Brands"}
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-[var(--card-bg)] border border-[var(--border)] rounded-lg shadow-md mt-1 z-50">

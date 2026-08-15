@@ -39,6 +39,8 @@ import WorkerAvatar from "@/components/shared/WorkerAvatar";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
 import {
   Dialog,
   DialogContent,
@@ -592,82 +594,81 @@ export default function UnifiedJobWorkPage() {
         ))}
       </div>
 
-      {/* ── DESKTOP: existing 4-col KPI grid ── */}
-      <div className="hidden md:grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
+      {/* ── DESKTOP: existing 4-col KPI grid — animated ── */}
+      <motion.div
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="hidden md:grid grid-cols-1 sm:grid-cols-4 gap-4"
+      >
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between transition-shadow">
           <div>
             <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Job Work Billed</p>
             <h3 className="text-lg font-extrabold text-[var(--text-primary)] mt-1">{formatCurrency(globalStats.totalBilled)}</h3>
           </div>
           <div className="w-10 h-10 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-bold"><ClipboardList size={20} /></div>
-        </div>
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
+        </motion.div>
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between transition-shadow">
           <div>
             <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Payouts Released</p>
             <h3 className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(globalStats.totalPaid)}</h3>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold"><CheckCircle size={20} /></div>
-        </div>
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
+        </motion.div>
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between transition-shadow">
           <div>
             <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Net Outstanding Payable</p>
             <h3 className="text-lg font-extrabold text-rose-600 dark:text-rose-400 mt-1">{formatCurrency(globalStats.totalOutstanding)}</h3>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold"><IndianRupee size={20} /></div>
-        </div>
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between">
+        </motion.div>
+        <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center justify-between transition-shadow">
           <div>
             <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Active Workers</p>
             <h3 className="text-lg font-extrabold text-[var(--text-primary)] mt-1">{workers.length}</h3>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold"><User size={20} /></div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Tabs Container Header */}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
         <div className="flex items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] px-4 pt-3 gap-2 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab("entries")}
-            className={`px-4 py-2.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-2 border-b-2 ${
-              activeTab === "entries"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] border-[var(--primary)] shadow-2xs"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] border-transparent"
-            }`}
-          >
-            <ClipboardList size={15} />
-            <span>Job Work Entries Log</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-extrabold">
-              {jobWorkEntries.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("ledger")}
-            className={`px-4 py-2.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-2 border-b-2 ${
-              activeTab === "ledger"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] border-[var(--primary)] shadow-2xs"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] border-transparent"
-            }`}
-          >
-            <BookOpen size={15} />
-            <span>Worker Ledgers</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("payments")}
-            className={`px-4 py-2.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-2 border-b-2 ${
-              activeTab === "payments"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] border-[var(--primary)] shadow-2xs"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] border-transparent"
-            }`}
-          >
-            <CreditCard size={15} />
-            <span>Payment Log History</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-[var(--page-bg)] text-[var(--text-secondary)] text-[10px] font-extrabold">
-              {paymentsList.length}
-            </span>
-          </button>
+          {[
+            { id: "entries", label: "Job Work Entries Log", icon: ClipboardList, count: jobWorkEntries.length, countBg: "bg-[var(--primary-light)]", countColor: "text-[var(--primary)]" },
+            { id: "ledger", label: "Worker Ledgers", icon: BookOpen },
+            { id: "payments", label: "Payment Log History", icon: CreditCard, count: paymentsList.length, countBg: "bg-[var(--page-bg)]", countColor: "text-[var(--text-secondary)]" },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={cn(
+                  "relative px-4 py-2.5 rounded-t-lg text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer",
+                  isActive
+                    ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                <Icon size={15} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className={cn("ml-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold", tab.countBg, tab.countColor)}>
+                    {tab.count}
+                  </span>
+                )}
+                {isActive && (
+                  <motion.div
+                    layoutId="jobwork-tab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
+                    transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* ------------------------------------------------------------- */}

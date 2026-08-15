@@ -130,6 +130,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ tab, from, to, rows, summary: { totalOutstanding, totalBills: rows.length }, aging });
     }
 
+    const accountCategory = searchParams.get("account_category"); // 'all' | 'pakka' | 'kacha'
+    const direction = searchParams.get("direction"); // 'all' | 'received' | 'paid'
+
     // UPI / Bank / Cash / Combined — filter payments table by payment_mode
     const modeFilter: Record<string, string[]> = {
       upi: ["upi"],
@@ -140,11 +143,12 @@ export async function GET(req: NextRequest) {
 
     const modes = modeFilter[tab] ?? modeFilter["combined"];
 
-    const { data: paymentsData } = await supabase
+    let paymentsQuery = supabase
       .from("payments")
       .select(`
         id, payment_number, payment_date, direction, payment_mode,
-        amount, reference_no, remarks, status,
+        amount, reference_no, remarks, status, bank_account_id,
+        bank_account:bank_accounts(id, name, bank_name, type, account_category),
         parties!inner(id, name, company_name)
       `)
       .eq("business_id", bid)
@@ -154,32 +158,81 @@ export async function GET(req: NextRequest) {
       .lte("payment_date", to)
       .order("payment_date", { ascending: false });
 
-    const rows = (paymentsData ?? []).map(p => ({
-      id: p.id,
-      number: p.payment_number,
-      date: p.payment_date,
-      direction: p.direction,
-      mode: p.payment_mode,
-      party: (p.parties as any)?.company_name ?? (p.parties as any)?.name ?? "—",
-      amount: Number(p.amount),
-      reference: p.reference_no ?? "—",
-      remarks: p.remarks ?? "—",
-    }));
+    if (direction && (direction === "received" || direction === "paid")) {
+      paymentsQuery = paymentsQuery.eq("direction", direction);
+    }
+
+    if (partyId && partyId !== "all") {
+      paymentsQuery = paymentsQuery.eq("party_id", partyId);
+    }
+
+    const { data: paymentsData, error: payError } = await paymentsQuery;
+    if (payError) throw payError;
+
+    const allPaymentRows = (paymentsData ?? []).map((p: any) => {
+      const ba = p.bank_account as any;
+      const category = ba?.account_category || (p.payment_mode === "cash" ? "kacha" : "pakka");
+      return {
+        id: p.id,
+        number: p.payment_number,
+        date: p.payment_date,
+        direction: p.direction,
+        mode: p.payment_mode,
+        account_name: ba?.name || (p.payment_mode === "cash" ? "Cash Register" : "Bank Account"),
+        account_category: category,
+        party: (p.parties as any)?.company_name ?? (p.parties as any)?.name ?? "—",
+        amount: Number(p.amount),
+        reference: p.reference_no ?? "—",
+        remarks: p.remarks ?? "—",
+      };
+    });
+
+    const rows = accountCategory && accountCategory !== "all"
+      ? allPaymentRows.filter(r => r.account_category === accountCategory || r.account_category === "both")
+      : allPaymentRows;
 
     const totalIn = rows.filter(r => r.direction === "received").reduce((s, r) => s + r.amount, 0);
     const totalOut = rows.filter(r => r.direction === "paid").reduce((s, r) => s + r.amount, 0);
+
+    const totalInPakka = rows.filter(r => r.direction === "received" && (r.account_category === "pakka" || r.account_category === "both")).reduce((s, r) => s + r.amount, 0);
+    const totalInKacha = rows.filter(r => r.direction === "received" && r.account_category === "kacha").reduce((s, r) => s + r.amount, 0);
+
+    const totalOutPakka = rows.filter(r => r.direction === "paid" && (r.account_category === "pakka" || r.account_category === "both")).reduce((s, r) => s + r.amount, 0);
+    const totalOutKacha = rows.filter(r => r.direction === "paid" && r.account_category === "kacha").reduce((s, r) => s + r.amount, 0);
 
     const byMode = rows.reduce<Record<string, number>>((acc, r) => {
       acc[r.mode] = (acc[r.mode] || 0) + r.amount;
       return acc;
     }, {});
 
-    const monthMap: Record<string, { received: number; paid: number }> = {};
+    const byCategory = {
+      pakka: {
+        received: totalInPakka,
+        paid: totalOutPakka,
+        net: totalInPakka - totalOutPakka,
+      },
+      kacha: {
+        received: totalInKacha,
+        paid: totalOutKacha,
+        net: totalInKacha - totalOutKacha,
+      },
+    };
+
+    const monthMap: Record<string, { received: number; paid: number; pakkaIn: number; kachaIn: number; pakkaOut: number; kachaOut: number }> = {};
     for (const r of rows) {
       const m = r.date.slice(0, 7);
-      if (!monthMap[m]) monthMap[m] = { received: 0, paid: 0 };
-      if (r.direction === "received") monthMap[m].received += r.amount;
-      else monthMap[m].paid += r.amount;
+      if (!monthMap[m]) {
+        monthMap[m] = { received: 0, paid: 0, pakkaIn: 0, kachaIn: 0, pakkaOut: 0, kachaOut: 0 };
+      }
+      if (r.direction === "received") {
+        monthMap[m].received += r.amount;
+        if (r.account_category === "kacha") monthMap[m].kachaIn += r.amount;
+        else monthMap[m].pakkaIn += r.amount;
+      } else {
+        monthMap[m].paid += r.amount;
+        if (r.account_category === "kacha") monthMap[m].kachaOut += r.amount;
+        else monthMap[m].pakkaOut += r.amount;
+      }
     }
     const monthlyTrend = Object.entries(monthMap)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -187,11 +240,30 @@ export async function GET(req: NextRequest) {
         month: new Date(month + "-01").toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
         received: vals.received,
         paid: vals.paid,
+        pakkaIn: vals.pakkaIn,
+        kachaIn: vals.kachaIn,
+        pakkaOut: vals.pakkaOut,
+        kachaOut: vals.kachaOut,
       }));
 
     return NextResponse.json({
-      tab, from, to, rows,
-      summary: { totalIn, totalOut, net: totalIn - totalOut, totalTransactions: rows.length },
+      tab,
+      from,
+      to,
+      account_category: accountCategory ?? "all",
+      direction: direction ?? "all",
+      rows,
+      summary: {
+        totalIn,
+        totalOut,
+        net: totalIn - totalOut,
+        totalInPakka,
+        totalInKacha,
+        totalOutPakka,
+        totalOutKacha,
+        totalTransactions: rows.length,
+      },
+      byCategory,
       byMode,
       monthlyTrend,
     });

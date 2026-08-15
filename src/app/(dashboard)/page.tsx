@@ -58,15 +58,21 @@ interface DashboardData {
   };
   productionDonut: { name: string; value: number; color: string }[];
   lowStockAlerts: { name: string; category: string; qty: string; reorder: string }[];
-  upcomingPayments: { desc: string; date: string; amount: number; type: string }[];
   salesChart: { date: string; sales: number }[];
   godownStock: { name: string; pieces: number; value: number }[];
   bankBalances: any[];
+  remindersSummary?: {
+    receivables: { total_overdue: number; total_outstanding: number };
+    payables: { total_overdue: number; total_outstanding: number };
+  };
 }
 
 import { useGeneralSettings } from "@/hooks/useGeneralSettings";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import PageState from "@/components/shared/PageState";
+import { motion } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
+import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
 
 export default function DashboardPage() {
   const user = useAppStore((state) => state.user);
@@ -75,6 +81,9 @@ export default function DashboardPage() {
   const chartTheme = useChartTheme();
   const { lowStockAlerts: isLowStockAlertsEnabled, formatAppCurrency } = useGeneralSettings();
 
+  const brandId = filters?.brandId || "all";
+  const dateRange = filters?.dateRange || "this_month";
+
   const {
     data: dashboardData,
     isLoading: dashboardLoading,
@@ -82,9 +91,9 @@ export default function DashboardPage() {
     error,
     refetch,
   } = useQuery<DashboardData | null>({
-    queryKey: ["dashboard", filters.brandId, filters.dateRange],
+    queryKey: ["dashboard", brandId, dateRange],
     queryFn: async () => {
-      const res = await fetch(`/api/dashboard?brandId=${filters.brandId}&dateRange=${filters.dateRange}`);
+      const res = await fetch(`/api/dashboard?brandId=${encodeURIComponent(brandId)}&dateRange=${encodeURIComponent(dateRange)}`);
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || "Failed to load dashboard data");
@@ -105,7 +114,7 @@ export default function DashboardPage() {
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: !!user,
+    enabled: !!user && !dashboardData?.remindersSummary,
   });
 
   const { data: payablesReminders } = useQuery({
@@ -115,11 +124,11 @@ export default function DashboardPage() {
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: !!user,
+    enabled: !!user && !dashboardData?.remindersSummary,
   });
 
   useEffect(() => {
-    if (user) {
+    if (user?.businessId) {
       const supabase = createClient();
       const channel = supabase
         .channel(`realtime:dashboard:${user.businessId}`)
@@ -135,13 +144,37 @@ export default function DashboardPage() {
             queryClient.invalidateQueries({ queryKey: ["dashboard"] });
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "sale_bills",
+            filter: `business_id=eq.${user.businessId}`,
+          },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "finished_stock",
+            filter: `business_id=eq.${user.businessId}`,
+          },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          }
+        )
         .subscribe();
 
       return () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [user, queryClient]);
+  }, [user?.businessId, queryClient]);
 
   const formatCurrency = (val: number) => {
     return formatAppCurrency(val);
@@ -158,12 +191,17 @@ export default function DashboardPage() {
       skeletonCount={5}
     >
       {data && (() => {
-        const { kpis, productionDonut, lowStockAlerts, upcomingPayments, salesChart, godownStock, bankBalances } = data;
+        const { kpis, productionDonut, lowStockAlerts, salesChart, godownStock, bankBalances } = data;
 
         return (
           <div className="space-y-6">
             {/* Row 1: KPI Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
+            >
               <KPICard
                 title="Total Stock Value"
                 value={formatCurrency(kpis.totalStockValue.value)}
@@ -219,9 +257,66 @@ export default function DashboardPage() {
                 icon={Wallet}
                 iconBgClass="bg-[#FDF2F8] text-[#DB2777] dark:bg-[#500724] dark:text-[#F472B6]"
               />
+            </motion.div>
+
+            {/* Row 2: Quick Actions */}
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2.5 mb-4">
+                Quick Actions
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <QuickActionCard
+                  label="Add Sale"
+                  subtitle="Create Bill"
+                  icon={ShoppingCart}
+                  iconColorClass="text-[#2563EB] dark:text-[#60A5FA]"
+                  iconBgClass="bg-[#EFF6FF] dark:bg-[#1E3A5F]"
+                  href="/sales/bills/new"
+                />
+                <QuickActionCard
+                  label="New Lot"
+                  subtitle="Start Batch"
+                  icon={Factory}
+                  iconColorClass="text-[#7C3AED] dark:text-[#C4B5FD]"
+                  iconBgClass="bg-[#F5F3FF] dark:bg-[#2E1065]"
+                  href="/production/lots/new"
+                />
+                <QuickActionCard
+                  label="Receive Payment"
+                  subtitle="Party Receipt"
+                  icon={CreditCard}
+                  iconColorClass="text-[#16A34A] dark:text-[#4ADE80]"
+                  iconBgClass="bg-[#F0FDF4] dark:bg-[#064E3B]"
+                  href="/payments/receive"
+                />
+                <QuickActionCard
+                  label="Record Expense"
+                  subtitle="General Voucher"
+                  icon={Receipt}
+                  iconColorClass="text-[#EA580C] dark:text-[#FB923C]"
+                  iconBgClass="bg-[#FFF7ED] dark:bg-[#431407]"
+                  href="/expenses/new"
+                />
+                <QuickActionCard
+                  label="Scan QR Code"
+                  subtitle="PWA Scanner"
+                  icon={BarChart3}
+                  iconColorClass="text-[#0D9488] dark:text-[#2DD4BF]"
+                  iconBgClass="bg-[#CCFBF1] dark:bg-[#134E4A]"
+                  href="/scan"
+                />
+                <QuickActionCard
+                  label="Party Ledger"
+                  subtitle="View Statement"
+                  icon={UserCircle}
+                  iconColorClass="text-[#D97706] dark:text-[#FBBF24]"
+                  iconBgClass="bg-[#FEF3C7] dark:bg-[#451A03]"
+                  href="/parties"
+                />
+              </div>
             </div>
 
-            {/* Row 2: Production Donut & Lists */}
+            {/* Row 3: Production Donut & Lists */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Production Status Donut */}
               <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
@@ -233,23 +328,213 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="h-56 relative flex items-center justify-center my-3">
+                  {productionDonut.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={productionDonut}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={65}
+                          outerRadius={85}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {productionDonut.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => [`${value} Lots`, "Count"]}
+                          contentStyle={{
+                            background: chartTheme.tooltipBg,
+                            color: chartTheme.text,
+                            borderRadius: "8px",
+                            border: `1px solid ${chartTheme.tooltipBorder}`,
+                            fontSize: "11px",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="w-36 h-36 rounded-full border-2 border-dashed border-[var(--border)] flex items-center justify-center">
+                      <span className="text-[11px] font-semibold text-[var(--text-muted)] text-center px-2">
+                        No active lots
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Inner Label */}
+                  {productionDonut.length > 0 && (
+                    <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                      <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
+                        Total Lots
+                      </span>
+                      <span className="text-2xl font-extrabold text-[var(--text-primary)] mt-0.5">
+                        {productionDonut.reduce((sum, item) => sum + item.value, 0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Donut Legend */}
+                {productionDonut.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
+                    {productionDonut.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 font-medium">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-[var(--text-primary)]">{item.name}</span>
+                        <span className="text-[var(--text-muted)] font-bold">({item.value})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Low Stock Alerts */}
+              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Low Stock Alerts</h3>
+                  <span className="h-6 px-2 rounded-md bg-[#FEE2E2] dark:bg-[#450A0A] text-[#DC2626] dark:text-[#FCA5A5] text-[10px] font-bold uppercase flex items-center justify-center">
+                    Action Required
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)] space-y-3">
+                  {isLowStockAlertsEnabled && Array.isArray(lowStockAlerts) && lowStockAlerts.length > 0 ? (
+                    lowStockAlerts.map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
+                        <div className="flex items-start gap-2.5 overflow-hidden">
+                          <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] dark:bg-[#451A03] text-[#D97706] dark:text-[#FBBF24] flex items-center justify-center shrink-0">
+                            <AlertTriangle size={15} />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-bold text-[var(--text-primary)] truncate">
+                              {item.name}
+                            </p>
+                            <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
+                              {item.category}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right whitespace-nowrap shrink-0">
+                          <p className="text-xs font-bold text-[#DC2626] dark:text-[#FCA5A5]">{item.qty}</p>
+                          <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                            Limit: {item.reorder}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-6 text-center text-xs text-[var(--text-muted)] italic">
+                      {!isLowStockAlertsEnabled ? "Low stock alerts are disabled in general settings" : "No low stock alerts"}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Overdue & Reminders Widget */}
+              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-[var(--primary)]" />
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Overdue & Payment Reminders</h3>
+                  </div>
+                  <Link
+                    href="/reminders"
+                    className="text-[11px] font-bold text-[var(--primary)] hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Hub</span>
+                    <ChevronRight size={12} />
+                  </Link>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Customer Receivables Summary */}
+                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase text-amber-700 dark:text-amber-300 tracking-wider block">
+                        Customer Receivables
+                      </span>
+                      <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
+                        {data.remindersSummary?.receivables?.total_overdue ?? receivablesReminders?.stats?.total_overdue ?? 0} Bills Overdue
+                      </span>
+                    </div>
+                    <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400 font-mono">
+                      {formatCurrency(data.remindersSummary?.receivables?.total_outstanding ?? receivablesReminders?.stats?.total_outstanding ?? 0)}
+                    </span>
+                  </div>
+
+                  {/* Vendor Payables Summary */}
+                  <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase text-indigo-700 dark:text-indigo-300 tracking-wider block">
+                        Supplier Payables
+                      </span>
+                      <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
+                        {data.remindersSummary?.payables?.total_overdue ?? payablesReminders?.stats?.total_overdue ?? 0} Bills Pending
+                      </span>
+                    </div>
+                    <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
+                      {formatCurrency(data.remindersSummary?.payables?.total_outstanding ?? payablesReminders?.stats?.total_outstanding ?? 0)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-[var(--border)] mt-3">
+                  <Link
+                    href="/reminders"
+                    className="w-full py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Bell size={13} />
+                    <span>Manage All Reminders & Schedules</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: Sales Trend & Balances */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Sales Trend Line Chart */}
+              <div className="lg:col-span-2 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Sales Trend</h3>
+                  <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    {dateRange === "today"
+                      ? "Today"
+                      : dateRange === "this_week"
+                      ? "This Week"
+                      : dateRange === "last_month"
+                      ? "Last Month"
+                      : dateRange === "this_year"
+                      ? "Fiscal Year"
+                      : new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                  </div>
+                </div>
+
+                <div className="h-56 w-full my-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={productionDonut}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={65}
-                        outerRadius={85}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {productionDonut.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
+                    <LineChart data={salesChart}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
+                        dy={10}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(val) => `₹${val / 1000}k`}
+                        tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
+                        dx={-10}
+                      />
                       <Tooltip
-                        formatter={(value) => [`${value} Lots`, "Count"]}
+                        formatter={(value) => [formatCurrency(Number(value)), "Sales"]}
                         contentStyle={{
                           background: chartTheme.tooltipBg,
                           color: chartTheme.text,
@@ -258,316 +543,95 @@ export default function DashboardPage() {
                           fontSize: "11px",
                         }}
                       />
-                    </PieChart>
+                      <Line
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="var(--primary)"
+                        strokeWidth={3}
+                        dot={{ r: 4, strokeWidth: 1, fill: "var(--card-bg)" }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
                   </ResponsiveContainer>
-
-            {/* Inner Label */}
-            <div className="absolute flex flex-col items-center justify-center text-center">
-              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-                Total Lots
-              </span>
-              <span className="text-2xl font-extrabold text-[var(--text-primary)] mt-0.5">
-                {productionDonut.reduce((sum, item) => sum + item.value, 0)}
-              </span>
-            </div>
-          </div>
-
-          {/* Donut Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
-            {productionDonut.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 font-medium">
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-[var(--text-primary)]">{item.name}</span>
-                <span className="text-[var(--text-muted)] font-bold">({item.value})</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Low Stock Alerts */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Low Stock Alerts</h3>
-            <span className="h-6 px-2 rounded-md bg-[#FEE2E2] dark:bg-[#450A0A] text-[#DC2626] dark:text-[#FCA5A5] text-[10px] font-bold uppercase flex items-center justify-center">
-              Action Required
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)] space-y-3">
-            {isLowStockAlertsEnabled && Array.isArray(lowStockAlerts) && lowStockAlerts.length > 0 ? (
-              lowStockAlerts.map((item: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
-                  <div className="flex items-start gap-2.5 overflow-hidden">
-                    <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] dark:bg-[#451A03] text-[#D97706] dark:text-[#FBBF24] flex items-center justify-center shrink-0">
-                      <AlertTriangle size={15} />
-                    </div>
-                    <div className="overflow-hidden">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">
-                        {item.name}
-                      </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider mt-0.5">
-                        {item.category}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right whitespace-nowrap shrink-0">
-                    <p className="text-xs font-bold text-[#DC2626] dark:text-[#FCA5A5]">{item.qty}</p>
-                    <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
-                      Limit: {item.reorder}
-                    </p>
+              {/* Bank & Cash Balances / Godowns */}
+              <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between gap-4">
+                <div className="flex flex-col gap-2.5">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+                    Godown Stock Value
+                  </h3>
+                  <div className="space-y-2">
+                    {godownStock.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs">
+                        <span className="text-[var(--text-primary)] font-semibold truncate max-w-[130px]">
+                          {item.name}
+                        </span>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-[var(--text-primary)]">
+                            {formatCurrency(item.value)}
+                          </p>
+                          <p className="text-[9px] text-[var(--text-muted)] font-bold uppercase mt-0.5">
+                            {item.pieces} pieces
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="py-6 text-center text-xs text-[var(--text-muted)] italic">
-                {!isLowStockAlertsEnabled ? "Low stock alerts are disabled in general settings" : "No low stock alerts"}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Overdue & Reminders Widget */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-[var(--primary)]" />
-              <h3 className="text-sm font-bold text-[var(--text-primary)]">Overdue & Payment Reminders</h3>
-            </div>
-            <Link
-              href="/reminders"
-              className="text-[11px] font-bold text-[var(--primary)] hover:underline flex items-center gap-0.5"
-            >
-              <span>Hub</span>
-              <ChevronRight size={12} />
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {/* Customer Receivables Summary */}
-            <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-amber-700 dark:text-amber-300 tracking-wider block">
-                  Customer Receivables
-                </span>
-                <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
-                  {receivablesReminders?.stats?.total_overdue || 0} Bills Overdue
-                </span>
-              </div>
-              <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400 font-mono">
-                {formatCurrency(receivablesReminders?.stats?.total_outstanding || 0)}
-              </span>
-            </div>
-
-            {/* Vendor Payables Summary */}
-            <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-indigo-700 dark:text-indigo-300 tracking-wider block">
-                  Supplier Payables
-                </span>
-                <span className="text-xs font-bold text-[var(--text-primary)] mt-0.5 block">
-                  {payablesReminders?.stats?.total_overdue || 0} Bills Pending
-                </span>
-              </div>
-              <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
-                {formatCurrency(payablesReminders?.stats?.total_outstanding || 0)}
-              </span>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-[var(--border)] mt-3">
-            <Link
-              href="/reminders"
-              className="w-full py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Bell size={13} />
-              <span>Manage All Reminders & Schedules</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3: Sales Trend & Balances */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales Trend Line Chart */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-3">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Sales Trend</h3>
-            <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-              May 2026
-            </div>
-          </div>
-
-          <div className="h-56 w-full my-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
-                  dy={10}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `₹${val / 1000}k`}
-                  tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
-                  dx={-10}
-                />
-                <Tooltip
-                  formatter={(value) => [formatCurrency(Number(value)), "Sales"]}
-                  contentStyle={{
-                    background: chartTheme.tooltipBg,
-                    color: chartTheme.text,
-                    borderRadius: "8px",
-                    border: `1px solid ${chartTheme.tooltipBorder}`,
-                    fontSize: "11px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="sales"
-                  stroke="var(--primary)"
-                  strokeWidth={3}
-                  dot={{ r: 4, strokeWidth: 1, fill: "var(--card-bg)" }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Bank & Cash Balances / Godowns */}
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5 flex flex-col justify-between gap-4">
-          <div className="flex flex-col gap-2.5">
-            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
-              Godown Stock Value
-            </h3>
-            <div className="space-y-2">
-              {godownStock.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center text-xs">
-                  <span className="text-[var(--text-primary)] font-semibold truncate max-w-[130px]">
-                    {item.name}
-                  </span>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-[var(--text-primary)]">
-                      {formatCurrency(item.value)}
-                    </p>
-                    <p className="text-[9px] text-[var(--text-muted)] font-bold uppercase mt-0.5">
-                      {item.pieces} pieces
-                    </p>
+                <div className="flex flex-col gap-2.5 mt-2">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+                    Accounts Balance
+                  </h3>
+                  <div className="space-y-2 overflow-y-auto max-h-[140px] divide-y divide-[var(--border)]">
+                    {bankBalances.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center text-xs pt-2 first:pt-0"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span
+                            className={cn(
+                              "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                              item.type === "bank"
+                                ? "bg-[#DBEAFE] dark:bg-[#1E3A5F] text-[#1D4ED8] dark:text-[#93C5FD]"
+                                : item.type === "cash"
+                                ? "bg-[#FDF2F8] dark:bg-[#500724] text-[#DB2777] dark:text-[#F472B6]"
+                                : "bg-[#EDE9FE] dark:bg-[#2E1065] text-[#7C3AED] dark:text-[#C4B5FD]"
+                            )}
+                          >
+                            {item.type === "bank" ? (
+                              <Building2 size={13} />
+                            ) : item.type === "cash" ? (
+                              <Wallet size={13} />
+                            ) : (
+                              <Smartphone size={13} />
+                            )}
+                          </span>
+                          <div className="overflow-hidden">
+                            <p className="font-bold text-[var(--text-primary)] truncate">
+                              {item.name}
+                            </p>
+                            <p className="text-[9px] text-[var(--text-muted)] font-bold uppercase truncate">
+                              {item.type === "bank"
+                                ? item.bank_name || "Bank Account"
+                                : item.type === "cash"
+                                ? "Cash in Hand"
+                                : item.upi_provider || "UPI"}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-extrabold text-[var(--text-primary)] shrink-0 text-right">
+                          {formatCurrency(item.current_balance ?? item.opening_balance ?? 0)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2.5 mt-2">
-            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
-              Accounts Balance
-            </h3>
-            <div className="space-y-2 overflow-y-auto max-h-[140px] divide-y divide-[var(--border)]">
-              {bankBalances.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between items-center text-xs pt-2 first:pt-0"
-                >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <span
-                      className={cn(
-                        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
-                        item.type === "bank"
-                          ? "bg-[#DBEAFE] dark:bg-[#1E3A5F] text-[#1D4ED8] dark:text-[#93C5FD]"
-                          : "bg-[#EDE9FE] dark:bg-[#2E1065] text-[#7C3AED] dark:text-[#C4B5FD]"
-                      )}
-                    >
-                      {item.type === "bank" ? (
-                        <Building2 size={13} />
-                      ) : (
-                        <Smartphone size={13} />
-                      )}
-                    </span>
-                    <div className="overflow-hidden">
-                      <p className="font-bold text-[var(--text-primary)] truncate">
-                        {item.name}
-                      </p>
-                      <p className="text-[9px] text-[var(--text-muted)] font-bold uppercase truncate">
-                        {item.type === "bank"
-                          ? item.bank_name || "Bank Account"
-                          : item.upi_provider || "UPI"}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-extrabold text-[var(--text-primary)] shrink-0 text-right">
-                    {formatCurrency(item.opening_balance)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 4: Quick Actions */}
-      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-5">
-        <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2.5 mb-4">
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <QuickActionCard
-            label="Add Sale"
-            subtitle="Create Bill"
-            icon={ShoppingCart}
-            iconColorClass="text-[#2563EB] dark:text-[#60A5FA]"
-            iconBgClass="bg-[#EFF6FF] dark:bg-[#1E3A5F]"
-            href="/sales/bills/new"
-          />
-          <QuickActionCard
-            label="New Lot"
-            subtitle="Start Batch"
-            icon={Factory}
-            iconColorClass="text-[#7C3AED] dark:text-[#C4B5FD]"
-            iconBgClass="bg-[#F5F3FF] dark:bg-[#2E1065]"
-            href="/production/lots/new"
-          />
-          <QuickActionCard
-            label="Receive Payment"
-            subtitle="Party Receipt"
-            icon={CreditCard}
-            iconColorClass="text-[#16A34A] dark:text-[#4ADE80]"
-            iconBgClass="bg-[#F0FDF4] dark:bg-[#064E3B]"
-            href="/payments/receive"
-          />
-          <QuickActionCard
-            label="Record Expense"
-            subtitle="General Voucher"
-            icon={Receipt}
-            iconColorClass="text-[#EA580C] dark:text-[#FB923C]"
-            iconBgClass="bg-[#FFF7ED] dark:bg-[#431407]"
-            href="/expenses/new"
-          />
-          <QuickActionCard
-            label="Scan QR Code"
-            subtitle="PWA Scanner"
-            icon={BarChart3}
-            iconColorClass="text-[#0D9488] dark:text-[#2DD4BF]"
-            iconBgClass="bg-[#CCFBF1] dark:bg-[#134E4A]"
-            href="/scan"
-          />
-          <QuickActionCard
-            label="Party Ledger"
-            subtitle="View Statement"
-            icon={UserCircle}
-            iconColorClass="text-[#D97706] dark:text-[#FBBF24]"
-            iconBgClass="bg-[#FEF3C7] dark:bg-[#451A03]"
-            href="/parties"
-          />
-        </div>
-      </div>
     </div>
         );
       })()}
@@ -598,7 +662,11 @@ function KPICard({
   const isWorse = inverseColorDirection ? positive : !positive;
 
   return (
-    <div className="bg-[var(--card-bg)] rounded-xl p-5 border border-[var(--border)] shadow-[var(--shadow-sm)] flex items-start justify-between select-none">
+    <motion.div
+      variants={cardVariants}
+      whileHover={hoverLift.hover}
+      className="bg-[var(--card-bg)] rounded-xl p-5 border border-[var(--border)] shadow-[var(--shadow-sm)] flex items-start justify-between select-none cursor-default"
+    >
       <div className="space-y-2">
         <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
           {title}
@@ -632,7 +700,7 @@ function KPICard({
       <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner", iconBgClass)}>
         <Icon className="h-5 w-5" />
       </div>
-    </div>
+    </motion.div>
   );
 }
 

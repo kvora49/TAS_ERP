@@ -1,9 +1,8 @@
 import { createClient as createServerClient, getSessionBusinessId } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createServerClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,20 +21,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       );
     }
 
-    // Fetch target user's current record to protect owner role
-    const { data: existingUser, error: fetchError } = await supabase
-      .from("users")
+    const supabaseAdmin = createAdminClient();
+
+    // 1. Fetch current membership in this company to protect owner role
+    const { data: existingMember, error: fetchError } = await supabaseAdmin
+      .from("company_members")
       .select("role")
-      .eq("id", userId)
-      .eq("business_id", businessId)
-      .single();
+      .eq("user_id", userId)
+      .eq("company_id", businessId)
+      .maybeSingle();
 
-    if (fetchError || !existingUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Owner role protection check
-    const isTargetOwner = existingUser.role?.toLowerCase() === "owner";
+    const isTargetOwner = existingMember?.role?.toLowerCase() === "owner";
     const newRole = role.toLowerCase();
 
     if (isTargetOwner && newRole !== "owner") {
@@ -45,34 +41,79 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       );
     }
 
-    // 1. Update public.users table
-    const { error: profileError } = await supabase
+    // 2. Update company_members table for this business
+    await supabaseAdmin
+      .from("company_members")
+      .update({
+        role: isTargetOwner ? "owner" : newRole,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId)
+      .eq("company_id", businessId);
+
+    // 3. Update public.users table
+    await supabaseAdmin
       .from("users")
       .update({
         full_name: name,
         phone: phone || null,
-        role: isTargetOwner ? "owner" : newRole,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", userId)
-      .eq("business_id", businessId);
+      .eq("id", userId);
 
-    if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
-    }
-
-    // 2. Synchronize user metadata in Supabase Auth
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
+    // 4. Synchronize user metadata in Supabase Auth
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       user_metadata: { full_name: name },
     });
 
     if (authError) {
       console.warn("Failed to synchronize auth metadata:", authError.message);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const businessId = await getSessionBusinessId();
+  if (!businessId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = params.id;
+
+  try {
+    const supabaseAdmin = createAdminClient();
+
+    // 1. Check if user is owner of this company
+    const { data: existingMember } = await supabaseAdmin
+      .from("company_members")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("company_id", businessId)
+      .maybeSingle();
+
+    if (existingMember?.role?.toLowerCase() === "owner") {
+      return NextResponse.json(
+        { error: "Owner cannot be removed from company membership." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Remove company membership
+    const { error: deleteError } = await supabaseAdmin
+      .from("company_members")
+      .delete()
+      .eq("user_id", userId)
+      .eq("company_id", businessId);
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

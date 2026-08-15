@@ -1,21 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { RegisterSchema } from "@/lib/schemas/auth.schema";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
 
 export async function POST(req: Request) {
   try {
-    const { userId, businessName, fullName, email, phone } = await req.json();
+    const valResult = await validateRequestBody(req, RegisterSchema);
+    if (!valResult.success) {
+      return valResult.response;
+    }
 
-    if (!userId || !businessName || !fullName || !email) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    const { userId, businessName, fullName, email, phone } = valResult.data;
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: "Server authentication configuration missing" }, { status: 500 });
     }
 
     // Initialize Supabase Admin Client using Service Role Key
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
     // 1. Insert new business record
@@ -34,47 +38,55 @@ export async function POST(req: Request) {
       .single();
 
     if (businessError) {
-      return NextResponse.json(
-        { error: `Failed to create business: ${businessError.message}` },
-        { status: 500 }
-      );
+      throw new Error(`Failed to create business profile: ${businessError.message}`);
     }
 
     const businessId = businessData.id;
 
-    // 2. Insert owner user record
-    const { error: userError } = await supabaseAdmin.from("users").insert({
-      id: userId,
-      business_id: businessId,
-      full_name: fullName,
-      email: email,
-      role: "owner",
-      phone: phone || null,
-      is_active: true,
-    });
+    if (userId) {
+      // 2. Insert owner user record
+      const { error: userError } = await supabaseAdmin.from("users").upsert({
+        id: userId,
+        business_id: businessId,
+        full_name: fullName,
+        email: email,
+        role: "owner",
+        phone: phone || null,
+        is_active: true,
+      }, { onConflict: "id" });
 
-    if (userError) {
-      // Rollback business creation
-      await supabaseAdmin.from("businesses").delete().eq("id", businessId);
+      if (userError) {
+        // Rollback business creation
+        await supabaseAdmin.from("businesses").delete().eq("id", businessId);
 
-      if (userError.code === "23503" || userError.message?.includes("users_id_fkey")) {
-        return NextResponse.json(
-          { error: "This email is already registered in Authentication. Please sign in, or run 'TRUNCATE auth.users CASCADE;' in Supabase SQL Editor to reset accounts." },
-          { status: 400 }
-        );
+        if (userError.code === "23503" || userError.message?.includes("users_id_fkey")) {
+          return NextResponse.json(
+            { error: "This email account is already registered in Authentication. Please sign in to your account." },
+            { status: 400 }
+          );
+        }
+
+        throw new Error(`Failed to create user profile: ${userError.message}`);
       }
 
-      return NextResponse.json(
-        { error: `Failed to create user profile: ${userError.message}` },
-        { status: 500 }
-      );
+      // 3. Insert owner membership into company_members
+      const { error: memberError } = await supabaseAdmin
+        .from("company_members")
+        .upsert({
+          user_id: userId,
+          company_id: businessId,
+          role: "owner",
+          status: "active",
+        }, { onConflict: "user_id, company_id" });
+
+      if (memberError) {
+        console.warn("Warning: Failed to create company_members row on register:", memberError.message);
+      }
     }
 
     return NextResponse.json({ success: true, businessId });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

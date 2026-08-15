@@ -84,7 +84,7 @@ export async function GET(
         .eq("status", "success"),
       supabase
         .from("payments")
-        .select("id, payment_date, direction, payment_mode, reference_no, amount, unallocated_amount, is_advance, remarks, status")
+        .select("id, payment_date, direction, payment_mode, reference_no, amount, unallocated_amount, is_advance, remarks, status, bank_account:bank_accounts(id, name, account_category)")
         .eq("party_id", id)
         .eq("business_id", businessId)
         .neq("status", "cancelled"),
@@ -409,7 +409,7 @@ export async function GET(
         amount: Number(a.allocated_amount),
       }));
 
-      // Determine category from allocations
+      // Determine category from allocations or bank account category
       let hasKacha = false;
       let hasPakka = false;
       paymentAllocs.forEach((a) => {
@@ -418,20 +418,25 @@ export async function GET(
         if (cat === "pakka") hasPakka = true;
       });
 
+      const bankCat = (py as any).bank_account?.account_category || (py.payment_mode === "cash" ? "kacha" : undefined);
+
       let cat: "pakka" | "kacha" | "both" = "both";
       if (hasKacha && !hasPakka) cat = "kacha";
       else if (hasPakka && !hasKacha) cat = "pakka";
+      else if (bankCat === "kacha" || bankCat === "pakka") cat = bankCat;
       else cat = "both";
 
       const debit = py.direction === "paid" ? Number(py.amount) : 0;
       const credit = py.direction === "received" ? Number(py.amount) : 0;
 
+      const bankNameStr = (py as any).bank_account?.name ? ` [${(py as any).bank_account.name}]` : "";
+
       entries.push({
         id: py.id,
         date: py.payment_date,
         particulars: isAdvance 
-          ? `Advance Payment (${mode}) ${py.remarks ? "— " + py.remarks : ""}`
-          : `Payment received/paid via ${mode} ${py.reference_no ? "(" + py.reference_no + ")" : ""}`,
+          ? `Advance Payment (${mode})${bankNameStr} ${py.remarks ? "— " + py.remarks : ""}`
+          : `Payment received/paid via ${mode}${bankNameStr} ${py.reference_no ? "(" + py.reference_no + ")" : ""}`,
         voucherType: isAdvance ? "Advance" : "Payment",
         voucherNo: py.reference_no || py.id.substring(0, 8).toUpperCase(),
         debit,

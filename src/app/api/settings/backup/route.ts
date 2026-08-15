@@ -1,16 +1,17 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { generateDatabaseBackup } from "@/lib/backup/backupEngine";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
@@ -25,16 +26,15 @@ export async function GET(request: Request) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
 
 export async function PUT(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -55,34 +55,30 @@ export async function PUT(request: Request) {
       );
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
 
 export async function POST(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { user, businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-
     // 1. Generate real SQL dump
     const timestamp = new Date().toISOString().replace(/[-:T.]/g, "_").substring(0, 19);
     const fileName = `backup_${businessId}_${timestamp}.sql`;
 
-    const { sqlDump, fileSize, tableCounts } = await generateDatabaseBackup(supabase, businessId);
+    const { sqlDump, fileSize } = await generateDatabaseBackup(supabase, businessId);
     const fileBuffer = Buffer.from(sqlDump, "utf8");
 
-    let publicUrl = "";
+    let fileUrl = "";
     let fileKey = `backups/${businessId}/${fileName}`;
 
     // 2. Check if credentials are placeholder
@@ -93,14 +89,13 @@ export async function POST(request: Request) {
       process.env.R2_ACCOUNT_ID.includes("placeholder");
 
     if (isMock) {
-      // Fallback: Save file to local public/backups folder
-      const localDir = path.join(process.cwd(), "public", "backups", businessId);
-      if (!fs.existsSync(localDir)) {
-        fs.mkdirSync(localDir, { recursive: true });
+      // Save file to private local folder
+      const privateDir = path.join(process.cwd(), "private-storage", "backups", businessId);
+      if (!fs.existsSync(privateDir)) {
+        fs.mkdirSync(privateDir, { recursive: true });
       }
-      fs.writeFileSync(path.join(localDir, fileName), fileBuffer);
-      publicUrl = `/backups/${businessId}/${fileName}`;
-      console.log(`Local mock backup created successfully: ${publicUrl}`);
+      fs.writeFileSync(path.join(privateDir, fileName), fileBuffer);
+      fileUrl = `private-storage/backups/${businessId}/${fileName}`;
     } else {
       // Real upload to R2
       try {
@@ -121,16 +116,15 @@ export async function POST(request: Request) {
             ContentType: "application/sql",
           })
         );
-        publicUrl = `${process.env.R2_PUBLIC_URL}/${fileKey}`;
+        fileUrl = `${process.env.R2_PUBLIC_URL}/${fileKey}`;
       } catch (uploadErr: any) {
-        console.error("R2 Upload failed, falling back to local file:", uploadErr.message);
-        // Fallback to local
-        const localDir = path.join(process.cwd(), "public", "backups", businessId);
-        if (!fs.existsSync(localDir)) {
-          fs.mkdirSync(localDir, { recursive: true });
+        console.error("R2 Upload failed, falling back to private local storage:", uploadErr.message);
+        const privateDir = path.join(process.cwd(), "private-storage", "backups", businessId);
+        if (!fs.existsSync(privateDir)) {
+          fs.mkdirSync(privateDir, { recursive: true });
         }
-        fs.writeFileSync(path.join(localDir, fileName), fileBuffer);
-        publicUrl = `/backups/${businessId}/${fileName}`;
+        fs.writeFileSync(path.join(privateDir, fileName), fileBuffer);
+        fileUrl = `private-storage/backups/${businessId}/${fileName}`;
       }
     }
 
@@ -141,23 +135,21 @@ export async function POST(request: Request) {
         business_id: businessId,
         backup_type: "manual",
         file_key: fileKey,
-        file_url: publicUrl,
+        file_url: fileUrl,
         file_size_bytes: fileSize,
         status: "completed",
-        created_by: userId || null,
+        created_by: user.id,
       })
       .select()
       .single();
 
     if (recordError) {
-      return NextResponse.json({ error: recordError.message }, { status: 500 });
+      throw recordError;
     }
 
     return NextResponse.json({ success: true, record });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Backup execution failed" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

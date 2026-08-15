@@ -14,50 +14,52 @@ export async function GET(
   const { id } = params;
 
   try {
-    // 1. Fetch brand details
-    const { data: brand, error: brandError } = await supabase
-      .from("brands")
-      .select("*")
-      .eq("id", id)
-      .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .single();
+    // 1. Parallelize fetching brand details, linked production lots, and linked designs
+    const [brandRes, lotsRes, designsRes] = await Promise.all([
+      supabase
+        .from("brands")
+        .select("*")
+        .eq("id", id)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .single(),
+      supabase
+        .from("production_lots")
+        .select(`
+          id,
+          lot_number,
+          lot_date,
+          total_quantity,
+          completed_quantity,
+          status,
+          design:designs(id, name, code:design_number)
+        `)
+        .eq("brand_id", id)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("lot_date", { ascending: false }),
+      supabase
+        .from("designs")
+        .select("id, name, design_number, is_active, created_at")
+        .eq("brand_id", id)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (brandError || !brand) {
+    if (brandRes.error || !brandRes.data) {
       return NextResponse.json({ error: "Brand not found" }, { status: 404 });
     }
 
-    // 2. Fetch linked production lots
-    const { data: lots, error: lotsError } = await supabase
-      .from("production_lots")
-      .select(`
-        id,
-        lot_number,
-        lot_date,
-        total_quantity,
-        completed_quantity,
-        status,
-        design:designs(name, code)
-      `)
-      .eq("brand_id", id)
-      .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .order("lot_date", { ascending: false });
+    if (lotsRes.error) {
+      console.error("Error fetching lots for brand:", lotsRes.error);
+    }
 
-    // 3. Fetch linked designs
-    const { data: designs } = await supabase
-      .from("designs")
-      .select("id, name, design_number, is_active, created_at")
-      .eq("brand_id", id)
-      .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    // 4. Fetch finished stock matching these designs
+    // 2. Fetch finished stock matching these designs
     let resolvedStock: any[] = [];
-    if (designs && designs.length > 0) {
-      const designIds = designs.map((d) => d.id);
-      const { data: stockItems } = await supabase
+    if (designsRes.data && designsRes.data.length > 0) {
+      const designIds = designsRes.data.map((d) => d.id);
+      const { data: stockItems, error: stockErr } = await supabase
         .from("finished_stock")
         .select(`
           id,
@@ -73,16 +75,18 @@ export async function GET(
         .in("design_id", designIds)
         .gt("total_quantity", 0);
 
+      if (stockErr) {
+        console.error("Error fetching stock for brand designs:", stockErr);
+      }
       resolvedStock = stockItems || [];
     }
 
     return NextResponse.json({
-      brand,
-      lots: lots || [],
-      designs: designs || [],
+      brand: brandRes.data,
+      lots: lotsRes.data || [],
+      designs: designsRes.data || [],
       stock: resolvedStock,
     });
-
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

@@ -106,6 +106,16 @@ export async function GET(req: NextRequest) {
     const kachaTotal = kachaPurchases.reduce((s, p) => s + Number(p.grand_total), 0);
     const pakkaTotal = pakkaPurchases.reduce((s, p) => s + Number(p.grand_total), 0);
 
+    const kachaPaid = kachaPurchases.reduce((s, p) => s + Number(p.paid_amount), 0);
+    const pakkaPaid = pakkaPurchases.reduce((s, p) => s + Number(p.paid_amount), 0);
+
+    const kachaOutstanding = kachaPurchases
+      .filter(p => p.payment_status !== "paid")
+      .reduce((s, p) => s + Number(p.grand_total) - Number(p.paid_amount), 0);
+    const pakkaOutstanding = pakkaPurchases
+      .filter(p => p.payment_status !== "paid")
+      .reduce((s, p) => s + Number(p.grand_total) - Number(p.paid_amount), 0);
+
     // Monthly trend
     const monthMap: Record<string, number> = {};
     for (const p of allPurchases) {
@@ -158,6 +168,10 @@ export async function GET(req: NextRequest) {
         finishedCount: finishedPurchases.length,
         kachaTotal,
         pakkaTotal,
+        kachaPaid,
+        pakkaPaid,
+        kachaOutstanding,
+        pakkaOutstanding,
         kachaCount: kachaPurchases.length,
         pakkaCount: pakkaPurchases.length,
       },

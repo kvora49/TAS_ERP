@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
+import { safeSheetToJson } from "@/lib/report-export";
 import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import {
   FileText,
@@ -34,6 +35,8 @@ import { Modal } from "@/components/shared/Modal";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
 
 interface StatCardProps {
   title: string;
@@ -45,7 +48,11 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon: Icon, bgClass, iconColor }: StatCardProps) {
   return (
-    <div className="bg-[var(--card-bg)] p-5 rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] flex items-center justify-between">
+    <motion.div
+      variants={cardVariants}
+      whileHover={hoverLift.hover}
+      className="bg-[var(--card-bg)] p-5 rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] flex items-center justify-between transition-shadow"
+    >
       <div className="flex flex-col gap-1">
         <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{title}</span>
         <span className="text-xl font-bold text-[var(--text-primary)]">{value}</span>
@@ -53,7 +60,7 @@ function StatCard({ title, value, icon: Icon, bgClass, iconColor }: StatCardProp
       <div className={cn("p-3 rounded-lg", bgClass)}>
         <Icon className={cn("h-5 w-5", iconColor)} />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -162,7 +169,7 @@ export default function SalesBillsListPage() {
         const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rawData = XLSX.utils.sheet_to_json(ws);
+        const rawData = safeSheetToJson(ws);
 
         const rows = rawData.map((row: any, idx: number) => {
           const billType = String(row["Bill Type"] || "pakka").toLowerCase() === "kacha" ? "kacha" : "pakka";
@@ -495,32 +502,33 @@ export default function SalesBillsListPage() {
       {/* Tabs — desktop: underline nav; mobile: horizontal snap chip row */}
       <div className="border-b border-[var(--border)] hidden md:block">
         <nav className="flex gap-6 -mb-[1px]">
-          <button
-            onClick={() => { setActiveTab("pakka"); setPage(1); }}
-            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "pakka" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            )}
-          >Pakka Bills</button>
-          {enableKachaBilling && (
-            <button
-              onClick={() => { setActiveTab("kacha"); setPage(1); }}
-              className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-                activeTab === "kacha" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              )}
-            >Kacha Bills</button>
-          )}
-          <button
-            onClick={() => { setActiveTab("return"); setPage(1); }}
-            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "return" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            )}
-          >Sales Returns</button>
-          <button
-            onClick={() => { setActiveTab("all"); setPage(1); }}
-            className={cn("pb-4 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer",
-              activeTab === "all" ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            )}
-          >All Transactions</button>
+          {[
+            { id: "pakka", label: "Pakka Bills" },
+            ...(enableKachaBilling ? [{ id: "kacha", label: "Kacha Bills" }] : []),
+            { id: "return", label: "Sales Returns" },
+            { id: "all", label: "All Transactions" },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id as any); setPage(1); }}
+                className={cn(
+                  "relative pb-4 text-sm font-semibold transition-colors px-1 cursor-pointer",
+                  isActive ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="sales-bills-tab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
+                    transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </nav>
       </div>
 
@@ -580,14 +588,19 @@ export default function SalesBillsListPage() {
           ))}
         </div>
 
-        {/* Desktop: existing 5-col stat grid — unchanged */}
-        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Desktop: existing 5-col stat grid — animated */}
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
+        >
           <StatCard title="Total Bills" value={total.toString()} icon={FileText} bgClass="bg-[var(--primary-light)]" iconColor="text-[var(--primary)]" />
           <StatCard title="Total Amount" value={formatCurrency(bills.reduce((s, b) => s + (b.grand_total || 0), 0))} icon={IndianRupee} bgClass="bg-[var(--primary-light)]" iconColor="text-[var(--primary)]" />
           <StatCard title="Paid Amount" value={formatCurrency(bills.reduce((s, b) => s + (b.paid_amount || 0), 0))} icon={CheckCircle2} bgClass="bg-green-500/10" iconColor="text-green-500" />
           <StatCard title="Outstanding" value={formatCurrency(bills.reduce((s, b) => s + Math.max(0, (b.grand_total || 0) - (b.paid_amount || 0)), 0))} icon={Clock} bgClass="bg-amber-500/10" iconColor="text-amber-500" />
           <StatCard title="Overdue Bills" value={bills.filter(b => b.payment_status === "overdue").length.toString()} icon={AlertCircle} bgClass="bg-red-500/10" iconColor="text-red-500" />
-        </div>
+        </motion.div>
 
         {/* Mobile: compact search bar + filter sheet trigger */}
         <div className="md:hidden flex gap-2 mb-1">
@@ -827,8 +840,11 @@ export default function SalesBillsListPage() {
                   const downloadHref = isReturn ? `/sales/returns/${bill.id}/print?autoDownload=true` : `/sales/bills/${bill.id}/print?autoDownload=true`;
 
                   return (
-                    <tr
+                    <motion.tr
                       key={bill.id}
+                      variants={tableRowVariants}
+                      initial="initial"
+                      animate="animate"
                       onClick={() => router.push(detailHref)}
                       className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
                     >
@@ -985,7 +1001,7 @@ export default function SalesBillsListPage() {
                           </button>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   );
                 })}
               </tbody>

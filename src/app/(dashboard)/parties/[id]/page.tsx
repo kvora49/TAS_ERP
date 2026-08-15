@@ -27,6 +27,9 @@ import {
   AlertTriangle,
   FileSpreadsheet,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
+import { cn } from "@/lib/utils";
 
 interface ContactNumber {
   label: string;
@@ -398,354 +401,368 @@ export default function PartyDetailPage() {
       {/* Type-Conditional Detail Tabs Section */}
       <div className="space-y-4">
         {/* Tab Headers */}
-        <div className="flex border-b border-[#E2E8F0] gap-4">
-          {isSupplier && (
-            <button
-              onClick={() => setActiveTab("supplier")}
-              className={`pb-2.5 text-sm font-bold border-b-2 cursor-pointer transition-all ${activeTab === "supplier" ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-[#64748B] hover:text-[#0F172A]"}`}
-            >
-              Supplier (Purchase Records)
-            </button>
-          )}
-          {isCustomer && (
-            <button
-              onClick={() => setActiveTab("customer")}
-              className={`pb-2.5 text-sm font-bold border-b-2 cursor-pointer transition-all ${activeTab === "customer" ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-[#64748B] hover:text-[#0F172A]"}`}
-            >
-              Customer (Sales History)
-            </button>
-          )}
-          {isWorker && (
-            <button
-              onClick={() => setActiveTab("worker")}
-              className={`pb-2.5 text-sm font-bold border-b-2 cursor-pointer transition-all ${activeTab === "worker" ? "border-[#6366F1] text-[#6366F1]" : "border-transparent text-[#64748B] hover:text-[#0F172A]"}`}
-            >
-              Worker (Stage Assignments)
-            </button>
-          )}
+        <div className="flex border-b border-[var(--border)] gap-4">
+          {[
+            ...(isSupplier ? [{ id: "supplier", label: "Supplier (Purchase Records)" }] : []),
+            ...(isCustomer ? [{ id: "customer", label: "Customer (Sales History)" }] : []),
+            ...(isWorker ? [{ id: "worker", label: "Worker (Stage Assignments)" }] : []),
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={cn(
+                  "relative pb-2.5 text-sm font-bold cursor-pointer transition-colors px-1",
+                  isActive
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="party-360-tab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
+                    transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab Content Panels */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6">
-          {/* 1. Supplier Panel */}
-          {activeTab === "supplier" && supplierStats && (
-            <div className="space-y-6">
-              {/* Supplier Financial Stats Brief */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 text-[#6366F1] flex items-center justify-center shrink-0">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Total Material Purchased</p>
-                    <p className="text-lg font-black text-[#0F172A]">₹{supplierStats.totalPurchased.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
+        <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-6">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {/* 1. Supplier Panel */}
+              {activeTab === "supplier" && supplierStats && (
+                <div className="space-y-6">
+                  {/* Supplier Financial Stats Brief */}
+                  <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+                        <TrendingUp size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Material Purchased</p>
+                        <p className="text-lg font-black text-[var(--text-primary)]">₹{supplierStats.totalPurchased.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Total Payments Made</p>
-                    <p className="text-lg font-black text-[#0F172A]">₹{supplierStats.totalPurchasedPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Payments Made</p>
+                        <p className="text-lg font-black text-[var(--text-primary)]">₹{supplierStats.totalPurchasedPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                    <AlertTriangle size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Outstanding Liability</p>
-                    <p className="text-lg font-black text-amber-600">₹{supplierStats.totalPurchasedOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-              </div>
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Outstanding Liability</p>
+                        <p className="text-lg font-black text-amber-600 dark:text-amber-400">₹{supplierStats.totalPurchasedOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
+                  </motion.div>
 
-              {/* Purchase Invoices Listing */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                  <FileText size={16} className="text-[#6366F1]" />
-                  Purchase Invoice History
-                </h3>
-                {supplierStats.purchases.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-[#64748B] bg-slate-50 border border-dashed border-slate-200 rounded-lg font-semibold">
-                    No purchase invoices logged for this supplier yet.
+                  {/* Purchase Invoices Listing */}
+                  <div className="space-y-4 pt-2">
+                    <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <FileText size={16} className="text-[var(--primary)]" />
+                      Purchase Invoice History
+                    </h3>
+                    {supplierStats.purchases.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-[var(--text-muted)] bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg font-semibold">
+                        No purchase invoices logged for this supplier yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
+                              <th className="p-3">Purchase No.</th>
+                              <th className="p-3">Bill / Invoice No.</th>
+                              <th className="p-3">Date</th>
+                              <th className="p-3 text-right">Grand Total</th>
+                              <th className="p-3 text-right">Paid Amount</th>
+                              <th className="p-3 text-center">Payment Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border)] text-xs font-semibold text-[var(--text-body)]">
+                            {supplierStats.purchases.map((p) => (
+                              <tr key={p.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                                <td className="p-3 text-[var(--primary)] font-bold hover:underline cursor-pointer">
+                                  <Link href={`/raw-materials/purchases`}>
+                                    {p.purchase_number}
+                                  </Link>
+                                </td>
+                                <td className="p-3 font-mono">{p.invoice_no}</td>
+                                <td className="p-3 flex items-center gap-1 text-[var(--text-muted)]">
+                                  <Calendar size={12} />
+                                  {new Date(p.invoice_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                </td>
+                                <td className="p-3 text-right font-bold">₹{Number(p.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                                <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">₹{Number(p.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                                <td className="p-3 text-center">{getPaymentStatusBadge(p.payment_status)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-[#475569] border-b border-slate-100 select-none">
-                          <th className="p-3">Purchase No.</th>
-                          <th className="p-3">Bill / Invoice No.</th>
-                          <th className="p-3">Date</th>
-                          <th className="p-3 text-right">Grand Total</th>
-                          <th className="p-3 text-right">Paid Amount</th>
-                          <th className="p-3 text-center">Payment Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 text-xs font-semibold text-[#334155]">
-                        {supplierStats.purchases.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50/50">
-                            <td className="p-3 text-[#6366F1] font-bold hover:underline cursor-pointer">
-                              <Link href={`/raw-materials/purchases`}>
-                                {p.purchase_number}
-                              </Link>
-                            </td>
-                            <td className="p-3 font-mono">{p.invoice_no}</td>
-                            <td className="p-3 flex items-center gap-1 text-[#64748B]">
-                              <Calendar size={12} />
-                              {new Date(p.invoice_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                            </td>
-                            <td className="p-3 text-right font-bold">₹{Number(p.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-right text-emerald-600 font-bold">₹{Number(p.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-center">{getPaymentStatusBadge(p.payment_status)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
 
-              {/* Purchase Returns Listing */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                  <FileSpreadsheet size={16} className="text-[#E11D48]" />
-                  Purchase Return History
-                </h3>
-                {supplierStats.returns.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-[#64748B] bg-slate-50 border border-dashed border-slate-200 rounded-lg font-semibold">
-                    No material returns logged for this supplier yet.
+                  {/* Purchase Returns Listing */}
+                  <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+                    <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <FileSpreadsheet size={16} className="text-rose-500" />
+                      Purchase Return History
+                    </h3>
+                    {supplierStats.returns.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-[var(--text-muted)] bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg font-semibold">
+                        No material returns logged for this supplier yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
+                              <th className="p-3">Return No.</th>
+                              <th className="p-3">Date</th>
+                              <th className="p-3">Return Type</th>
+                              <th className="p-3 text-right">Refund Amount</th>
+                              <th className="p-3 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border)] text-xs font-semibold text-[var(--text-body)]">
+                            {supplierStats.returns.map((r) => (
+                              <tr key={r.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                                <td className="p-3 text-rose-500 font-bold hover:underline cursor-pointer">
+                                  <Link href={`/raw-materials/purchase-returns`}>
+                                    {r.return_number}
+                                  </Link>
+                                </td>
+                                <td className="p-3 flex items-center gap-1 text-[var(--text-muted)]">
+                                  <Calendar size={12} />
+                                  {new Date(r.return_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                </td>
+                                <td className="p-3 capitalize font-bold text-[var(--text-body)]">{r.return_type?.replace("_", " ")}</td>
+                                <td className="p-3 text-right font-bold">₹{Number(r.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                                <td className="p-3 text-center">
+                                  <Badge variant={r.status === "completed" ? "green" : r.status === "cancelled" ? "red" : "orange"}>
+                                    {r.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-[#475569] border-b border-slate-100 select-none">
-                          <th className="p-3">Return No.</th>
-                          <th className="p-3">Date</th>
-                          <th className="p-3">Return Type</th>
-                          <th className="p-3 text-right">Refund Amount</th>
-                          <th className="p-3 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 text-xs font-semibold text-[#334155]">
-                        {supplierStats.returns.map((r) => (
-                          <tr key={r.id} className="hover:bg-slate-50/50">
-                            <td className="p-3 text-[#E11D48] font-bold hover:underline cursor-pointer">
-                              <Link href={`/raw-materials/purchase-returns`}>
-                                {r.return_number}
-                              </Link>
-                            </td>
-                            <td className="p-3 flex items-center gap-1 text-[#64748B]">
-                              <Calendar size={12} />
-                              {new Date(r.return_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                            </td>
-                            <td className="p-3 capitalize font-bold text-[#475569]">{r.return_type?.replace("_", " ")}</td>
-                            <td className="p-3 text-right font-bold">₹{Number(r.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-center">
-                              <Badge variant={r.status === "completed" ? "green" : r.status === "cancelled" ? "red" : "orange"}>
-                                {r.status}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 2. Customer Panel */}
-          {activeTab === "customer" && customerStats && (
-            <div className="space-y-6">
-              {/* Customer Financial Stats Brief */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Total Goods Invoiced</p>
-                    <p className="text-lg font-black text-[#0F172A]">₹{customerStats.totalSold.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Total Payments Received</p>
-                    <p className="text-lg font-black text-[#0F172A]">₹{customerStats.totalSoldPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                    <AlertTriangle size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#64748B] uppercase">Total Outstanding Receivables</p>
-                    <p className="text-lg font-black text-amber-600">₹{customerStats.totalSoldOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sales Bills History Listing */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                  <FileText size={16} className="text-[#3B82F6]" />
-                  Sales Invoice History
-                </h3>
-                {customerStats.sales.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-[#64748B] bg-slate-50 border border-dashed border-slate-200 rounded-lg font-semibold">
-                    No sales invoices logged for this customer yet.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-[#475569] border-b border-slate-100 select-none">
-                          <th className="p-3">Invoice No.</th>
-                          <th className="p-3">Type</th>
-                          <th className="p-3">Date</th>
-                          <th className="p-3 text-right">Grand Total</th>
-                          <th className="p-3 text-right">Collected Amount</th>
-                          <th className="p-3 text-center">Payment Status</th>
-                          <th className="p-3 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 text-xs font-semibold text-[#334155]">
-                        {customerStats.sales.map((s) => (
-                          <tr key={s.id} className="hover:bg-slate-50/50">
-                            <td className="p-3 text-blue-600 font-bold hover:underline cursor-pointer">
-                              <Link href={`/sales/bills`}>
-                                {s.bill_number}
-                              </Link>
-                            </td>
-                            <td className="p-3 uppercase font-mono text-[10px]">{s.bill_type}</td>
-                            <td className="p-3 flex items-center gap-1 text-[#64748B]">
-                              <Calendar size={12} />
-                              {new Date(s.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                            </td>
-                            <td className="p-3 text-right font-bold">₹{Number(s.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-right text-emerald-600 font-bold">₹{Number(s.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-center">{getPaymentStatusBadge(s.payment_status)}</td>
-                            <td className="p-3 text-center">
-                              <Badge variant={s.status === "active" ? "green" : s.status === "cancelled" ? "red" : "orange"}>
-                                {s.status}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 3. Worker Panel */}
-          {activeTab === "worker" && workerStats && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                <Wrench size={16} className="text-[#10B981]" />
-                Worker Stage Assignments & Lot Labor Sheets
-              </h3>
-              {workerStats.stageAssignments.length === 0 ? (
-                <div className="text-center py-6 text-xs text-[#64748B] bg-slate-50 border border-dashed border-slate-200 rounded-lg font-semibold">
-                  No stage entries or lot assignments logged for this worker.
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-[#475569] border-b border-slate-100 select-none">
-                        <th className="p-3">Lot Number</th>
-                        <th className="p-3">Stage Worked</th>
-                        <th className="p-3 text-center">Qty In</th>
-                        <th className="p-3 text-center">Qty Out</th>
-                        <th className="p-3 text-center">Qty Balance</th>
-                        <th className="p-3 text-right">Piece Rate</th>
-                        <th className="p-3 text-right">Earned Pay</th>
-                        <th className="p-3 text-center">Stage Status</th>
-                        <th className="p-3 text-center">Labor Paid Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 text-xs font-semibold text-[#334155]">
-                      {workerStats.stageAssignments.map((sa) => (
-                        <tr key={sa.id} className="hover:bg-slate-50/50">
-                          <td className="p-3 text-emerald-600 font-bold hover:underline cursor-pointer">
-                            <Link href={`/production/lots`}>
-                              {sa.production_lots?.lot_number || "Unknown"}
-                            </Link>
-                          </td>
-                          <td className="p-3 font-bold">{sa.stage_name}</td>
-                          <td className="p-3 text-center font-mono">{sa.qty_in}</td>
-                          <td className="p-3 text-center font-mono">{sa.qty_out}</td>
-                          <td className="p-3 text-center font-mono text-[#64748B]">{sa.qty_balance}</td>
-                          <td className="p-3 text-right font-mono">₹{Number(sa.job_work_rate || 0).toFixed(2)}</td>
-                          <td className="p-3 text-right font-mono font-bold text-[#0F172A]">₹{Number(sa.total_job_work_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                          <td className="p-3 text-center">{getStatusBadge(sa.status)}</td>
-                          <td className="p-3 text-center">{getPaymentStatusBadge(sa.payment_status)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               )}
-            </div>
-          )}
+
+              {/* 2. Customer Panel */}
+              {activeTab === "customer" && customerStats && (
+                <div className="space-y-6">
+                  {/* Customer Financial Stats Brief */}
+                  <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <TrendingUp size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Goods Invoiced</p>
+                        <p className="text-lg font-black text-[var(--text-primary)]">₹{customerStats.totalSold.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Payments Received</p>
+                        <p className="text-lg font-black text-[var(--text-primary)]">₹{customerStats.totalSoldPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4 transition-shadow">
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Outstanding Receivables</p>
+                        <p className="text-lg font-black text-amber-600 dark:text-amber-400">₹{customerStats.totalSoldOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Sales Bills History Listing */}
+                  <div className="space-y-4 pt-2">
+                    <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <FileText size={16} className="text-blue-500" />
+                      Sales Invoice History
+                    </h3>
+                    {customerStats.sales.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-[var(--text-muted)] bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg font-semibold">
+                        No sales invoices logged for this customer yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
+                              <th className="p-3">Invoice No.</th>
+                              <th className="p-3">Type</th>
+                              <th className="p-3">Date</th>
+                              <th className="p-3 text-right">Grand Total</th>
+                              <th className="p-3 text-right">Collected Amount</th>
+                              <th className="p-3 text-center">Payment Status</th>
+                              <th className="p-3 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border)] text-xs font-semibold text-[var(--text-body)]">
+                            {customerStats.sales.map((s) => (
+                              <tr key={s.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                                <td className="p-3 text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer">
+                                  <Link href={`/sales/bills`}>
+                                    {s.bill_number}
+                                  </Link>
+                                </td>
+                                <td className="p-3 uppercase font-mono text-[10px]">{s.bill_type}</td>
+                                <td className="p-3 flex items-center gap-1 text-[var(--text-muted)]">
+                                  <Calendar size={12} />
+                                  {new Date(s.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                </td>
+                                <td className="p-3 text-right font-bold">₹{Number(s.grand_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                                <td className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">₹{Number(s.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                                <td className="p-3 text-center">{getPaymentStatusBadge(s.payment_status)}</td>
+                                <td className="p-3 text-center">
+                                  <Badge variant={s.status === "active" ? "green" : s.status === "cancelled" ? "red" : "orange"}>
+                                    {s.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Worker Panel */}
+              {activeTab === "worker" && workerStats && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Wrench size={16} className="text-emerald-600 dark:text-emerald-400" />
+                    Worker Stage Assignments & Lot Labor Sheets
+                  </h3>
+                  {workerStats.stageAssignments.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-[var(--text-muted)] bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg font-semibold">
+                      No stage entries or lot assignments logged for this worker.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
+                            <th className="p-3">Lot Number</th>
+                            <th className="p-3">Stage Worked</th>
+                            <th className="p-3 text-center">Qty In</th>
+                            <th className="p-3 text-center">Qty Out</th>
+                            <th className="p-3 text-center">Qty Balance</th>
+                            <th className="p-3 text-right">Piece Rate</th>
+                            <th className="p-3 text-right">Earned Pay</th>
+                            <th className="p-3 text-center">Stage Status</th>
+                            <th className="p-3 text-center">Labor Paid Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)] text-xs font-semibold text-[var(--text-body)]">
+                          {workerStats.stageAssignments.map((sa) => (
+                            <tr key={sa.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                              <td className="p-3 text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer">
+                                <Link href={`/production/lots`}>
+                                  {sa.production_lots?.lot_number || "Unknown"}
+                                </Link>
+                              </td>
+                              <td className="p-3 font-bold">{sa.stage_name}</td>
+                              <td className="p-3 text-center font-mono">{sa.qty_in}</td>
+                              <td className="p-3 text-center font-mono">{sa.qty_out}</td>
+                              <td className="p-3 text-center font-mono text-[var(--text-muted)]">{sa.qty_balance}</td>
+                              <td className="p-3 text-right font-mono">₹{Number(sa.job_work_rate || 0).toFixed(2)}</td>
+                              <td className="p-3 text-right font-mono font-bold text-[var(--text-primary)]">₹{Number(sa.total_job_work_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-3 text-center">{getStatusBadge(sa.status)}</td>
+                              <td className="p-3 text-center">{getPaymentStatusBadge(sa.payment_status)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Bank Accounts Section Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 space-y-4">
-        <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-          <Banknote size={16} className="text-[#6366F1]" />
+      <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-6 space-y-4">
+        <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+          <Banknote size={16} className="text-[var(--primary)]" />
           Wired Bank & UPI Accounts
         </h2>
         {party.bank_details && party.bank_details.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {party.bank_details.map((b) => (
-              <div key={b.id} className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2 relative overflow-hidden">
+              <div key={b.id} className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2 relative overflow-hidden">
                 {b.is_primary && (
-                  <div className="absolute top-0 right-0 bg-[#6366F1] text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
+                  <div className="absolute top-0 right-0 bg-[var(--primary)] text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
                     Primary
                   </div>
                 )}
                 <div>
-                  <p className="text-[10px] font-bold text-[#94A3B8] uppercase">Bank Name</p>
-                  <p className="text-xs font-extrabold text-[#334155]">{b.bank_name}</p>
+                  <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Bank Name</p>
+                  <p className="text-xs font-extrabold text-[var(--text-secondary)]">{b.bank_name}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--border)]">
                   <div>
-                    <p className="text-[9px] font-bold text-[#94A3B8] uppercase">A/C Number</p>
-                    <p className="text-xs font-mono font-bold text-[#475569]">{b.account_number}</p>
+                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">A/C Number</p>
+                    <p className="text-xs font-mono font-bold text-[var(--text-body)]">{b.account_number}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-[#94A3B8] uppercase">IFSC Code</p>
-                    <p className="text-xs font-mono font-bold text-[#475569]">{b.ifsc_code}</p>
+                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">IFSC Code</p>
+                    <p className="text-xs font-mono font-bold text-[var(--text-body)]">{b.ifsc_code}</p>
                   </div>
                 </div>
                 {b.branch && (
                   <div>
-                    <p className="text-[9px] font-bold text-[#94A3B8] uppercase">Branch</p>
-                    <p className="text-xs font-semibold text-[#475569]">{b.branch}</p>
+                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Branch</p>
+                    <p className="text-xs font-semibold text-[var(--text-muted)]">{b.branch}</p>
                   </div>
                 )}
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-6 text-xs text-[#64748B] bg-slate-50 border border-dashed border-slate-200 rounded-lg font-semibold">
+          <div className="text-center py-6 text-xs text-[var(--text-muted)] bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-lg font-semibold">
             No bank or settlement accounts linked to this party yet.
           </div>
         )}

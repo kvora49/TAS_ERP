@@ -208,6 +208,7 @@ export async function PUT(
       branch,
       upi_id,
       upi_provider,
+      account_category,
       is_default,
       opening_balance,
       is_active,
@@ -220,6 +221,11 @@ export async function PUT(
         { status: 400 }
       );
     }
+
+    const validCategories = ["pakka", "kacha", "both"];
+    const category = validCategories.includes(account_category)
+      ? account_category
+      : type === "cash" ? "kacha" : "pakka";
 
     if (type === "bank" && (!account_number || !ifsc)) {
       return NextResponse.json(
@@ -249,6 +255,7 @@ export async function PUT(
       .update({
         type,
         name,
+        account_category: category,
         sub_label: sub_label || null,
         bank_name: type === "bank" ? bank_name : null,
         account_number: type === "bank" ? account_number : null,

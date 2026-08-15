@@ -39,6 +39,7 @@ interface BankAccount {
   id: string;
   type: "bank" | "upi" | "cash";
   name: string;
+  account_category?: "pakka" | "kacha" | "both";
   sub_label: string | null;
   bank_name: string | null;
   account_number: string | null;
@@ -74,8 +75,8 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-semibold text-[#64748B]">Loading account profile...</p>
+          <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-semibold text-[var(--text-muted)]">Loading account profile...</p>
         </div>
       </div>
     );
@@ -84,12 +85,12 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
   if (error || !detailData) {
     return (
       <div className="p-6 text-center space-y-4">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h3 className="text-lg font-bold text-[#0F172A]">Error Loading Account</h3>
-        <p className="text-sm text-[#64748B]">{error?.toString() || "Account not found"}</p>
+        <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+        <h3 className="text-lg font-bold text-[var(--text-primary)]">Error Loading Account</h3>
+        <p className="text-sm text-[var(--text-muted)]">{error?.toString() || "Account not found"}</p>
         <button
           onClick={() => router.push("/master-data/banks-upi")}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-all cursor-pointer"
+          className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-xs font-semibold hover:bg-[var(--primary-dark)] transition-all cursor-pointer"
         >
           Back to Banks & UPI
         </button>
@@ -120,48 +121,63 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
   };
 
   const isBank = account.type === "bank";
+  const category = account.account_category || (account.type === "cash" ? "kacha" : "pakka");
 
   return (
     <div className="p-6 space-y-6">
       {/* Navigation breadcrumbs */}
-      <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
-        <Link href="/" className="hover:text-[#0F172A] transition-colors">
+      <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">
+        <Link href="/" className="hover:text-[var(--text-primary)] transition-colors">
           Dashboard
         </Link>
         <ChevronRight size={12} />
         <span>Master Data</span>
         <ChevronRight size={12} />
-        <Link href="/master-data/banks-upi" className="hover:text-[#0F172A] transition-colors">
+        <Link href="/master-data/banks-upi" className="hover:text-[var(--text-primary)] transition-colors">
           Banks & UPI
         </Link>
         <ChevronRight size={12} />
-        <span className="text-[#0F172A]">{account.name}</span>
+        <span className="text-[var(--text-primary)]">{account.name}</span>
       </div>
 
       {/* Header card */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         {/* Subtle decorative background gradient */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--primary-light)]/30 rounded-full blur-3xl -z-10" />
 
         <div className="flex items-start gap-4">
-          <div className="w-14 h-14 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xl shadow-sm">
+          <div className="w-14 h-14 bg-[var(--primary-light)] rounded-2xl border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] shrink-0 font-black text-xl shadow-xs">
             {account.type === "bank" ? <CreditCard size={24} /> : account.type === "upi" ? <QrCode size={24} /> : <Wallet size={24} />}
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-black text-[#0F172A] tracking-tight">{account.name}</h1>
+              <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">{account.name}</h1>
               {account.is_default && (
-                <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-100 uppercase">
+                <span className="bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[var(--primary)]/20 uppercase">
                   Default
+                </span>
+              )}
+              {/* Account Nature Badge */}
+              {category === "pakka" ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                  🏷️ Pakka (Official / GST)
+                </span>
+              ) : category === "kacha" ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  📝 Kaccha (Non-GST)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+                  🔄 Both / General
                 </span>
               )}
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
                   account.type === "bank"
-                    ? "bg-blue-50 text-blue-700 border-blue-100"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
                     : account.type === "upi"
-                    ? "bg-[#FAF5FF] text-[#7C3AED] border-[#F3E8FF]"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                    ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                 }`}
               >
                 {account.type === "bank" ? "Bank Account" : account.type === "upi" ? "UPI Handle" : "Cash Register"}
@@ -169,16 +185,16 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
                   account.is_active
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                    : "bg-red-50 text-red-700 border-red-100"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                 }`}
               >
                 {account.is_active ? "Active" : "Inactive"}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#64748B] font-semibold">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)] font-semibold">
               {account.sub_label && (
-                <span className="text-sm font-medium text-[#475569]">{account.sub_label}</span>
+                <span className="text-sm font-medium text-[var(--text-secondary)]">{account.sub_label}</span>
               )}
             </div>
           </div>
@@ -186,7 +202,7 @@ export default function BankAccountDetailPage({ params }: { params: { id: string
 
         <button
           onClick={() => router.push(`/master-data/banks-upi`)}
-          className="h-10 px-4 rounded-lg bg-white border border-[#E2E8F0] hover:bg-[#F1F5F9] text-[#475569] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+          className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
         >
           <ArrowLeft size={14} /> Back to List
         </button>

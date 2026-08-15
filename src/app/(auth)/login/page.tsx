@@ -84,7 +84,7 @@ function LoginContent() {
     setLoading(true);
     const supabase = createClient();
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
       });
@@ -96,7 +96,20 @@ function LoginContent() {
       }
 
       setIsWorkspaceLoading(true);
-      router.push("/");
+
+      // Check number of active company memberships for this user
+      const { data: memberships } = await supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("status", "active");
+
+      if (memberships && memberships.length > 1) {
+        // Multi-company user on fresh login: Show company selector
+        router.push("/select-company");
+      } else {
+        // Single company user: Go straight to dashboard
+        router.push("/");
+      }
       router.refresh();
     } catch (err: any) {
       toast.error(err.message || "An unexpected error occurred");

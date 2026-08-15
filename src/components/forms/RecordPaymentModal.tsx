@@ -266,12 +266,16 @@ export function RecordPaymentModal({
               className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
               <option value="">Select Bank Account</option>
-              {bankOptions.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bank_name || b.name} (
-                  {b.account_number ? b.account_number.slice(-4) : "—"})
-                </option>
-              ))}
+              {bankOptions.map((b) => {
+                const cat = (b as any).account_category || "pakka";
+                const catLabel = cat === "pakka" ? "🏷️ Pakka" : cat === "kacha" ? "📝 Kaccha" : "🔄 Both";
+                return (
+                  <option key={b.id} value={b.id}>
+                    [{catLabel}] {b.bank_name || b.name} (
+                    {b.account_number ? b.account_number.slice(-4) : "—"})
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -287,11 +291,15 @@ export function RecordPaymentModal({
               className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
             >
               <option value="">Select UPI Endpoint</option>
-              {upiOptions.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.upi_id || "—"})
-                </option>
-              ))}
+              {upiOptions.map((u) => {
+                const cat = (u as any).account_category || "kacha";
+                const catLabel = cat === "pakka" ? "🏷️ Pakka" : cat === "kacha" ? "📝 Kaccha" : "🔄 Both";
+                return (
+                  <option key={u.id} value={u.id}>
+                    [{catLabel}] {u.name} ({u.upi_id || "—"})
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}

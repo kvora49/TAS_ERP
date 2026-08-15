@@ -63,6 +63,16 @@ export async function GET(req: NextRequest) {
     const kachaRevenue = allBills.filter(b => b.bill_type === "kacha").reduce((s, b) => s + Number(b.grand_total), 0);
     const pakkaRevenue = allBills.filter(b => b.bill_type === "pakka").reduce((s, b) => s + Number(b.grand_total), 0);
 
+    const kachaPaid = allBills.filter(b => b.bill_type === "kacha").reduce((s, b) => s + Number(b.paid_amount), 0);
+    const pakkaPaid = allBills.filter(b => b.bill_type === "pakka").reduce((s, b) => s + Number(b.paid_amount), 0);
+
+    const kachaOutstanding = allBills
+      .filter(b => b.bill_type === "kacha" && b.payment_status !== "paid")
+      .reduce((s, b) => s + Number(b.grand_total) - Number(b.paid_amount), 0);
+    const pakkaOutstanding = allBills
+      .filter(b => b.bill_type === "pakka" && b.payment_status !== "paid")
+      .reduce((s, b) => s + Number(b.grand_total) - Number(b.paid_amount), 0);
+
     // Monthly trend
     const monthMap: Record<string, number> = {};
     for (const b of allBills) {
@@ -124,6 +134,10 @@ export async function GET(req: NextRequest) {
         avgBillValue,
         kachaRevenue,
         pakkaRevenue,
+        kachaPaid,
+        pakkaPaid,
+        kachaOutstanding,
+        pakkaOutstanding,
         kachaBills: allBills.filter(b => b.bill_type === "kacha").length,
         pakkaBills: allBills.filter(b => b.bill_type === "pakka").length,
       },

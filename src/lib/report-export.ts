@@ -150,3 +150,23 @@ export const DATE_PRESETS: { label: string; value: DatePreset }[] = [
   { label: "Last 12 Months", value: "last_12_months" },
   { label: "This FY", value: "this_fy" },
 ];
+
+/**
+ * Safely parse an Excel worksheet into JSON rows without prototype pollution risk.
+ * Filters out __proto__, constructor, and prototype keys from incoming rows.
+ */
+export function safeSheetToJson<T = Record<string, any>>(ws: XLSX.WorkSheet, opts?: XLSX.Sheet2JSONOpts): T[] {
+  const raw = XLSX.utils.sheet_to_json<any>(ws, opts);
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((row) => {
+    if (typeof row !== "object" || row === null) return row;
+    const safeObj: any = Object.create(null);
+    for (const key of Object.keys(row)) {
+      if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+      safeObj[key] = row[key];
+    }
+    return safeObj as T;
+  });
+}
+

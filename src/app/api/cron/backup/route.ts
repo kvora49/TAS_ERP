@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { generateDatabaseBackup } from "@/lib/backup/backupEngine";
 import { processBackupSync } from "@/lib/backup/backupSync";
+import { handleApiError } from "@/lib/api-response";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -11,9 +12,13 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret") || request.headers.get("authorization")?.replace("Bearer ", "");
-  const cronSecret = process.env.CRON_SECRET || "tas-erp-cron-secret";
+  const cronSecret = process.env.CRON_SECRET;
 
-  if (secret !== cronSecret && process.env.NODE_ENV === "production") {
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET is not configured on server" }, { status: 500 });
+  }
+
+  if (secret !== cronSecret) {
     return NextResponse.json({ error: "Unauthorized cron request" }, { status: 401 });
   }
 
@@ -79,33 +84,33 @@ export async function GET(request: Request) {
       const { sqlDump, fileSize } = await generateDatabaseBackup(supabase, biz.id);
       const fileBuffer = Buffer.from(sqlDump, "utf8");
 
-      // Local fallback directory
-      const localDir = path.join(process.cwd(), "public", "backups", biz.id);
-      if (!fs.existsSync(localDir)) {
-        fs.mkdirSync(localDir, { recursive: true });
+      // Secure private storage directory (never inside public/)
+      const privateDir = path.join(process.cwd(), "private-storage", "backups", biz.id);
+      if (!fs.existsSync(privateDir)) {
+        fs.mkdirSync(privateDir, { recursive: true });
       }
-      fs.writeFileSync(path.join(localDir, fileName), fileBuffer);
-      const publicUrl = `/backups/${biz.id}/${fileName}`;
+      fs.writeFileSync(path.join(privateDir, fileName), fileBuffer);
+      const storageKey = `private-storage/backups/${biz.id}/${fileName}`;
 
       // Insert record into backup_history
       try {
         await supabase.from("backup_history").insert({
           business_id: biz.id,
           backup_type: "automatic",
-          file_key: `backups/${biz.id}/${fileName}`,
-          file_url: publicUrl,
+          file_key: storageKey,
+          file_url: storageKey,
           file_size_bytes: fileSize,
           status: "completed",
         });
       } catch (e) {}
 
-      // Enforce 30-day (or tenant retention days) policy: delete local files & records older than retentionCutoff
+      // Enforce tenant retention days policy: delete local files & records older than retentionCutoff
       const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
       try {
-        const files = fs.readdirSync(localDir);
+        const files = fs.readdirSync(privateDir);
         const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
         files.forEach((f) => {
-          const filePath = path.join(localDir, f);
+          const filePath = path.join(privateDir, f);
           const stat = fs.statSync(filePath);
           if (stat.mtimeMs < cutoffMs) {
             fs.unlinkSync(filePath);
@@ -120,7 +125,7 @@ export async function GET(request: Request) {
           .lt("created_at", retentionCutoff);
       } catch (e) {}
 
-      results.push({ businessId: biz.id, fileName, publicUrl, frequency });
+      results.push({ businessId: biz.id, fileName, storageKey, frequency });
     }
 
     // Auto-trigger cross-account secondary R2 sync if backups were created
@@ -137,10 +142,11 @@ export async function GET(request: Request) {
       backups: results,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Cron backup failed" }, { status: 500 });
+    return handleApiError(err);
   }
 }
 
 export async function POST(request: Request) {
   return GET(request);
 }
+

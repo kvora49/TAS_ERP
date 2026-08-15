@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { NavItem, isWhitelisted, handlePrefetch } from "./navigation.config";
 import { QueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { accordionVariants } from "@/lib/animations";
 
 interface SidebarItemProps {
   item: NavItem;
@@ -78,7 +80,7 @@ export function SidebarItem({
           onClick={() => toggleSubMenu(item.name)}
           title={!sidebarOpen ? item.name : undefined}
           className={cn(
-            "flex items-center transition-all duration-200 cursor-pointer text-left rounded-lg mx-2 text-sm font-medium",
+            "flex items-center transition-all duration-200 cursor-pointer text-left rounded-lg mx-2 text-sm font-medium relative select-none",
             sidebarOpen
               ? "w-[calc(100%-16px)] justify-between px-3 py-2.5"
               : "w-10 h-10 justify-center p-0 mx-auto",
@@ -108,12 +110,12 @@ export function SidebarItem({
           onMouseEnter={() => item.href && handlePrefetch(item.href, queryClient)}
           title={!sidebarOpen ? item.name : undefined}
           className={cn(
-            "flex items-center transition-all duration-200 cursor-pointer rounded-lg text-sm font-medium",
+            "flex items-center transition-all duration-200 cursor-pointer rounded-lg text-sm font-medium relative select-none",
             sidebarOpen
               ? "gap-3 px-3 py-2.5 mx-2"
               : "w-10 h-10 justify-center p-0 mx-auto",
             isPathActive(item.href) || navigatingTo === item.href
-              ? "bg-[#312E81] text-white"
+              ? "bg-[#312E81] text-white shadow-sm"
               : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
           )}
         >
@@ -128,61 +130,94 @@ export function SidebarItem({
         </a>
       )}
 
-      {/* Subitems container */}
-      {isExpandable && isMenuOpen && sidebarOpen && (
-        <div className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}>
-          {item.subItems?.map((sub, sIdx) => {
-            const hasSubSub = !!sub.subItems;
-            const isSubSubOpen = expandedMenus[sub.name];
-            const isSubActive = sub.href
-              ? isPathActive(sub.href) || navigatingTo === sub.href
-              : sub.subItems?.some((ss) => isPathActive(ss.href) || navigatingTo === ss.href);
+      {/* Subitems container with smooth accordion animation */}
+      <AnimatePresence initial={false}>
+        {isExpandable && isMenuOpen && sidebarOpen && (
+          <motion.div
+            variants={accordionVariants}
+            initial="collapsed"
+            animate="expanded"
+            exit="collapsed"
+            className={cn(item.name === "Settings" ? "space-y-1 mt-1" : "pl-9 space-y-1.5 pr-2")}
+          >
+            {item.subItems?.map((sub, sIdx) => {
+              const hasSubSub = !!sub.subItems;
+              const isSubSubOpen = expandedMenus[sub.name];
+              const isSubActive = sub.href
+                ? isPathActive(sub.href) || navigatingTo === sub.href
+                : sub.subItems?.some((ss) => isPathActive(ss.href) || navigatingTo === ss.href);
 
-            if (hasSubSub) {
-              return (
-                <div key={sIdx} className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleSubMenu(sub.name)}
+              if (hasSubSub) {
+                return (
+                  <div key={sIdx} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSubMenu(sub.name)}
+                      className={cn(
+                        "w-full flex items-center justify-between py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer text-left",
+                        isSubActive
+                          ? "text-white bg-[#1E1B4B]"
+                          : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
+                      )}
+                    >
+                      <span>{sub.name}</span>
+                      {isSubSubOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {isSubSubOpen && (
+                        <motion.div
+                          variants={accordionVariants}
+                          initial="collapsed"
+                          animate="expanded"
+                          exit="collapsed"
+                          className="pl-3 space-y-1 mt-1"
+                        >
+                          {sub.subItems?.map((subSub, ssIdx) => {
+                            const isSubSubActive = isPathActive(subSub.href) || navigatingTo === subSub.href;
+                            return (
+                              <a
+                                key={ssIdx}
+                                href={subSub.href}
+                                onClick={(e) => handleNavigation(e as any, subSub.href)}
+                                onMouseEnter={() => handlePrefetch(subSub.href, queryClient)}
+                                className={cn(
+                                  "block py-1.5 pl-6 pr-3 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer",
+                                  isSubSubActive
+                                    ? "text-white bg-[#312E81]"
+                                    : "text-[#94A3B8]/80 hover:text-white hover:bg-[#1E1B4B]/40"
+                                )}
+                              >
+                                {subSub.name}
+                              </a>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              }
+
+              if (item.name === "Settings") {
+                return (
+                  <a
+                    key={sIdx}
+                    href={sub.href || "#"}
+                    onClick={(e) => handleNavigation(e as any, sub.href)}
+                    onMouseEnter={() => sub.href && handlePrefetch(sub.href, queryClient)}
                     className={cn(
-                      "w-full flex items-center justify-between py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer text-left",
+                      "flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
                       isSubActive
-                        ? "text-white bg-[#1E1B4B]"
-                        : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
+                        ? "bg-[#312E81] text-white"
+                        : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
                     )}
                   >
                     <span>{sub.name}</span>
-                    {isSubSubOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </button>
+                  </a>
+                );
+              }
 
-                  {isSubSubOpen && (
-                    <div className="pl-3 space-y-1 mt-1">
-                      {sub.subItems?.map((subSub, ssIdx) => {
-                        const isSubSubActive = isPathActive(subSub.href) || navigatingTo === subSub.href;
-                        return (
-                          <a
-                            key={ssIdx}
-                            href={subSub.href}
-                            onClick={(e) => handleNavigation(e as any, subSub.href)}
-                            onMouseEnter={() => handlePrefetch(subSub.href, queryClient)}
-                            className={cn(
-                              "block py-1.5 pl-6 pr-3 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer",
-                              isSubSubActive
-                                ? "text-white bg-[#312E81]"
-                                : "text-[#94A3B8]/80 hover:text-white hover:bg-[#1E1B4B]/40"
-                            )}
-                          >
-                            {subSub.name}
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            if (item.name === "Settings") {
               return (
                 <a
                   key={sIdx}
@@ -190,37 +225,20 @@ export function SidebarItem({
                   onClick={(e) => handleNavigation(e as any, sub.href)}
                   onMouseEnter={() => sub.href && handlePrefetch(sub.href, queryClient)}
                   className={cn(
-                    "flex items-center gap-2.5 pl-9 pr-3 py-2 rounded-lg mx-2 text-sm font-medium transition-all duration-200 cursor-pointer",
+                    "block py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer",
                     isSubActive
-                      ? "bg-[#312E81] text-white"
-                      : "text-[#94A3B8] hover:bg-[#1E1B4B] hover:text-white"
+                      ? "text-white bg-[#312E81]"
+                      : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
                   )}
                 >
-                  <span>{sub.name}</span>
+                  {sub.name}
+                  {navigatingTo === sub.href ? " (Loading...)" : ""}
                 </a>
               );
-            }
-
-            return (
-              <a
-                key={sIdx}
-                href={sub.href || "#"}
-                onClick={(e) => handleNavigation(e as any, sub.href)}
-                onMouseEnter={() => sub.href && handlePrefetch(sub.href, queryClient)}
-                className={cn(
-                  "block py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer",
-                  isSubActive
-                    ? "text-white bg-[#312E81]"
-                    : "text-[#94A3B8] hover:text-white hover:bg-[#1E1B4B]/55"
-                )}
-              >
-                {sub.name}
-                {navigatingTo === sub.href ? " (Loading...)" : ""}
-              </a>
-            );
-          })}
-        </div>
-      )}
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

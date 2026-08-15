@@ -41,11 +41,13 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { requireAuthGuard } = await import("@/lib/auth/guards");
+  const { handleApiError } = await import("@/lib/api-response");
+
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -62,9 +64,9 @@ export async function PUT(request: Request) {
       currency,
     } = body;
 
-    if (!name || !gstin || !address || !phone || !email || !financial_year_start || !currency) {
+    if (!name || !address || !phone || !email) {
       return NextResponse.json(
-        { error: "Missing required profile fields" },
+        { error: "Missing required profile fields (name, address, phone, email)", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -72,29 +74,27 @@ export async function PUT(request: Request) {
     const { error } = await supabase
       .from("businesses")
       .update({
-        name,
-        gstin,
-        pan: pan || null,
-        address,
-        phone,
-        email,
-        website: website || null,
+        name: name.trim(),
+        gstin: gstin?.trim() || null,
+        pan: pan?.trim() || null,
+        address: address.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        website: website?.trim() || null,
         logo_url: logo_url || null,
-        financial_year_start,
-        currency,
+        financial_year_start: financial_year_start || "2026-04-01",
+        currency: currency || "INR",
         updated_at: new Date().toISOString(),
       })
       .eq("id", businessId);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+

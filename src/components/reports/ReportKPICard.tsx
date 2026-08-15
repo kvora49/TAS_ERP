@@ -2,6 +2,9 @@
 
 import React from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { motion } from "framer-motion";
+import { cardVariants, hoverLift } from "@/lib/animations";
+import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
 import { cn } from "@/lib/utils";
 import { fmtINR } from "@/lib/report-export";
 
@@ -74,6 +77,8 @@ export default function ReportKPICard({
   vsLabel = "vs Last Period",
   className,
 }: ReportKPICardProps) {
+  const profile = useExperienceProfile();
+  const isUltraFast = profile?.level === "ultraFast";
   const colors = COLOR_MAP[color] ?? COLOR_MAP.indigo;
 
   const displayValue = () => {
@@ -97,10 +102,10 @@ export default function ReportKPICard({
       ? "down"
       : "flat";
 
-  return (
+  const cardContent = (
     <div
       className={cn(
-        "bg-[var(--card-bg)] border border-[var(--border)] border-l-4 rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-2",
+        "bg-[var(--card-bg)] border border-[var(--border)] border-l-4 rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-2 transition-shadow",
         colors.border,
         className
       )}
@@ -147,5 +152,21 @@ export default function ReportKPICard({
         )}
       </div>
     </div>
+  );
+
+  if (isUltraFast) {
+    return cardContent;
+  }
+
+  return (
+    <motion.div
+      variants={cardVariants}
+      initial="initial"
+      animate="animate"
+      whileHover={hoverLift.hover}
+      className="h-full"
+    >
+      {cardContent}
+    </motion.div>
   );
 }

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useERPQuery } from "@/hooks/useERPQuery";
 import { formatDate, cn } from "@/lib/utils";
 import { ManualNoteModal } from "@/components/sales/ManualNoteModal";
+import { motion, AnimatePresence } from "framer-motion";
+import { counterVariants } from "@/lib/animations";
 
 interface Allocation {
   billNo: string;
@@ -222,16 +224,23 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
       {/* PRIMARY TAB CONTROLS & VOUCHER FILTER */}
       <div className="flex items-center justify-between gap-4 flex-wrap bg-[var(--card-bg)] border border-[var(--border)] p-3 rounded-xl shadow-[var(--shadow-sm)]">
         {/* 3 Tabs: Total Combined, Pakka Bill, Kaccha Bill */}
-        <div className="flex items-center gap-1.5 p-1 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl">
+        <div className="flex items-center gap-1.5 p-1 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl relative">
           <button
             onClick={() => setActiveBillTab("total")}
             className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer relative z-10",
               activeBillTab === "total"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                ? "text-[var(--primary)] font-extrabold"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
           >
+            {activeBillTab === "total" && (
+              <motion.div
+                layoutId="active-ledger-tab"
+                className="absolute inset-0 bg-[var(--card-bg)] rounded-lg shadow-sm -z-10"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            )}
             <span>📊 Total (Combined)</span>
             <span className="bg-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded-full text-[10px]">
               {totalCount}
@@ -241,12 +250,19 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           <button
             onClick={() => setActiveBillTab("pakka")}
             className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer relative z-10",
               activeBillTab === "pakka"
-                ? "bg-[var(--card-bg)] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                ? "text-indigo-600 dark:text-indigo-400 font-extrabold"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
           >
+            {activeBillTab === "pakka" && (
+              <motion.div
+                layoutId="active-ledger-tab"
+                className="absolute inset-0 bg-[var(--card-bg)] rounded-lg shadow-sm -z-10"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            )}
             <span>📄 Pakka Bill</span>
             <span className="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
               {pakkaCount}
@@ -256,12 +272,19 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           <button
             onClick={() => setActiveBillTab("kacha")}
             className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer relative z-10",
               activeBillTab === "kacha"
-                ? "bg-[var(--card-bg)] text-amber-600 dark:text-amber-400 shadow-sm"
+                ? "text-amber-600 dark:text-amber-400 font-extrabold"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
           >
+            {activeBillTab === "kacha" && (
+              <motion.div
+                layoutId="active-ledger-tab"
+                className="absolute inset-0 bg-[var(--card-bg)] rounded-lg shadow-sm -z-10"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            )}
             <span>📝 Kaccha Bill</span>
             <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
               {kachaCount}
@@ -314,59 +337,68 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
         </div>
 
         {/* Dynamic KPI Cards (Updates per Active Tab) — Mobile Snap Scroll + Desktop Grid */}
-        <div className="lg:col-span-3 flex md:grid md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto snap-x snap-mandatory pb-1 md:pb-0 scrollbar-none">
-          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
-            <div className="p-2.5 md:p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400 shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Debits (Dr)</span>
-              <p className="text-sm md:text-xl font-bold text-red-600 dark:text-red-400 truncate">{formatCurrency(totalDebits)}</p>
-              <span className="text-[9px] text-[var(--text-faint)] truncate block">
-                {activeBillTab === "total" ? "All Payments" : `${activeBillTab.toUpperCase()} Debits`}
-              </span>
-            </div>
-          </div>
-
-          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
-            <div className="p-2.5 md:p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400 shrink-0">
-              <Receipt className="h-5 w-5 md:h-6 md:w-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Credits (Cr)</span>
-              <p className="text-sm md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatCurrency(totalCredits)}</p>
-              <span className="text-[9px] text-[var(--text-faint)] truncate block">
-                {activeBillTab === "total" ? "All Purchases" : `${activeBillTab.toUpperCase()} Credits`}
-              </span>
-            </div>
-          </div>
-
-          <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
-            <div className="p-2.5 md:p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-[var(--primary)] shrink-0">
-              <Calendar className="h-5 w-5 md:h-6 md:w-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Closing Balance</span>
-              <p className={`text-sm md:text-xl font-bold truncate ${closingBalanceSign === "Cr" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                {closingBalanceStr}
-              </p>
-              <span className="text-[9px] text-[var(--text-faint)] capitalize truncate block">{activeBillTab} Outstanding</span>
-            </div>
-          </div>
-
-          {remainingAdvance > 0 && (
-            <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-blue-200 dark:border-blue-900 rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4 bg-blue-50/20 dark:bg-blue-950/20">
-              <div className="p-2.5 md:p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
-                <CreditCard className="h-5 w-5 md:h-6 md:w-6" />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeBillTab}
+            variants={counterVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="lg:col-span-3 flex md:grid md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto snap-x snap-mandatory pb-1 md:pb-0 scrollbar-none"
+          >
+            <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+              <div className="p-2.5 md:p-3 bg-red-50 dark:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400 shrink-0">
+                <DollarSign className="h-5 w-5 md:h-6 md:w-6" />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] md:text-xs font-semibold text-blue-600 dark:text-blue-400 truncate block">Advance Balance</span>
-                <p className="text-sm md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate">{formatCurrency(remainingAdvance)}</p>
-                <span className="text-[9px] text-blue-500 font-semibold uppercase tracking-wider block">Unsettled</span>
+                <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Debits (Dr)</span>
+                <p className="text-sm md:text-xl font-bold text-red-600 dark:text-red-400 truncate">{formatCurrency(totalDebits)}</p>
+                <span className="text-[9px] text-[var(--text-faint)] truncate block">
+                  {activeBillTab === "total" ? "All Payments" : `${activeBillTab.toUpperCase()} Debits`}
+                </span>
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+              <div className="p-2.5 md:p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Receipt className="h-5 w-5 md:h-6 md:w-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Total Credits (Cr)</span>
+                <p className="text-sm md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{formatCurrency(totalCredits)}</p>
+                <span className="text-[9px] text-[var(--text-faint)] truncate block">
+                  {activeBillTab === "total" ? "All Purchases" : `${activeBillTab.toUpperCase()} Credits`}
+                </span>
+              </div>
+            </div>
+
+            <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4">
+              <div className="p-2.5 md:p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg text-[var(--primary)] shrink-0">
+                <Calendar className="h-5 w-5 md:h-6 md:w-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] md:text-xs font-semibold text-[var(--text-muted)] truncate block">Closing Balance</span>
+                <p className={`text-sm md:text-xl font-bold truncate ${closingBalanceSign === "Cr" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {closingBalanceStr}
+                </p>
+                <span className="text-[9px] text-[var(--text-faint)] capitalize truncate block">{activeBillTab} Outstanding</span>
+              </div>
+            </div>
+
+            {remainingAdvance > 0 && (
+              <div className="snap-start shrink-0 w-[160px] md:w-auto bg-[var(--card-bg)] border border-blue-200 dark:border-blue-900 rounded-xl p-3.5 md:p-5 shadow-[var(--shadow-sm)] flex items-center gap-3 md:gap-4 bg-blue-50/20 dark:bg-blue-950/20">
+                <div className="p-2.5 md:p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
+                  <CreditCard className="h-5 w-5 md:h-6 md:w-6" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] md:text-xs font-semibold text-blue-600 dark:text-blue-400 truncate block">Advance Balance</span>
+                  <p className="text-sm md:text-xl font-bold text-blue-600 dark:text-blue-400 truncate">{formatCurrency(remainingAdvance)}</p>
+                  <span className="text-[9px] text-blue-500 font-semibold uppercase tracking-wider block">Unsettled</span>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
 

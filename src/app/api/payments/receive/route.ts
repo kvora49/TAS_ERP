@@ -111,7 +111,7 @@ export async function GET(request: Request) {
       // Also fetch bank accounts for dropdown
       const { data: banks, error: banksError } = await supabase
         .from("bank_accounts")
-        .select("id, name, bank_name, account_number, sub_label, type, is_default, is_active")
+        .select("id, name, bank_name, account_number, sub_label, type, account_category, is_default, is_active")
         .eq("business_id", businessId)
         .is("deleted_at", null);
 
@@ -121,6 +121,8 @@ export async function GET(request: Request) {
         account_name: b.name || b.bank_name || "Bank Account",
         bank_name: b.bank_name || b.sub_label || (b.type ? b.type.toUpperCase() : "Bank"),
         account_number: b.account_number || "",
+        account_category: b.account_category || (b.type === "cash" ? "kacha" : "pakka"),
+        type: b.type,
         is_default: !!b.is_default,
       }));
 
@@ -135,20 +137,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { requireAuthGuard } = await import("@/lib/auth/guards");
+  const { handleApiError, validateRequestBody } = await import("@/lib/api-response");
+  const { RecordPaymentSchema } = await import("@/lib/schemas/payments.schema");
 
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "User session not found" }, { status: 401 });
-  }
+  const guard = await requireAuthGuard();
+  if (!guard.success) return guard.response;
+  const { user, businessId } = guard.ctx;
+  const supabase = createClient();
 
   try {
-    const body = await request.json();
+    const valResult = await validateRequestBody(request, RecordPaymentSchema);
+    if (!valResult.success) {
+      return valResult.response;
+    }
+
     const {
       party_id,
       amount,
@@ -157,17 +160,8 @@ export async function POST(request: Request) {
       reference_no,
       bank_account_id,
       remarks,
-      allocations, // Array of { billId, allocatedAmount, billType }
-      credit_note_allocations,
-    } = body;
-
-    const numAmount = Number(amount || 0);
-    const hasAllocations = (allocations && allocations.length > 0) || (credit_note_allocations && credit_note_allocations.length > 0);
-
-    // Server-side validation
-    if (!party_id || !payment_date || (!hasAllocations && numAmount <= 0)) {
-      return NextResponse.json({ error: "Missing required fields or payment amount" }, { status: 400 });
-    }
+      allocations,
+    } = valResult.data;
 
     // Call record_payment database RPC function
     const { data: paymentId, error } = await supabase.rpc("record_payment", {
@@ -181,11 +175,11 @@ export async function POST(request: Request) {
       p_amount: Number(amount),
       p_remarks: remarks || "",
       p_allocations: allocations || [],
-      p_created_by: userId,
+      p_created_by: user.id,
     });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw error;
     }
 
     // Fire-and-forget audit log
@@ -199,9 +193,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, paymentId });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleApiError(err);
   }
 }
+
