@@ -896,7 +896,7 @@ export async function POST(request: Request) {
     }
 
     // Log audit trail
-    await logAudit(businessId, "create", "production_lots", lot.id, lot);
+    await logAudit(businessId, "create", "production_lots", lot.id, lot, {}, request);
 
     // Fire-and-forget calendar integration — auto-create lot events
     const { data: { user: lotUser } } = await supabase.auth.getUser();

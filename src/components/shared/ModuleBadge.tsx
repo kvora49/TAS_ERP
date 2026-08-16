@@ -27,7 +27,11 @@ export function ModuleBadge({ module, className }: ModuleBadgeProps) {
     styles = "bg-[#EDE9FE] text-[#7C3AED]";
     Icon = UserCircle;
     label = "Users";
-  } else if (normModule.includes("inventory")) {
+  } else if (normModule.includes("integrity") || normModule.includes("stock_integrity")) {
+    styles = "bg-[#EDE9FE] text-[#7C3AED]";
+    Icon = Layers;
+    label = "Stock Integrity";
+  } else if (normModule.includes("inventory") || normModule.includes("stock")) {
     styles = "bg-[#DCFCE7] text-[#15803D]";
     Icon = Package;
     label = "Inventory";

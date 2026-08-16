@@ -331,6 +331,34 @@ export async function GET(
       });
     }
 
+    // 10. Fetch Lot Defects & Resolutions
+    const { data: rawDefects } = await supabase
+      .from("lot_defects")
+      .select(`
+        *,
+        responsible_worker:parties (id, name, code),
+        detected_at_stage:lot_production_stages!detected_at_stage_id (id, stage_name, sequence_no),
+        responsible_stage:lot_production_stages!responsible_stage_id (id, stage_name, sequence_no),
+        resolutions:defect_resolutions (
+          id,
+          resolution_type,
+          resolution_date,
+          qty_recovered,
+          qty_b_grade,
+          qty_scrapped,
+          rework_cost,
+          deduction_amount,
+          cloth_cost_recovery,
+          remarks,
+          target_godown:godowns (id, name),
+          created_at
+        )
+      `)
+      .eq("lot_id", id)
+      .eq("business_id", businessId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
     return NextResponse.json({
       lot: lotWithImageUrl,
       sizes: sizeQuantities || [],
@@ -341,6 +369,7 @@ export async function GET(
       specSheet: specSheet || null,
       stageWorkers: stageWorkers || [],
       lotAccessories: enrichedLotAccessories || [],
+      defects: rawDefects || [],
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -525,7 +554,7 @@ export async function PUT(
     }
 
     // Log audit trail
-    await logAudit(businessId, "update", "production_lots", id, lot, oldLot || {});
+    await logAudit(businessId, "update", "production_lots", id, lot, oldLot || {}, request);
 
     return NextResponse.json({ lot });
   } catch (err: any) {
@@ -595,7 +624,7 @@ export async function DELETE(
       return NextResponse.json({ error: deleteError.message }, { status: 400 });
     }
 
-    await logAudit(businessId, "delete", "production_lots", id, oldLot);
+    await logAudit(businessId, "delete", "production_lots", id, oldLot, {}, request);
 
     return NextResponse.json({ success: true, message: "Production lot cancelled and allocated materials released back to stock." });
   } catch (err: any) {
@@ -858,7 +887,7 @@ export async function PATCH(
     }
 
     // Log audit trail
-    await logAudit(businessId, "complete_lot", "production_lots", id, lot, oldLot);
+    await logAudit(businessId, "complete_lot", "production_lots", id, lot, oldLot, request);
 
     return NextResponse.json({ lot });
   } catch (err: any) {

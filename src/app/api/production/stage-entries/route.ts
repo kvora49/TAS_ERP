@@ -412,7 +412,7 @@ export async function POST(request: Request) {
     }
 
     // Log audit trail
-    await logAudit(businessId, "create", "stage_entries", entry.id, entry);
+    await logAudit(businessId, "create", "stage_entries", entry.id, entry, {}, request);
 
     // 5. Process optional accessory issuances (Section 5 of the stage entry form)
     if (accessories && Array.isArray(accessories) && accessories.length > 0) {

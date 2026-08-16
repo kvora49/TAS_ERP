@@ -36,14 +36,10 @@ export async function POST(
       return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
-    // Check if lot has already been moved to finished stock
-    const { data: existingFs } = await supabase
-      .from("finished_stock")
-      .select("id")
-      .eq("lot_id", id)
-      .limit(1);
-
-    if (existingFs && existingFs.length > 0) {
+    // Check if lot has already been moved to finished stock by checking lot status
+    // NOTE: We check status, NOT finished_stock rows — reconciliation rebuilds those
+    // without the lot_id, so a lot_id check would falsely allow re-processing.
+    if (lot.status === "completed") {
       return NextResponse.json(
         { error: "This production lot has already been moved to finished stock." },
         { status: 400 }
@@ -367,11 +363,33 @@ export async function POST(
         status: "completed",
         completed_at: new Date().toISOString(),
         completed_by: user?.id || null,
+        // Store the godown where finished stock was placed
+        godown_id,
       })
       .eq("id", id);
 
     if (updateLotError) {
       throw new Error(`Failed to finalize lot status: ${updateLotError.message}`);
+    }
+
+    // 7. Reconcile finished stock and raw material stock after move-to-stock.
+    //    These calls update ground-truth balances and run the integrity watchdog
+    //    to auto-detect and resolve any discrepancies immediately.
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      await reconcileFinishedStock(supabase, businessId, lot.design_id);
+
+      const { runStockIntegrityCheck } = await import("@/lib/stock-integrity-watchdog");
+      await runStockIntegrityCheck(supabase, businessId, lot.design_id);
+    } catch (recErr) {
+      console.warn("[move-to-stock] Finished stock reconciliation/watchdog warning:", recErr);
+    }
+
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (rmRecErr) {
+      console.warn("[move-to-stock] Raw material reconciliation warning:", rmRecErr);
     }
 
     return NextResponse.json({ success: true });

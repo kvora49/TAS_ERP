@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       bill_amount: body.bill_amount,
       bill_date: body.bill_date,
       supplier_bill_no: body.supplier_bill_no,
-    });
+    }, {}, request);
 
     return NextResponse.json({ purchase });
   } catch (err: any) {

@@ -66,13 +66,26 @@ export async function GET(
       .eq("status", "success")
       .order("payment_date", { ascending: true });
 
+    // 3b. Fetch all deductions recorded for this worker
+    const { data: deductions } = await supabase
+      .from("worker_deductions")
+      .select(`
+        *,
+        lot:production_lots (id, lot_number),
+        defect:lot_defects (id, defect_number, defect_category)
+      `)
+      .eq("worker_id", workerId)
+      .eq("business_id", businessId)
+      .eq("status", "applied")
+      .order("deduction_date", { ascending: true });
+
     // 4. Combine into ledger entries
     const ledger: any[] = [];
     let runningBalance = 0;
 
     // Add stage entries (Debits - worker earns this money, so outstanding balance goes UP)
     stageEntries?.forEach((entry: any) => {
-      const amount = parseFloat(entry.total_job_work_amount as any || 0);
+      const amount = parseFloat((entry.total_job_work_amount as any) || 0);
       ledger.push({
         id: entry.id,
         date: entry.entry_date,
@@ -82,7 +95,7 @@ export async function GET(
         lot_number: entry.lot?.lot_number || "—",
         stage_name: entry.stage?.stage_name || "—",
         qty: entry.qty_out,
-        rate: parseFloat(entry.job_work_rate as any || 0),
+        rate: parseFloat((entry.job_work_rate as any) || 0),
         amount,
         payment_status: entry.payment_status,
         timestamp: new Date(entry.entry_date).getTime(),
@@ -91,7 +104,7 @@ export async function GET(
 
     // Add payments (Credits - company pays this money, so outstanding balance goes DOWN)
     payments?.forEach((payment) => {
-      const amount = parseFloat(payment.paid_amount as any || 0);
+      const amount = parseFloat((payment.paid_amount as any) || 0);
       ledger.push({
         id: payment.id,
         date: payment.payment_date,
@@ -110,12 +123,32 @@ export async function GET(
       });
     });
 
+    // Add deductions (Credits/Debits reduction - defect penalties cut from worker balance)
+    deductions?.forEach((ded) => {
+      const amount = parseFloat((ded.amount as any) || 0);
+      ledger.push({
+        id: ded.id,
+        date: ded.deduction_date,
+        entry_type: "deduction",
+        ref_no: ded.deduction_number,
+        lot_id: ded.lot_id,
+        lot_number: ded.lot?.lot_number || "—",
+        stage_name: `Deduction: ${ded.deduction_type.replace(/_/g, " ")}`,
+        qty: ded.defect?.quantity || null,
+        rate: null,
+        amount: -amount, // negative to reduce what company owes the worker
+        payment_status: "deducted",
+        remarks: ded.description,
+        timestamp: new Date(ded.deduction_date).getTime(),
+      });
+    });
+
     // Sort chronologically by date
     ledger.sort((a, b) => {
       if (a.date !== b.date) {
         return a.date.localeCompare(b.date);
       }
-      // If dates match, put stage entries before payments
+      // If dates match, put stage entries before payments/deductions
       return a.entry_type === "stage_entry" ? -1 : 1;
     });
 
@@ -132,9 +165,10 @@ export async function GET(
     const displayLedger = [...ledgerWithBalance].reverse();
 
     // Stats
-    const totalJobWorkAmount = stageEntries?.reduce((acc, curr) => acc + parseFloat(curr.total_job_work_amount as any || 0), 0) || 0;
-    const totalPaidAmount = payments?.reduce((acc, curr) => acc + parseFloat(curr.paid_amount as any || 0), 0) || 0;
-    const currentOutstanding = totalJobWorkAmount - totalPaidAmount;
+    const totalJobWorkAmount = stageEntries?.reduce((acc, curr) => acc + parseFloat((curr.total_job_work_amount as any) || 0), 0) || 0;
+    const totalPaidAmount = payments?.reduce((acc, curr) => acc + parseFloat((curr.paid_amount as any) || 0), 0) || 0;
+    const totalDeductionAmount = deductions?.reduce((acc, curr) => acc + parseFloat((curr.amount as any) || 0), 0) || 0;
+    const currentOutstanding = totalJobWorkAmount - totalPaidAmount - totalDeductionAmount;
 
     return NextResponse.json({
       worker,
@@ -142,8 +176,10 @@ export async function GET(
       stats: {
         totalJobWorkAmount,
         totalPaidAmount,
+        totalDeductionAmount,
         currentOutstanding,
         totalEntries: stageEntries?.length || 0,
+        totalDeductionsCount: deductions?.length || 0,
       },
     });
   } catch (err: any) {

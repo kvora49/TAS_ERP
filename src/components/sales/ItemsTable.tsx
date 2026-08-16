@@ -37,13 +37,16 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
   const handleAddFabricRolls = (selectedRolls: SelectedRollInfo[]) => {
     const grouped: Record<string, SelectedRollInfo[]> = {};
     selectedRolls.forEach((r) => {
-      if (!grouped[r.material_type_id]) grouped[r.material_type_id] = [];
-      grouped[r.material_type_id].push(r);
+      const key = `${r.material_type_id}__${r.grade || ""}__${r.design_name || ""}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
     });
 
     const newItems: any[] = [];
-    Object.entries(grouped).forEach(([matId, rollList]) => {
+    Object.entries(grouped).forEach(([_, rollList]) => {
       const matName = rollList[0].material_name;
+      const grade = rollList[0].grade;
+      const designName = rollList[0].design_name;
       const totalQty = rollList.reduce((sum, r) => sum + r.meters, 0);
       const avgRate = rollList[0].rate || rate || 0;
       const gross = totalQty * avgRate;
@@ -53,8 +56,10 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
 
       newItems.push({
         item_type: "fabric",
-        material_type_id: matId,
+        material_type_id: rollList[0].material_type_id,
         item_name: matName,
+        grade,
+        design_name: designName,
         hsn_sac: hsnCode || "5208",
         unit: "Meters",
         quantity: totalQty,
@@ -605,11 +610,25 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                   <td className="p-3 font-semibold text-[var(--text-primary)]">
                     <div>
                       <span>{designName}</span>
+                      {isFabric && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {it.grade && (
+                            <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[10px] font-bold">
+                              Grade: {it.grade}
+                            </span>
+                          )}
+                          {it.design_name && (
+                            <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[10px] font-semibold">
+                              Design: {it.design_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {isFabric && it.rolls && it.rolls.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {it.rolls.map((r: any, rIdx: number) => (
                             <span key={rIdx} className="px-1.5 py-0.5 bg-[var(--primary-light)] border border-[var(--border)] rounded text-[10px] font-mono font-bold text-[var(--primary)]">
-                              Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
+                              Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}{r.grade ? ` [${r.grade}]` : ""}
                             </span>
                           ))}
                         </div>

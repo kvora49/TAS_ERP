@@ -101,13 +101,30 @@ function LoginContent() {
       const { data: memberships } = await supabase
         .from("company_members")
         .select("company_id")
+        .eq("user_id", authData.user.id)
         .eq("status", "active");
 
-      if (memberships && memberships.length > 1) {
+      if (memberships && memberships.length === 1) {
+        // Single company user: set active company cookie on client so middleware is ready immediately
+        const singleCompanyId = memberships[0].company_id;
+        document.cookie = `active_company_id=${singleCompanyId}; path=/; max-age=7776000; SameSite=Lax`;
+        document.cookie = `sb-business-id=${singleCompanyId}; path=/; max-age=7776000; SameSite=Lax`;
+        router.push("/");
+      } else if (memberships && memberships.length > 1) {
         // Multi-company user on fresh login: Show company selector
         router.push("/select-company");
       } else {
-        // Single company user: Go straight to dashboard
+        // Fallback: Check if user profile has a default business_id
+        const { data: profile } = await supabase
+          .from("users")
+          .select("business_id")
+          .eq("id", authData.user.id)
+          .maybeSingle();
+
+        if (profile?.business_id) {
+          document.cookie = `active_company_id=${profile.business_id}; path=/; max-age=7776000; SameSite=Lax`;
+          document.cookie = `sb-business-id=${profile.business_id}; path=/; max-age=7776000; SameSite=Lax`;
+        }
         router.push("/");
       }
       router.refresh();

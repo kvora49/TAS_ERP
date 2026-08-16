@@ -71,7 +71,8 @@ export default function RawMaterialStockPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [godownFilter, setGodownFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState<"summary" | "entries">("summary");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [activeTab, setActiveTab] = useState<"summary" | "rolls" | "entries">("summary");
 
   // React Query fetch Stock Summary
   const { data: stockData, isLoading: loadingSummary, error: summaryError } = useQuery<{ stock: StockSummary[] }>({
@@ -81,6 +82,20 @@ export default function RawMaterialStockPage() {
       const gId = godownFilter === "all" ? "" : godownFilter;
       const res = await fetch(`/api/raw-materials/stock?view=summary&godown_id=${gId}`);
       if (!res.ok) throw new Error("Failed to load stock summary");
+      return res.json();
+    },
+  });
+
+  // React Query fetch Fabric Rolls
+  const { data: rollsData, isLoading: loadingRolls, error: rollsError } = useQuery<{ rolls: any[] }>({
+    queryKey: ["raw-material-fabric-rolls", gradeFilter, search],
+    staleTime: 10_000,
+    enabled: activeTab === "rolls",
+    queryFn: async () => {
+      const gParam = gradeFilter ? encodeURIComponent(gradeFilter) : "";
+      const sParam = search ? encodeURIComponent(search) : "";
+      const res = await fetch(`/api/production/lots/available-rolls?grade=${gParam}&search=${sParam}`);
+      if (!res.ok) throw new Error("Failed to load fabric rolls");
       return res.json();
     },
   });
@@ -98,7 +113,17 @@ export default function RawMaterialStockPage() {
   });
 
   const stockList = stockData?.stock || [];
+  const rollsList = rollsData?.rolls || [];
   const entriesList = entriesData?.entries || [];
+
+  // Extract unique grades from rolls for the grade filter dropdown
+  const uniqueRollGrades = Array.from(
+    new Set(
+      rollsList
+        .map((r: any) => (r.grade || r.item?.grade || "").trim())
+        .filter(Boolean)
+    )
+  );
 
   const formatCurrency = (val: number) => {
     return formatAppCurrency(val);
@@ -218,6 +243,110 @@ export default function RawMaterialStockPage() {
         >
           View Details & Aging <ChevronRight className="w-3.5 h-3.5" />
         </button>
+      ),
+    },
+  ];
+
+  const rollColumns: DataTableColumn<any>[] = [
+    {
+      key: "roll_number",
+      header: "Roll No",
+      width: "120px",
+      render: (row) => (
+        <span className="font-mono font-bold text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-1 rounded-md text-xs">
+          #{row.roll_number}
+        </span>
+      ),
+    },
+    {
+      key: "material_name",
+      header: "Material / Fabric",
+      width: "200px",
+      render: (row) => (
+        <div>
+          <span className="font-bold text-[var(--text-primary)] block">
+            {row.item?.material_type?.name || "Fabric"}
+          </span>
+          <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block">
+            {row.item?.material_type?.category || "Fabric"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "design_name",
+      header: "Design Name",
+      width: "160px",
+      render: (row) => {
+        const des = row.design_name || row.item?.design_name;
+        return des ? (
+          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] rounded-md font-semibold">
+            {des}
+          </span>
+        ) : (
+          <span className="text-[var(--text-faint)] text-xs">—</span>
+        );
+      },
+    },
+    {
+      key: "grade",
+      header: "Grade",
+      width: "130px",
+      render: (row) => {
+        const g = row.grade || row.item?.grade || "Fresh";
+        return (
+          <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-md text-xs font-bold">
+            {g}
+          </span>
+        );
+      },
+    },
+    {
+      key: "meters",
+      header: "Available / Total",
+      width: "160px",
+      render: (row) => (
+        <div className="font-mono text-xs">
+          <span className="font-bold text-[var(--text-primary)]">{row.remaining_meters}m</span>
+          <span className="text-[var(--text-muted)] text-[11px] ml-1">/ {row.meters}m</span>
+        </div>
+      ),
+    },
+    {
+      key: "shade",
+      header: "Shade & Specs",
+      width: "140px",
+      render: (row) => (
+        <div className="text-xs text-[var(--text-body)]">
+          {row.shade && <span className="font-semibold block">Shade: {row.shade}</span>}
+          {row.width && <span className="text-[10px] text-[var(--text-muted)] block">Width: {row.width}&quot;</span>}
+          {!row.shade && !row.width && <span className="text-[var(--text-faint)]">—</span>}
+        </div>
+      ),
+    },
+    {
+      key: "godown",
+      header: "Godown",
+      width: "140px",
+      render: (row) => (
+        <span className="text-xs text-[var(--text-body)] font-medium">
+          {row.item?.purchase?.godown?.name || "Main Godown"}
+        </span>
+      ),
+    },
+    {
+      key: "purchase",
+      header: "Purchase Ref",
+      width: "160px",
+      render: (row) => (
+        <div>
+          <span className="font-mono text-xs text-[var(--primary)] font-semibold block">
+            {row.item?.purchase?.purchase_number || "—"}
+          </span>
+          <span className="text-[10px] text-[var(--text-muted)] truncate block">
+            {row.item?.purchase?.supplier?.company_name || row.item?.purchase?.supplier?.name || "—"}
+          </span>
+        </div>
       ),
     },
   ];
@@ -401,12 +530,17 @@ export default function RawMaterialStockPage() {
             className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
               activeTab === "summary" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
-          >Summary Inventory Balances</button>
+          >Summary Balances</button>
+          <button onClick={() => setActiveTab("rolls")}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
+              activeTab === "rolls" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >Fabric Rolls Tracking</button>
           <button onClick={() => setActiveTab("entries")}
             className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
               activeTab === "entries" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
-          >Stock Movement Registers</button>
+          >Stock Movements</button>
         </div>
 
         {activeTab === "summary" && (
@@ -425,6 +559,30 @@ export default function RawMaterialStockPage() {
               <option value="accessory">Accessory</option>
               <option value="packaging">Packaging</option>
             </select>
+          </div>
+        )}
+
+        {activeTab === "rolls" && (
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
+              <input
+                type="text"
+                placeholder="Search by Design, Roll No, Material..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:ring-2 focus:ring-[var(--input-focus)] focus:outline-none"
+              />
+            </div>
+            <div className="w-full sm:w-48">
+              <input
+                type="text"
+                placeholder="Filter by Grade..."
+                value={gradeFilter}
+                onChange={(e) => setGradeFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-semibold focus:ring-2 focus:ring-[var(--input-focus)] focus:outline-none"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -473,6 +631,46 @@ export default function RawMaterialStockPage() {
             );
           })}
         </div>
+      ) : activeTab === "rolls" ? (
+        <div className="md:hidden space-y-3">
+          {rollsList.map((row) => {
+            const g = row.grade || row.item?.grade || "Fresh";
+            const des = row.design_name || row.item?.design_name;
+            return (
+              <div key={row.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-xs text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded">
+                    Roll #{row.roll_number}
+                  </span>
+                  <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[10px] font-bold">
+                    Grade: {g}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-semibold text-[var(--text-primary)] text-sm">{row.item?.material_type?.name || "Fabric"}</p>
+                  {des && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">
+                      Design: <strong>{des}</strong>
+                    </p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-[var(--border-light)] pt-2 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Available</span>
+                    <p className="font-mono font-bold text-[var(--text-primary)]">{row.remaining_meters}m <span className="text-[var(--text-muted)] font-normal">/ {row.meters}m</span></p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Godown</span>
+                    <p className="font-medium text-[var(--text-body)] truncate">{row.item?.purchase?.godown?.name || "Main Godown"}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {rollsList.length === 0 && !loadingRolls && (
+            <div className="py-8 text-center text-xs text-[var(--text-muted)]">No fabric rolls found matching filter.</div>
+          )}
+        </div>
       ) : (
         <div className="md:hidden space-y-3">
           {entriesList.map((row) => (
@@ -519,6 +717,17 @@ export default function RawMaterialStockPage() {
             onPageChange={() => {}}
             onRowClick={(row) => row.material_type_id && router.push(`/master-data/raw-materials/${row.material_type_id}`)}
             emptyMessage="No raw material stock records found."
+          />
+        ) : activeTab === "rolls" ? (
+          <DataTable
+            columns={rollColumns}
+            data={rollsList}
+            isLoading={loadingRolls}
+            total={rollsList.length}
+            page={1}
+            perPage={1000}
+            onPageChange={() => {}}
+            emptyMessage="No fabric rolls found in inventory matching search/grade filter."
           />
         ) : (
           <DataTable

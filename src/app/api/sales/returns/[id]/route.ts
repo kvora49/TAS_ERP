@@ -158,14 +158,16 @@ export async function DELETE(
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // 3. For each inflow, reverse the finished_stock and insert a negative ledger entry
+    // 3. For each inflow, insert a reversal entry into stock_ledger (audit trail only).
+    //    finished_stock is rebuilt by reconcileFinishedStock() below — we do NOT
+    //    directly mutate finished_stock here (single-writer pattern).
     if (ledgerEntries && ledgerEntries.length > 0) {
       for (const entry of ledgerEntries) {
         const qty = Math.abs(Number(entry.quantity_delta || 0));
         const val = Math.abs(Number(entry.value_delta || 0));
         if (qty <= 0) continue;
 
-        // Insert reversal into stock_ledger
+        // Insert reversal into stock_ledger for audit trail
         await supabase.from("stock_ledger").insert({
           business_id: businessId,
           item_type: "finished_good",
@@ -178,30 +180,6 @@ export async function DELETE(
           reference_id: id,
           created_by: user?.id || null,
         });
-
-        // Deduct from finished_stock
-        const { data: fsRows } = await supabase
-          .from("finished_stock")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("design_id", entry.item_id)
-          .eq("godown_id", entry.godown_id);
-
-        if (fsRows && fsRows.length > 0) {
-          const fs = fsRows[0];
-          const newTotalQty = Math.max(0, Number(fs.total_quantity || 0) - qty);
-          const costPerPiece = Number(fs.cost_per_piece || 0);
-          const newTotalValue = newTotalQty * costPerPiece;
-
-          await supabase
-            .from("finished_stock")
-            .update({
-              total_quantity: newTotalQty,
-              total_value: newTotalValue,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", fs.id);
-        }
       }
     }
 
@@ -329,7 +307,9 @@ export async function PUT(
       }
     }
 
-    // 5. Update or insert items in stock_ledger
+    // 5. Update or insert items in stock_ledger (audit trail only).
+    //    finished_stock is rebuilt by reconcileFinishedStock() below — do NOT
+    //    directly mutate finished_stock here (single-writer pattern).
     if (Array.isArray(items) && items.length > 0) {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -349,7 +329,7 @@ export async function PUT(
             .eq("id", item.id);
         } else if (item.item_id) {
           const targetGodownId = item.godown_id || sReturn.godown_id || null;
-          // Insert new ledger entry for added item from invoice
+          // Insert new ledger entry for added item
           await supabase.from("stock_ledger").insert({
             business_id: businessId,
             item_type: "finished_good",
@@ -362,34 +342,30 @@ export async function PUT(
             reference_id: id,
             created_by: user?.id || null,
           });
-
-          // Update finished_stock for new item
-          if (targetGodownId) {
-            const { data: fsRows } = await supabase
-              .from("finished_stock")
-              .select("*")
-              .eq("business_id", businessId)
-              .eq("design_id", item.item_id)
-              .eq("godown_id", targetGodownId);
-
-            if (fsRows && fsRows.length > 0) {
-              const fs = fsRows[0];
-              const newTotalQty = Number(fs.total_quantity || 0) + qty;
-              const costPerPiece = Number(fs.cost_per_piece || (qty > 0 ? amount / qty : 0));
-              const newTotalValue = newTotalQty * costPerPiece;
-
-              await supabase
-                .from("finished_stock")
-                .update({
-                  total_quantity: newTotalQty,
-                  total_value: newTotalValue,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", fs.id);
-            }
-          }
         }
       }
+    }
+
+    // 6. Reconcile finished stock ground-truth after updating the return.
+    //    This was previously missing — without it, finished_stock was out of sync
+    //    until the next sale triggered reconciliation.
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      // Collect all design IDs affected by this return update
+      const designIds = Array.from(
+        new Set(
+          (items || []).map((it: any) => it.item_id || it.design_id).filter(Boolean)
+        )
+      ) as string[];
+      if (designIds.length > 0) {
+        for (const dId of designIds) {
+          await reconcileFinishedStock(supabase, businessId, dId);
+        }
+      } else {
+        await reconcileFinishedStock(supabase, businessId);
+      }
+    } catch (recErr) {
+      console.warn("[PUT /api/sales/returns/[id]] Finished stock reconciliation warning:", recErr);
     }
 
     return NextResponse.json({ success: true, return: updated });

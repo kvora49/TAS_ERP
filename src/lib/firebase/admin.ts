@@ -1,6 +1,31 @@
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getMessaging, Message } from "firebase-admin/messaging";
 
+function parseServiceAccountKey(keyRaw: string | Record<string, any>): Record<string, any> | null {
+  if (!keyRaw) return null;
+  if (typeof keyRaw === "object") return keyRaw;
+
+  let cleaned = keyRaw.trim();
+  if ((cleaned.startsWith("'") && cleaned.endsWith("'")) || (cleaned.startsWith('"') && cleaned.endsWith('"'))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+
+  // Sanitize invalid escape sequences (like \+ or extra backslashes)
+  cleaned = cleaned.replace(/\\([^+/bfnrtu"\\])/g, "$1").replace(/\\\+/g, "+");
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed.private_key === "string") {
+      // Ensure private_key has actual newlines
+      parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+    }
+    return parsed;
+  } catch (err: any) {
+    console.error("[Firebase Admin] Failed to parse FIREBASE_ADMIN_SDK_KEY:", err.message);
+    return null;
+  }
+}
+
 function getAdminApp() {
   if (getApps().length > 0) {
     return getApps()[0]!;
@@ -14,13 +39,17 @@ function getAdminApp() {
   }
 
   try {
-    const serviceAccount = typeof serviceAccountKey === "string" ? JSON.parse(serviceAccountKey) : serviceAccountKey;
+    const serviceAccount = parseServiceAccountKey(serviceAccountKey);
+    if (!serviceAccount || !serviceAccount.project_id || !serviceAccount.private_key) {
+      console.warn("[Firebase Admin] Service account object is incomplete or invalid.");
+      return null;
+    }
 
     return initializeApp({
       credential: cert(serviceAccount),
     });
-  } catch (err) {
-    console.error("[Firebase Admin] Failed to parse FIREBASE_ADMIN_SDK_KEY:", err);
+  } catch (err: any) {
+    console.error("[Firebase Admin] Failed to initialize Firebase Admin SDK:", err.message);
     return null;
   }
 }

@@ -26,11 +26,11 @@ export function usePWAWebPush() {
     }
 
     try {
-      // 1. Re-use active main Service Worker if present, or register dynamic Firebase Messaging SW
+      // 1. Re-use active main Service Worker (/sw.js)
       let registration = await navigator.serviceWorker.getRegistration("/").catch(() => null);
       if (!registration) {
-        registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js").catch((err) => {
-          console.warn("[PWA Push] Failed to register firebase-messaging-sw.js:", err);
+        registration = await navigator.serviceWorker.register("/sw.js").catch((err) => {
+          console.warn("[PWA Push] Failed to register /sw.js:", err);
           return null;
         });
       }
@@ -75,8 +75,15 @@ export function usePWAWebPush() {
       setPermission(Notification.permission);
 
       if (Notification.permission === "granted") {
-        requestFCMToken().then((token) => {
-          if (token) setFcmToken(token);
+        requestFCMToken().then(async (token) => {
+          if (token) {
+            setFcmToken(token);
+            await fetch("/api/notifications/push-subscription", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fcmToken: token }),
+            }).catch(() => {});
+          }
         });
         registerAndSavePushSubscription();
       }

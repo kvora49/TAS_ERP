@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 
 
     // Log audit trail
-    await logAudit(businessId, "create", "workers", worker.id, worker);
+    await logAudit(businessId, "create", "workers", worker.id, worker, {}, request);
 
     return NextResponse.json({ worker });
   } catch (err: any) {

@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       full_name: name,
       email: email.trim(),
       role: role.toLowerCase(),
-    });
+    }, {}, request);
 
     return NextResponse.json({ success: true, userId });
   } catch (err: any) {

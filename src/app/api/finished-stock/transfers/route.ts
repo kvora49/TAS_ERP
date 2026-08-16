@@ -174,40 +174,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: itemsErr.message }, { status: 500 });
     }
 
-    // Log stock movements in finished_stock
-    // 1. Deduct immediately from source godown (transfer_out)
+    // Write stock_ledger audit entries for the transfer.
+    // finished_stock is rebuilt by reconcileFinishedStock() below — do NOT directly
+    // insert into finished_stock here (single-writer pattern). Reconciliation reads
+    // from stock_transfers + stock_transfer_items directly.
     for (const item of items) {
-      await supabase
-        .from("finished_stock")
-        .insert({
-          business_id: businessId,
-          design_id: item.design_id,
-          colour_id: item.colour_id,
-          godown_id: from_godown_id,
-          entry_type: "transfer_out",
-          size_quantities: { [item.size]: -Number(item.quantity) },
-          total_quantity: -Number(item.quantity),
-          cost_per_piece: Number(item.unit_cost),
-          total_value: -Number(item.total_value),
-        });
-    }
+      await supabase.from("stock_ledger").insert({
+        business_id: businessId,
+        item_type: "finished_good",
+        item_id: item.design_id,
+        godown_id: from_godown_id,
+        transaction_type: "stock_transfer_out",
+        quantity_delta: -Number(item.quantity),
+        value_delta: -Number(item.total_value),
+        reference_table: "stock_transfers",
+        reference_id: transfer.id,
+      });
 
-    // 2. If status is completed, add immediately to destination godown (transfer_in)
-    if (status === "completed") {
-      for (const item of items) {
-        await supabase
-          .from("finished_stock")
-          .insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id,
-            godown_id: to_godown_id,
-            entry_type: "transfer_in",
-            size_quantities: { [item.size]: Number(item.quantity) },
-            total_quantity: Number(item.quantity),
-            cost_per_piece: Number(item.unit_cost),
-            total_value: Number(item.total_value),
-          });
+      if (status === "completed") {
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "finished_good",
+          item_id: item.design_id,
+          godown_id: to_godown_id,
+          transaction_type: "stock_transfer_in",
+          quantity_delta: Number(item.quantity),
+          value_delta: Number(item.total_value),
+          reference_table: "stock_transfers",
+          reference_id: transfer.id,
+        });
       }
     }
 

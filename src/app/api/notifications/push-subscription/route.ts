@@ -15,13 +15,23 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { subscription } = body;
+    const { subscription, fcmToken } = body;
 
-    if (!subscription || !subscription.endpoint || !subscription.keys) {
-      return NextResponse.json({ error: "Invalid Web Push subscription format" }, { status: 400 });
+    let endpointToSave: string | null = null;
+    let p256dhToSave: string = "fcm";
+    let authToSave: string = "fcm";
+
+    if (subscription && subscription.endpoint) {
+      endpointToSave = subscription.endpoint;
+      p256dhToSave = subscription.keys?.p256dh || "fcm";
+      authToSave = subscription.keys?.auth || "fcm";
+    } else if (fcmToken) {
+      endpointToSave = fcmToken.startsWith("http") ? fcmToken : `https://fcm.googleapis.com/fcm/send/${fcmToken}`;
     }
 
-    const { endpoint, keys } = subscription;
+    if (!endpointToSave) {
+      return NextResponse.json({ error: "Invalid Web Push or FCM token format" }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from("web_push_subscriptions")
@@ -29,9 +39,9 @@ export async function POST(request: Request) {
         {
           business_id: businessId,
           user_id: user.id,
-          endpoint,
-          p256dh: keys.p256dh,
-          auth: keys.auth,
+          endpoint: endpointToSave,
+          p256dh: p256dhToSave,
+          auth: authToSave,
           created_at: new Date().toISOString(),
         },
         { onConflict: "user_id,endpoint" }

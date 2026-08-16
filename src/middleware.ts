@@ -116,26 +116,70 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // 6. Presence check for active company cookie on authenticated routes
-  if (user && !isPublicPage && !isSelectCompanyPage) {
-    const activeCompanyId =
+  // 6. Active company resolution for authenticated routes
+  if (user && !isPublicPage) {
+    let activeCompanyId =
       request.cookies.get("active_company_id")?.value ||
       request.cookies.get("sb-business-id")?.value;
 
+    // If no active company cookie exists in request:
     if (!activeCompanyId) {
-      return NextResponse.redirect(new URL("/select-company", request.url));
+      const { data: memberships } = await supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      if (memberships && memberships.length === 1 && memberships[0].company_id) {
+        // EXACTLY 1 company: auto-assign and set cookie on response
+        const resolvedCompanyId: string = memberships[0].company_id;
+        activeCompanyId = resolvedCompanyId;
+        const cookieOpts = {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 90,
+          sameSite: "lax" as const,
+          secure: process.env.NODE_ENV === "production",
+        };
+
+        supabaseResponse.cookies.set("active_company_id", resolvedCompanyId, cookieOpts);
+        supabaseResponse.cookies.set("sb-business-id", resolvedCompanyId, cookieOpts);
+
+        // If user was on /select-company, send them straight to dashboard
+        if (isSelectCompanyPage) {
+          const redirectRes = NextResponse.redirect(new URL("/", request.url));
+          redirectRes.cookies.set("active_company_id", resolvedCompanyId, cookieOpts);
+          redirectRes.cookies.set("sb-business-id", resolvedCompanyId, cookieOpts);
+          return redirectRes;
+        }
+      } else if (!isSelectCompanyPage) {
+        // 0 or >1 companies and no active cookie: Go to company selector
+        return NextResponse.redirect(new URL("/select-company", request.url));
+      }
+    } else if (isSelectCompanyPage) {
+      // User has cookie and reached /select-company:
+      // If they only have 1 active company, bypass /select-company directly to dashboard
+      const { data: memberships } = await supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      if (memberships && memberships.length === 1) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
     }
 
-    // Forward context headers downstream (zero DB queries in middleware)
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-user-id", user.id);
-    requestHeaders.set("x-business-id", activeCompanyId);
+    if (activeCompanyId && !isSelectCompanyPage) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-user-id", user.id);
+      requestHeaders.set("x-business-id", activeCompanyId);
 
-    supabaseResponse = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
+      supabaseResponse = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
   }
 
   return supabaseResponse;

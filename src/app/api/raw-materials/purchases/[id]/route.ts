@@ -160,7 +160,7 @@ export async function PUT(
       invoice_no,
       grand_total,
       updated_at: new Date().toISOString(),
-    });
+    }, {}, request);
 
     return NextResponse.json({ purchase });
   } catch (err: any) {
@@ -280,7 +280,7 @@ export async function DELETE(
     void logAudit(businessId, "cancel", "raw_material_purchases", id, {
       status: "cancelled",
       deleted_at: new Date().toISOString(),
-    }, { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status });
+    }, { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status }, request);
 
     try {
       const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");

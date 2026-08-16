@@ -327,6 +327,8 @@ export class SalesBillRepository {
           description: it.description || null,
         };
 
+        if (it.grade) payload.grade = it.grade;
+        if (it.design_name) payload.design_name = it.design_name;
         if (!payload.material_type_id) delete payload.material_type_id;
         if (!payload.design_id) delete payload.design_id;
         if (!payload.colour_id) delete payload.colour_id;
@@ -437,13 +439,27 @@ export class SalesBillRepository {
             );
           }
         } else if (!billData.is_temporary && item.design_id) {
-          const godownId = billData.godown_id;
-          if (godownId) {
+          // Auto-resolve the godown from finished_stock: find which godown holds
+          // this design's stock (prefer godown with highest quantity).
+          // No godown_id needed on the sale bill — the system resolves it.
+          const { data: stockRows } = await this.supabase
+            .from("finished_stock")
+            .select("godown_id, total_quantity")
+            .eq("business_id", billData.business_id)
+            .eq("design_id", item.design_id)
+            .gt("total_quantity", 0)
+            .order("total_quantity", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const resolvedGodownId = stockRows?.godown_id || null;
+
+          if (resolvedGodownId) {
             await this.supabase.from("stock_ledger").insert({
               business_id: billData.business_id,
               item_type: "finished_good",
               item_id: item.design_id,
-              godown_id: godownId,
+              godown_id: resolvedGodownId,
               transaction_type: "sale_bill_outflow",
               quantity_delta: -qty,
               value_delta: -Number(item.amount || 0),
@@ -451,6 +467,31 @@ export class SalesBillRepository {
               reference_id: bill.id,
               created_by: billData.created_by || null,
             });
+          } else {
+            // No godown has stock for this design — still log the outflow
+            // against a null godown so reconciliation can catch it
+            const { data: anyGodown } = await this.supabase
+              .from("godowns")
+              .select("id")
+              .eq("business_id", billData.business_id)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            if (anyGodown?.id) {
+              await this.supabase.from("stock_ledger").insert({
+                business_id: billData.business_id,
+                item_type: "finished_good",
+                item_id: item.design_id,
+                godown_id: anyGodown.id,
+                transaction_type: "sale_bill_outflow",
+                quantity_delta: -qty,
+                value_delta: -Number(item.amount || 0),
+                reference_table: "sale_bills",
+                reference_id: bill.id,
+                created_by: billData.created_by || null,
+              });
+            }
           }
         }
       }

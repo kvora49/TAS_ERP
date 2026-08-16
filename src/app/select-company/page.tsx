@@ -40,10 +40,9 @@ export default async function SelectCompanyPage() {
 
   const validMemberships = (memberships || []).filter((m) => m.businesses);
 
-  // 2. If exactly 1 company, auto-select and proceed to dashboard
+  // If user belongs to only 1 company, they never need to see this screen — go straight to dashboard
   if (validMemberships.length === 1) {
-    const singleCompanyId = (validMemberships[0].businesses as any).id;
-    await switchCompany(singleCompanyId);
+    redirect("/");
   }
 
   return (

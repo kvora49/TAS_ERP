@@ -17,6 +17,8 @@ import {
   Boxes,
   Hash,
   TrendingDown,
+  ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,6 +41,32 @@ export default function InventorySettingsPage() {
   const [enableBatchTracking, setEnableBatchTracking] = useState(true);
   const [enableSerialNumbers, setEnableSerialNumbers] = useState(false);
   const [valuationMethod, setValuationMethod] = useState("fifo");
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleRunStockSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/cron/stock-integrity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to run stock integrity sync");
+
+      const found = data.integrity_report?.discrepancies_found ?? 0;
+      const fixed = data.integrity_report?.discrepancies_fixed ?? 0;
+      if (found === 0) {
+        toast.success("✅ Stock is 100% synchronized! No discrepancies found.");
+      } else {
+        toast.success(`⚡ Stock audit complete: ${found} checked, ${fixed} auto-fixed.`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to run stock audit");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const fetchInventorySettings = async () => {
     setLoading(true);
@@ -258,6 +286,35 @@ export default function InventorySettingsPage() {
                 variant="info"
                 text="Inventory settings will be applied across the entire system."
               />
+            </div>
+          </SettingsCard>
+
+          {/* CARD 3 — Stock Integrity & Watchdog */}
+          <SettingsCard
+            icon={ShieldCheck}
+            title="Stock Integrity & Automated Reconciliation"
+            subtitle="Cross-check physical balances against transaction ledgers"
+          >
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                The Stock Integrity Watchdog verifies that all sales, purchases, production lots, and returns are completely aligned with inventory godowns. It automatically detects and fixes data drift.
+              </p>
+
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--border)] bg-[var(--page-bg)]">
+                <div>
+                  <span className="text-xs font-bold text-[var(--text-primary)] block">Manual Health Audit</span>
+                  <span className="text-[11px] text-[var(--text-muted)] block">Trigger full system reconciliation and watchdog verification</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={handleRunStockSync}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-all cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+                >
+                  <RefreshCw className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Auditing..." : "Audit & Sync Stock"}
+                </button>
+              </div>
             </div>
           </SettingsCard>
         </div>

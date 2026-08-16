@@ -83,6 +83,8 @@ const purchaseRollSchema = z.object({
   roll_number: z.string().optional(),
   meters: z.coerce.number().optional(),
   shade: z.string().optional().nullable(),
+  grade: z.string().optional().nullable(),
+  design_name: z.string().optional().nullable(),
   comment: z.string().optional(),
   width: z.coerce.number().optional().nullable(),
   weight_unit: z.string().optional().nullable(),
@@ -91,6 +93,8 @@ const purchaseRollSchema = z.object({
 
 const purchaseItemSchema = z.object({
   material_type_id: z.string().optional().nullable(),
+  grade: z.string().optional().nullable(),
+  design_name: z.string().optional().nullable(),
   design_id: z.string().optional().nullable(),
   colour_id: z.string().optional().nullable(),
   size_quantities: z.record(z.string(), z.coerce.number()).optional().default({}),
@@ -626,6 +630,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     items: [
       {
         material_type_id: "",
+        grade: "Fresh",
+        design_name: "",
         design_id: "",
         colour_id: "",
         size_quantities: {},
@@ -647,6 +653,8 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             roll_number: "R-1",
             meters: 0,
             shade: "",
+            grade: "Fresh",
+            design_name: "",
             weight_unit: "gsm",
           },
         ],
@@ -948,6 +956,15 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
   const onSubmit = async (values: PurchaseFormValues) => {
     try {
+      // Validate that all fabric items have Grade filled
+      for (let i = 0; i < values.items.length; i++) {
+        const it = values.items[i];
+        if ((it.item_type || "fabric") === "fabric" && !it.grade?.trim()) {
+          toast.error(`Please enter Grade for Item #${i + 1} (e.g. Fresh / Grade A)`);
+          return;
+        }
+      }
+
       // Re-map items to pass numeric values correctly
       const payload = {
         ...values,
@@ -1160,7 +1177,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </h2>
               <button
                 type="button"
-                onClick={() => append({ material_type_id: "", design_id: "", colour_id: "", size_quantities: {}, other_item_name: "", other_category: "office_expense", asset_tag: "", hsn_sac: "", unit: "Meters", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", weight_unit: "gsm" }] })}
+                onClick={() => append({ material_type_id: "", grade: "Fresh", design_name: "", design_id: "", colour_id: "", size_quantities: {}, other_item_name: "", other_category: "office_expense", asset_tag: "", hsn_sac: "", unit: "meter", quantity: 0, rate: 0, discount_percent: 0, taxable_value: 0, gst_percent: 18, gst_amount: 0, amount: 0, item_type: "fabric", rolls: [{ roll_number: "R-1", meters: 0, shade: "", grade: "Fresh", design_name: "", weight_unit: "gsm" }] })}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg flex items-center gap-1 cursor-pointer transition-all"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Material Row
@@ -1400,10 +1417,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             />
                           </div>
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                          <div className="md:col-span-4">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
+                      ) : (watchItems[index]?.item_type || "fabric") === "fabric" ? (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                          <div className="md:col-span-3">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
                             <input
                               type="hidden"
                               {...register(`items.${index}.material_type_id` as const)}
@@ -1427,7 +1444,104 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Grade *</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Fresh / Grade A"
+                              {...register(`items.${index}.grade` as const)}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Design Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Solid Indigo / Floral"
+                              {...register(`items.${index}.design_name` as const)}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-1">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                            <input
+                              type="text"
+                              placeholder="HSN"
+                              {...register(`items.${index}.hsn_sac` as const)}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+                            />
+                          </div>
+
+                          <div className="md:col-span-1">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
+                            <input
+                              type="text"
+                              placeholder="meter"
+                              {...register(`items.${index}.unit` as const)}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+                            />
+                          </div>
+
+                          <div className="md:col-span-1">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                              Total Meters
+                            </label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0"
+                              disabled={true}
+                              {...register(`items.${index}.quantity` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.quantity` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all disabled:bg-[var(--page-bg)] disabled:text-[var(--text-secondary)]"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                            <NumericInput
+                              step="0.01"
+                              placeholder="0.00"
+                              {...register(`items.${index}.rate` as const)}
+                              onChange={(e) => {
+                                register(`items.${index}.rate` as const).onChange(e);
+                                recalcItem(index);
+                              }}
+                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                          <div className="md:col-span-4">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
+                            <input
+                              type="hidden"
+                              {...register(`items.${index}.material_type_id` as const)}
+                            />
+                            <MaterialTypeCombobox
+                              value={watchItems[index]?.material_type_id || ""}
+                              onChange={(val) => {
+                                setValue(`items.${index}.material_type_id`, val);
+                                handleMaterialChange(index, val);
+                              }}
+                              materialTypes={materialTypes}
+                              disabled={loadingMaterials}
+                              onAddNew={() => {
+                                setNewTypeItemIndex(index);
+                                setNewTypeModalOpen(true);
+                              }}
+                            />
+                            {errors.items?.[index]?.material_type_id && (
+                              <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
+                            )}
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                             <input
                               type="text"
                               placeholder="HSN"
@@ -1440,26 +1554,23 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
                             <input
                               type="text"
-                              placeholder="Unit"
+                              placeholder="Pcs"
                               {...register(`items.${index}.unit` as const)}
                               className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                             />
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
-                              {(watchItems[index]?.item_type || "fabric") === "fabric" ? "Total Meters" : "Qty *"}
-                            </label>
+                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Qty *</label>
                             <NumericInput
                               step="0.01"
                               placeholder="0"
-                              disabled={(watchItems[index]?.item_type || "fabric") === "fabric"}
                               {...register(`items.${index}.quantity` as const)}
                               onChange={(e) => {
                                 register(`items.${index}.quantity` as const).onChange(e);
                                 recalcItem(index);
                               }}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all disabled:bg-[var(--page-bg)] disabled:text-[var(--text-secondary)]"
+                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                             />
                           </div>
 

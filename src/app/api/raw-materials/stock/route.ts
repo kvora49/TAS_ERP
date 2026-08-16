@@ -1,6 +1,5 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -16,12 +15,9 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
 
   try {
-    // Run real-time reconciliation to sync roll balances & movement vouchers
-    try {
-      await reconcileRawMaterialStock(supabase, businessId);
-    } catch (recErr) {
-      console.warn("Auto-reconciliation warning:", recErr);
-    }
+    // NOTE: Reconciliation is NOT called here (removed for performance).
+    // Stock is kept current by write-path reconciliation on every purchase/return/transfer.
+    // To force a full sync, use POST /api/cron/stock-integrity.
     if (view === "entries") {
       // Return list of stock entries
       let query = supabase

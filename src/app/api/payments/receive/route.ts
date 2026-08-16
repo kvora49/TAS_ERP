@@ -189,7 +189,7 @@ export async function POST(request: Request) {
       payment_date,
       payment_mode,
       direction: "received",
-    });
+    }, {}, request);
 
     return NextResponse.json({ success: true, paymentId });
   } catch (err: any) {

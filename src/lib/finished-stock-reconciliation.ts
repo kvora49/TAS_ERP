@@ -21,18 +21,23 @@ export async function reconcileFinishedStock(
 
   try {
     // 1. Fetch active godowns for business
-    const { data: godowns } = await supabase
+    const { data: godowns, error: godownErr } = await supabase
       .from("godowns")
       .select("id, name")
       .eq("business_id", businessId)
       .is("deleted_at", null);
+
+    if (godownErr) {
+      // Godowns are required for reconciliation — abort if this fails
+      throw new Error(`[reconcileFinishedStock] Failed to fetch godowns: ${godownErr.message}`);
+    }
 
     const defaultGodownId = godowns && godowns.length > 0 ? godowns[0].id : null;
 
     // 2. Fetch completed production lots with size quantities
     let lotQuery = supabase
       .from("production_lots")
-      .select("id, design_id, colour_id, status, accessory_cost, other_cost, lot_size_quantities(*)")
+      .select("id, design_id, colour_id, status, godown_id, accessory_cost, other_cost, lot_size_quantities(*)")
       .eq("business_id", businessId)
       .is("deleted_at", null)
       .eq("status", "completed");
@@ -42,7 +47,8 @@ export async function reconcileFinishedStock(
     }
     const { data: productionLots, error: lotErr } = await lotQuery;
     if (lotErr) {
-      console.error("[reconcileFinishedStock] Production lots query error:", lotErr);
+      // Production lots are the primary inflow — abort if this fails to avoid wiping stock
+      throw new Error(`[reconcileFinishedStock] Failed to fetch production lots: ${lotErr.message}`);
     }
 
     // 3. Fetch finished goods purchases (Phase 3 raw_material_purchase_items)
@@ -57,7 +63,7 @@ export async function reconcileFinishedStock(
     }
     const { data: fgPurchases, error: fgErr } = await fgPurchaseQuery;
     if (fgErr) {
-      console.error("[reconcileFinishedStock] FG purchases query error:", fgErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch FG purchases: ${fgErr.message}`);
     }
 
     // 4. Fetch finished goods purchase returns
@@ -72,13 +78,15 @@ export async function reconcileFinishedStock(
     }
     const { data: fgReturns, error: fgrErr } = await fgReturnQuery;
     if (fgrErr) {
-      console.error("[reconcileFinishedStock] FG returns query error:", fgrErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch FG purchase returns: ${fgrErr.message}`);
     }
 
-    // 5. Fetch active sale bill items (correct table: sale_bill_items & sale_bills - note: sale_bills has no godown_id column)
+    // 5. Fetch active sale bill items — include godown_id from sale_bills
+    // FIXED: Previously had comment "sale_bills has no godown_id column" — it DOES. 
+    //        This was the primary cause of stock appearing in wrong godowns.
     let salesBillQuery = supabase
       .from("sale_bill_items")
-      .select("id, bill_id, design_id, colour_id, size, quantity, rate, amount, bill:sale_bills(status, deleted_at, is_temporary)")
+      .select("id, bill_id, design_id, colour_id, size, quantity, rate, amount, bill:sale_bills(status, deleted_at, is_temporary, godown_id)")
       .eq("business_id", businessId);
 
     if (targetDesignId) {
@@ -86,13 +94,14 @@ export async function reconcileFinishedStock(
     }
     const { data: salesBills, error: sbErr } = await salesBillQuery;
     if (sbErr) {
-      console.error("[reconcileFinishedStock] Sale bills query error:", sbErr);
+      // Sales are the primary outflow — abort if this fails to avoid inflating stock
+      throw new Error(`[reconcileFinishedStock] Failed to fetch sale bills: ${sbErr.message}`);
     }
 
-    // 6. Fetch active sale return items (correct table: sales_return_items & sales_returns - note: sales_returns has no godown_id column)
+    // 6. Fetch active sale return items — include godown_id from sales_returns
     let salesReturnQuery = supabase
       .from("sales_return_items")
-      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, unit_rate, amount, sales_return:sales_returns(status)")
+      .select("id, return_id, design_id, colour_id, size, size_quantities, returned_qty, unit_rate, amount, sales_return:sales_returns(status, godown_id)")
       .eq("business_id", businessId);
 
     if (targetDesignId) {
@@ -100,7 +109,7 @@ export async function reconcileFinishedStock(
     }
     const { data: salesReturns, error: srErr } = await salesReturnQuery;
     if (srErr) {
-      console.error("[reconcileFinishedStock] Sale returns query error:", srErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch sale returns: ${srErr.message}`);
     }
 
     // 7. Fetch stock adjustments
@@ -115,7 +124,7 @@ export async function reconcileFinishedStock(
     }
     const { data: adjustments, error: adjErr } = await adjustmentQuery;
     if (adjErr) {
-      console.error("[reconcileFinishedStock] Stock adjustments query error:", adjErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch stock adjustments: ${adjErr.message}`);
     }
 
     // 8. Fetch active stock transfers
@@ -129,7 +138,7 @@ export async function reconcileFinishedStock(
     }
     const { data: stockTransfers, error: stErr } = await transferQuery;
     if (stErr) {
-      console.error("[reconcileFinishedStock] Stock transfers query error:", stErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch stock transfers: ${stErr.message}`);
     }
 
     // 9. Fetch active challans
@@ -143,7 +152,7 @@ export async function reconcileFinishedStock(
     }
     const { data: challanItems, error: chErr } = await challanQuery;
     if (chErr) {
-      console.error("[reconcileFinishedStock] Challans query error:", chErr);
+      throw new Error(`[reconcileFinishedStock] Failed to fetch challans: ${chErr.message}`);
     }
 
     // Build key map: `${godown_id}:${design_id}:${colour_id || 'null'}`
@@ -168,9 +177,11 @@ export async function reconcileFinishedStock(
     };
 
     // A. Seed from Production Lots (+)
+    // Each production lot now tracks its own godown_id (set during move-to-stock).
+    // Fall back to defaultGodownId for older lots that may not have it set.
     (productionLots || []).forEach((lot: any) => {
       if (lot.status === "cancelled") return;
-      const gId = defaultGodownId;
+      const gId = lot.godown_id || defaultGodownId;
       const dId = lot.design_id;
       if (!gId || !dId) return;
 
@@ -255,9 +266,13 @@ export async function reconcileFinishedStock(
     });
 
     // E. Deduct Active Sales Bills (-)
+    // FIXED: Now uses sale_bills.godown_id (the actual godown the sale was from).
+    //        Previously always used defaultGodownId — all sales were deducted from the
+    //        first godown, making stock in all other godowns always look inflated.
     (salesBills || []).forEach((item: any) => {
       if (item.bill?.status === "cancelled" || item.bill?.deleted_at || item.bill?.is_temporary) return;
-      const gId = defaultGodownId;
+      // Use the actual godown the sale bill was tied to — fall back to default only if truly missing
+      const gId = item.bill?.godown_id || defaultGodownId;
       const dId = item.design_id;
       const cId = item.colour_id || null;
       if (!gId || !dId) return;
@@ -278,9 +293,11 @@ export async function reconcileFinishedStock(
     });
 
     // F. Add Active Sales Returns (+)
+    // FIXED: Now uses sales_returns.godown_id (where the returned stock goes back to).
+    //        Previously always used defaultGodownId.
     (salesReturns || []).forEach((item: any) => {
       if (item.sales_return?.status === "cancelled" || item.sales_return?.status === "rejected") return;
-      const gId = defaultGodownId;
+      const gId = item.sales_return?.godown_id || defaultGodownId;
       const dId = item.design_id;
       const cId = item.colour_id || null;
       if (!gId || !dId) return;
@@ -321,8 +338,8 @@ export async function reconcileFinishedStock(
         sourceEst.totalQuantity = Math.max(0, sourceEst.totalQuantity - qty);
       }
 
-      // Add to target godown
-      if (toGId) {
+      // Add to target godown only if transfer is completed
+      if (toGId && item.transfer?.status === "completed") {
         const targetEst = getOrCreate(toGId, dId, cId, Number(item.unit_cost || 0));
         if (sz && sz !== "all" && sz !== "—") {
           targetEst.sizeQuantities[sz] = (targetEst.sizeQuantities[sz] || 0) + qty;
@@ -349,7 +366,9 @@ export async function reconcileFinishedStock(
       existing.totalQuantity = Math.max(0, existing.totalQuantity - qty);
     });
 
-    // 8. Clear ALL existing finished_stock rows for target design (or all) to remove duplicates & stale mutated entries
+    // 10. Clear existing finished_stock rows for target design (or all designs if no target)
+    //     We do this AFTER all queries succeed — if any query above failed, we threw early
+    //     and never reach here, so we never wipe stock without having the data to rebuild it.
     let deleteStockQuery = supabase
       .from("finished_stock")
       .delete()
@@ -358,7 +377,10 @@ export async function reconcileFinishedStock(
     if (targetDesignId) {
       deleteStockQuery = deleteStockQuery.eq("design_id", targetDesignId);
     }
-    await deleteStockQuery;
+    const { error: deleteErr } = await deleteStockQuery;
+    if (deleteErr) {
+      throw new Error(`[reconcileFinishedStock] Failed to clear existing stock rows: ${deleteErr.message}`);
+    }
 
     // Fetch design prices & active BOM costing fallbacks for unit cost resolution
     const { data: designPrices } = await supabase
@@ -386,7 +408,7 @@ export async function reconcileFinishedStock(
       }
     });
 
-    // 9. Insert fresh single ground-truth consolidated rows
+    // 11. Insert fresh single ground-truth consolidated rows
     let updatedCount = 0;
     const entriesArray = Array.from(stockMap.entries());
 
@@ -399,6 +421,7 @@ export async function reconcileFinishedStock(
       // 1. Existing costPerPiece / average cost from transactions
       // 2. Active design_costings total_cost_per_piece
       // 3. 60% of design sale_price
+      // 4. Absolute default (150)
       let unitCost = stockData.costPerPiece;
       if (unitCost <= 0 && stockData.totalQuantity > 0 && stockData.totalValue > 0) {
         unitCost = Number((stockData.totalValue / stockData.totalQuantity).toFixed(2));

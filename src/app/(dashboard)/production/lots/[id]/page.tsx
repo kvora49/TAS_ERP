@@ -24,6 +24,8 @@ import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 import { MoveToStockDialog } from "./_components/MoveToStockDialog";
 import { LotCostingPanel } from "./_components/LotCostingPanel";
 import { AddStageDialog } from "./_components/AddStageDialog";
+import DefectManagement from "./_components/DefectManagement";
+import { AlertTriangle } from "lucide-react";
 
 interface LotDetailProps {
   params: { id: string };
@@ -440,6 +442,23 @@ export default function LotDetailPage({ params }: LotDetailProps) {
           }`}
         >
           Lot Specifications & Routing
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("defects")}
+          className={`px-5 py-2.5 font-bold text-xs uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeTab === "defects"
+              ? "border-amber-500 text-amber-600"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <AlertTriangle size={14} className="text-amber-500" />
+          <span>Defects & Rework</span>
+          {Number(lot?.defect_quantity || data?.defects?.length || 0) > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 text-[10px] font-extrabold bg-amber-500/15 text-amber-600 rounded-full">
+              {lot.defect_quantity || data?.defects?.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -924,6 +943,27 @@ export default function LotDetailPage({ params }: LotDetailProps) {
               <LotSummaryPanel title="Lot Summary" items={rightPanelItems} />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          TAB 4: DEFECTS & REWORK MANAGEMENT
+          ======================================================== */}
+      {activeTab === "defects" && (
+        <div className="animate-fadeIn">
+          <DefectManagement
+            lotId={id}
+            totalLotQty={totalQty}
+            stages={stages || []}
+            workers={workers || []}
+            godowns={godowns || []}
+            lotRolls={lotRolls || []}
+            stageEntries={stageEntries || []}
+            unitFabricCost={totalQty > 0 ? totalFabricCost / totalQty : 0}
+            unitLaborCost={totalQty > 0 ? totalLaborCost / totalQty : 0}
+            lot={lot}
+            sizeQuantities={sizes}
+          />
         </div>
       )}
 

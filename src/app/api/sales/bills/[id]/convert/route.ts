@@ -61,39 +61,48 @@ export async function POST(
     }
     const officialBillNumber = `${prefix}-${String(nextNum).padStart(3, "0")}`;
 
-    // 3. Deduct finished stock & insert stock_ledger entries for line items
+    // 3. Write stock_ledger audit entries for the line items being converted to an official bill.
+    //    finished_stock is rebuilt by reconcileFinishedStock() below — do NOT directly
+    //    mutate finished_stock here (single-writer pattern).
     const items = bill.items || [];
     const { data: { user } } = await supabase.auth.getUser();
 
     for (const item of items) {
       const qty = Number(item.quantity || 0);
-      if (qty <= 0) continue;
+      if (qty <= 0 || !item.design_id) continue;
 
-      let { data: fsRows } = await supabase
+      // Auto-resolve godown from finished_stock — no godown_id needed on the bill.
+      // Pick the godown that currently holds the most stock for this design.
+      const { data: stockRow } = await supabase
         .from("finished_stock")
-        .select("*")
+        .select("godown_id, total_quantity")
         .eq("business_id", businessId)
-        .eq("design_id", item.design_id);
+        .eq("design_id", item.design_id)
+        .gt("total_quantity", 0)
+        .order("total_quantity", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (item.colour_id && fsRows && fsRows.length > 0) {
-        const matchCol = fsRows.filter((r) => r.colour_id === item.colour_id);
-        if (matchCol.length > 0) fsRows = matchCol;
+      let resolvedGodownId: string | null = stockRow?.godown_id || null;
+
+      // Fallback: if no stock row found, use the first godown in the business
+      if (!resolvedGodownId) {
+        const { data: fallbackGodown } = await supabase
+          .from("godowns")
+          .select("id")
+          .eq("business_id", businessId)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        resolvedGodownId = fallbackGodown?.id || null;
       }
 
-      if (bill.godown_id && fsRows && fsRows.length > 0) {
-        const matchGodown = fsRows.filter((r) => r.godown_id === bill.godown_id);
-        if (matchGodown.length > 0) fsRows = matchGodown;
-      }
-
-      const existingFs = fsRows && fsRows.length > 0 ? fsRows[0] : null;
-      const godownId = existingFs?.godown_id || bill.godown_id;
-
-      if (godownId) {
+      if (resolvedGodownId) {
         await supabase.from("stock_ledger").insert({
           business_id: businessId,
           item_type: "finished_good",
           item_id: item.design_id,
-          godown_id: godownId,
+          godown_id: resolvedGodownId,
           transaction_type: "sale_bill_outflow",
           quantity_delta: -qty,
           value_delta: -Number(item.amount || 0),
@@ -101,34 +110,6 @@ export async function POST(
           reference_id: bill.id,
           created_by: user?.id || null,
         });
-      }
-
-      if (existingFs) {
-        const currentSizeQty = existingFs.size_quantities || {};
-        const sz = item.size || "all";
-        const currentSzQty = Number(currentSizeQty[sz] || 0);
-        const newSzQty = Math.max(0, currentSzQty - qty);
-        const newTotalQty = Math.max(0, Number(existingFs.total_quantity || 0) - qty);
-        const costPerPiece = Number(
-          existingFs.cost_per_piece ||
-            (existingFs.total_quantity > 0 ? existingFs.total_value / existingFs.total_quantity : 0)
-        );
-        const newTotalValue = newTotalQty * costPerPiece;
-
-        const updatedSizes = { ...currentSizeQty };
-        if (sz !== "all") {
-          updatedSizes[sz] = newSzQty;
-        }
-
-        await supabase
-          .from("finished_stock")
-          .update({
-            size_quantities: updatedSizes,
-            total_quantity: newTotalQty,
-            total_value: newTotalValue,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingFs.id);
       }
     }
 

@@ -10,6 +10,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search") || "";
+  const gradeParam = searchParams.get("grade") || "";
 
   try {
     const { data: rolls, error } = await supabase
@@ -19,6 +20,8 @@ export async function GET(request: Request) {
         item:raw_material_purchase_items (
           id,
           rate,
+          grade,
+          design_name,
           material_type:raw_material_types (id, name, category, unit),
           purchase:raw_material_purchases (
             id,
@@ -37,8 +40,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Filter in-memory for search query
+    // Filter in-memory for search query and grade filter
     const filteredRolls = (rolls || []).filter((roll: any) => {
+      const effectiveGrade = roll.grade || roll.item?.grade || "";
+      const effectiveDesign = roll.design_name || roll.item?.design_name || "";
+
+      if (gradeParam && gradeParam !== "all") {
+        if (effectiveGrade.trim().toLowerCase() !== gradeParam.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
       if (!search) return true;
       const sLower = search.toLowerCase();
       const rollNum = roll.roll_number?.toLowerCase() || "";
@@ -48,6 +60,8 @@ export async function GET(request: Request) {
       const purchaseNo = roll.item?.purchase?.purchase_number?.toLowerCase() || "";
       const invoiceNo = roll.item?.purchase?.invoice_no?.toLowerCase() || "";
       const shade = roll.shade?.toLowerCase() || "";
+      const grade = effectiveGrade.toLowerCase();
+      const design = effectiveDesign.toLowerCase();
 
       return (
         rollNum.includes(sLower) ||
@@ -56,7 +70,9 @@ export async function GET(request: Request) {
         materialName.includes(sLower) ||
         purchaseNo.includes(sLower) ||
         invoiceNo.includes(sLower) ||
-        shade.includes(sLower)
+        shade.includes(sLower) ||
+        grade.includes(sLower) ||
+        design.includes(sLower)
       );
     });
 

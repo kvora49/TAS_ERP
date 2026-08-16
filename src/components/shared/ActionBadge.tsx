@@ -21,6 +21,9 @@ export function ActionBadge({ action, className }: ActionBadgeProps) {
   } else if (normAction === "delete") {
     styles = "bg-[#FEE2E2] text-[#DC2626]";
     label = "Delete";
+  } else if (normAction === "sync_and_reconcile" || normAction.includes("sync") || normAction.includes("audit")) {
+    styles = "bg-[#EDE9FE] text-[#7C3AED]";
+    label = "Sync & Audit";
   } else if (normAction === "login") {
     styles = "bg-[#DCFCE7] text-[#15803D]";
     label = "Login";

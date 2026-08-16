@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Download, WifiOff, X } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { initClientNetworkDetection } from "@/lib/client-network";
 
 export default function PWAInstaller() {
   const isOnline = useOnlineStatus();
@@ -10,6 +11,9 @@ export default function PWAInstaller() {
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
+    // 0. Initialize non-blocking local IP detection in background
+    initClientNetworkDetection();
+
     // Register Service Worker and check for deployment updates
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker

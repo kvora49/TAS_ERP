@@ -282,7 +282,7 @@ export async function PUT(
     }
 
     // Log audit trail
-    await logAudit(businessId, "update", "stage_entries", id, entry, oldEntry);
+    await logAudit(businessId, "update", "stage_entries", id, entry, oldEntry, request);
 
     return NextResponse.json({ entry });
   } catch (err: any) {
@@ -358,7 +358,7 @@ export async function DELETE(
       }
     }
 
-    await logAudit(businessId, "delete", "stage_entries", id, oldEntry);
+    await logAudit(businessId, "delete", "stage_entries", id, oldEntry, {}, request);
 
     return NextResponse.json({ success: true, message: "Stage entry deleted successfully and ledgers reconciled" });
   } catch (err: any) {

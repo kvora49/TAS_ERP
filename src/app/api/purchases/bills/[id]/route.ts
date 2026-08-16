@@ -173,6 +173,22 @@ export async function DELETE(
       }
     }
 
+    // Block cancellation if a purchase return has been raised against this bill
+    const { data: linkedPurchaseReturns } = await supabase
+      .from("purchase_returns")
+      .select("id, return_number")
+      .eq("purchase_bill_id", id)
+      .eq("business_id", businessId)
+      .neq("status", "cancelled")
+      .limit(1);
+
+    if (linkedPurchaseReturns && linkedPurchaseReturns.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot cancel purchase bill: Purchase return ${linkedPurchaseReturns[0].return_number} exists against this bill. Cancel the return first.` },
+        { status: 400 }
+      );
+    }
+
     // 3. Update status to 'cancelled' and set deleted_at
     const { error: cancelErr } = await supabase
       .from("purchase_bills")

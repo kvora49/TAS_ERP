@@ -132,43 +132,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: itemsErr.message }, { status: 500 });
     }
 
-    // Log stock movements in finished_stock
-    // Outward: Deduct on status dispatched, received, completed, in_transit?
-    // User agreed: Deduct on dispatched (outward) / add on received (inward)
+    // Write stock_ledger audit entries for the challan.
+    // finished_stock is rebuilt by reconcileFinishedStock() below — do NOT directly
+    // insert into finished_stock here (single-writer pattern). Reconciliation reads
+    // from challans + challan_items directly.
     const isOutwardStockImpact = challan_type === "outward" && ["dispatched", "received", "completed"].includes(status);
     const isInwardStockImpact = challan_type === "inward" && ["received", "completed"].includes(status);
 
     if (isOutwardStockImpact) {
       for (const item of items) {
-        await supabase
-          .from("finished_stock")
-          .insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id,
-            godown_id: from_godown_id,
-            entry_type: "challan_out",
-            size_quantities: { [item.size]: -Number(item.quantity) },
-            total_quantity: -Number(item.quantity),
-            cost_per_piece: Number(item.unit_cost),
-            total_value: -Number(item.total_value),
-          });
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "finished_good",
+          item_id: item.design_id,
+          godown_id: from_godown_id,
+          transaction_type: "challan_out",
+          quantity_delta: -Number(item.quantity),
+          value_delta: -Number(item.total_value),
+          reference_table: "challans",
+          reference_id: challan.id,
+        });
       }
     } else if (isInwardStockImpact) {
       for (const item of items) {
-        await supabase
-          .from("finished_stock")
-          .insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id,
-            godown_id: from_godown_id,
-            entry_type: "challan_in",
-            size_quantities: { [item.size]: Number(item.quantity) },
-            total_quantity: Number(item.quantity),
-            cost_per_piece: Number(item.unit_cost),
-            total_value: Number(item.total_value),
-          });
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "finished_good",
+          item_id: item.design_id,
+          godown_id: from_godown_id,
+          transaction_type: "challan_in",
+          quantity_delta: Number(item.quantity),
+          value_delta: Number(item.total_value),
+          reference_table: "challans",
+          reference_id: challan.id,
+        });
       }
     }
 

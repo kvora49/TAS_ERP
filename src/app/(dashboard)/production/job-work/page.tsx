@@ -80,7 +80,7 @@ interface JobWorkEntry {
 interface LedgerRow {
   id: string;
   date: string;
-  entry_type: "stage_entry" | "payment";
+  entry_type: "stage_entry" | "payment" | "deduction";
   ref_no: string;
   lot_id: string | null;
   lot_number: string;
@@ -91,6 +91,7 @@ interface LedgerRow {
   balance: number;
   payment_status?: string;
   bank_name?: string | null;
+  remarks?: string | null;
 }
 
 interface JobWorkPayment {
@@ -956,18 +957,24 @@ export default function UnifiedJobWorkPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 border-t sm:border-t-0 sm:border-l border-[var(--border)] pt-3 sm:pt-0 sm:pl-4">
+                    <div className="flex flex-wrap items-center gap-4 border-t sm:border-t-0 sm:border-l border-[var(--border)] pt-3 sm:pt-0 sm:pl-4">
                       <div>
                         <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Billed</p>
-                        <p className="text-xs font-extrabold text-[var(--text-primary)]">{formatCurrency(workerStats.totalJobWorkAmount)}</p>
+                        <p className="text-xs font-extrabold text-[var(--text-primary)]">{formatCurrency(workerStats.totalJobWorkAmount || 0)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Total Paid</p>
-                        <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(workerStats.totalPaidAmount)}</p>
+                        <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(workerStats.totalPaidAmount || 0)}</p>
                       </div>
+                      {Number(workerStats.totalDeductionAmount || 0) > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-rose-500 uppercase">Deductions</p>
+                          <p className="text-xs font-extrabold text-rose-600 dark:text-rose-400">-{formatCurrency(workerStats.totalDeductionAmount || 0)}</p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Net Balance Due</p>
-                        <p className="text-sm font-extrabold text-rose-600 dark:text-rose-400">{formatCurrency(workerStats.currentOutstanding)}</p>
+                        <p className="text-sm font-extrabold text-rose-600 dark:text-rose-400">{formatCurrency(workerStats.currentOutstanding || 0)}</p>
                       </div>
                     </div>
                   </div>
@@ -987,34 +994,42 @@ export default function UnifiedJobWorkPage() {
                             <th className="py-3 px-4">Lot / Stage</th>
                             <th className="py-3 px-4">Type</th>
                             <th className="py-3 px-4 text-right">Debit (Billed)</th>
-                            <th className="py-3 px-4 text-right">Credit (Paid)</th>
+                            <th className="py-3 px-4 text-right">Credit / Payout</th>
                             <th className="py-3 px-4 text-right">Running Balance</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
                           {workerLedgerRows.map((row) => {
                             const isEntry = row.entry_type === "stage_entry";
+                            const isDeduction = row.entry_type === "deduction";
                             return (
                               <tr key={row.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
                                 <td className="py-3 px-4 text-[var(--text-muted)]">{row.date}</td>
                                 <td className="py-3 px-4 font-bold text-[var(--primary)]">{row.ref_no}</td>
                                 <td className="py-3 px-4 text-[var(--text-secondary)]">
                                   {row.lot_number ? `${row.lot_number} - ${row.stage_name}` : row.stage_name || "—"}
+                                  {row.remarks && (
+                                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5 line-clamp-1">{row.remarks}</p>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4">
                                   <span
                                     className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                      isEntry ? "bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)]" : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                      isEntry
+                                        ? "bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)]"
+                                        : isDeduction
+                                        ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                                        : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
                                     }`}
                                   >
-                                    {isEntry ? "Job Work Output" : "Payment Released"}
+                                    {isEntry ? "Job Work Output" : isDeduction ? "Defect Deduction" : "Payment Released"}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4 text-right font-bold text-[var(--text-primary)]">
                                   {isEntry ? formatCurrency(row.amount) : "—"}
                                 </td>
-                                <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                  {!isEntry ? formatCurrency(row.amount) : "—"}
+                                <td className={`py-3 px-4 text-right font-bold ${isDeduction ? "text-rose-600" : "text-emerald-600 dark:text-emerald-400"}`}>
+                                  {!isEntry ? `-${formatCurrency(Math.abs(row.amount))}` : "—"}
                                 </td>
                                 <td className="py-3 px-4 text-right font-extrabold text-[var(--text-primary)]">
                                   {formatCurrency(row.balance)}

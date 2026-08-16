@@ -200,7 +200,7 @@ export async function PUT(
     }
 
     // Log audit trail
-    await logAudit(businessId, "update", "workers", id, worker, oldWorker || {});
+    await logAudit(businessId, "update", "workers", id, worker, oldWorker || {}, request);
 
     return NextResponse.json({ worker });
   } catch (err: any) {
@@ -242,7 +242,7 @@ export async function DELETE(
     }
 
     // Log audit trail
-    await logAudit(businessId, "delete", "workers", id, null, oldWorker || {});
+    await logAudit(businessId, "delete", "workers", id, null, oldWorker || {}, request);
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

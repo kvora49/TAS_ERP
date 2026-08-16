@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { ModuleBadge } from "@/components/shared/ModuleBadge";
@@ -24,6 +25,8 @@ import {
   Sparkles,
   Layers,
   ArrowRight,
+  RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -276,6 +279,10 @@ function getEntityRoute(log: AuditLog): { label: string; url: string } | null {
     return { label: "View Parties", url: "/parties" };
   }
 
+  if (table === "stock_integrity" || table === "stock_integrity_logs") {
+    return { label: "View Finished Stock Explorer", url: "/master-data/designs" };
+  }
+
   if (table === "finished_stock" || table === "designs") {
     return { label: "View Finished Stock", url: "/finished-stock" };
   }
@@ -439,6 +446,16 @@ function getSummarySentence(log: AuditLog): string {
     if (action === "cancel_purchase_bill") return `${user} cancelled Purchase Bill${billNo ? ` #${billNo}` : ""}.`;
   }
 
+  // Stock Integrity & Watchdog
+  if (table === "stock_integrity" || table === "stock_integrity_logs") {
+    const found = n.discrepancies_found ?? 0;
+    const fixed = n.discrepancies_fixed ?? 0;
+    if (found === 0) {
+      return `${user} ran a Stock Integrity Audit — All finished stock and raw materials are 100% synchronized with transaction ledgers.`;
+    }
+    return `${user} ran a Stock Integrity Audit — Detected ${found} stock discrepancy(s) and auto-reconciled ${fixed} item(s) to ground truth.`;
+  }
+
   // Raw Material Types
   if (table === "raw_material_types") {
     const name = n.name || o.name || "a raw material type";
@@ -494,6 +511,41 @@ export default function AuditLogsSettingsPage() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const router = useRouter();
+
+  // Navigate to entity route and close modal — using router.push after close
+  // to avoid @base-ui Dialog cancelling the navigation event
+  const navigateToEntity = useCallback((url: string) => {
+    setDetailModalOpen(false);
+    setTimeout(() => router.push(url), 50);
+  }, [router]);
+
+  const handleRunStockSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/cron/stock-integrity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to run stock integrity sync");
+
+      const found = data.integrity_report?.discrepancies_found ?? 0;
+      const fixed = data.integrity_report?.discrepancies_fixed ?? 0;
+      if (found === 0) {
+        toast.success("✅ Stock is 100% synchronized! No discrepancies found.");
+      } else {
+        toast.success(`⚡ Stock audit complete: ${found} checked, ${fixed} auto-fixed.`);
+      }
+      fetchLogs(1, limit);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to run stock audit");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Fetch Users for filters
   const fetchUsers = async () => {
@@ -660,15 +712,42 @@ export default function AuditLogsSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6 text-left">
-      <SettingsPageHeader
-        section="Audit Logs"
-        title="Settings > Audit Logs"
-        subtitle="Track system changes and user activities"
-        actionLabel="Export Logs"
-        onAction={handleExport}
-        actionIcon={<Download className="size-4 text-[var(--text-body)]" />}
-        actionOutline
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <SettingsPageHeader
+          section="Audit Logs"
+          title="Settings > Audit Logs"
+          subtitle="Track system changes, user activities, and stock integrity audits"
+          actionLabel="Export Logs"
+          onAction={handleExport}
+          actionIcon={<Download className="size-4 text-[var(--text-body)]" />}
+          actionOutline
+        />
+      </div>
+
+      {/* QUICK STOCK INTEGRITY AUDIT BANNER */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+            <ShieldCheck className="size-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">Stock Integrity & Auto-Reconciliation</h3>
+            <p className="text-xs text-[var(--text-muted)]">
+              Cross-checks physical finished stock against independent stock ledgers and auto-repairs discrepancies.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={isSyncing}
+          onClick={handleRunStockSync}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-all cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+        >
+          <RefreshCw className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+          {isSyncing ? "Auditing Stock..." : "Run Stock Integrity Audit"}
+        </button>
+      </div>
 
       {/* FILTER CARD */}
       <SettingsCard icon={Filter} title="Filter Audit Logs">
@@ -711,6 +790,7 @@ export default function AuditLogsSettingsPage() {
                 className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer transition-colors"
               >
                 <option value="All Modules">All Modules</option>
+                <option value="stock_integrity">Stock Integrity & Sync</option>
                 <option value="raw_material_purchases">Purchases</option>
                 <option value="sale_bills">Sales & Billing</option>
                 <option value="production_lots">Production Lots</option>
@@ -996,14 +1076,14 @@ export default function AuditLogsSettingsPage() {
               </div>
 
               {entityRoute && (
-                <Link
-                  href={entityRoute.url}
-                  onClick={() => setDetailModalOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => navigateToEntity(entityRoute.url)}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold transition-colors shadow-sm cursor-pointer"
                 >
                   <span>{entityRoute.label}</span>
                   <ExternalLink className="size-3.5" />
-                </Link>
+                </button>
               )}
             </div>
 
@@ -1172,14 +1252,14 @@ export default function AuditLogsSettingsPage() {
             {/* Footer */}
             <div className="border-t border-[var(--border)] pt-4 mt-1 flex items-center justify-between gap-2">
               {entityRoute ? (
-                <Link
-                  href={entityRoute.url}
-                  onClick={() => setDetailModalOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => navigateToEntity(entityRoute.url)}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer"
                 >
                   <span>Open target record detail page</span>
                   <ArrowRight className="size-3.5" />
-                </Link>
+                </button>
               ) : <div />}
               <button
                 type="button"

@@ -60,6 +60,31 @@ export default function MobileScanPWAPage() {
     setIsPaused(false);
 
     try {
+      // 0. Pre-flight user-gesture permission request (Critical for Android / iOS PWA standalone WebAPKs)
+      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const testConstraints = {
+            video: facingMode === "environment" ? { facingMode: { ideal: "environment" } } : { facingMode: "user" },
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(testConstraints);
+          // Release test stream tracks immediately so Html5Qrcode can bind without lock conflict
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (permErr: any) {
+          if (
+            permErr?.name === "NotAllowedError" ||
+            permErr?.name === "PermissionDeniedError" ||
+            permErr?.message?.includes("Permission")
+          ) {
+            setCameraState("permission_denied");
+            setCameraErrorMsg(
+              "Camera permission was denied. Please tap the lock or site settings icon in your browser and allow Camera access for TAS ERP."
+            );
+            toast.error("Camera permission denied.");
+            return;
+          }
+        }
+      }
+
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
 
       if (scannerRef.current) {
@@ -68,7 +93,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Enumerate available cameras
+      // Enumerate available cameras now that permission is granted
       let devices: { id: string; label: string }[] = [];
       try {
         devices = await Html5Qrcode.getCameras();
@@ -102,7 +127,6 @@ export default function MobileScanPWAPage() {
         videoConstraints: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: { ideal: facingMode },
         },
       };
 
@@ -126,7 +150,7 @@ export default function MobileScanPWAPage() {
         handleScanSubmit(decodedText);
       };
 
-      // Progressive 4-tier camera initialization strategy
+      // Progressive 4-tier camera initialization strategy with valid html5-qrcode syntax
       let started = false;
       const targetId = overrideDeviceId || selectedCameraId;
 
@@ -138,7 +162,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Tier 2: Enumerated device list (rear camera preference > first available webcam)
+      // Tier 2: Search for Back / Rear / Environment camera in enumerated devices
       if (!started && devices && devices.length > 0) {
         const backCam = devices.find(
           (d) =>
@@ -146,29 +170,43 @@ export default function MobileScanPWAPage() {
             d.label.toLowerCase().includes("rear") ||
             d.label.toLowerCase().includes("environment")
         );
-        const chosenCam = facingMode === "environment" && backCam ? backCam : devices[0];
+        if (facingMode === "environment" && backCam) {
+          try {
+            await html5QrCode.start(backCam.id, config, handleDecodedCode, () => {});
+            setSelectedCameraId(backCam.id);
+            started = true;
+          } catch (_) {}
+        }
+      }
+
+      // Tier 3: Standard facingMode exact string constraint (mobile environment)
+      if (!started && facingMode === "environment") {
         try {
-          await html5QrCode.start(chosenCam.id, config, handleDecodedCode, () => {});
-          setSelectedCameraId(chosenCam.id);
+          await html5QrCode.start({ facingMode: "environment" }, config, handleDecodedCode, () => {});
           started = true;
         } catch (_) {}
       }
 
-      // Tier 3: Ideal facingMode constraint (mobile phones)
+      // Tier 4: User facing / default webcam (laptops & front cameras)
       if (!started) {
         try {
-          await html5QrCode.start({ facingMode: { ideal: facingMode } }, config, handleDecodedCode, () => {});
+          await html5QrCode.start({ facingMode: "user" }, config, handleDecodedCode, () => {});
           started = true;
         } catch (_) {}
       }
 
-      // Tier 4: User facing / default webcam (laptops & desktops)
-      if (!started) {
-        await html5QrCode.start({ facingMode: "user" }, config, handleDecodedCode, () => {});
+      // Tier 5: Fallback to first available device ID
+      if (!started && devices && devices.length > 0) {
+        await html5QrCode.start(devices[0].id, config, handleDecodedCode, () => {});
+        setSelectedCameraId(devices[0].id);
         started = true;
       }
 
-      // Refresh camera devices list now that permission is granted
+      if (!started) {
+        throw new Error("Unable to bind to any camera device. Please ensure camera is not in use.");
+      }
+
+      // Refresh camera devices list now that stream is live
       try {
         const freshDevices = await Html5Qrcode.getCameras();
         if (freshDevices && freshDevices.length > 0) {
@@ -176,7 +214,7 @@ export default function MobileScanPWAPage() {
         }
       } catch (_) {}
 
-      // Force inline video playback for mobile browsers (iOS Safari & Android Chrome)
+      // Force inline video playback for mobile browsers (iOS Safari & Android Chrome WebAPKs)
       setTimeout(() => {
         const videoElement = document.querySelector("#pwa-qr-reader video") as HTMLVideoElement;
         if (videoElement) {
@@ -198,7 +236,13 @@ export default function MobileScanPWAPage() {
         err?.message?.includes("Permission")
       ) {
         setCameraState("permission_denied");
-        setCameraErrorMsg("Camera access was denied. Please allow camera permissions in your browser settings.");
+        setCameraErrorMsg("Camera access was denied. Please allow camera permissions in your browser or phone app settings.");
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        setCameraState("error");
+        setCameraErrorMsg("No camera device found on this system.");
+      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+        setCameraState("error");
+        setCameraErrorMsg("Camera is in use by another application. Please close other camera apps and try again.");
       } else {
         setCameraState("error");
         setCameraErrorMsg(err?.message || "Failed to initialize camera scanner.");

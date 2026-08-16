@@ -44,9 +44,13 @@ export interface PurchaseCreateParams {
     gst_percent: number;
     gst_amount: number;
     amount: number;
+    grade?: string | null;
+    design_name?: string | null;
     rolls?: Array<{
       roll_number: string;
       meters: number;
+      grade?: string | null;
+      design_name?: string | null;
       shade?: string;
       comment?: string | null;
       width?: number | null;
@@ -209,6 +213,9 @@ export class PurchaseRepository {
         amount: Number(item.amount),
       };
 
+      if (item.grade) base.grade = item.grade;
+      if (item.design_name) base.design_name = item.design_name;
+
       if (item.item_type && item.item_type !== "fabric") {
         base.item_type = item.item_type;
       }
@@ -275,6 +282,8 @@ export class PurchaseRepository {
               roll_number: roll.roll_number,
               meters: Number(roll.meters),
               shade: roll.shade,
+              grade: roll.grade || inputItem.grade || null,
+              design_name: roll.design_name || inputItem.design_name || null,
               comment: roll.comment || null,
               width: roll.width ? Number(roll.width) : null,
               weight_unit: roll.weight_unit || null,
@@ -436,6 +445,23 @@ export class PurchaseRepository {
       await reconcileRawMaterialStock(this.supabase, params.businessId);
     } catch (recErr) {
       console.warn("Reconciliation on purchase creation warning:", recErr);
+    }
+
+    // Reconcile finished stock for any finished_goods items in this purchase.
+    // Previously this was missing — only reconcileRawMaterialStock() was called,
+    // so FG stock purchased via the RM purchase module was never normalized.
+    if (finishedStockToInsert.length > 0) {
+      try {
+        const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+        const uniqueDesignIds = Array.from(
+          new Set(finishedStockToInsert.map((fs: any) => fs.design_id).filter(Boolean))
+        ) as string[];
+        for (const designId of uniqueDesignIds) {
+          await reconcileFinishedStock(this.supabase, params.businessId, designId);
+        }
+      } catch (fgRecErr) {
+        console.warn("Finished stock reconciliation on purchase creation warning:", fgRecErr);
+      }
     }
 
     return purchase;

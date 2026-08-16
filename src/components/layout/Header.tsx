@@ -45,7 +45,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "raw-materials": "Raw Materials",
   new: "New Entry / Adjustment",
   "backup-restore": "Backup & Restore",
-  "bill-builder": "Bill Builder",
+  "finished-stock": "Finished Stock",
+  "b-grade": "B-Grade & Aatri Stock",
   companies: "Companies",
   "company-profile": "Company Profile",
 };

@@ -184,6 +184,22 @@ export async function DELETE(
       }
     }
 
+    // Block cancellation if a sales return has been raised against this bill
+    const { data: linkedReturns } = await supabase
+      .from("sales_returns")
+      .select("id, return_number")
+      .eq("original_bill_id", id)
+      .eq("business_id", businessId)
+      .neq("status", "cancelled")
+      .limit(1);
+
+    if (linkedReturns && linkedReturns.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot cancel bill: Sales return ${linkedReturns[0].return_number} exists against this bill. Cancel the return first.` },
+        { status: 400 }
+      );
+    }
+
     // 3. Reverse stock & record stock_ledger entries
     if (bill.items && Array.isArray(bill.items) && bill.items.length > 0) {
       for (const item of bill.items) {
@@ -192,11 +208,25 @@ export async function DELETE(
 
         // A. Finished Goods stock reversal via ledger & reconciliation
         if (item.design_id) {
-          let godownId = bill.godown_id;
+          // Find the original outflow godown from stock_ledger for this bill+design
+          const { data: originalOutflow } = await supabase
+            .from("stock_ledger")
+            .select("godown_id")
+            .eq("business_id", businessId)
+            .eq("reference_id", bill.id)
+            .eq("item_id", item.design_id)
+            .eq("transaction_type", "sale_bill_outflow")
+            .limit(1)
+            .maybeSingle();
+
+          let godownId = originalOutflow?.godown_id || null;
+
+          // Fallback: first godown in business
           if (!godownId) {
             const { data: godowns } = await supabase.from("godowns").select("id").eq("business_id", businessId).is("deleted_at", null).limit(1);
             godownId = godowns && godowns.length > 0 ? godowns[0].id : null;
           }
+
           if (godownId) {
             await supabase.from("stock_ledger").insert({
               business_id: businessId,
