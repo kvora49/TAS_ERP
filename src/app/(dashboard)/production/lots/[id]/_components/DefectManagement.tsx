@@ -84,6 +84,7 @@ const PRESET_CATEGORIES = [
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending: { label: "Pending Inspection", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  in_rework: { label: "In Rework", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
   sent_for_rework: { label: "Sent for Rework", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
   reworked_fixed: { label: "Reworked & Fixed (Grade A)", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   rework_failed: { label: "Rework Failed", color: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
@@ -168,6 +169,7 @@ export default function DefectManagement({
   const [responsibleWorkerId, setResponsibleWorkerId] = useState<string>("");
   const [responsibleStageId, setResponsibleStageId] = useState<string>("");
   const [description, setDescription] = useState<string>("");
+  const [sentForRework, setSentForRework] = useState<boolean>(false);
 
   // Total defect pieces computed live from matrix
   const totalDefectMatrixQty = useMemo(() => {
@@ -193,6 +195,7 @@ export default function DefectManagement({
     setResponsibleStageId(presetStageId || (stages.length > 0 ? stages[0].id : ""));
     setResponsibleWorkerId("");
     setDescription("");
+    setSentForRework(false);
     setLogModalOpen(true);
   };
 
@@ -230,7 +233,12 @@ export default function DefectManagement({
       description: description.trim() || undefined,
       responsible_worker_id: responsibleWorkerId || undefined,
       responsible_stage_id: responsibleStageId || undefined,
+      sent_for_rework: sentForRework,
     });
+
+    if (sentForRework) {
+      toast.info(`${totalDefectMatrixQty} pieces marked as In Rework — deducted from lot quantity.`);
+    }
 
     setLogModalOpen(false);
   };
@@ -458,9 +466,13 @@ export default function DefectManagement({
     let totalScrapped = 0;
     let totalWriteOffVal = 0;
     let totalDeductions = 0;
+    let inReworkQty = 0;
 
     defects.forEach((d) => {
       totalLogged += Number(d.quantity || 0);
+      if (d.status === "in_rework") {
+        inReworkQty += Number(d.quantity || 0);
+      }
       (d.resolutions || []).forEach((r) => {
         totalRecovered += Number(r.qty_recovered || 0);
         totalBGrade += Number(r.qty_b_grade || 0);
@@ -475,6 +487,7 @@ export default function DefectManagement({
     return {
       totalLogged,
       pendingQty,
+      inReworkQty,
       totalRecovered,
       totalBGrade,
       totalScrapped,
@@ -499,6 +512,20 @@ export default function DefectManagement({
             {stats.pendingQty} pending inspection
           </div>
         </div>
+
+      {/* In Rework stat card — appears prominently if pieces are currently in rework */}
+        {stats.inReworkQty > 0 && (
+          <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 shadow-[var(--shadow-sm)] col-span-2 md:col-span-1 animate-pulse-slow">
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <RotateCcw className="h-3.5 w-3.5" /> Currently In Rework
+            </span>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.inReworkQty}</span>
+              <span className="text-xs text-blue-600/70">pcs</span>
+            </div>
+            <span className="mt-2 text-xs text-blue-600/80 block">Deducted from lot — pending return</span>
+          </div>
+        )}
 
         <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 shadow-[var(--shadow-sm)]">
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Fixed & Grade A</span>
@@ -974,6 +1001,40 @@ export default function DefectManagement({
               className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg p-3 text-sm transition-colors"
             />
           </div>
+
+          {/* 5b. Send for Rework toggle (only for in-production lots) */}
+          {!isCompletedLot && (
+            <div
+              className={cn(
+                "flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer",
+                sentForRework
+                  ? "border-blue-500/40 bg-blue-500/10"
+                  : "border-[var(--border)] bg-[var(--page-bg)]"
+              )}
+              onClick={() => setSentForRework(!sentForRework)}
+            >
+              <div
+                className={cn(
+                  "mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                  sentForRework
+                    ? "border-blue-500 bg-blue-500"
+                    : "border-[var(--input-border)] bg-[var(--input-bg)]"
+                )}
+              >
+                {sentForRework && <Check className="h-3 w-3 text-white" />}
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5 text-blue-500" />
+                  Send for Rework Immediately
+                </span>
+                <span className="text-xs text-[var(--text-muted)] block mt-0.5">
+                  These {totalDefectMatrixQty > 0 ? `${totalDefectMatrixQty} ` : ""}pieces will be deducted from the lot count now.
+                  They will be restored when the rework is resolved and pieces return to the lot.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Modal Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">

@@ -197,35 +197,123 @@ export async function POST(request: Request) {
       .update({ credit_note_id: creditNote.id })
       .eq("id", sReturn.id);
 
-    // 6. Record returned stock in stock_ledger
-    const targetGodownId = body.godown_id || null;
+    // 6. Record returned stock: auto-detect source godown from original sale, restore purchase_rolls for fabric
+    const designIdsToReconcile = new Set<string>();
+    let needsRawMaterialReconcile = false;
 
-    if (returnItems.length > 0 && targetGodownId) {
+    if (returnItems.length > 0) {
       for (const item of returnItems) {
         const qty = Number(item.return_qty || item.quantity || 0);
         if (qty <= 0) continue;
 
-        await supabase.from("stock_ledger").insert({
-          business_id: businessId,
-          item_type: "finished_good",
-          item_id: item.design_id,
-          godown_id: targetGodownId,
-          transaction_type: "sales_return_inflow",
-          quantity_delta: qty,
-          value_delta: Number(item.amount || qty * (item.unit_rate || 0)),
-          reference_table: "sales_returns",
-          reference_id: sReturn.id,
-          created_by: userId,
-        });
+        const itemType = item.item_type || "finished_goods";
+
+        if (itemType === "fabric" && item.sale_item_id) {
+          // Fabric Roll return: restore remaining_meters on the source purchase_rolls
+          const { data: saleRolls } = await supabase
+            .from("sale_rolls")
+            .select("purchase_roll_id, meters_sold")
+            .eq("sale_item_id", item.sale_item_id)
+            .eq("business_id", businessId);
+
+          if (saleRolls && saleRolls.length > 0) {
+            for (const sr of saleRolls) {
+              if (!sr.purchase_roll_id) continue;
+              const { data: origRoll } = await supabase
+                .from("purchase_rolls")
+                .select("remaining_meters")
+                .eq("id", sr.purchase_roll_id)
+                .maybeSingle();
+
+              if (origRoll) {
+                const restoredMeters = Math.min(
+                  Number(origRoll.remaining_meters || 0) + Number(sr.meters_sold || 0),
+                  999999
+                );
+                await supabase
+                  .from("purchase_rolls")
+                  .update({ remaining_meters: restoredMeters })
+                  .eq("id", sr.purchase_roll_id);
+              }
+            }
+          }
+
+          // Log stock_ledger entry for fabric return inflow
+          if (item.material_type_id) {
+            // Auto-detect godown from original purchase roll
+            const { data: rollGodown } = await supabase
+              .from("sale_rolls")
+              .select("purchase_rolls(purchase_item_id, raw_material_purchase_items(purchase_id, raw_material_purchases(godown_id)))")
+              .eq("sale_item_id", item.sale_item_id)
+              .eq("business_id", businessId)
+              .limit(1)
+              .maybeSingle();
+
+            const detectedGodownId = (rollGodown as any)?.purchase_rolls?.raw_material_purchase_items?.raw_material_purchases?.godown_id || null;
+
+            await supabase.from("stock_ledger").insert({
+              business_id: businessId,
+              item_type: "raw_material",
+              item_id: item.material_type_id,
+              godown_id: detectedGodownId,
+              transaction_type: "sales_return_inflow",
+              quantity_delta: qty,
+              value_delta: Number(item.amount || qty * (item.unit_rate || 0)),
+              reference_table: "sales_returns",
+              reference_id: sReturn.id,
+              created_by: userId,
+            });
+          }
+          needsRawMaterialReconcile = true;
+
+        } else if (item.design_id) {
+          // Finished goods return: auto-detect godown from existing finished_stock entries for this design
+          const { data: stockEntry } = await supabase
+            .from("finished_stock")
+            .select("godown_id")
+            .eq("business_id", businessId)
+            .eq("design_id", item.design_id)
+            .not("godown_id", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const detectedGodownId = stockEntry?.godown_id || body.godown_id || null;
+
+          await supabase.from("stock_ledger").insert({
+            business_id: businessId,
+            item_type: "finished_good",
+            item_id: item.design_id,
+            godown_id: detectedGodownId,
+            transaction_type: "sales_return_inflow",
+            quantity_delta: qty,
+            value_delta: Number(item.amount || qty * (item.unit_rate || 0)),
+            reference_table: "sales_returns",
+            reference_id: sReturn.id,
+            created_by: userId,
+          });
+          designIdsToReconcile.add(item.design_id);
+        }
       }
     }
 
-    // Reconcile ground-truth stock
+    // Reconcile ground-truth stock per affected design
     try {
       const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
-      await reconcileFinishedStock(supabase, businessId);
+      for (const designId of Array.from(designIdsToReconcile)) {
+        await reconcileFinishedStock(supabase, businessId, designId);
+      }
     } catch (reconcileErr) {
-      console.warn("[POST /api/sales/returns] Reconciliation warning:", reconcileErr);
+      console.warn("[POST /api/sales/returns] Finished stock reconciliation warning:", reconcileErr);
+    }
+
+    if (needsRawMaterialReconcile) {
+      try {
+        const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+        await reconcileRawMaterialStock(supabase, businessId);
+      } catch (reconcileErr) {
+        console.warn("[POST /api/sales/returns] Raw material reconciliation warning:", reconcileErr);
+      }
     }
 
     return NextResponse.json({ return: sReturn, creditNote });

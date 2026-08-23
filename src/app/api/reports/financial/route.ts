@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: userData } = await supabase.from("users").select("business_id").eq("id", user.id).single();
-  if (!userData?.business_id) return NextResponse.json({ error: "No business" }, { status: 400 });
+  const today = new Date();
+  const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
-  const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const from = searchParams.get("from") ?? defaultFrom;
+  const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
-  const bid = userData.business_id;
+  const bid = businessId;
 
   try {
     let salesQuery = supabase
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     let finishedPurchasesQuery = supabase
       .from("purchase_bills")
-      .select("grand_total, payment_status, paid_amount, bill_type")
+      .select("grand_total, payment_status, paid_amount")
       .eq("business_id", bid)
       .neq("status", "cancelled")
       .gte("invoice_date", from)
@@ -46,10 +47,8 @@ export async function GET(req: NextRequest) {
       salesQuery = salesQuery.eq("bill_type", billType);
       if (billType === "kacha") {
         rawPurchasesQuery = rawPurchasesQuery.eq("gst_type", "without_gst");
-        finishedPurchasesQuery = finishedPurchasesQuery.eq("bill_type", "kacha");
       } else {
         rawPurchasesQuery = rawPurchasesQuery.neq("gst_type", "without_gst");
-        finishedPurchasesQuery = finishedPurchasesQuery.eq("bill_type", "pakka");
       }
     }
 
@@ -60,6 +59,7 @@ export async function GET(req: NextRequest) {
       finishedPurchasesResult,
       paymentsReceivedResult,
       paymentsMadeResult,
+      jobWorkPaymentsResult,
       expensesResult,
       salaryResult,
       miscIncomeResult,
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
         .select("amount, payment_mode, bank_account:bank_accounts(id, name, type, account_category)")
         .eq("business_id", bid)
         .eq("direction", "received")
-        .eq("status", "completed")
+        .neq("status", "cancelled")
         .gte("payment_date", from)
         .lte("payment_date", to),
 
@@ -86,16 +86,24 @@ export async function GET(req: NextRequest) {
         .select("amount, payment_mode, bank_account:bank_accounts(id, name, type, account_category)")
         .eq("business_id", bid)
         .eq("direction", "paid")
-        .eq("status", "completed")
+        .neq("status", "cancelled")
+        .gte("payment_date", from)
+        .lte("payment_date", to),
+
+      // Job work payments to workers
+      supabase
+        .from("job_work_payments")
+        .select("paid_amount, payment_mode, payment_date")
+        .eq("business_id", bid)
+        .neq("status", "cancelled")
         .gte("payment_date", from)
         .lte("payment_date", to),
 
       // Expenses
       supabase
         .from("expenses")
-        .select("amount, category")
+        .select("amount, gst_amount, expense_type:expense_types(name)")
         .eq("business_id", bid)
-        .neq("status", "cancelled")
         .gte("expense_date", from)
         .lte("expense_date", to),
 
@@ -120,8 +128,8 @@ export async function GET(req: NextRequest) {
         .from("write_offs")
         .select("amount")
         .eq("business_id", bid)
-        .gte("write_off_date", from)
-        .lte("write_off_date", to),
+        .gte("written_off_at", from)
+        .lte("written_off_at", to),
 
       // Bank accounts live balances
       supabase
@@ -134,7 +142,14 @@ export async function GET(req: NextRequest) {
     const bills = salesResult.data ?? [];
     const purchases = [...(purchasesResult.data ?? []), ...(finishedPurchasesResult.data ?? [])];
     const paymentsIn = paymentsReceivedResult.data ?? [];
-    const paymentsOut = paymentsMadeResult.data ?? [];
+    const paymentsOut = [
+      ...(paymentsMadeResult.data ?? []),
+      ...((jobWorkPaymentsResult.data ?? []).map((jwp: any) => ({
+        amount: jwp.paid_amount,
+        payment_mode: jwp.payment_mode || "bank_transfer",
+        bank_account: null,
+      }))),
+    ];
     const expenses = expensesResult.data ?? [];
     const salaries = salaryResult.data ?? [];
     const miscIncome = miscIncomeResult.data ?? [];
@@ -151,7 +166,8 @@ export async function GET(req: NextRequest) {
 
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
     const expBreakdown = expenses.reduce<Record<string, number>>((acc, e) => {
-      acc[e.category ?? "Other"] = (acc[e.category ?? "Other"] || 0) + Number(e.amount);
+      const catName = (e.expense_type as any)?.name ?? "General Expense";
+      acc[catName] = (acc[catName] || 0) + Number(e.amount);
       return acc;
     }, {});
 

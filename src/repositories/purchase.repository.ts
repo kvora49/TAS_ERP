@@ -306,9 +306,6 @@ export class PurchaseRepository {
             reference_id: purchase.id,
             created_by: userId || null,
           });
-
-          // Update raw material current stock
-          await this.updateRawMaterialStock(params.businessId, inputItem.material_type_id, params.godown_id, Number(inputItem.quantity), Number(inputItem.rate), Number(inputItem.taxable_value));
         }
       } else if (type === "accessory") {
         if (inputItem.material_type_id) {
@@ -324,18 +321,17 @@ export class PurchaseRepository {
             reference_id: purchase.id,
             created_by: userId || null,
           });
-
-          await this.updateRawMaterialStock(params.businessId, inputItem.material_type_id, params.godown_id, Number(inputItem.quantity), Number(inputItem.rate), Number(inputItem.taxable_value));
         }
       } else if (type === "finished_goods") {
-        if (inputItem.design_id && inputItem.colour_id) {
+        if (inputItem.design_id) {
+          // colour_id is optional — single-colour designs or designs without a colour code are valid
           const sq = inputItem.size_quantities || {};
           const totalQty = Object.values(sq).reduce((a, b) => Number(a) + Number(b), 0) || Number(inputItem.quantity);
 
           finishedStockToInsert.push({
             business_id: params.businessId,
             design_id: inputItem.design_id,
-            colour_id: inputItem.colour_id,
+            colour_id: inputItem.colour_id || null,
             godown_id: params.godown_id,
             entry_type: "purchase",
             size_quantities: sq,
@@ -346,9 +342,10 @@ export class PurchaseRepository {
             created_by: userId || null,
           });
 
+          // Use "finished_good" (singular) to match what finished-stock-reconciliation queries
           stockLedgerToInsert.push({
             business_id: params.businessId,
-            item_type: "finished_goods",
+            item_type: "finished_good",
             item_id: inputItem.design_id,
             godown_id: params.godown_id,
             transaction_type: "purchase",
@@ -465,50 +462,6 @@ export class PurchaseRepository {
     }
 
     return purchase;
-  }
-
-  private async updateRawMaterialStock(
-    businessId: string,
-    materialTypeId: string,
-    godownId: string,
-    quantity: number,
-    rate: number,
-    taxableValue: number
-  ) {
-    const { data: existingStock } = await this.supabase
-      .from("raw_material_current_stock")
-      .select("*")
-      .eq("business_id", businessId)
-      .eq("material_type_id", materialTypeId)
-      .eq("godown_id", godownId)
-      .maybeSingle();
-
-    const newQty = Number((existingStock?.current_stock || 0)) + quantity;
-    const newValue = Number((existingStock?.stock_value || 0)) + taxableValue;
-    const newCost = newQty > 0 ? Number((newValue / newQty).toFixed(2)) : Number(rate || existingStock?.unit_cost || 0);
-
-    if (existingStock) {
-      await this.supabase
-        .from("raw_material_current_stock")
-        .update({
-          current_stock: newQty,
-          unit_cost: newCost,
-          stock_value: newValue,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingStock.id);
-    } else {
-      await this.supabase
-        .from("raw_material_current_stock")
-        .insert({
-          business_id: businessId,
-          material_type_id: materialTypeId,
-          godown_id: godownId,
-          current_stock: newQty,
-          unit_cost: newCost,
-          stock_value: newValue,
-        });
-    }
   }
 
   async softDelete(id: string, businessId: string) {

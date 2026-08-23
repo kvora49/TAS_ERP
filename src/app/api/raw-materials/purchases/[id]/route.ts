@@ -162,6 +162,30 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     }, {}, request);
 
+    // Trigger stock reconciliation so updated quantities are immediately reflected
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on purchase update warning:", recErr);
+    }
+
+    const fgDesignIds = Array.from(new Set(
+      items
+        .filter((i: any) => i.item_type === "finished_goods" && i.design_id)
+        .map((i: any) => i.design_id as string)
+    ));
+    if (fgDesignIds.length > 0) {
+      try {
+        const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+        for (const designId of Array.from(fgDesignIds)) {
+          await reconcileFinishedStock(supabase, businessId, String(designId));
+        }
+      } catch (fgRecErr) {
+        console.warn("Finished goods reconciliation on purchase update warning:", fgRecErr);
+      }
+    }
+
     return NextResponse.json({ purchase });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "An unexpected error occurred" }, { status: 500 });
@@ -188,6 +212,46 @@ export async function DELETE(
       return NextResponse.json({ error: "Purchase not found or access denied" }, { status: 404 });
     }
 
+    // PAYMENT LOCK: Block cancellation if payments have been recorded
+    const { data: payments } = await supabase
+      .from("purchase_payments")
+      .select("id, amount, status")
+      .eq("purchase_id", id)
+      .eq("business_id", businessId)
+      .eq("status", "success");
+
+    if (payments && payments.length > 0) {
+      const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+      return NextResponse.json(
+        { error: `Cannot cancel purchase: ₹${totalPaid.toLocaleString("en-IN")} has already been paid against this bill. Please cancel or unallocate payments first.` },
+        { status: 400 }
+      );
+    }
+
+    if (Number(existing.paid_amount || 0) > 0) {
+      return NextResponse.json(
+        { error: `Cannot cancel purchase: ₹${existing.paid_amount} has already been paid against this bill.` },
+        { status: 400 }
+      );
+    }
+
+    // RETURN LOCK: Block cancellation if active purchase returns exist
+    const { data: linkedReturns } = await supabase
+      .from("purchase_returns")
+      .select("id, return_number")
+      .eq("purchase_id", id)
+      .eq("business_id", businessId)
+      .neq("status", "cancelled")
+      .is("deleted_at", null)
+      .limit(1);
+
+    if (linkedReturns && linkedReturns.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot cancel purchase: Purchase Return ${linkedReturns[0].return_number} exists against this bill. Cancel the return first.` },
+        { status: 400 }
+      );
+    }
+
     // 1. Stock In-Use Check: Check if any purchase rolls have already been consumed/partially used
     const itemIdsList = (existing.items || []).map((it: any) => it.id);
 
@@ -212,50 +276,73 @@ export async function DELETE(
       }
     }
 
-    // 2. Revert Stock & Insert Stock Ledger Reversal
+    // 2. Revert Stock & Insert Stock Ledger Reversal (by item type)
     const { data: { user } } = await supabase.auth.getUser();
+    const fgDesignIdsToReconcile = new Set<string>();
 
     for (const item of existing.items || []) {
       const qty = Number(item.quantity || 0);
       const val = Number(item.taxable_value || item.amount || 0);
+      const itemType = item.item_type || (item.material_type_id ? "fabric" : "finished_goods");
 
-      // Insert negative delta entry into stock_ledger to reverse inventory
-      await supabase.from("stock_ledger").insert({
-        business_id: businessId,
-        item_type: "raw_material",
-        item_id: item.material_type_id,
-        godown_id: existing.godown_id,
-        transaction_type: "purchase_cancellation",
-        quantity_delta: -qty,
-        value_delta: -val,
-        reference_table: "raw_material_purchases",
-        reference_id: id,
-        created_by: user?.id || null,
-      });
+      if (itemType === "finished_goods" && item.design_id) {
+        // Finished goods: log reversal ledger, reconciler rebuilds finished_stock
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "finished_good",
+          item_id: item.design_id,
+          godown_id: existing.godown_id || null,
+          transaction_type: "purchase_cancellation",
+          quantity_delta: -qty,
+          value_delta: -val,
+          reference_table: "raw_material_purchases",
+          reference_id: id,
+          created_by: user?.id || null,
+        });
+        fgDesignIdsToReconcile.add(item.design_id);
 
-      // Update raw_material_current_stock for godown
-      const { data: stockEntry } = await supabase
-        .from("raw_material_current_stock")
-        .select("*")
-        .eq("business_id", businessId)
-        .eq("material_type_id", item.material_type_id)
-        .eq("godown_id", existing.godown_id)
-        .maybeSingle();
+      } else if ((itemType === "fabric" || itemType === "accessory") && item.material_type_id) {
+        // Fabric & Accessory: reverse raw_material_current_stock directly
+        await supabase.from("stock_ledger").insert({
+          business_id: businessId,
+          item_type: "raw_material",
+          item_id: item.material_type_id,
+          godown_id: existing.godown_id,
+          transaction_type: "purchase_cancellation",
+          quantity_delta: -qty,
+          value_delta: -val,
+          reference_table: "raw_material_purchases",
+          reference_id: id,
+          created_by: user?.id || null,
+        });
 
-      if (stockEntry) {
-        const updatedQty = Math.max(0, Number(stockEntry.current_stock || 0) - qty);
-        const updatedValue = Math.max(0, Number(stockEntry.stock_value || 0) - val);
-        const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
-
-        await supabase
+        const { data: stockEntry } = await supabase
           .from("raw_material_current_stock")
-          .update({
-            current_stock: updatedQty,
-            stock_value: updatedValue,
-            unit_cost: updatedUnitCost,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", stockEntry.id);
+          .select("*")
+          .eq("business_id", businessId)
+          .eq("material_type_id", item.material_type_id)
+          .eq("godown_id", existing.godown_id)
+          .maybeSingle();
+
+        if (stockEntry) {
+          const updatedQty = Math.max(0, Number(stockEntry.current_stock || 0) - qty);
+          const updatedValue = Math.max(0, Number(stockEntry.stock_value || 0) - val);
+          const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
+
+          await supabase
+            .from("raw_material_current_stock")
+            .update({
+              current_stock: updatedQty,
+              stock_value: updatedValue,
+              unit_cost: updatedUnitCost,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", stockEntry.id);
+        }
+
+      } else if (itemType === "others") {
+        // Others: soft-delete linked expense records (handled via service.deletePurchase below)
+        // No inventory stock to reverse
       }
     }
 
@@ -282,11 +369,24 @@ export async function DELETE(
       deleted_at: new Date().toISOString(),
     }, { purchase_number: existing.purchase_number, grand_total: existing.grand_total, status: existing.status }, request);
 
+    // 5. Reconcile raw material stock
     try {
       const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
       await reconcileRawMaterialStock(supabase, businessId);
     } catch (recErr) {
       console.warn("Reconciliation on purchase deletion warning:", recErr);
+    }
+
+    // 6. Reconcile finished goods stock for any FG items that were cancelled
+    if (fgDesignIdsToReconcile.size > 0) {
+      try {
+        const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+        for (const designId of Array.from(fgDesignIdsToReconcile)) {
+          await reconcileFinishedStock(supabase, businessId, designId);
+        }
+      } catch (fgRecErr) {
+        console.warn("Finished goods reconciliation on purchase deletion warning:", fgRecErr);
+      }
     }
 
     return NextResponse.json({ success: true, message: `Purchase ${existing.purchase_number} successfully cancelled and stock reverted.` });

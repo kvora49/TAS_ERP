@@ -200,7 +200,17 @@ export default function SaleBillDetailPage() {
     },
     {
       successMessage: "Bill cancelled successfully",
-      invalidates: [["sales-bills"], ["sales-bill-detail", id as string]],
+      invalidates: [
+        ["sales-bills"],
+        ["sales-bill-detail", id as string],
+        ["finished-stock"],
+        ["designs-list"],
+        ["design-detail-filters"],
+        ["godowns-list"],
+        ["dashboard-stats"],
+        ["raw-materials-stock"],
+        ["raw-materials"],
+      ],
       onSuccess: () => {
         router.push("/sales/bills");
         router.refresh();

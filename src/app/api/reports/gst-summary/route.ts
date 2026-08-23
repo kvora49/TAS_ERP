@@ -6,9 +6,13 @@ export async function GET(request: Request) {
   const businessId = await getSessionBusinessId();
   if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const today = new Date();
+  const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const defaultFrom = `${fyStartYear}-04-01`;
+
   const { searchParams } = new URL(request.url);
-  const fromDate = searchParams.get("from") || new Date(new Date().getFullYear(), 3, 1).toISOString().split("T")[0];
-  const toDate = searchParams.get("to") || new Date().toISOString().split("T")[0];
+  const fromDate = searchParams.get("from") || defaultFrom;
+  const toDate = searchParams.get("to") || today.toISOString().split("T")[0];
 
   try {
     const { data: gstData, error: gstError } = await supabase

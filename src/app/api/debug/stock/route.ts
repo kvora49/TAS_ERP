@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -7,12 +8,6 @@ export async function GET(request: Request) {
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  // Fetch godowns
-  const { data: godowns } = await supabase
-    .from("godowns")
-    .select("id, name, code, is_default, deleted_at")
-    .eq("business_id", businessId);
 
   const { searchParams } = new URL(request.url);
   const searchId = searchParams.get("id");
@@ -25,24 +20,27 @@ export async function GET(request: Request) {
 
   const targetMat = searchId
     ? matTypes?.find((m) => m.id === searchId)
-    : matTypes?.find((m) => m.name?.toLowerCase().includes("cotton drill")) || matTypes?.[0];
+    : matTypes?.find((m) => m.name?.toLowerCase().includes("imported denim")) || matTypes?.[0];
   const matId = targetMat?.id;
 
-  // Fetch raw_material_current_stock for cotton drill
+  // Run reconciliation now to test
+  const recResult = matId ? await reconcileRawMaterialStock(supabase, businessId, matId) : null;
+
+  // Fetch raw_material_current_stock after reconciliation
   const { data: currentStock } = await supabase
     .from("raw_material_current_stock")
     .select("*, godown:godowns(id, name)")
     .eq("business_id", businessId)
     .eq("material_type_id", matId);
 
-  // Fetch purchases for cotton drill
+  // Fetch purchases
   const { data: purchaseItems } = await supabase
     .from("raw_material_purchase_items")
     .select("*, purchase:raw_material_purchases(id, purchase_number, invoice_no, godown_id, godown:godowns(id, name))")
     .eq("business_id", businessId)
     .eq("material_type_id", matId);
 
-  // Fetch rolls for cotton drill
+  // Fetch rolls
   const pItemIds = (purchaseItems || []).map((pi) => pi.id);
   let rolls: any[] = [];
   if (pItemIds.length > 0) {
@@ -53,29 +51,25 @@ export async function GET(request: Request) {
     rolls = rData || [];
   }
 
-  // Fetch returns for cotton drill
-  const { data: returnItems } = await supabase
-    .from("purchase_return_items")
-    .select("*, purchase_return:purchase_returns(id, return_number, godown_id, purchase_id, godown:godowns(id, name))")
-    .eq("business_id", businessId)
-    .eq("material_type_id", matId);
+  // Fetch stock entries
+  const { data: stockEntries } = await supabase
+    .from("raw_material_stock_entries")
+    .select("*")
+    .eq("business_id", businessId);
 
-  // Fetch stock_ledger for cotton drill
-  const { data: ledger } = await supabase
-    .from("stock_ledger")
-    .select("*, godown:godowns(id, name)")
-    .eq("business_id", businessId)
-    .eq("item_type", "raw_material")
-    .eq("item_id", matId);
+  const { data: stockEntryItems } = await supabase
+    .from("raw_material_stock_entry_items")
+    .select("*")
+    .eq("material_type_id", matId);
 
   return NextResponse.json({
     businessId,
-    godowns,
     targetMat,
+    recResult,
     currentStock,
     purchaseItems,
     rolls,
-    returnItems,
-    ledger,
+    stockEntries,
+    stockEntryItems,
   });
 }

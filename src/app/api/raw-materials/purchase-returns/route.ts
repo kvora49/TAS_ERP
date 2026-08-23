@@ -367,7 +367,7 @@ export async function POST(request: Request) {
                 current_stock: newQty,
                 unit_cost: newCost,
                 stock_value: newValue,
-                updated_at: new Date().toISOString(),
+                last_updated_at: new Date().toISOString(),
               })
               .eq("id", existingStock.id);
           }

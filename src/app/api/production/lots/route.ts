@@ -704,11 +704,18 @@ export async function POST(request: Request) {
                 current_stock: updatedQty,
                 stock_value: updatedValue,
                 unit_cost: updatedUnitCost,
-                updated_at: new Date().toISOString(),
+                last_updated_at: new Date().toISOString(),
               })
               .eq("id", stockEntry.id);
           }
         }
+      }
+
+      try {
+        const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+        await reconcileRawMaterialStock(supabase, businessId);
+      } catch (recErr) {
+        console.warn("Reconciliation on roll allocation warning:", recErr);
       }
     }
 

@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: userData } = await supabase.from("users").select("business_id").eq("id", user.id).single();
-  if (!userData?.business_id) return NextResponse.json({ error: "No business" }, { status: 400 });
+  const today = new Date();
+  const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
-  const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const from = searchParams.get("from") ?? defaultFrom;
+  const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const tab = searchParams.get("tab") ?? "receivables";
   const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null
   const partyId = searchParams.get("party_id");
   const agingBucket = searchParams.get("aging_bucket");
-  const bid = userData.business_id;
+  const bid = businessId;
 
   try {
     if (tab === "receivables") {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
         .from("sale_bills")
         .select(`
           id, bill_number, bill_date, bill_type, grand_total, paid_amount, payment_status,
-          parties!inner(id, name, company_name)
+          parties(id, name, company_name)
         `)
         .eq("business_id", bid)
         .eq("status", "active")
@@ -60,10 +61,10 @@ export async function GET(req: NextRequest) {
       const totalBills = rows.length;
 
       // Aging buckets
-      const today = new Date();
+      const agingToday = new Date();
       const aging = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
       for (const r of rows) {
-        const days = Math.floor((today.getTime() - new Date(r.date).getTime()) / 86400000);
+        const days = Math.floor((agingToday.getTime() - new Date(r.date).getTime()) / 86400000);
         if (days <= 30) aging["0-30"] += r.outstanding;
         else if (days <= 60) aging["31-60"] += r.outstanding;
         else if (days <= 90) aging["61-90"] += r.outstanding;
@@ -76,11 +77,11 @@ export async function GET(req: NextRequest) {
     if (tab === "payables") {
       // Outstanding to suppliers = raw_material_purchases + purchase_bills not fully paid
       let rmQuery = supabase.from("raw_material_purchases")
-        .select(`id, purchase_number, invoice_date, grand_total, paid_amount, payment_status, gst_type, parties!inner(id, name, company_name)`)
+        .select(`id, purchase_number, invoice_date, grand_total, paid_amount, payment_status, gst_type, parties(id, name, company_name)`)
         .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").is("deleted_at", null).lte("invoice_date", to);
 
       let pgQuery = supabase.from("purchase_bills")
-        .select(`id, bill_number, invoice_date, grand_total, paid_amount, payment_status, bill_type, parties!inner(id, name, company_name)`)
+        .select(`id, bill_number, invoice_date, grand_total, paid_amount, payment_status, bill_type, parties(id, name, company_name)`)
         .eq("business_id", bid).neq("payment_status", "paid").neq("status", "cancelled").lte("invoice_date", to);
 
       if (billType && (billType === "kacha" || billType === "pakka")) {
@@ -117,10 +118,10 @@ export async function GET(req: NextRequest) {
       const rows = [...rmRows, ...pgRows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
 
-      const today = new Date();
+      const agingToday = new Date();
       const aging = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
       for (const r of rows) {
-        const days = Math.floor((today.getTime() - new Date(r.date).getTime()) / 86400000);
+        const days = Math.floor((agingToday.getTime() - new Date(r.date).getTime()) / 86400000);
         if (days <= 30) aging["0-30"] += r.outstanding;
         else if (days <= 60) aging["31-60"] += r.outstanding;
         else if (days <= 90) aging["61-90"] += r.outstanding;
@@ -135,13 +136,11 @@ export async function GET(req: NextRequest) {
 
     // UPI / Bank / Cash / Combined — filter payments table by payment_mode
     const modeFilter: Record<string, string[]> = {
-      upi: ["upi"],
-      bank: ["bank_transfer", "neft", "rtgs", "cheque"],
-      cash: ["cash"],
-      combined: ["cash", "bank_transfer", "neft", "rtgs", "cheque", "upi"],
+      upi: ["upi", "gpay", "phonepe", "paytm", "qr"],
+      bank: ["bank_transfer", "neft", "rtgs", "cheque", "bank", "net_banking", "card", "online", "pdc", "imps"],
+      cash: ["cash", "cash_payment"],
+      combined: [],
     };
-
-    const modes = modeFilter[tab] ?? modeFilter["combined"];
 
     let paymentsQuery = supabase
       .from("payments")
@@ -149,14 +148,17 @@ export async function GET(req: NextRequest) {
         id, payment_number, payment_date, direction, payment_mode,
         amount, reference_no, remarks, status, bank_account_id,
         bank_account:bank_accounts(id, name, bank_name, type, account_category),
-        parties!inner(id, name, company_name)
+        parties(id, name, company_name)
       `)
       .eq("business_id", bid)
-      .eq("status", "completed")
-      .in("payment_mode", modes)
+      .neq("status", "cancelled")
       .gte("payment_date", from)
       .lte("payment_date", to)
       .order("payment_date", { ascending: false });
+
+    if (tab !== "combined" && modeFilter[tab] && modeFilter[tab].length > 0) {
+      paymentsQuery = paymentsQuery.in("payment_mode", modeFilter[tab]);
+    }
 
     if (direction && (direction === "received" || direction === "paid")) {
       paymentsQuery = paymentsQuery.eq("direction", direction);

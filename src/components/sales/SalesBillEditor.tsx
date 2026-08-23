@@ -185,7 +185,18 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     },
     {
       successMessage: mode === "create" ? "Invoice generated successfully!" : "Invoice updated successfully!",
-      invalidates: [["sales-bills"], ["sales-bill-detail", billId]],
+      invalidates: [
+        ["sales-bills"],
+        ["sales-bill-detail", billId],
+        ["finished-stock"],
+        ["designs-list"],
+        ["design-detail-filters"],
+        ["design-stock-filters-section"],
+        ["godowns-list"],
+        ["dashboard-stats"],
+        ["raw-materials-stock"],
+        ["raw-materials"],
+      ],
       onSuccess: (data: any) => {
         setIsSubmitting(false);
         const billObj = data?.data || data?.bill || data;

@@ -26,7 +26,7 @@ export function setActiveCompanyId(companyId: string): void {
   try {
     const cookieStore = cookies();
     const cookieOptions = {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax" as const,
       path: "/",

@@ -10,7 +10,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await reconcileRawMaterialStock(supabase, businessId);
+    const body = await request.json().catch(() => ({}));
+    const { targetMaterialTypeId } = body;
+    const result = await reconcileRawMaterialStock(supabase, businessId, targetMaterialTypeId);
     return NextResponse.json(result);
   } catch (err: any) {
     console.error("[/api/raw-materials/stock/reconcile] ERROR:", err);

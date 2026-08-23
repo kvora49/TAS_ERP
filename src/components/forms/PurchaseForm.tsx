@@ -1277,337 +1277,416 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                         </button>
                       </div>
 
-                      {/* Row 1 - Conditional based on item_type */}
+                      {/* Row 1 & 2 - Conditional based on item_type */}
                       {watchItems[index]?.item_type === "finished_goods" ? (
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                          <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Design Code *</label>
-                            <input type="hidden" {...register(`items.${index}.design_id` as const)} />
-                            <DesignCombobox
-                              value={watchItems[index]?.design_id || ""}
-                              onChange={(val) => {
-                                setValue(`items.${index}.design_id`, val);
-                                const selectedDes = designs.find((d) => d.id === val);
-                                if (selectedDes?.hsn_code) {
-                                  setValue(`items.${index}.hsn_sac`, selectedDes.hsn_code);
-                                }
-                                if (selectedDes?.design_colours?.length) {
-                                  setValue(`items.${index}.colour_id`, selectedDes.design_colours[0].id);
-                                }
-                              }}
-                              designs={designs}
-                              disabled={loadingDesigns}
-                              onAddNew={() => {
-                                setQuickAddDesignItemIndex(index);
-                                setQuickAddDesignOpen(true);
-                              }}
-                            />
+                        <div className="space-y-3">
+                          {/* Row 1: Design, Color, HSN */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-5">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Design Code *</label>
+                              <input type="hidden" {...register(`items.${index}.design_id` as const)} />
+                              <DesignCombobox
+                                value={watchItems[index]?.design_id || ""}
+                                onChange={(val) => {
+                                  setValue(`items.${index}.design_id`, val);
+                                  const selectedDes = designs.find((d) => d.id === val);
+                                  if (selectedDes?.hsn_code) {
+                                    setValue(`items.${index}.hsn_sac`, selectedDes.hsn_code);
+                                  }
+                                  if (selectedDes?.design_colours?.length) {
+                                    setValue(`items.${index}.colour_id`, selectedDes.design_colours[0].id);
+                                  }
+                                }}
+                                designs={designs}
+                                disabled={loadingDesigns}
+                                onAddNew={() => {
+                                  setQuickAddDesignItemIndex(index);
+                                  setQuickAddDesignOpen(true);
+                                }}
+                              />
+                            </div>
+
+                            <div className="md:col-span-4">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Color *</label>
+                              <select
+                                {...register(`items.${index}.colour_id` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent font-semibold text-[var(--text-primary)] truncate cursor-pointer transition-colors"
+                              >
+                                <option value="">Select Color</option>
+                                {(() => {
+                                  const selectedDes = designs.find((d) => d.id === watchItems[index]?.design_id);
+                                  return (selectedDes?.design_colours || []).map((c: any) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.colour_name}
+                                    </option>
+                                  ));
+                                })()}
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                              <input
+                                type="text"
+                                placeholder="6109"
+                                {...register(`items.${index}.hsn_sac` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
 
-                          <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Color *</label>
-                            <select
-                              {...register(`items.${index}.colour_id` as const)}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-semibold text-[#0F172A] truncate"
-                            >
-                              <option value="">Select Color</option>
-                              {(() => {
-                                const selectedDes = designs.find((d) => d.id === watchItems[index]?.design_id);
-                                return (selectedDes?.design_colours || []).map((c: any) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.colour_name}
-                                  </option>
-                                ));
-                              })()}
-                            </select>
-                          </div>
+                          {/* Row 2: Total Pcs, Unit, Rate, Discount */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Total Pcs (Size Breakdown)</label>
+                              <NumericInput
+                                disabled
+                                value={watchItems[index]?.quantity || 0}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold bg-[var(--page-bg)] text-[var(--text-primary)] font-mono truncate select-none cursor-not-allowed"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
-                            <input
-                              type="text"
-                              placeholder="6109"
-                              {...register(`items.${index}.hsn_sac` as const)}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
+                              <input
+                                type="text"
+                                placeholder="Pcs"
+                                {...register(`items.${index}.unit` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Total Pcs</label>
-                            <NumericInput
-                              disabled
-                              value={watchItems[index]?.quantity || 0}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold bg-slate-50 text-slate-700 truncate"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate/Pc (₹) *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0.00"
+                                {...register(`items.${index}.rate` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.rate` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate/Pc (₹) *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0.00"
-                              {...register(`items.${index}.rate` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.rate` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Discount (%)</label>
+                              <NumericInput
+                                placeholder="0"
+                                {...register(`items.${index}.discount_percent` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.discount_percent` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : watchItems[index]?.item_type === "others" ? (
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                          <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Item / Expense Description *</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. 55-inch TV / Office Table"
-                              {...register(`items.${index}.other_item_name` as const)}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
+                        <div className="space-y-3">
+                          {/* Row 1: Item Description, Category, HSN/SAC */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-5">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Item / Expense Description *</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. 55-inch TV / Office Table"
+                                {...register(`items.${index}.other_item_name` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
+
+                            <div className="md:col-span-4">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Category</label>
+                              <select
+                                {...register(`items.${index}.other_category` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent font-semibold text-[var(--text-primary)] cursor-pointer truncate transition-colors"
+                              >
+                                <option value="capital_asset">Capital Asset (TV/Table)</option>
+                                <option value="office_expense">Office Expense (Stationery)</option>
+                                <option value="consumable">Consumable (Cleaning)</option>
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                              <input
+                                type="text"
+                                placeholder="HSN/SAC"
+                                {...register(`items.${index}.hsn_sac` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
 
-                          <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Category</label>
-                            <select
-                              {...register(`items.${index}.other_category` as const)}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-semibold text-[#0F172A] cursor-pointer truncate"
-                            >
-                              <option value="capital_asset">Capital Asset (TV/Table)</option>
-                              <option value="office_expense">Office Expense (Stationery)</option>
-                              <option value="consumable">Consumable (Cleaning)</option>
-                            </select>
-                          </div>
+                          {/* Row 2: Qty, Unit, Rate, Discount */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Qty *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="1"
+                                {...register(`items.${index}.quantity` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.quantity` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Unit</label>
-                            <input
-                              type="text"
-                              placeholder="Pcs"
-                              {...register(`items.${index}.unit` as const)}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
+                              <input
+                                type="text"
+                                placeholder="Pcs"
+                                {...register(`items.${index}.unit` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Qty *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="1"
-                              {...register(`items.${index}.quantity` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.quantity` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0.00"
+                                {...register(`items.${index}.rate` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.rate` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0.00"
-                              {...register(`items.${index}.rate` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.rate` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full h-10 px-3 border border-[#CBD5E1] rounded-lg text-xs sm:text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                            />
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Discount (%)</label>
+                              <NumericInput
+                                placeholder="0"
+                                {...register(`items.${index}.discount_percent` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.discount_percent` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (watchItems[index]?.item_type || "fabric") === "fabric" ? (
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                          <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
-                            <input
-                              type="hidden"
-                              {...register(`items.${index}.material_type_id` as const)}
-                            />
-                            <MaterialTypeCombobox
-                              value={watchItems[index]?.material_type_id || ""}
-                              onChange={(val) => {
-                                setValue(`items.${index}.material_type_id`, val);
-                                handleMaterialChange(index, val);
-                              }}
-                              materialTypes={materialTypes}
-                              disabled={loadingMaterials}
-                              onAddNew={() => {
-                                setNewTypeItemIndex(index);
-                                setNewTypeModalOpen(true);
-                              }}
-                            />
-                            {errors.items?.[index]?.material_type_id && (
-                              <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
-                            )}
+                        <div className="space-y-3">
+                          {/* Row 1: Material Type, Design Name, Grade, HSN/SAC */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-4">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
+                              <input
+                                type="hidden"
+                                {...register(`items.${index}.material_type_id` as const)}
+                              />
+                              <MaterialTypeCombobox
+                                value={watchItems[index]?.material_type_id || ""}
+                                onChange={(val) => {
+                                  setValue(`items.${index}.material_type_id`, val);
+                                  handleMaterialChange(index, val);
+                                }}
+                                materialTypes={materialTypes}
+                                disabled={loadingMaterials}
+                                onAddNew={() => {
+                                  setNewTypeItemIndex(index);
+                                  setNewTypeModalOpen(true);
+                                }}
+                              />
+                              {errors.items?.[index]?.material_type_id && (
+                                <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
+                              )}
+                            </div>
+
+                            <div className="md:col-span-4">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Design Name</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Solid Indigo / Floral Print"
+                                {...register(`items.${index}.design_name` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Grade *</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Fresh / Grade A"
+                                {...register(`items.${index}.grade` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. 520811"
+                                {...register(`items.${index}.hsn_sac` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Grade *</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Fresh / Grade A"
-                              {...register(`items.${index}.grade` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                            />
-                          </div>
+                          {/* Row 2: Total Meters, Unit, Rate, Discount */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                                Total Meters (Rolls Total)
+                              </label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0.00"
+                                disabled={true}
+                                {...register(`items.${index}.quantity` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--page-bg)] text-[var(--text-primary)] rounded-lg text-sm text-right font-mono font-bold focus:outline-none disabled:opacity-90 transition-colors select-none cursor-not-allowed"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Design Name</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Solid Indigo / Floral"
-                              {...register(`items.${index}.design_name` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
+                              <input
+                                type="text"
+                                placeholder="meter"
+                                {...register(`items.${index}.unit` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
-                            <input
-                              type="text"
-                              placeholder="HSN"
-                              {...register(`items.${index}.hsn_sac` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹/m) *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0.00"
+                                {...register(`items.${index}.rate` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.rate` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
-                            <input
-                              type="text"
-                              placeholder="meter"
-                              {...register(`items.${index}.unit` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
-                            />
-                          </div>
-
-                          <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
-                              Total Meters
-                            </label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0"
-                              disabled={true}
-                              {...register(`items.${index}.quantity` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.quantity` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all disabled:bg-[var(--page-bg)] disabled:text-[var(--text-secondary)]"
-                            />
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0.00"
-                              {...register(`items.${index}.rate` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.rate` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Discount (%)</label>
+                              <NumericInput
+                                placeholder="0"
+                                {...register(`items.${index}.discount_percent` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.discount_percent` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                          <div className="md:col-span-4">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material Type *</label>
-                            <input
-                              type="hidden"
-                              {...register(`items.${index}.material_type_id` as const)}
-                            />
-                            <MaterialTypeCombobox
-                              value={watchItems[index]?.material_type_id || ""}
-                              onChange={(val) => {
-                                setValue(`items.${index}.material_type_id`, val);
-                                handleMaterialChange(index, val);
-                              }}
-                              materialTypes={materialTypes}
-                              disabled={loadingMaterials}
-                              onAddNew={() => {
-                                setNewTypeItemIndex(index);
-                                setNewTypeModalOpen(true);
-                              }}
-                            />
-                            {errors.items?.[index]?.material_type_id && (
-                              <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
-                            )}
+                        <div className="space-y-3">
+                          {/* Row 1: Raw Material Type, HSN/SAC */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-8">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Raw Material / Accessory Type *</label>
+                              <input
+                                type="hidden"
+                                {...register(`items.${index}.material_type_id` as const)}
+                              />
+                              <MaterialTypeCombobox
+                                value={watchItems[index]?.material_type_id || ""}
+                                onChange={(val) => {
+                                  setValue(`items.${index}.material_type_id`, val);
+                                  handleMaterialChange(index, val);
+                                }}
+                                materialTypes={materialTypes}
+                                disabled={loadingMaterials}
+                                onAddNew={() => {
+                                  setNewTypeItemIndex(index);
+                                  setNewTypeModalOpen(true);
+                                }}
+                              />
+                              {errors.items?.[index]?.material_type_id && (
+                                <p className="text-[10px] text-red-500 mt-1">{errors.items[index]?.material_type_id?.message}</p>
+                              )}
+                            </div>
+
+                            <div className="md:col-span-4">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
+                              <input
+                                type="text"
+                                placeholder="HSN"
+                                {...register(`items.${index}.hsn_sac` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
-                            <input
-                              type="text"
-                              placeholder="HSN"
-                              {...register(`items.${index}.hsn_sac` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
-                            />
-                          </div>
+                          {/* Row 2: Qty, Unit, Rate, Discount */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Qty *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0"
+                                {...register(`items.${index}.quantity` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.quantity` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
-                            <input
-                              type="text"
-                              placeholder="Pcs"
-                              {...register(`items.${index}.unit` as const)}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Unit</label>
+                              <input
+                                type="text"
+                                placeholder="Pcs"
+                                {...register(`items.${index}.unit` as const)}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Qty *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0"
-                              {...register(`items.${index}.quantity` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.quantity` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
-                            />
-                          </div>
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
+                              <NumericInput
+                                step="0.01"
+                                placeholder="0.00"
+                                {...register(`items.${index}.rate` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.rate` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Rate (₹) *</label>
-                            <NumericInput
-                              step="0.01"
-                              placeholder="0.00"
-                              {...register(`items.${index}.rate` as const)}
-                              onChange={(e) => {
-                                register(`items.${index}.rate` as const).onChange(e);
-                                recalcItem(index);
-                              }}
-                              className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Discount (%)</label>
+                              <NumericInput
+                                placeholder="0"
+                                {...register(`items.${index}.discount_percent` as const)}
+                                onChange={(e) => {
+                                  register(`items.${index}.discount_percent` as const).onChange(e);
+                                  recalcItem(index);
+                                }}
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Row 2 */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1.5">
-                        <div className={watchGstType === "with_gst" ? "md:col-span-2" : "md:col-span-3"}>
-                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Disc (%)</label>
-                          <NumericInput
-                            placeholder="0"
-                            {...register(`items.${index}.discount_percent` as const)}
-                            onChange={(e) => {
-                              register(`items.${index}.discount_percent` as const).onChange(e);
-                              recalcItem(index);
-                            }}
-                            className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        </div>
-
-                        <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-4"}>
-                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Taxable</label>
-                          <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-secondary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                      {/* Row 3: Taxable, GST %, GST Amt, Total Summary Bar */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-[var(--border-light)]">
+                        <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-6"}>
+                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Taxable Value</label>
+                          <div className="w-full h-10 px-3 flex items-center justify-end bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-sm text-right font-mono font-bold text-[var(--text-secondary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                             {formatCurrency(Number(watchItems[index]?.taxable_value || 0))}
                           </div>
                         </div>
@@ -1622,22 +1701,22 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   register(`items.${index}.gst_percent` as const).onChange(e);
                                   recalcItem(index);
                                 }}
-                                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg text-xs sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+                                className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                               />
                             </div>
 
-                            <div className="md:col-span-2">
-                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">GST Amt</label>
-                              <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-muted)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                            <div className="md:col-span-3">
+                              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">GST Amount</label>
+                              <div className="w-full h-10 px-3 flex items-center justify-end bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-sm text-right font-mono font-bold text-[var(--text-muted)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                                 {formatCurrency(Number(watchItems[index]?.gst_amount || 0))}
                               </div>
                             </div>
                           </>
                         )}
 
-                        <div className={watchGstType === "with_gst" ? "md:col-span-3" : "md:col-span-5"}>
-                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Total (₹)</label>
-                          <div className="w-full px-2.5 py-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-right font-mono font-bold text-[var(--text-primary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
+                        <div className={watchGstType === "with_gst" ? "md:col-span-4" : "md:col-span-6"}>
+                          <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Total Item Amount (₹)</label>
+                          <div className="w-full h-10 px-3 flex items-center justify-end bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-sm text-right font-mono font-bold text-[var(--text-primary)] select-none overflow-x-auto whitespace-nowrap scrollbar-none">
                             {formatCurrency(Number(watchItems[index]?.amount || 0))}
                           </div>
                         </div>
@@ -1736,26 +1815,27 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                           ) : (
                             <div className="space-y-2">
                               {(watchItems[index]?.rolls || []).map((roll: any, rollIndex: number) => (
-                                <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)] items-end">
+                                <div key={rollIndex} className="grid grid-cols-1 md:grid-cols-12 gap-2.5 bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)] items-end">
                                   {/* Roll Number */}
-                                  <div className="md:col-span-1 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Roll No *</label>
+                                  <div className="md:col-span-2 space-y-1">
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Roll No *</label>
                                     <input
                                       type="text"
                                       required
-                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded text-xs focus:ring-1 focus:ring-[var(--input-focus)]"
+                                      placeholder="R-1"
+                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                                       {...register(`items.${index}.rolls.${rollIndex}.roll_number` as const)}
                                     />
                                   </div>
 
                                   {/* Meters */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Meters *</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Meters *</label>
                                     <NumericInput
                                       step="0.01"
-                                      placeholder="0"
-                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right font-bold min-w-0"
-                                      value={watchItems[index]?.rolls?.[rollIndex]?.meters || ""}
+                                      placeholder="0.00"
+                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs text-right font-mono font-bold focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                                      value={watchItems[index]?.rolls?.[rollIndex]?.meters ?? ""}
                                       onChange={(e) => {
                                         const meters = Number(e.target.value || 0);
                                         handleRollMetersChange(index, rollIndex, meters);
@@ -1765,31 +1845,31 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                                   {/* Shade */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Shade *</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Shade *</label>
                                     <input
                                       type="text"
                                       placeholder="e.g. Indigo"
                                       required
-                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs"
+                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                                       {...register(`items.${index}.rolls.${rollIndex}.shade` as const)}
                                     />
                                   </div>
 
                                   {/* Width */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Width</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Width (inch)</label>
                                     <NumericInput
-                                      placeholder="inch"
-                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right min-w-0"
+                                      placeholder="e.g. 58"
+                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                                       {...register(`items.${index}.rolls.${rollIndex}.width` as const)}
                                     />
                                   </div>
 
                                   {/* Weight Unit */}
-                                  <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Wt Unit</label>
+                                  <div className="md:col-span-1 space-y-1">
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Wt Unit</label>
                                     <select
-                                      className="w-full h-8 pl-2 pr-6 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded text-xs font-bold cursor-pointer focus:ring-1 focus:ring-[var(--input-focus)] uppercase"
+                                      className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
                                     >
                                       <option value="gsm">GSM</option>
@@ -1799,23 +1879,23 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
                                   {/* Weight Value */}
                                   <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Wt Value</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Wt Value</label>
                                     <NumericInput
                                       placeholder="Value"
-                                      className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded text-xs text-right min-w-0"
+                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                                       {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
                                     />
                                   </div>
 
-                                  {/* Remove Roll */}
-                                  <div className="md:col-span-1 flex justify-end">
+                                  {/* Remove Roll Button */}
+                                  <div className="md:col-span-1 flex justify-end pb-0.5">
                                     <button
                                       type="button"
                                       onClick={() => removeRoll(index, rollIndex)}
-                                      className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded flex items-center justify-center cursor-pointer transition-all border border-transparent hover:border-rose-100"
+                                      className="h-9 w-9 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-rose-200"
                                       title="Remove Roll"
                                     >
-                                      <Trash2 size={14} />
+                                      <Trash2 size={15} />
                                     </button>
                                   </div>
                                 </div>
@@ -1968,9 +2048,9 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
       {/* Inline Material Type Creation Dialog */}
       <Dialog open={newTypeModalOpen} onOpenChange={setNewTypeModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+        <DialogContent className="sm:max-w-md bg-[var(--card-bg)] rounded-xl shadow-lg border border-[var(--border)] text-[var(--text-primary)]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
+            <DialogTitle className="text-lg font-bold text-[var(--text-primary)]">
               Add New Raw Material Type
             </DialogTitle>
           </DialogHeader>
@@ -1978,7 +2058,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           <form onSubmit={handleCreateMaterialType} className="space-y-4 pt-2">
             {/* Material Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Material Name *
               </label>
               <input
@@ -1986,7 +2066,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 placeholder="e.g. Cotton Drill Fabric, YKK Zipper"
                 value={newTypeName}
                 onChange={(e) => setNewTypeName(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
                 required
               />
             </div>
@@ -1994,13 +2074,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             {/* Category & Unit */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   Category *
                 </label>
                 <select
                   value={newTypeCategory}
                   onChange={(e) => setNewTypeCategory(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all cursor-pointer font-semibold text-[var(--text-primary)]"
                 >
                   {["Fabric", "Thread", "Button", "Elastic", "Zipper", "Label", "Packaging", "Other"].map((cat) => (
                     <option key={cat} value={cat}>
@@ -2011,13 +2091,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   Unit *
                 </label>
                 <select
                   value={newTypeUnit}
                   onChange={(e) => setNewTypeUnit(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all cursor-pointer font-semibold text-[var(--text-primary)]"
                 >
                   {["meter", "kg", "piece", "cone", "yard", "roll", "set"].map((unit) => (
                     <option key={unit} value={unit}>
@@ -2030,7 +2110,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
             {/* Description */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Description
               </label>
               <textarea
@@ -2038,13 +2118,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 value={newTypeDescription}
                 onChange={(e) => setNewTypeDescription(e.target.value)}
                 rows={2}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none text-[#0F172A]"
+                className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all resize-none text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
               />
             </div>
 
             {/* Reorder Level */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Reorder Alert Level
               </label>
               <input
@@ -2052,11 +2132,11 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 placeholder="0"
                 value={newTypeReorderLevel}
                 onChange={(e) => setNewTypeReorderLevel(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all text-[var(--text-primary)]"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
+            <DialogFooter className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -2064,14 +2144,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   setNewTypeItemIndex(null);
                 }}
                 disabled={creatingType}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
+                className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={creatingType}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
+                className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
               >
                 {creatingType ? (
                   <>
@@ -2089,9 +2169,9 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
       {/* Inline Supplier Creation Dialog */}
       <Dialog open={newSupplierModalOpen} onOpenChange={setNewSupplierModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
+        <DialogContent className="sm:max-w-md bg-[var(--card-bg)] rounded-xl shadow-lg border border-[var(--border)] text-[var(--text-primary)]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
+            <DialogTitle className="text-lg font-bold text-[var(--text-primary)]">
               Add New Supplier Party
             </DialogTitle>
           </DialogHeader>
@@ -2099,7 +2179,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           <div className="space-y-4 pt-2">
             {/* Display Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Supplier / Owner Name *
               </label>
               <input
@@ -2107,14 +2187,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 placeholder="e.g. Sundar Pichai"
                 value={newSupplierName}
                 onChange={(e) => setNewSupplierName(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
                 required
               />
             </div>
 
             {/* Company Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Company / Business Name
               </label>
               <input
@@ -2122,13 +2202,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 placeholder="e.g. Google Inc"
                 value={newSupplierCompany}
                 onChange={(e) => setNewSupplierCompany(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
               />
             </div>
 
             {/* Phone Number */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Phone Number
               </label>
               <input
@@ -2136,14 +2216,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 placeholder="e.g. 9876543210"
                 value={newSupplierPhone}
                 onChange={(e) => setNewSupplierPhone(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
               />
             </div>
 
             {/* GSTIN & PAN */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   GSTIN
                 </label>
                 <input
@@ -2151,12 +2231,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   placeholder="Defaults to URP"
                   value={newSupplierGstin}
                   onChange={(e) => setNewSupplierGstin(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] uppercase"
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   PAN Number
                 </label>
                 <input
@@ -2164,17 +2244,17 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   placeholder="Defaults to N/A"
                   value={newSupplierPan}
                   onChange={(e) => setNewSupplierPan(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A] uppercase"
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase"
                 />
               </div>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
+            <DialogFooter className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={() => setNewSupplierModalOpen(false)}
                 disabled={savingNewSupplier}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
+                className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -2182,7 +2262,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 type="button"
                 onClick={handleCreateSupplier}
                 disabled={savingNewSupplier}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
+                className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
               >
                 {savingNewSupplier ? (
                   <>

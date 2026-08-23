@@ -85,6 +85,23 @@ export async function GET(
       .eq("business_id", businessId)
       .order("created_at", { ascending: true });
 
+    // 4. Fetch Purchase Returns (if this roll had returns)
+    const { data: returnRolls } = await supabase
+      .from("purchase_return_rolls")
+      .select(`
+        id,
+        returned_meters,
+        created_at,
+        return_item:purchase_return_items(
+          id,
+          rate,
+          purchase_return:purchase_returns(id, return_number, return_date, status, deleted_at, supplier:parties(id, name))
+        )
+      `)
+      .eq("purchase_roll_id", id)
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: true });
+
     // Build Chronological Timeline
     const timeline: Array<{
       id: string;
@@ -195,6 +212,39 @@ export async function GET(
       });
     });
 
+    // Event 4: Purchase Returns
+    let totalReturned = 0;
+    (returnRolls || []).forEach((rr: any) => {
+      const pRet = (rr.return_item as any)?.purchase_return;
+      const isCancelled = pRet?.status === "cancelled" || !!pRet?.deleted_at;
+      const retMeters = Number(rr.returned_meters || 0);
+
+      if (!isCancelled) {
+        totalReturned += retMeters;
+      }
+
+      timeline.push({
+        id: `return-${rr.id}`,
+        type: "purchase_return",
+        date: rr.created_at || pRet?.return_date,
+        title: isCancelled ? "Purchase Return Outward (Cancelled)" : "Purchase Return Outward",
+        description: isCancelled
+          ? `Returned ${retMeters} ${materialType?.unit || "Meters"} to ${pRet?.supplier?.name || "Supplier"} (Return Cancelled — meters restored)`
+          : `Returned ${retMeters} ${materialType?.unit || "Meters"} to ${pRet?.supplier?.name || "Supplier"} via Return #${pRet?.return_number || "Return"}`,
+        quantityDelta: isCancelled ? 0 : -retMeters,
+        referenceId: pRet?.id,
+        referenceType: "purchase_return",
+        referenceLabel: pRet?.return_number ? `Return #${pRet.return_number}` : undefined,
+        metadata: {
+          returnId: pRet?.id,
+          returnNumber: pRet?.return_number,
+          supplierName: pRet?.supplier?.name,
+          rate: Number((rr.return_item as any)?.rate || rate),
+          isCancelled: isCancelled,
+        },
+      });
+    });
+
     // Sort timeline chronologically
     timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -206,7 +256,7 @@ export async function GET(
     });
 
     // True audited consumption & remaining
-    const totalConsumed = totalAllocated + totalSold;
+    const totalConsumed = totalAllocated + totalSold + totalReturned;
     const remainingMeters = Math.max(0, initialMeters - totalConsumed);
     const utilizationPct = initialMeters > 0 ? Math.min(100, Math.round((totalConsumed / initialMeters) * 100)) : 0;
 

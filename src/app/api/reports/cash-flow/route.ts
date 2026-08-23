@@ -6,20 +6,30 @@ export async function GET(request: Request) {
   const businessId = await getSessionBusinessId();
   if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const today = new Date();
+  const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const defaultFrom = `${fyStartYear}-04-01`;
+
   const { searchParams } = new URL(request.url);
-  const fromDate = searchParams.get("from") || new Date(new Date().getFullYear(), 3, 1).toISOString().split("T")[0];
-  const toDate = searchParams.get("to") || new Date().toISOString().split("T")[0];
+  const fromDate = searchParams.get("from") || defaultFrom;
+  const toDate = searchParams.get("to") || today.toISOString().split("T")[0];
 
   try {
-    const [paymentsInResult, paymentsOutResult, expensesResult, salaryResult, miscIncomeResult] = await Promise.all([
+    const [paymentsInResult, paymentsOutResult, jobWorkPaymentsResult, expensesResult, salaryResult, miscIncomeResult] = await Promise.all([
       supabase.from("payments").select("amount, payment_date, payment_mode, direction, bank_account:bank_accounts(id, name, account_category)")
         .eq("business_id", businessId).eq("direction", "received")
+        .neq("status", "cancelled")
         .gte("payment_date", fromDate).lte("payment_date", toDate),
       supabase.from("payments").select("amount, payment_date, payment_mode, direction, bank_account:bank_accounts(id, name, account_category)")
         .eq("business_id", businessId).eq("direction", "paid")
+        .neq("status", "cancelled")
+        .gte("payment_date", fromDate).lte("payment_date", toDate),
+      supabase.from("job_work_payments").select("paid_amount, payment_mode, payment_date")
+        .eq("business_id", businessId).neq("status", "cancelled")
         .gte("payment_date", fromDate).lte("payment_date", toDate),
       supabase.from("expenses").select("amount, gst_amount, expense_date")
-        .eq("business_id", businessId).gte("expense_date", fromDate).lte("expense_date", toDate),
+        .eq("business_id", businessId).neq("status", "cancelled")
+        .gte("expense_date", fromDate).lte("expense_date", toDate),
       supabase.from("salary_entries").select("net_salary, payment_date")
         .eq("business_id", businessId).gte("payment_date", fromDate).lte("payment_date", toDate),
       supabase.from("misc_income").select("amount, income_date")
@@ -27,7 +37,15 @@ export async function GET(request: Request) {
     ]);
 
     const paymentsIn = paymentsInResult.data || [];
-    const paymentsOut = paymentsOutResult.data || [];
+    const regularPaymentsOut = paymentsOutResult.data || [];
+    const jobWorkPayments = (jobWorkPaymentsResult.data || []).map((jwp: any) => ({
+      amount: jwp.paid_amount,
+      payment_date: jwp.payment_date,
+      payment_mode: jwp.payment_mode || "bank_transfer",
+      direction: "paid",
+      bank_account: null,
+    }));
+    const paymentsOut = [...regularPaymentsOut, ...jobWorkPayments];
 
     const pakkaInflow = paymentsIn
       .filter((p: any) => p.bank_account?.account_category === "pakka" || p.bank_account?.account_category === "both" || (!p.bank_account && p.payment_mode !== "cash"))
@@ -50,15 +68,16 @@ export async function GET(request: Request) {
       kacha_payments: kachaInflow,
     };
     const outflows = {
-      supplier_payments: paymentsOut.reduce((s, p) => s + Number(p.amount), 0),
-      expenses: (expensesResult.data || []).reduce((s, e) => s + Number(e.amount) + Number(e.gst_amount), 0),
+      supplier_payments: regularPaymentsOut.reduce((s, p) => s + Number(p.amount), 0),
+      job_work_payments: jobWorkPayments.reduce((s, p) => s + Number(p.amount), 0),
+      expenses: (expensesResult.data || []).reduce((s, e) => s + Number(e.amount) + Number(e.gst_amount || 0), 0),
       salary: (salaryResult.data || []).reduce((s, e) => s + Number(e.net_salary), 0),
       pakka_payments: pakkaOutflow,
       kacha_payments: kachaOutflow,
     };
 
     const totalInflows = inflows.customer_payments + inflows.misc_income;
-    const totalOutflows = outflows.supplier_payments + outflows.expenses + outflows.salary;
+    const totalOutflows = outflows.supplier_payments + outflows.job_work_payments + outflows.expenses + outflows.salary;
     const netCashFlow = totalInflows - totalOutflows;
 
     return NextResponse.json({

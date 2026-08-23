@@ -315,7 +315,12 @@ export default function SalesBillsListPage() {
         ["sales-returns"],
         ["parties-customers"],
         ["finished-stock"],
+        ["designs-list"],
+        ["design-detail-filters"],
+        ["godowns-list"],
         ["dashboard-stats"],
+        ["raw-materials-stock"],
+        ["raw-materials"],
       ],
       onSuccess: () => {
         setDeleteDialogOpen(false);

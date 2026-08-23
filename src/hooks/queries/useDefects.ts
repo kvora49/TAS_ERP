@@ -18,12 +18,14 @@ export interface LotDefect {
   responsible_stage_id?: string;
   status:
     | "pending"
+    | "in_rework"
     | "sent_for_rework"
     | "reworked_fixed"
     | "rework_failed"
     | "moved_to_b_grade"
     | "written_off"
     | "resolved";
+  sent_for_rework?: boolean;
   created_at: string;
   lot?: {
     id: string;
@@ -191,6 +193,7 @@ export function useCreateDefectMutation(lotId: string) {
       description?: string;
       responsible_worker_id?: string;
       responsible_stage_id?: string;
+      sent_for_rework?: boolean;
     }) => {
       const res = await fetch("/api/production/defects", {
         method: "POST",

@@ -67,11 +67,12 @@ export default function Header() {
 
   useEffect(() => {
     const fetchBrands = async () => {
-      if (!user) return;
+      if (!user || !user.businessId) return;
       const supabase = createClient();
       const { data, error } = await supabase
         .from("brands")
         .select("id, name")
+        .eq("business_id", user.businessId)
         .eq("is_active", true)
         .is("deleted_at", null);
 
@@ -84,7 +85,7 @@ export default function Header() {
       }
     };
     fetchBrands();
-  }, [user]);
+  }, [user, user?.businessId]);
 
   const handleLogout = async () => {
     const supabase = createClient();

@@ -419,40 +419,83 @@ export class SalesBillRepository {
 
           // C) Record raw material stock ledger entry & reconcile stock
           if (!billData.is_temporary && item.material_type_id) {
-            await this.supabase.from("stock_ledger").insert({
-              business_id: billData.business_id,
-              item_type: "raw_material",
-              item_id: item.material_type_id,
-              godown_id: billData.godown_id,
-              transaction_type: "sale",
-              quantity_delta: -qty,
-              value_delta: -Number(item.amount || 0),
-              reference_table: "sale_bills",
-              reference_id: bill.id,
-              created_by: billData.created_by || null,
-            });
+            let rmGodownId = billData.godown_id || null;
+            if (!rmGodownId) {
+              const { data: rmStock } = await this.supabase
+                .from("raw_material_current_stock")
+                .select("godown_id")
+                .eq("business_id", billData.business_id)
+                .eq("material_type_id", item.material_type_id)
+                .gt("current_stock", 0)
+                .order("current_stock", { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-            await reconcileRawMaterialStock(
-              this.supabase,
-              billData.business_id,
-              item.material_type_id
-            );
+              rmGodownId = rmStock?.godown_id || null;
+            }
+
+            if (!rmGodownId) {
+              const { data: firstGodown } = await this.supabase
+                .from("godowns")
+                .select("id")
+                .eq("business_id", billData.business_id)
+                .is("deleted_at", null)
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              rmGodownId = firstGodown?.id || null;
+            }
+
+            if (rmGodownId) {
+              await this.supabase.from("stock_ledger").insert({
+                business_id: billData.business_id,
+                item_type: "raw_material",
+                item_id: item.material_type_id,
+                godown_id: rmGodownId,
+                transaction_type: "sale",
+                quantity_delta: -qty,
+                value_delta: -Number(item.amount || 0),
+                reference_table: "sale_bills",
+                reference_id: bill.id,
+                created_by: billData.created_by || null,
+              });
+
+              await reconcileRawMaterialStock(
+                this.supabase,
+                billData.business_id,
+                item.material_type_id
+              );
+            }
           }
         } else if (!billData.is_temporary && item.design_id) {
           // Auto-resolve the godown from finished_stock: find which godown holds
           // this design's stock (prefer godown with highest quantity).
-          // No godown_id needed on the sale bill — the system resolves it.
-          const { data: stockRows } = await this.supabase
-            .from("finished_stock")
-            .select("godown_id, total_quantity")
-            .eq("business_id", billData.business_id)
-            .eq("design_id", item.design_id)
-            .gt("total_quantity", 0)
-            .order("total_quantity", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          let resolvedGodownId = billData.godown_id || null;
+          if (!resolvedGodownId) {
+            const { data: stockRows } = await this.supabase
+              .from("finished_stock")
+              .select("godown_id, total_quantity")
+              .eq("business_id", billData.business_id)
+              .eq("design_id", item.design_id)
+              .gt("total_quantity", 0)
+              .order("total_quantity", { ascending: false })
+              .limit(1)
+              .maybeSingle();
 
-          const resolvedGodownId = stockRows?.godown_id || null;
+            resolvedGodownId = stockRows?.godown_id || null;
+          }
+
+          if (!resolvedGodownId) {
+            const { data: anyGodown } = await this.supabase
+              .from("godowns")
+              .select("id")
+              .eq("business_id", billData.business_id)
+              .is("deleted_at", null)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            resolvedGodownId = anyGodown?.id || null;
+          }
 
           if (resolvedGodownId) {
             await this.supabase.from("stock_ledger").insert({
@@ -467,31 +510,6 @@ export class SalesBillRepository {
               reference_id: bill.id,
               created_by: billData.created_by || null,
             });
-          } else {
-            // No godown has stock for this design — still log the outflow
-            // against a null godown so reconciliation can catch it
-            const { data: anyGodown } = await this.supabase
-              .from("godowns")
-              .select("id")
-              .eq("business_id", billData.business_id)
-              .order("created_at", { ascending: true })
-              .limit(1)
-              .maybeSingle();
-
-            if (anyGodown?.id) {
-              await this.supabase.from("stock_ledger").insert({
-                business_id: billData.business_id,
-                item_type: "finished_good",
-                item_id: item.design_id,
-                godown_id: anyGodown.id,
-                transaction_type: "sale_bill_outflow",
-                quantity_delta: -qty,
-                value_delta: -Number(item.amount || 0),
-                reference_table: "sale_bills",
-                reference_id: bill.id,
-                created_by: billData.created_by || null,
-              });
-            }
           }
         }
       }
@@ -521,6 +539,15 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
       generate_eway_bill: !!transporter_name,
       updated_at: new Date().toISOString(),
     };
+
+    // 0. Capture old design_ids BEFORE deleting items — needed to reconcile stock for removed designs
+    const { data: oldItems } = await this.supabase
+      .from("sale_bill_items")
+      .select("design_id, material_type_id")
+      .eq("bill_id", billId)
+      .eq("business_id", businessId);
+    const oldDesignIds = Array.from(new Set((oldItems || []).map((it: any) => it.design_id).filter(Boolean))) as string[];
+    const oldMaterialIds = Array.from(new Set((oldItems || []).map((it: any) => it.material_type_id).filter(Boolean))) as string[];
 
     // 1. Update parent bill
     const { error: billErr } = await this.supabase
@@ -595,14 +622,30 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
     }
 
     // 4. Trigger ground-truth finished stock reconciliation
+    //    Reconcile both old design_ids (stock should be restored) AND new design_ids (stock should be deducted)
     if (!billData.is_temporary) {
       try {
-        const designIdsToReconcile = Array.from(new Set((items || []).map((it: any) => it.design_id).filter(Boolean)));
-        for (const dId of designIdsToReconcile) {
+        const newDesignIds = Array.from(new Set((items || []).map((it: any) => it.design_id).filter(Boolean))) as string[];
+        const allDesignIds = Array.from(new Set([...oldDesignIds, ...newDesignIds]));
+        for (const dId of allDesignIds) {
           await reconcileFinishedStock(this.supabase, businessId, dId as string);
         }
       } catch (recErr) {
         console.warn("[SalesBillRepository] Finished stock reconciliation warning on update:", recErr);
+      }
+
+      // Reconcile raw material stock if any fabric items changed
+      const newMaterialIds = Array.from(new Set((items || []).map((it: any) => it.material_type_id).filter(Boolean))) as string[];
+      const allMaterialIds = Array.from(new Set([...oldMaterialIds, ...newMaterialIds]));
+      if (allMaterialIds.length > 0) {
+        try {
+          const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+          for (const matId of allMaterialIds) {
+            await reconcileRawMaterialStock(this.supabase, businessId, matId);
+          }
+        } catch (recErr) {
+          console.warn("[SalesBillRepository] Raw material reconciliation warning on update:", recErr);
+        }
       }
     }
 

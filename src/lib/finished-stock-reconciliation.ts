@@ -263,33 +263,144 @@ export async function reconcileFinishedStock(
       });
       const qty = Math.abs(Number(item.returned_qty || 0));
       existing.totalQuantity = Math.max(0, existing.totalQuantity - qty);
+      const val = Number(item.taxable_value || (qty * Number(item.rate || existing.costPerPiece || 0)));
+      existing.totalValue = Math.max(0, existing.totalValue - val);
     });
 
     // E. Deduct Active Sales Bills (-)
-    // FIXED: Now uses sale_bills.godown_id (the actual godown the sale was from).
-    //        Previously always used defaultGodownId — all sales were deducted from the
-    //        first godown, making stock in all other godowns always look inflated.
+    // Robust multi-tier matching:
+    // 1. If explicit godown specified on the bill, deduct from that godown if it holds stock.
+    // 2. Otherwise auto-detect godowns holding stock for this design:
+    //    - Tier 1: Exact design + colour match with available stock.
+    //    - Tier 2: Exact design across any colour with available stock.
+    // 3. Size-level deduction stays in sync with totalQuantity.
     (salesBills || []).forEach((item: any) => {
       if (item.bill?.status === "cancelled" || item.bill?.deleted_at || item.bill?.is_temporary) return;
-      // Use the actual godown the sale bill was tied to — fall back to default only if truly missing
-      const gId = item.bill?.godown_id || defaultGodownId;
       const dId = item.design_id;
       const cId = item.colour_id || null;
-      if (!gId || !dId) return;
+      if (!dId) return;
 
-      const existing = getOrCreate(gId, dId, cId, Number(item.rate || 0));
       const qty = Math.abs(Number(item.quantity || 0));
+      if (qty <= 0) return;
 
       const sz = item.size;
-      if (sz && sz !== "all" && sz !== "—") {
-        existing.sizeQuantities[sz] = Math.max(0, (existing.sizeQuantities[sz] || 0) - qty);
-      } else if (item.size_quantities && typeof item.size_quantities === "object") {
-        Object.entries(item.size_quantities).forEach(([sKey, q]) => {
-          const numQ = Math.abs(Number(q || 0));
-          existing.sizeQuantities[sKey] = Math.max(0, (existing.sizeQuantities[sKey] || 0) - numQ);
+      const explicitGodownId = item.bill?.godown_id || null;
+
+      // Helper to deduct from a specific stock entry in stockMap
+      const deductFromEntry = (entry: FinishedStockAcc, amount: number, sizeKey?: string | null) => {
+        if (sizeKey && sizeKey !== "all" && sizeKey !== "—") {
+          entry.sizeQuantities[sizeKey] = Math.max(0, (entry.sizeQuantities[sizeKey] || 0) - amount);
+        } else if (item.size_quantities && typeof item.size_quantities === "object") {
+          Object.entries(item.size_quantities).forEach(([sKey, q]) => {
+            const numQ = Math.abs(Number(q || 0));
+            entry.sizeQuantities[sKey] = Math.max(0, (entry.sizeQuantities[sKey] || 0) - numQ);
+          });
+        }
+        entry.totalQuantity = Math.max(0, entry.totalQuantity - amount);
+        const unitRate = entry.costPerPiece > 0 ? entry.costPerPiece : Number(item.rate || 0);
+        entry.totalValue = Math.max(0, entry.totalValue - (amount * unitRate));
+      };
+
+      if (explicitGodownId) {
+        // Explicit godown specified on the bill
+        const exactEntry = stockMap.get(getKey(explicitGodownId, dId, cId))
+          || (cId ? stockMap.get(getKey(explicitGodownId, dId, null)) : null);
+
+        if (exactEntry && exactEntry.totalQuantity > 0) {
+          const deductAmount = Math.min(exactEntry.totalQuantity, qty);
+          deductFromEntry(exactEntry, deductAmount, sz);
+          let remaining = qty - deductAmount;
+
+          if (remaining > 0) {
+            // Find other godowns with stock for this design
+            const otherCandidates = Array.from(stockMap.values())
+              .filter((acc) => acc.designId === dId && acc.totalQuantity > 0)
+              .sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+            for (const cand of otherCandidates) {
+              if (remaining <= 0) break;
+              const dAmt = Math.min(cand.totalQuantity, remaining);
+              deductFromEntry(cand, dAmt, sz);
+              remaining -= dAmt;
+            }
+          }
+        } else {
+          // Godown has no stock or candidate empty: auto-detect from other godowns holding stock
+          const otherCandidates = Array.from(stockMap.values())
+            .filter((acc) => acc.designId === dId && acc.totalQuantity > 0)
+            .sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+          let remaining = qty;
+          for (const cand of otherCandidates) {
+            if (remaining <= 0) break;
+            const dAmt = Math.min(cand.totalQuantity, remaining);
+            deductFromEntry(cand, dAmt, sz);
+            remaining -= dAmt;
+          }
+
+          if (remaining > 0) {
+            const fallbackEntry = getOrCreate(explicitGodownId, dId, cId, Number(item.rate || 0));
+            deductFromEntry(fallbackEntry, remaining, sz);
+          }
+        }
+      } else {
+        // Auto-detect godown: find godowns holding stock for this design
+        let remainingToDeduct = qty;
+
+        // Tier 1: Candidate entries with matching designId and matching colour
+        const primaryCandidates = Array.from(stockMap.values()).filter((acc) => {
+          if (acc.designId !== dId) return false;
+          if (cId && acc.colourId && acc.colourId !== cId) return false;
+          return acc.totalQuantity > 0;
         });
+
+        // Sort candidates by highest available stock first
+        primaryCandidates.sort((a, b) => {
+          if (sz && sz !== "all" && sz !== "—") {
+            const szA = a.sizeQuantities[sz] || 0;
+            const szB = b.sizeQuantities[sz] || 0;
+            if (szA !== szB) return szB - szA;
+          }
+          return b.totalQuantity - a.totalQuantity;
+        });
+
+        for (const candidate of primaryCandidates) {
+          if (remainingToDeduct <= 0) break;
+          const avail = (sz && sz !== "all" && sz !== "—" && (candidate.sizeQuantities[sz] || 0) > 0)
+            ? candidate.sizeQuantities[sz]!
+            : candidate.totalQuantity;
+
+          if (avail > 0) {
+            const deductAmount = Math.min(avail, remainingToDeduct);
+            deductFromEntry(candidate, deductAmount, sz);
+            remainingToDeduct -= deductAmount;
+          }
+        }
+
+        // Tier 2: If remaining, deduct from any available stock for this design across colours
+        if (remainingToDeduct > 0) {
+          const secondaryCandidates = Array.from(stockMap.values()).filter((acc) => {
+            return acc.designId === dId && acc.totalQuantity > 0;
+          });
+          secondaryCandidates.sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+          for (const candidate of secondaryCandidates) {
+            if (remainingToDeduct <= 0) break;
+            const deductAmount = Math.min(candidate.totalQuantity, remainingToDeduct);
+            deductFromEntry(candidate, deductAmount, sz);
+            remainingToDeduct -= deductAmount;
+          }
+        }
+
+        // Fallback: if no stock anywhere for this design, record against default godown
+        if (remainingToDeduct > 0) {
+          const fallbackGodownId = defaultGodownId;
+          if (fallbackGodownId) {
+            const fallbackEntry = getOrCreate(fallbackGodownId, dId, cId, Number(item.rate || 0));
+            deductFromEntry(fallbackEntry, remainingToDeduct, sz);
+          }
+        }
       }
-      existing.totalQuantity = Math.max(0, existing.totalQuantity - qty);
     });
 
     // F. Add Active Sales Returns (+)
@@ -413,7 +524,8 @@ export async function reconcileFinishedStock(
     const entriesArray = Array.from(stockMap.entries());
 
     for (const [_, stockData] of entriesArray) {
-      if (stockData.totalQuantity <= 0 && stockData.totalValue <= 0) {
+      // NEVER insert a finished_stock row if total quantity is 0 or less
+      if (stockData.totalQuantity <= 0) {
         continue;
       }
 
@@ -423,10 +535,6 @@ export async function reconcileFinishedStock(
       // 3. 60% of design sale_price
       // 4. Absolute default (150)
       let unitCost = stockData.costPerPiece;
-      if (unitCost <= 0 && stockData.totalQuantity > 0 && stockData.totalValue > 0) {
-        unitCost = Number((stockData.totalValue / stockData.totalQuantity).toFixed(2));
-      }
-
       if (unitCost <= 0) {
         const bomCost = bomCostMap.get(stockData.designId) || 0;
         if (bomCost > 0) {
@@ -441,9 +549,7 @@ export async function reconcileFinishedStock(
         }
       }
 
-      const computedValue = stockData.totalValue > 0
-        ? Math.max(0, Number(stockData.totalValue.toFixed(2)))
-        : Math.max(0, Number((stockData.totalQuantity * unitCost).toFixed(2)));
+      const computedValue = Math.max(0, Number((stockData.totalQuantity * unitCost).toFixed(2)));
 
       await supabase
         .from("finished_stock")

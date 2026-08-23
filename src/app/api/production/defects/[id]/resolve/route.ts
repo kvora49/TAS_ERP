@@ -328,6 +328,48 @@ export async function POST(
             .eq("id", lot.id);
         }
       }
+
+      // ── Rework-to-lot: restore pieces back into the lot ──────────────────
+      // If the defect was sent_for_rework (deducted at creation), restore those
+      // pieces now that they are physically back in the lot.
+      if (resolution_type === "reworked_to_lot" && defect.sent_for_rework) {
+        // Restore total_quantity
+        const { data: freshLot } = await supabase
+          .from("production_lots")
+          .select("total_quantity")
+          .eq("id", lot.id)
+          .single();
+
+        if (freshLot) {
+          await supabase
+            .from("production_lots")
+            .update({
+              total_quantity: Number(freshLot.total_quantity || 0) + recQty,
+            })
+            .eq("id", lot.id);
+        }
+
+        // Restore per-size quantities
+        for (const [size, sizeQty] of Object.entries(recovered_size_quantities as Record<string, number>)) {
+          const numQty = Math.max(0, Number(sizeQty) || 0);
+          if (numQty <= 0) continue;
+
+          const { data: existingSq } = await supabase
+            .from("lot_size_quantities")
+            .select("id, quantity")
+            .eq("lot_id", lot.id)
+            .eq("size", size)
+            .eq("business_id", businessId)
+            .maybeSingle();
+
+          if (existingSq) {
+            await supabase
+              .from("lot_size_quantities")
+              .update({ quantity: Number(existingSq.quantity || 0) + numQty })
+              .eq("id", existingSq.id);
+          }
+        }
+      }
     }
 
     // ── 6. Reworked → Push to Stock Grade A ─────────────────────────────────
@@ -545,7 +587,8 @@ export async function POST(
       .update({ status: finalStatus, updated_at: new Date().toISOString() })
       .eq("id", defect.id);
 
-    // ── 13. Update Lot Aggregates (BUG 4 FIX) ────────────────────────────────
+    // ── 13. Update Lot Aggregates ─────────────────────────────────────────────
+    // reworked_quantity, b_grade_quantity, scrapped_quantity added via DB migration
     const { data: currentLot } = await supabase
       .from("production_lots")
       .select("reworked_quantity, b_grade_quantity, scrapped_quantity, defect_quantity")
@@ -553,18 +596,18 @@ export async function POST(
       .single();
 
     if (currentLot) {
-      const updates: Record<string, number> = {
+      const lotUpdates: Record<string, number> = {
         reworked_quantity: Number(currentLot.reworked_quantity || 0) + recQty,
         b_grade_quantity: Number(currentLot.b_grade_quantity || 0) + bQty,
         scrapped_quantity: Number(currentLot.scrapped_quantity || 0) + scrapQty,
       };
 
-      // BUG 4 FIX: For rework-to-lot, reduce defect_quantity so lot knows pieces returned
+      // For rework-to-lot, reduce defect_quantity so lot knows pieces returned
       if (resolution_type === "reworked_to_lot") {
-        updates.defect_quantity = Math.max(0, Number(currentLot.defect_quantity || 0) - recQty);
+        lotUpdates.defect_quantity = Math.max(0, Number(currentLot.defect_quantity || 0) - recQty);
       }
 
-      await supabase.from("production_lots").update(updates).eq("id", lot.id);
+      await supabase.from("production_lots").update(lotUpdates).eq("id", lot.id);
     }
 
     // ── 14. Stock Reconciliation (Grade A only) ───────────────────────────────

@@ -141,6 +141,12 @@ export function RollPassportModal({ rollId, open, onOpenChange }: RollPassportMo
             <ArrowUpRight size={16} />
           </div>
         );
+      case "purchase_return":
+        return (
+          <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/25 flex items-center justify-center shrink-0 shadow-sm">
+            <ArrowUpRight size={16} />
+          </div>
+        );
       case "cutting_return":
       case "sales_return":
         return (

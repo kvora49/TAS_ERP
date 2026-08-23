@@ -37,13 +37,26 @@ export default function ProductionReportsPage() {
   const [status, setStatus] = useState("all");
   const [designSearch, setDesignSearch] = useState("");
 
-  // Fetch Workers list
+  // Fetch Workers list (both from workers table and parties table)
   const { data: workersData } = useQuery({
-    queryKey: ["parties-list-workers"],
+    queryKey: ["combined-workers-list"],
     queryFn: async () => {
-      const res = await fetch("/api/parties?type=worker");
-      if (!res.ok) return { parties: [] };
-      return res.json();
+      const [workersRes, partiesRes] = await Promise.all([
+        fetch("/api/workers"),
+        fetch("/api/parties?type=worker"),
+      ]);
+      const workersJson = workersRes.ok ? await workersRes.json() : { workers: [] };
+      const partiesJson = partiesRes.ok ? await partiesRes.json() : { parties: [] };
+
+      const map = new Map<string, { id: string; name: string }>();
+      (partiesJson.parties ?? []).forEach((p: any) => {
+        if (p.id && p.name) map.set(p.id, { id: p.id, name: p.name });
+      });
+      (workersJson.workers ?? []).forEach((w: any) => {
+        if (w.id && w.name) map.set(w.id, { id: w.id, name: w.name });
+      });
+
+      return Array.from(map.values());
     },
     staleTime: 300_000,
   });
@@ -78,7 +91,7 @@ export default function ProductionReportsPage() {
     value: key,
   }));
 
-  const workerOptions = (workersData?.parties ?? []).map((w: any) => ({
+  const workerOptions = (workersData ?? []).map((w: any) => ({
     label: w.name,
     value: w.id,
   }));

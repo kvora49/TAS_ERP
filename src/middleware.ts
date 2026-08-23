@@ -51,7 +51,20 @@ export async function middleware(request: NextRequest) {
       return createRateLimitResponse(rateResult);
     }
 
-    const response = NextResponse.next({ request });
+    const activeCompanyId =
+      request.cookies.get("active_company_id")?.value ||
+      request.cookies.get("sb-business-id")?.value;
+
+    const requestHeaders = new Headers(request.headers);
+    if (activeCompanyId) {
+      requestHeaders.set("x-business-id", activeCompanyId);
+    }
+
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
     response.headers.set("X-RateLimit-Limit", rateResult.limit.toString());
     response.headers.set("X-RateLimit-Remaining", rateResult.remaining.toString());
     response.headers.set("X-RateLimit-Reset", rateResult.resetInSeconds.toString());

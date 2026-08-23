@@ -97,16 +97,22 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       const companyName = targetCompany?.name || "Company";
       toast.loading(`Switching to ${companyName}...`, { id: "switch-company" });
 
-      startTransition(async () => {
-        try {
-          await switchCompanyServerAction(companyId);
-          queryClient.clear();
-          toast.success(`Switched to ${companyName}`, { id: "switch-company" });
-          window.location.href = "/";
-        } catch (err: any) {
-          toast.error(err.message || "Failed to switch company", { id: "switch-company" });
-        }
+      const res = await fetch("/api/companies/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
       });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Failed to switch company");
+      }
+
+      document.cookie = `active_company_id=${companyId}; path=/; max-age=7776000; SameSite=Lax`;
+      document.cookie = `sb-business-id=${companyId}; path=/; max-age=7776000; SameSite=Lax`;
+      queryClient.clear();
+      toast.success(`Switched to ${companyName}`, { id: "switch-company" });
+      window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Failed to switch company", { id: "switch-company" });
     }

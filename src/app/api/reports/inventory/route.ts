@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: userData } = await supabase.from("users").select("business_id").eq("id", user.id).single();
-  if (!userData?.business_id) return NextResponse.json({ error: "No business" }, { status: 400 });
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") ?? "valuation";
@@ -17,7 +14,7 @@ export async function GET(req: NextRequest) {
   const godownId = searchParams.get("godown_id");
   const brandId = searchParams.get("brand_id");
   const stockStatus = searchParams.get("stock_status");
-  const bid = userData.business_id;
+  const bid = businessId;
 
   try {
     // Run ground-truth finished stock reconciliation for current net stock

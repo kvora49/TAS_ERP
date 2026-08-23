@@ -162,6 +162,22 @@ export async function POST(request: Request) {
     // Determine source — post_stock means lot already moved to finished stock
     const source = lot.status === "completed" ? "post_stock" : "in_production";
 
+    // sent_for_rework: immediately deducts pieces from the live lot (in_production only)
+    const sentForRework = !!(body.sent_for_rework) && source === "in_production";
+
+    // If sending for rework, validate enough pieces are available
+    if (sentForRework) {
+      const effectiveLotQty = Number(lot.total_quantity || 0);
+      if (qty > effectiveLotQty) {
+        return NextResponse.json(
+          {
+            error: `Cannot send ${qty} pieces for rework — lot only has ${effectiveLotQty} pieces available.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -190,6 +206,8 @@ export async function POST(request: Request) {
     const defectNumber = `${prefix}-${String(nextNum).padStart(4, "0")}`;
 
     // ── Insert defect ──────────────────────────────────────────────────────
+    const initialStatus = sentForRework ? "in_rework" : "pending";
+
     const { data: defect, error: insertError } = await supabase
       .from("lot_defects")
       .insert({
@@ -206,7 +224,8 @@ export async function POST(request: Request) {
         description: description || null,
         responsible_worker_id: responsible_worker_id || null,
         responsible_stage_id: responsible_stage_id || null,
-        status: "pending",
+        sent_for_rework: sentForRework,
+        status: initialStatus,
         created_by: userId,
       })
       .select(`
@@ -227,9 +246,44 @@ export async function POST(request: Request) {
       .update({ defect_quantity: Number(lot.defect_quantity || 0) + qty })
       .eq("id", lot_id);
 
+    // ── If sent_for_rework: deduct pieces from live lot immediately ────────
+    if (sentForRework) {
+      // 1. Deduct from production_lots.total_quantity
+      await supabase
+        .from("production_lots")
+        .update({
+          total_quantity: Math.max(0, Number(lot.total_quantity || 0) - qty),
+        })
+        .eq("id", lot_id);
+
+      // 2. Deduct per-size from lot_size_quantities
+      for (const [size, sizeQty] of Object.entries(size_quantities as Record<string, number>)) {
+        const numQty = Math.max(0, Number(sizeQty) || 0);
+        if (numQty <= 0) continue;
+
+        const { data: existingSq } = await supabase
+          .from("lot_size_quantities")
+          .select("id, quantity")
+          .eq("lot_id", lot_id)
+          .eq("size", size)
+          .eq("business_id", businessId)
+          .maybeSingle();
+
+        if (existingSq) {
+          await supabase
+            .from("lot_size_quantities")
+            .update({ quantity: Math.max(0, Number(existingSq.quantity || 0) - numQty) })
+            .eq("id", existingSq.id);
+        }
+      }
+    }
+
     await logAudit(businessId, "create", "lot_defects", defect.id, defect, {}, request);
 
     const response: any = { defect };
+    if (sentForRework) {
+      response.info = `${qty} pieces marked as in-rework and deducted from lot. Lot effective quantity is now ${Math.max(0, Number(lot.total_quantity || 0) - qty)}.`;
+    }
     if (source === "post_stock") {
       response.warning =
         "This lot has already been moved to finished stock. Defect resolution will require selecting which finished stock entry to deduct from.";

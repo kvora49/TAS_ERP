@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = createClient();
+  const businessId = await getSessionBusinessId();
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: userData } = await supabase.from("users").select("business_id").eq("id", user.id).single();
-  if (!userData?.business_id) return NextResponse.json({ error: "No business" }, { status: 400 });
+  const today = new Date();
+  const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get("from") ?? `${new Date().getFullYear()}-04-01`;
-  const to = searchParams.get("to") ?? new Date().toISOString().split("T")[0];
+  const from = searchParams.get("from") ?? defaultFrom;
+  const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const tab = searchParams.get("tab") ?? "all"; // 'raw' | 'finished' | 'all'
   const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
   const partyId = searchParams.get("party_id");
   const paymentStatus = searchParams.get("payment_status");
-  const bid = userData.business_id;
+  const bid = businessId;
 
   try {
     let rawQuery = supabase
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, purchase_number, invoice_date, grand_total, paid_amount,
         payment_status, status, gst_type,
-        parties!inner(id, name, company_name)
+        parties(id, name, company_name)
       `)
       .eq("business_id", bid)
       .neq("status", "cancelled")
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, bill_number, invoice_date, grand_total, paid_amount,
         payment_status, status, bill_type,
-        parties!inner(id, name, company_name)
+        parties(id, name, company_name)
       `)
       .eq("business_id", bid)
       .neq("status", "cancelled")

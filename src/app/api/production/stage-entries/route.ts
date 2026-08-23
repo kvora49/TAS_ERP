@@ -157,6 +157,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if qty_in exceeds effective available lot quantity (soft warning, not hard block)
+    let reworkWarning: string | null = null;
+    if (parentLot && qty_in !== undefined) {
+      const { data: activeReworks } = await supabase
+        .from("lot_defects")
+        .select("quantity")
+        .eq("lot_id", lot_id)
+        .eq("business_id", businessId)
+        .eq("status", "in_rework")
+        .is("deleted_at", null);
+
+      const activeReworkQty = (activeReworks || []).reduce(
+        (sum: number, d: any) => sum + Number(d.quantity || 0),
+        0
+      );
+      const effectiveAvailable = Number(parentLot.total_quantity || 0);
+
+      if (Number(qty_in) > effectiveAvailable && activeReworkQty > 0) {
+        reworkWarning = `${activeReworkQty} piece(s) are currently in rework and deducted from the lot. Effective available quantity: ${effectiveAvailable}. You entered qty_in: ${qty_in}. Entry recorded — please resolve the rework first if needed.`;
+      }
+    }
+
     // 2. Check allow_back_date_production
     if (!serverSettings.allow_back_date_production) {
       const inputDate = new Date(entry_date);
@@ -495,7 +517,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ entry });
+    return NextResponse.json({ entry, ...(reworkWarning ? { warning: reworkWarning } : {}) });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

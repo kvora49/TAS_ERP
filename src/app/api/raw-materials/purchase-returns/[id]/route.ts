@@ -177,7 +177,7 @@ export async function PUT(
                 .update({
                   current_stock: newQty,
                   stock_value: newValue,
-                  updated_at: new Date().toISOString(),
+                  last_updated_at: new Date().toISOString(),
                 })
                 .eq("id", existingStock.id);
             }
@@ -222,8 +222,14 @@ export async function PUT(
       }
     }
 
-    // If status transitioned to 'cancelled' and it was completed, cancel the stock entry and reverse stock_ledger
+    // 2. If status transitioned to 'cancelled' from 'completed', restore stock
     if (status === "cancelled" && existingReturn.status === "completed") {
+      const { data: returnItems } = await supabase
+        .from("purchase_return_items")
+        .select("*")
+        .eq("return_id", id)
+        .eq("business_id", businessId);
+
       // 1. Cancel the legacy stock entry
       await supabase
         .from("raw_material_stock_entries")
@@ -233,12 +239,6 @@ export async function PUT(
         .eq("business_id", businessId);
 
       // 2. Revert entries in stock_ledger (insert positive delta)
-      const { data: returnItems } = await supabase
-        .from("purchase_return_items")
-        .select("*")
-        .eq("return_id", id)
-        .eq("business_id", businessId);
-
       if (returnItems && returnItems.length > 0 && existingReturn.godown_id) {
         const { data: { user } } = await supabase.auth.getUser();
         const ledgerEntries = returnItems.map((item: any) => ({
@@ -256,6 +256,14 @@ export async function PUT(
 
         await supabase.from("stock_ledger").insert(ledgerEntries);
       }
+    }
+
+    // Run authoritative stock reconciliation
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconciliation on purchase return PUT warning:", recErr);
     }
 
     return NextResponse.json({ return: updatedReturn });
@@ -316,6 +324,7 @@ export async function DELETE(
       .eq("business_id", businessId);
 
     const { data: { user } } = await supabase.auth.getUser();
+    const designIdsToReconcile = new Set<string>();
 
     // 1. Revert Stock: Restore stock that was returned to supplier (Finished Goods & Raw Materials)
     if (returnItems && returnItems.length > 0 && pReturn.godown_id) {
@@ -324,20 +333,7 @@ export async function DELETE(
         const val = Number(item.taxable_value || (qty * Number(item.rate || 0)));
 
         if (item.item_type === "finished_goods" && item.design_id) {
-          // Restore Finished Goods stock to Godown
-          await supabase.from("finished_stock").insert({
-            business_id: businessId,
-            design_id: item.design_id,
-            colour_id: item.colour_id || null,
-            godown_id: pReturn.godown_id,
-            entry_type: "adjustment",
-            size_quantities: item.size_quantities || {},
-            total_quantity: qty,
-            cost_per_piece: Number(item.rate || 0),
-            total_value: val,
-            notes: `Restored stock from cancelled Purchase Return ${pReturn.return_number}`,
-          });
-
+          // Log stock_ledger for audit trail (reconcileFinishedStock is the single-writer for finished_stock)
           await supabase.from("stock_ledger").insert({
             business_id: businessId,
             item_type: "finished_good",
@@ -350,6 +346,8 @@ export async function DELETE(
             reference_id: id,
             created_by: user?.id || null,
           });
+          // Queue design for reconciliation (single-writer pattern — no direct insert to finished_stock)
+          designIdsToReconcile.add(item.design_id);
         } else if (item.material_type_id) {
           // Restore Fabric rolls remaining meters if applicable
           if (item.item_type === "fabric") {
@@ -413,7 +411,7 @@ export async function DELETE(
                 current_stock: updatedQty,
                 stock_value: updatedValue,
                 unit_cost: updatedUnitCost,
-                updated_at: new Date().toISOString(),
+                last_updated_at: new Date().toISOString(),
               })
               .eq("id", stockEntry.id);
           }
@@ -450,6 +448,26 @@ export async function DELETE(
       { return_number: pReturn.return_number, grand_total: pReturn.grand_total, status: pReturn.status },
       request
     );
+
+    // 4. Reconcile finished_stock for all affected designs (single-writer pattern)
+    if (designIdsToReconcile.size > 0) {
+      try {
+        const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+        for (const designId of Array.from(designIdsToReconcile)) {
+          await reconcileFinishedStock(supabase, businessId, designId);
+        }
+      } catch (fgRecErr) {
+        console.warn("[DELETE /purchase-returns] Finished goods reconciliation warning:", fgRecErr);
+      }
+    }
+
+    // 5. Reconcile raw material stock
+    try {
+      const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+      await reconcileRawMaterialStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("[DELETE /purchase-returns] Raw material reconciliation warning:", recErr);
+    }
 
     return NextResponse.json({ success: true, message: `Purchase Return '${pReturn.return_number}' cancelled and stock restored.` });
   } catch (err: any) {
