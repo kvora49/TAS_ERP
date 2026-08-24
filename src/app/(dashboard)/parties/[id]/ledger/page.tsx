@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp, Plus, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useERPQuery } from "@/hooks/useERPQuery";
 import { formatDate, cn } from "@/lib/utils";
@@ -16,9 +16,11 @@ interface Allocation {
 
 interface LedgerEntry {
   id?: string;
+  recordId?: string;
+  viewUrl?: string;
   date: string;
   particulars: string;
-  voucherType: "Opening" | "Purchase" | "Sale" | "Return" | "Payment" | "Advance" | "Write-off" | "Job Work" | "Salary";
+  voucherType: "Opening" | "Purchase" | "Sale" | "Return" | "Payment" | "Advance" | "Write-off" | "Job Work" | "Salary" | "Credit Note" | "Debit Note";
   voucherNo: string;
   debit: number;
   credit: number;
@@ -27,6 +29,8 @@ interface LedgerEntry {
   billCategory?: "pakka" | "kacha" | "both";
   billTypeName?: string;
   allocations?: Allocation[];
+  contextBalanceStr?: string;
+  contextBalanceSign?: "Dr" | "Cr";
 }
 
 interface Party {
@@ -427,32 +431,62 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeClass}`}>{row.voucherType}</span>
-                    {isPakka && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">📄 Pakka</span>}
-                    {isKacha && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">📝 Kaccha</span>}
+                    {isPakka && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">📄 Pakka</span>}
+                    {isKacha && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">📝 Kaccha</span>}
                   </div>
                   <span className="text-[11px] font-mono font-semibold text-[var(--text-secondary)]">{formatDate(row.date)}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-[var(--text-primary)]">{row.particulars}</p>
-                    <p className="text-[11px] font-mono font-semibold text-[var(--text-secondary)] mt-0.5">Voucher #: {row.voucherNo || "—"}</p>
+                  <div className="flex-1 min-w-0 pr-2">
+                    {row.viewUrl ? (
+                      <Link
+                        href={row.viewUrl}
+                        className="text-xs font-bold text-[var(--text-primary)] hover:text-[var(--primary)] hover:underline inline-flex items-center gap-1 group"
+                      >
+                        <span className="truncate">{row.particulars}</span>
+                        <ExternalLink size={11} className="shrink-0 opacity-70 group-hover:opacity-100 text-[var(--primary)]" />
+                      </Link>
+                    ) : (
+                      <p className="text-xs font-bold text-[var(--text-primary)]">{row.particulars}</p>
+                    )}
+                    <p className="text-[11px] font-mono font-semibold text-[var(--text-secondary)] mt-0.5">
+                      Voucher #: {row.viewUrl && row.voucherNo && row.voucherNo !== "—" && row.voucherNo !== "-" ? (
+                        <Link href={row.viewUrl} className="hover:text-[var(--primary)] hover:underline font-bold">
+                          {row.voucherNo}
+                        </Link>
+                      ) : (
+                        row.voucherNo || "—"
+                      )}
+                    </p>
                   </div>
-                  {hasAllocations && (
-                    <button type="button" onClick={() => toggleRow(rowId)} className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)]">
-                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {row.viewUrl && (
+                      <Link
+                        href={row.viewUrl}
+                        className="px-2 py-1 rounded text-[10px] font-bold bg-violet-50 text-[var(--primary)] border border-violet-200 dark:bg-violet-950/50 dark:border-violet-800 hover:bg-violet-100 transition-colors inline-flex items-center gap-1"
+                        title="Open Record Details"
+                      >
+                        <span>View</span>
+                        <ExternalLink size={10} />
+                      </Link>
+                    )}
+                    {hasAllocations && (
+                      <button type="button" onClick={() => toggleRow(rowId)} className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 border-t border-[var(--border-light)] pt-2 text-center">
                   <div>
                     <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Debit (Dr)</span>
-                    <p className="text-xs font-bold text-red-600 mt-0.5">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</p>
+                    <p className="text-xs font-bold text-red-600 dark:text-red-400 mt-0.5">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Credit (Cr)</span>
-                    <p className="text-xs font-bold text-emerald-600 mt-0.5">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</p>
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Balance</span>
@@ -484,7 +518,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
-                <th className="px-6 py-3 w-12">Link</th>
+                <th className="px-6 py-3 w-16">Link</th>
                 <th className="px-6 py-3 w-28">Date</th>
                 <th className="px-6 py-3">Particulars</th>
                 <th className="px-6 py-3 w-32">Voucher Type</th>
@@ -526,23 +560,44 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                     <React.Fragment key={rowId}>
                       <tr className="hover:bg-[var(--table-row-hover)] transition-colors h-16">
                         <td className="px-6 py-4 align-middle">
-                          {hasAllocations ? (
-                            <button
-                              onClick={() => toggleRow(rowId)}
-                              className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                              title="View bill allocations"
-                            >
-                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                            </button>
-                          ) : (
-                            <span className="text-[var(--text-faint)] font-semibold">—</span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {hasAllocations && (
+                              <button
+                                onClick={() => toggleRow(rowId)}
+                                className="p-1 rounded bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                                title="View bill allocations"
+                              >
+                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              </button>
+                            )}
+                            {row.viewUrl ? (
+                              <Link
+                                href={row.viewUrl}
+                                className="p-1.5 rounded-lg bg-violet-50 text-[var(--primary)] border border-violet-200 dark:bg-violet-950/60 dark:border-violet-800 hover:bg-violet-100 dark:hover:bg-violet-900/60 transition-colors inline-flex items-center justify-center cursor-pointer"
+                                title="Open Record Detail"
+                              >
+                                <ExternalLink size={13} />
+                              </Link>
+                            ) : (
+                              !hasAllocations && <span className="text-[var(--text-faint)] font-semibold">—</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 align-middle font-mono text-xs font-semibold text-[var(--text-secondary)]">
                           {formatDate(row.date)}
                         </td>
                         <td className="px-6 py-4 align-middle font-bold text-[var(--text-primary)]">
-                          {row.particulars}
+                          {row.viewUrl ? (
+                            <Link
+                              href={row.viewUrl}
+                              className="hover:text-[var(--primary)] hover:underline inline-flex items-center gap-1.5 transition-colors group cursor-pointer"
+                            >
+                              <span>{row.particulars}</span>
+                              <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-[var(--primary)] transition-opacity shrink-0" />
+                            </Link>
+                          ) : (
+                            row.particulars
+                          )}
                         </td>
                         <td className="px-6 py-4 align-middle">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}>
@@ -566,7 +621,13 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                           )}
                         </td>
                         <td className="px-6 py-4 align-middle font-mono text-xs font-semibold text-[var(--text-secondary)]">
-                          {row.voucherNo || "—"}
+                          {row.viewUrl && row.voucherNo && row.voucherNo !== "—" && row.voucherNo !== "-" ? (
+                            <Link href={row.viewUrl} className="hover:text-[var(--primary)] hover:underline font-bold text-[var(--text-primary)] cursor-pointer">
+                              {row.voucherNo}
+                            </Link>
+                          ) : (
+                            row.voucherNo || "—"
+                          )}
                         </td>
                         <td className="px-6 py-4 align-middle text-right font-mono text-xs font-bold text-red-600 dark:text-red-400">
                           {row.debit > 0 ? formatCurrency(row.debit) : "—"}

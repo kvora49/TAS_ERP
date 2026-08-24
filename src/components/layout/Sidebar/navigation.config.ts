@@ -241,7 +241,7 @@ export const navItems: NavItem[] = [
       { name: "Payment Reports", href: "/reports/payments" },
       { name: "Inventory & Stock", href: "/reports/inventory" },
       { name: "Production & Workers", href: "/reports/production" },
-      { name: "Party Statement", href: "/reports/party-statement" },
+      { name: "Party Reports", href: "/reports/party-reports" },
       { name: "Analysis", href: "/reports/analysis" },
     ],
   },

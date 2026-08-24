@@ -212,6 +212,8 @@ export async function GET(
     purchases.forEach((p) => {
       const cat = p.gst_type === "without_gst" ? "kacha" : "pakka";
       entries.push({
+        id: `rm-purchase-${p.id}`,
+        recordId: p.id,
         date: p.invoice_date,
         particulars: `Raw Material Purchase #${p.purchase_number}`,
         voucherType: "Purchase",
@@ -221,6 +223,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
+        viewUrl: `/raw-materials/purchases/${p.id}`,
       });
     });
 
@@ -228,6 +231,8 @@ export async function GET(
     purchaseBills.forEach((p) => {
       const cat = p.bill_type === "kacha" ? "kacha" : "pakka";
       entries.push({
+        id: `fg-purchase-${p.id}`,
+        recordId: p.id,
         date: p.invoice_date,
         particulars: `Purchase Bill #${p.bill_number}`,
         voucherType: "Purchase",
@@ -237,6 +242,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
+        viewUrl: `/purchases/${p.id}`,
       });
     });
 
@@ -244,6 +250,8 @@ export async function GET(
     saleBills.forEach((s) => {
       const cat = s.bill_type === "kacha" ? "kacha" : "pakka";
       entries.push({
+        id: `sale-${s.id}`,
+        recordId: s.id,
         date: s.bill_date,
         particulars: `Sales Invoice #${s.bill_number}`,
         voucherType: "Sale",
@@ -253,6 +261,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 1,
+        viewUrl: `/sales/${s.id}`,
       });
     });
 
@@ -262,6 +271,8 @@ export async function GET(
       const rate = Number(se.job_work_rate || 0);
       const total = Number(se.total_job_work_amount || qty * rate);
       entries.push({
+        id: `stage-entry-${se.id}`,
+        recordId: se.id,
         date: se.entry_date,
         particulars: `Production Job Work #${se.entry_number || se.id.substring(0, 8)} (${qty} Pcs @ ₹${rate.toFixed(2)})`,
         voucherType: "Job Work",
@@ -271,6 +282,7 @@ export async function GET(
         billCategory: "both",
         billTypeName: "General",
         sortOrder: 1,
+        viewUrl: `/production/stage-entries/${se.id}`,
       });
     });
 
@@ -279,7 +291,12 @@ export async function GET(
       const cat = r.gst_type === "without_gst" 
         ? "kacha" 
         : (r.purchase_id && billCategoryMap[r.purchase_id]) || (r.purchase_bill_id && billCategoryMap[r.purchase_bill_id]) || "pakka";
+      const returnUrl = r.purchase_bill_id 
+        ? `/purchases/returns/${r.id}` 
+        : `/raw-materials/purchase-returns/${r.id}`;
       entries.push({
+        id: `return-${r.id}`,
+        recordId: r.id,
         date: r.return_date,
         particulars: `Purchase Return #${r.return_number}`,
         voucherType: "Return",
@@ -289,6 +306,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 2,
+        viewUrl: returnUrl,
       });
     });
 
@@ -299,7 +317,12 @@ export async function GET(
       const cat = (sReturn?.gst_type === "without_gst")
         ? "kacha"
         : (sReturn?.original_bill_id && billCategoryMap[sReturn.original_bill_id]) || (cn.bill_id && billCategoryMap[cn.bill_id]) || "pakka";
+      const cnUrl = isSalesReturn 
+        ? `/sales/returns/${cn.return_id}` 
+        : `/sales/credit-notes`;
       entries.push({
+        id: `credit-note-${cn.id}`,
+        recordId: cn.id,
         date: cn.cn_date,
         particulars: isSalesReturn 
           ? `Sales Return / Credit Note #${cn.cn_number}` 
@@ -311,6 +334,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 2,
+        viewUrl: cnUrl,
       });
     });
 
@@ -320,6 +344,8 @@ export async function GET(
       .forEach((dn: any) => {
         const cat = (dn.purchase_id && billCategoryMap[dn.purchase_id]) || "pakka";
         entries.push({
+          id: `debit-note-${dn.id}`,
+          recordId: dn.id,
           date: dn.dn_date,
           particulars: `Debit Note #${dn.dn_number} ${dn.reason ? "(" + dn.reason + ")" : ""}`,
           voucherType: "Debit Note",
@@ -329,6 +355,7 @@ export async function GET(
           billCategory: cat,
           billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
           sortOrder: 2,
+          viewUrl: `/sales/debit-notes`,
         });
       });
 
@@ -336,6 +363,8 @@ export async function GET(
     legacyPayments.forEach((py) => {
       const mode = py.payment_mode ? py.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
       entries.push({
+        id: `legacy-pay-${py.id}`,
+        recordId: py.id,
         date: py.payment_date,
         particulars: `Payment via ${mode} ${py.reference_no ? "(" + py.reference_no + ")" : ""}`,
         voucherType: "Payment",
@@ -345,6 +374,7 @@ export async function GET(
         billCategory: "both",
         billTypeName: "General",
         sortOrder: 3,
+        viewUrl: `/payments`,
       });
     });
 
@@ -352,6 +382,8 @@ export async function GET(
     jobWorkPayments.forEach((jp: any) => {
       const mode = jp.payment_mode ? jp.payment_mode.replace(/_/g, " ").toUpperCase() : "PAYMENT";
       entries.push({
+        id: `jw-pay-${jp.id}`,
+        recordId: jp.id,
         date: jp.payment_date,
         particulars: `Job Work Payment (${mode}) ${jp.reference_no ? "(" + jp.reference_no + ")" : ""}`,
         voucherType: "Payment",
@@ -361,6 +393,7 @@ export async function GET(
         billCategory: "both",
         billTypeName: "General",
         sortOrder: 3,
+        viewUrl: `/production/job-work`,
       });
     });
 
@@ -368,6 +401,8 @@ export async function GET(
     salaryAdvances.forEach((sa: any) => {
       const mode = sa.payment_mode ? sa.payment_mode.replace(/_/g, " ").toUpperCase() : "ADVANCE";
       entries.push({
+        id: `salary-adv-${sa.id}`,
+        recordId: sa.id,
         date: sa.advance_date,
         particulars: `Salary Advance (${mode}) ${sa.notes ? "— " + sa.notes : ""}`,
         voucherType: "Advance",
@@ -377,6 +412,7 @@ export async function GET(
         billCategory: "both",
         billTypeName: "General",
         sortOrder: 3,
+        viewUrl: `/salary/advances`,
       });
     });
 
@@ -385,6 +421,8 @@ export async function GET(
       const mode = se.payment_mode ? se.payment_mode.toUpperCase() : "PAID";
       const dateStr = se.payment_date || `${se.salary_year}-${String(se.salary_month).padStart(2, "0")}-01`;
       entries.push({
+        id: `salary-${se.id}`,
+        recordId: se.id,
         date: dateStr,
         particulars: `Salary Payout ${se.salary_month}/${se.salary_year} (${mode}) ${se.remarks ? "— " + se.remarks : ""}`,
         voucherType: "Salary",
@@ -394,6 +432,7 @@ export async function GET(
         billCategory: "both",
         billTypeName: "General",
         sortOrder: 3,
+        viewUrl: `/salary`,
       });
     });
 
@@ -432,7 +471,8 @@ export async function GET(
       const bankNameStr = (py as any).bank_account?.name ? ` [${(py as any).bank_account.name}]` : "";
 
       entries.push({
-        id: py.id,
+        id: `payment-${py.id}`,
+        recordId: py.id,
         date: py.payment_date,
         particulars: isAdvance 
           ? `Advance Payment (${mode})${bankNameStr} ${py.remarks ? "— " + py.remarks : ""}`
@@ -445,6 +485,7 @@ export async function GET(
         billCategory: cat,
         billTypeName: cat === "both" ? "General" : cat === "kacha" ? "Kaccha" : "Pakka",
         sortOrder: 3,
+        viewUrl: `/payments`,
       });
     });
 
@@ -458,6 +499,8 @@ export async function GET(
         const cat = billCategoryMap[wo.bill_id] || "pakka";
 
         entries.push({
+          id: `writeoff-${wo.id}`,
+          recordId: wo.id,
           date: wo.written_off_at.split("T")[0],
           particulars: `Write-off (${wo.write_off_type.toUpperCase()}) on bill ${affectedBillNo}: ${wo.remarks}`,
           voucherType: "Write-off",
@@ -467,6 +510,7 @@ export async function GET(
           billCategory: cat,
           billTypeName: cat === "kacha" ? "Kaccha" : "Pakka",
           sortOrder: 4,
+          viewUrl: `/payments/write-offs`,
         });
       }
     });

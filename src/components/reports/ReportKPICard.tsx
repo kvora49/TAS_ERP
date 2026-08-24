@@ -21,6 +21,7 @@ export interface ReportKPICardProps {
   vsLastPeriod?: number | null;
   vsLabel?: string;
   className?: string;
+  onClick?: () => void;
 }
 
 const COLOR_MAP: Record<string, { border: string; icon: string; badge: string }> = {
@@ -76,6 +77,7 @@ export default function ReportKPICard({
   vsLastPeriod,
   vsLabel = "vs Last Period",
   className,
+  onClick,
 }: ReportKPICardProps) {
   const profile = useExperienceProfile();
   const isUltraFast = profile?.level === "ultraFast";
@@ -104,8 +106,10 @@ export default function ReportKPICard({
 
   const cardContent = (
     <div
+      onClick={onClick}
       className={cn(
-        "bg-[var(--card-bg)] border border-[var(--border)] border-l-4 rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-2 transition-shadow",
+        "bg-[var(--card-bg)] border border-[var(--border)] border-l-4 rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-2 transition-all",
+        onClick && "cursor-pointer hover:shadow-md hover:border-[var(--primary)]",
         colors.border,
         className
       )}

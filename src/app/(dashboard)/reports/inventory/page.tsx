@@ -8,7 +8,7 @@ import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
 import ReportKPICard from "@/components/reports/ReportKPICard";
 import { ReportDonutChart, ChartCard } from "@/components/reports/ReportChart";
 import StockCategoryFilter, { StockCategory } from "@/components/reports/StockCategoryFilter";
-import { fmtINR, fmtNum, exportToExcel, getPresetDates } from "@/lib/report-export";
+import { fmtINR, fmtNum, exportMultiSheetExcel, getPresetDates } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -96,49 +96,53 @@ export default function InventoryReportsPage() {
 
   const handleExportExcel = useCallback(() => {
     if (!data) return;
-    if (activeTab === "valuation") {
-      const exportRows = [
-        ...(data.fgRows ?? []).map((r: any) => ({ ...r, category: "Finished Goods" })),
-        ...(data.rmRows ?? []).map((r: any) => ({ ...r, design_number: "—", brand: r.category, category: r.item_type })),
-      ];
-      exportToExcel(
-        [
-          { key: "category", label: "Item Type", width: 18 },
-          { key: "design_number", label: "Code / No.", width: 16 },
-          { key: "design_name", label: "Name", width: 28 },
-          { key: "brand", label: "Brand / Category", width: 18 },
-          { key: "total_qty", label: "Total Qty", format: "number", width: 14 },
-          { key: "total_value", label: "Stock Value (₹)", format: "currency", width: 18 },
-        ],
-        exportRows,
-        `StockValuation_${category}_${billType}_${new Date().toISOString().split("T")[0]}`
-      );
-    } else if (activeTab === "warehouse") {
-      exportToExcel(
-        [
-          { key: "code", label: "Code", width: 12 },
-          { key: "name", label: "Godown", width: 24 },
-          { key: "address", label: "Location", width: 24 },
-          { key: "qty", label: "Total Qty", format: "number", width: 14 },
-          { key: "value", label: "Total Value (₹)", format: "currency", width: 18 },
-        ],
-        data.rows ?? [],
-        `WarehouseStock_${new Date().toISOString().split("T")[0]}`
-      );
-    } else {
-      exportToExcel(
-        [
-          { key: "design_number", label: "Design No.", width: 16 },
-          { key: "name", label: "Design Name", width: 28 },
-          { key: "brand", label: "Brand", width: 18 },
-          { key: "colorCount", label: "Colours", format: "number", width: 12 },
-          { key: "qty", label: "Stock Qty", format: "number", width: 14 },
-          { key: "val", label: "Total Value (₹)", format: "currency", width: 18 },
-        ],
-        data.rows ?? [],
-        `DesignStock_${category}_${new Date().toISOString().split("T")[0]}`
-      );
-    }
+    const fgRows = (data.fgRows ?? []).map((r: any) => ({ ...r, category: "Finished Goods" }));
+    const rmRows = (data.rmRows ?? []).map((r: any) => ({ ...r, design_number: "-", brand: r.category, category: r.item_type }));
+    const valRows = [...fgRows, ...rmRows];
+    exportMultiSheetExcel(
+      [
+        {
+          name: "Stock Valuation",
+          columns: [
+            { key: "category", label: "Item Type", width: 18 },
+            { key: "design_number", label: "Code / No.", width: 16 },
+            { key: "design_name", label: "Name", width: 28 },
+            { key: "brand", label: "Brand / Category", width: 18 },
+            { key: "total_qty", label: "Total Qty", format: "number" as const, width: 14 },
+            { key: "total_value", label: "Stock Value (Rs.)", format: "currency" as const, width: 20 },
+          ],
+          rows: valRows,
+        },
+        {
+          name: "Warehouse Stock",
+          columns: [
+            { key: "code", label: "Code", width: 12 },
+            { key: "name", label: "Godown", width: 24 },
+            { key: "address", label: "Location", width: 24 },
+            { key: "fg_qty", label: "FG Qty", format: "number" as const, width: 12 },
+            { key: "rm_qty", label: "RM Qty", format: "number" as const, width: 12 },
+            { key: "qty", label: "Total Qty", format: "number" as const, width: 14 },
+            { key: "value", label: "Total Value (Rs.)", format: "currency" as const, width: 20 },
+          ],
+          rows: (activeTab === "warehouse" ? data.rows : []) ?? [],
+        },
+        {
+          name: "Design Stock",
+          columns: [
+            { key: "design_number", label: "Design No.", width: 16 },
+            { key: "design_name", label: "Design Name", width: 28 },
+            { key: "brand", label: "Brand", width: 18 },
+            { key: "colour", label: "Colour", width: 14 },
+            { key: "godown", label: "Godown", width: 18 },
+            { key: "quantity", label: "Stock Qty", format: "number" as const, width: 14 },
+            { key: "cost_per_piece", label: "Cost/Piece (Rs.)", format: "currency" as const, width: 18 },
+            { key: "value", label: "Total Value (Rs.)", format: "currency" as const, width: 20 },
+          ],
+          rows: (activeTab === "design" ? data.rows : []) ?? [],
+        },
+      ],
+      `InventoryReport_${activeTab}_${category}_${new Date().toISOString().split("T")[0]}`
+    );
   }, [data, activeTab, category, billType]);
 
   const s = data?.summary ?? {};

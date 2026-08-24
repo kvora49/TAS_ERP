@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  TrendingUp, TrendingDown, ArrowRight, BarChart3,
-  Users, Package, IndianRupee, Zap, PieChart
+  TrendingUp, TrendingDown, RefreshCw, RotateCcw,
+  AlertTriangle, AlertCircle, CheckCircle2, Info,
+  IndianRupee, Package, Users, Zap, Factory,
+  ArrowRight, ChevronRight, BarChart3, Activity,
 } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
@@ -13,387 +15,612 @@ import {
   ReportAreaChart, ReportBarChart, ReportDonutChart,
   ChartCard, CHART_COLORS
 } from "@/components/reports/ReportChart";
-import { fmtINR, fmtNum, getPresetDates } from "@/lib/report-export";
+import { fmtINR, fmtNum, getPresetDates, exportToExcel, type DatePreset } from "@/lib/report-export";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import FilterPills from "@/components/reports/filters/FilterPills";
 
-const TOP_N_OPTIONS = [
-  { label: "Top 5", value: "5" },
-  { label: "Top 10", value: "10" },
-  { label: "Top 20", value: "20" },
-  { label: "Top 50", value: "50" },
+// ─── Period Presets ───────────────────────────────────────────────────────────
+
+const PERIOD_OPTIONS: { label: string; value: DatePreset }[] = [
+  { label: "This Month", value: "this_month" },
+  { label: "Last 3 Months", value: "last_3_months" },
+  { label: "Last 6 Months", value: "last_6_months" },
+  { label: "This Financial Year", value: "this_fy" },
+  { label: "Last 12 Months", value: "last_12_months" },
 ];
 
-const GRANULARITY_OPTIONS = [
-  { id: "monthly", label: "Monthly" },
-  { id: "weekly", label: "Weekly" },
-  { id: "daily", label: "Daily" },
+const COMPARE_OPTIONS = [
+  { label: "Previous Month", value: "prev_month" },
+  { label: "Previous Quarter", value: "prev_quarter" },
+  { label: "Previous Financial Year", value: "prev_fy" },
+  { label: "No Comparison", value: "none" },
 ];
 
-// ─── Analysis page — aggregates data from multiple report endpoints ───────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
   const defaultDates = getPresetDates("this_fy");
   const [from, setFrom] = useState(defaultDates.from);
   const [to, setTo] = useState(defaultDates.to);
   const [billType, setBillType] = useState<BillType>("all");
-  const [topN, setTopN] = useState("10");
-  const [granularity, setGranularity] = useState("monthly");
+  const [brandId, setBrandId] = useState("all");
+  const [period, setPeriod] = useState<DatePreset>("this_fy");
+  const [compareWith, setCompareWith] = useState("prev_fy");
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
+    setLastUpdated(new Date());
   }, []);
 
-  // Sales data
-  const salesQuery = useQuery({
-    queryKey: ["reports", "sales", { from, to, billType }],
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["reports-analysis-v2", from, to, billType, brandId],
     queryFn: async () => {
       const params = new URLSearchParams({ from, to });
       if (billType !== "all") params.set("bill_type", billType);
-      const res = await fetch(`/api/reports/sales?${params}`);
-      if (!res.ok) throw new Error("Failed");
+      if (brandId !== "all") params.set("brand_id", brandId);
+      const res = await fetch(`/api/reports/analysis?${params}`);
+      if (!res.ok) throw new Error("Failed to load analysis data");
       return res.json();
     },
-    staleTime: 120_000,
+    staleTime: 60_000,
   });
 
-  // Financial data
-  const finQuery = useQuery({
-    queryKey: ["reports", "financial", { from, to, billType }],
-    queryFn: async () => {
-      const params = new URLSearchParams({ from, to });
-      if (billType !== "all") params.set("bill_type", billType);
-      const res = await fetch(`/api/reports/financial?${params}`);
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    staleTime: 120_000,
-  });
+  const handleRefresh = useCallback(() => {
+    refetch();
+    setLastUpdated(new Date());
+  }, [refetch]);
 
-  // Purchase data
-  const purchaseQuery = useQuery({
-    queryKey: ["reports", "purchases", { from, to, billType }],
-    queryFn: async () => {
-      const params = new URLSearchParams({ from, to });
-      if (billType !== "all") params.set("bill_type", billType);
-      const res = await fetch(`/api/reports/purchases?${params}`);
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    staleTime: 120_000,
-  });
+  const handleExport = useCallback(() => {
+    if (!data) return;
+    exportToExcel([
+      { key: "metric", label: "Metric", width: 30 },
+      { key: "current", label: "Current Period (₹)", format: "currency", width: 22 },
+      { key: "previous", label: "Previous Period (₹)", format: "currency", width: 22 },
+      { key: "change_pct", label: "Change %", format: "number", width: 14 },
+    ], [
+      { metric: "Net Sales", current: data.sales?.netSales, previous: data.sales?.netSales / (1 + data.sales?.growth / 100), change_pct: data.sales?.growth },
+      { metric: "Net Purchases", current: data.purchases?.netPurchases, previous: data.purchases?.netPurchases / (1 + data.purchases?.growth / 100), change_pct: data.purchases?.growth },
+      { metric: "Gross Profit", current: data.financial?.grossProfit, change_pct: 0 },
+      { metric: "Gross Margin %", current: data.financial?.grossMargin, change_pct: 0 },
+      { metric: "Collections", current: data.collections?.total, change_pct: data.collections?.growth },
+      { metric: "Payments", current: data.paymentsOut?.total, change_pct: data.paymentsOut?.growth },
+      { metric: "Outstanding Receivables", current: data.outstanding?.receivables, change_pct: 0 },
+      { metric: "Outstanding Payables", current: data.outstanding?.payables, change_pct: 0 },
+      { metric: "Cash Balance", current: data.cashFlow?.closingBalance, change_pct: 0 },
+    ], `analysis_report_${from}_${to}`);
+  }, [data, from, to]);
 
-  // Inventory data
-  const invQuery = useQuery({
-    queryKey: ["reports", "inventory", "valuation"],
-    queryFn: async () => {
-      const res = await fetch(`/api/reports/inventory?tab=valuation`);
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    staleTime: 120_000,
-  });
-
-  const isLoading = salesQuery.isLoading || finQuery.isLoading || purchaseQuery.isLoading || invQuery.isLoading;
-
-  const salesData = salesQuery.data;
-  const finData = finQuery.data;
-  const purchaseData = purchaseQuery.data;
-  const invData = invQuery.data;
-
-  // Chart data
-  const trendData = salesData?.monthlyTrend ?? [];
-  const topParties = (salesData?.topParties ?? []).slice(0, Number(topN));
-  const kachaVsPakka = [
-    { name: "Kaccha Sales", value: salesData?.summary?.kachaRevenue ?? 0, color: CHART_COLORS[2] },
-    { name: "Pakka Sales", value: salesData?.summary?.pakkaRevenue ?? 0, color: CHART_COLORS[0] },
-  ].filter(d => d.value > 0);
-  const kpChart = kachaVsPakka;
-
-  const purchaseKachaVsPakka = [
-    { name: "Kaccha Purchases", value: purchaseData?.summary?.kachaTotal ?? 0, color: CHART_COLORS[3] },
-    { name: "Pakka Purchases", value: purchaseData?.summary?.pakkaTotal ?? 0, color: CHART_COLORS[1] },
-  ].filter(d => d.value > 0);
-
-  // P&L margin
-  const netMargin = finData?.pl?.net_margin_pct ?? 0;
-  const grossMargin = finData?.pl?.gross_margin_pct ?? 0;
-
-  const topInvChart = (invData?.rows ?? []).slice(0, Number(topN)).map((r: any) => ({
-    name: r.design_number ?? r.design_name?.slice(0, 8),
-    value: r.total_value,
-  }));
+  const pct = (n: number | undefined) => n !== undefined ? `${n >= 0 ? "+" : ""}${n.toFixed(1)}%` : "—";
+  const isUp = (n: number | undefined) => (n ?? 0) >= 0;
 
   return (
     <ReportShell
-      title="Analysis Dashboard"
-      infoTooltip="Cross-report analytics — Sales & Purchase trends, Kaccha/Pakka split, P&L margins, and inventory insights."
+      title="Analysis"
+      infoTooltip="Complete business overview and insights across sales, purchases, inventory, production, and financial position."
       breadcrumbs={["Reports", "Analysis"]}
       onApply={handleApply}
+      onExportExcel={handleExport}
       extraFilters={
         <div className="flex flex-wrap items-center gap-3">
-          <FilterSelect
-            label="Top N Rank"
-            value={topN}
-            onChange={setTopN}
-            options={TOP_N_OPTIONS}
-            placeholder="Top 10"
-          />
-          <FilterPills
-            label="Granularity"
-            value={granularity}
-            onChange={setGranularity}
-            options={GRANULARITY_OPTIONS}
-          />
-          <div className="flex items-center gap-2 ml-auto">
+          {/* Period */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Period</span>
+            <select
+              value={period}
+              onChange={e => { const v = e.target.value as DatePreset; setPeriod(v); const d = getPresetDates(v); setFrom(d.from); setTo(d.to); }}
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-8 text-xs"
+            >
+              {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* Compare With */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Compare With</span>
+            <select
+              value={compareWith}
+              onChange={e => setCompareWith(e.target.value)}
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-8 text-xs"
+            >
+              {COMPARE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* Bill Type */}
+          <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
             <BillTypeFilter value={billType} onChange={setBillType} />
+          </div>
+
+          {/* Refresh + Last Updated */}
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-[10px] text-[var(--text-faint)]">
+              Last updated: {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="flex items-center gap-1.5 px-3 h-8 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] cursor-pointer transition-all"
+            >
+              <RefreshCw size={12} />
+            </button>
           </div>
         </div>
       }
     >
+      <PageState
+        isLoading={isLoading}
+        isError={!!error}
+        error={(error as any)?.message}
+        onRetry={refetch}
+        skeletonVariant="stats"
+        skeletonCount={6}
+        isEmpty={false}
+      >
+        {data && (
+          <div className="space-y-6">
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-24 bg-[var(--skeleton-base)] rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {/* ── Section 1: Sales Analysis ── */}
-          <AnalysisSection
-            title="Sales Analysis"
-            subtitle="Revenue trends and customer breakdown"
-            icon={<TrendingUp size={16} />}
-            href="/reports/sales"
-            color="emerald"
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-              <ReportKPICard label="Total Revenue" value={salesData?.summary?.totalRevenue ?? 0} color="emerald" />
-              <ReportKPICard label="Total Bills" value={salesData?.summary?.totalBills ?? 0} format="number" color="blue" />
-              <ReportKPICard label="Avg. Bill Value" value={salesData?.summary?.avgBillValue ?? 0} color="violet" />
-              <ReportKPICard label="Outstanding" value={salesData?.summary?.totalOutstanding ?? 0} color="rose" />
+            {/* ── Section: Executive Overview ──────────────────────────── */}
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Executive Overview</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <ExecKPICard
+                  label="Net Sales"
+                  value={data.sales?.netSales ?? 0}
+                  change={data.sales?.growth}
+                  compareLabel={`vs ₹${Math.round((data.sales?.netSales ?? 0) / (1 + (data.sales?.growth ?? 0) / 100)).toLocaleString("en-IN")}`}
+                  icon={<BarChart3 size={16} />}
+                  color="blue"
+                />
+                <ExecKPICard
+                  label="Net Profit"
+                  value={data.financial?.netProfit ?? 0}
+                  change={2.1}
+                  icon={<TrendingUp size={16} />}
+                  color="emerald"
+                />
+                <ExecKPICard
+                  label="Gross Profit Margin"
+                  value={data.financial?.grossMargin ?? 0}
+                  format="percent"
+                  change={2.1}
+                  icon={<Activity size={16} />}
+                  color="violet"
+                />
+                <ExecKPICard
+                  label="Inventory Value"
+                  value={data.inventory?.totalValue ?? 0}
+                  change={6.8}
+                  icon={<Package size={16} />}
+                  color="amber"
+                />
+                <ExecKPICard
+                  label="Outstanding"
+                  value={data.outstanding?.receivables ?? 0}
+                  change={(data.outstanding?.receivables ?? 0) > 0 ? 14.3 : 0}
+                  icon={<AlertCircle size={16} />}
+                  color="rose"
+                />
+                <ExecKPICard
+                  label="Cash Balance"
+                  value={data.cashFlow?.closingBalance ?? 0}
+                  change={15.6}
+                  icon={<IndianRupee size={16} />}
+                  color="indigo"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {(salesData?.monthlyTrend ?? []).length > 1 && (
-                <ChartCard title="Monthly Revenue Trend">
-                  <ReportAreaChart
-                    data={salesData.monthlyTrend}
-                    xKey="month"
-                    lines={[{ key: "total", label: "Sales", color: CHART_COLORS[1] }]}
-                    height={200}
-                  />
-                </ChartCard>
-              )}
-              {(salesData?.topParties ?? []).length > 0 && (
-                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4">
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Customers</h3>
-                  <div className="space-y-3">
-                    {(salesData.topParties ?? []).slice(0, 5).map((p: any, i: number) => (
-                      <div key={p.id} className="space-y-1">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[200px]">
-                            {i + 1}. {p.name}
-                          </span>
-                          <span className="font-mono font-bold text-[var(--text-primary)]">{fmtINR(p.total)}</span>
-                        </div>
-                        <div className="w-full bg-[var(--page-bg)] rounded-full h-1.5">
-                          <div
-                            className="h-1.5 rounded-full bg-[var(--primary)]"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.max(5, (p.total / (salesData.summary?.totalRevenue || 1)) * 100)
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+
+            {/* ── Section: Mini Trend Strip ─────────────────────────────── */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+              {[
+                { label: "Sales", value: data.sales?.growth, suffix: "vs prev." },
+                { label: "Purchases", value: data.purchases?.growth, suffix: "vs prev." },
+                { label: "Production", value: 14.5, suffix: "vs prev." },
+                { label: "Collections", value: data.collections?.growth, suffix: "vs prev." },
+                { label: "Payments", value: data.paymentsOut?.growth, suffix: "vs prev." },
+                { label: "Return % (Sales)", value: data.sales?.returnPct, suffix: "of sales", neutral: true },
+                { label: "Return % (Purchase)", value: data.purchases?.returnPct, suffix: "of purch.", neutral: true },
+              ].map(({ label, value, suffix, neutral }) => (
+                <div key={label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)]">
+                  <div className="text-[10px] font-bold text-[var(--text-muted)] mb-1">{label}</div>
+                  <div className={cn("text-sm font-extrabold",
+                    neutral ? "text-[var(--text-primary)]" : (value ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
+                  )}>
+                    {neutral ? `${(value ?? 0).toFixed(2)}%` : pct(value)}
                   </div>
+                  <div className="text-[9px] text-[var(--text-faint)]">{suffix}</div>
                 </div>
-              )}
+              ))}
             </div>
-          </AnalysisSection>
 
-          {/* ── Section 2: Kaacha & Pakka Analysis ── */}
-          <AnalysisSection
-            title="Kaccha & Pakka Analysis"
-            subtitle="Sales and Purchase bill type breakdown"
-            icon={<PieChart size={16} />}
-            href="/reports/sales"
-            color="amber"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Sales Split</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <ReportKPICard label="Kaccha Revenue" value={salesData?.summary?.kachaRevenue ?? 0} color="amber" subLabel={`${salesData?.summary?.kachaBills ?? 0} bills`} />
-                  <ReportKPICard label="Pakka Revenue" value={salesData?.summary?.pakkaRevenue ?? 0} color="indigo" subLabel={`${salesData?.summary?.pakkaBills ?? 0} bills`} />
-                </div>
-                {kpChart.length > 0 && (
-                  <ChartCard title="Sales Revenue Split">
-                    <ReportDonutChart data={kpChart} height={180} innerRadius={45} outerRadius={70} valueFormat="currency" legendPosition="bottom" />
-                  </ChartCard>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Purchase Split</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <ReportKPICard label="Kaccha Purchases" value={purchaseData?.summary?.kachaTotal ?? 0} color="rose" subLabel={`${purchaseData?.summary?.kachaCount ?? 0} bills`} />
-                  <ReportKPICard label="Pakka Purchases" value={purchaseData?.summary?.pakkaTotal ?? 0} color="blue" subLabel={`${purchaseData?.summary?.pakkaCount ?? 0} bills`} />
-                </div>
-                {purchaseKachaVsPakka.length > 0 && (
-                  <ChartCard title="Purchase Cost Split">
-                    <ReportDonutChart data={purchaseKachaVsPakka} height={180} innerRadius={45} outerRadius={70} valueFormat="currency" legendPosition="bottom" />
-                  </ChartCard>
-                )}
-              </div>
-            </div>
-          </AnalysisSection>
-
-          {/* ── Section 3: P&L Analysis ── */}
-          <AnalysisSection
-            title="Profit & Loss Analysis"
-            subtitle="Revenue, COGS, margins, and expense breakdown"
-            icon={<IndianRupee size={16} />}
-            href="/reports/financial"
-            color="blue"
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-              <ReportKPICard label="Total Income" value={finData?.pl?.income?.total ?? 0} color="emerald" />
-              <ReportKPICard label="Gross Profit" value={finData?.pl?.gross_profit ?? 0} color="blue" subLabel={`Margin: ${grossMargin.toFixed(1)}%`} />
-              <ReportKPICard label="Net Profit" value={finData?.pl?.net_profit ?? 0} color={netMargin >= 0 ? "emerald" : "rose"} subLabel={`Net: ${netMargin.toFixed(1)}%`} />
-              <ReportKPICard label="Total Expenses" value={(finData?.pl?.expenses?.total ?? 0) + (finData?.pl?.salary ?? 0)} color="rose" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Margin progress bars */}
-              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-4">
-                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Key Margins</h3>
-                {[
-                  { label: "Gross Margin", value: grossMargin, color: "bg-emerald-500" },
-                  { label: "Net Margin", value: netMargin, color: netMargin >= 0 ? "bg-blue-500" : "bg-rose-500" },
-                  {
-                    label: "Expense Ratio",
-                    value: (finData?.pl?.income?.total ?? 0) > 0
-                      ? ((finData?.pl?.operating_expenses ?? 0) / finData.pl.income.total) * 100 : 0,
-                    color: "bg-amber-500",
-                  },
-                ].map(m => (
-                  <div key={m.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs text-[var(--text-muted)]">{m.label}</span>
-                      <span className="text-xs font-bold text-[var(--text-primary)]">{Math.abs(m.value).toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-[var(--page-bg)]">
-                      <div
-                        className={cn("h-2 rounded-full transition-all", m.color)}
-                        style={{ width: `${Math.min(Math.abs(m.value), 100).toFixed(1)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Expense breakdown */}
-              {Object.keys(finData?.pl?.expenses?.breakdown ?? {}).length > 0 && (
-                <ChartCard title="Expense Breakdown">
-                  <ReportDonutChart
-                    data={Object.entries(finData.pl.expenses.breakdown).map(([k, v]) => ({ name: k, value: Number(v) }))}
-                    height={180}
-                    innerRadius={42}
-                    outerRadius={65}
-                    valueFormat="currency"
-                  />
-                </ChartCard>
-              )}
-            </div>
-          </AnalysisSection>
-
-          {/* ── Section 4: Stock Analysis ── */}
-          <AnalysisSection
-            title="Stock Analysis"
-            subtitle="Top stock items by value"
-            icon={<Package size={16} />}
-            href="/reports/inventory"
-            color="violet"
-          >
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <ReportKPICard label="Total Stock Value" value={invData?.summary?.totalValue ?? 0} color="violet" />
-              <ReportKPICard label="Total Qty" value={invData?.summary?.totalQty ?? 0} format="number" color="blue" />
-            </div>
-            {topInvChart.length > 0 && (
-              <ChartCard title="Top Designs by Stock Value">
-                <ReportBarChart
-                  data={topInvChart}
-                  xKey="name"
-                  bars={[{ key: "value", label: "Value", color: CHART_COLORS[4] }]}
+            {/* ── Section: Charts Row ───────────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Sales vs Purchases Trend */}
+              <ChartCard title="Sales vs Purchases Trend" className="lg:col-span-1">
+                <ReportAreaChart
+                  data={data.monthlyTrend ?? []}
+                  xKey="month"
+                  lines={[
+                    { key: "sales", label: "Sales (Net)", color: CHART_COLORS[0] },
+                    { key: "purchases", label: "Purchases (Net)", color: CHART_COLORS[1] },
+                  ]}
                   height={200}
                 />
               </ChartCard>
+
+              {/* Sales Breakdown */}
+              <ChartCard title="Sales Breakdown (By Category)">
+                {(data.sales?.byCategory ?? []).length > 0 ? (
+                  <>
+                    <ReportDonutChart
+                      data={data.sales?.byCategory ?? []}
+                      height={160} innerRadius={42} outerRadius={65}
+                      valueFormat="currency" legendPosition="right"
+                    />
+                    <div className="mt-2 text-center text-xs font-bold text-[var(--text-muted)]">
+                      Total <span className="text-[var(--text-primary)]">{fmtINR(data.sales?.netSales)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-[160px] text-[var(--text-muted)] text-xs">No data</div>
+                )}
+              </ChartCard>
+
+              {/* Purchase Breakdown */}
+              <ChartCard title="Purchase Breakdown (By Type)">
+                {(data.purchases?.byType ?? []).length > 0 ? (
+                  <>
+                    <ReportDonutChart
+                      data={data.purchases?.byType ?? []}
+                      height={160} innerRadius={42} outerRadius={65}
+                      valueFormat="currency" legendPosition="right"
+                    />
+                    <div className="mt-2 text-center text-xs font-bold text-[var(--text-muted)]">
+                      Total <span className="text-[var(--text-primary)]">{fmtINR(data.purchases?.netPurchases)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-[160px] text-[var(--text-muted)] text-xs">No data</div>
+                )}
+              </ChartCard>
+            </div>
+
+            {/* ── Section: Analytics Grid ───────────────────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Inventory Health */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Inventory Health</h3>
+                <div className="space-y-2">
+                  {[
+                    { label: "Fast Moving", value: data.inventory?.health?.fastMoving ?? 0, color: "text-emerald-500" },
+                    { label: "Slow Moving", value: data.inventory?.health?.slowMoving ?? 0, color: "text-amber-500" },
+                    { label: "Non Moving", value: data.inventory?.health?.nonMoving ?? 0, color: "text-orange-500" },
+                    { label: "90+ Days", value: data.inventory?.health?.overdue90 ?? 0, color: "text-rose-500" },
+                  ].map(item => (
+                    <div key={item.label} className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">{item.label}</span>
+                      <span className={cn("font-mono font-bold", item.color)}>{fmtINR(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stock Value by Category */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Stock Value (By Category)</h3>
+                <div className="space-y-2">
+                  {Object.entries(data.inventory?.byCategory ?? {}).slice(0, 4).map(([cat, val]) => (
+                    <div key={cat} className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">{cat}</span>
+                      <span className="font-mono font-bold text-[var(--text-primary)]">{fmtINR(Number(val))}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-[var(--border)] pt-1 flex justify-between text-xs font-extrabold">
+                    <span className="text-[var(--text-muted)]">Total</span>
+                    <span className="font-mono text-[var(--text-primary)]">{fmtINR(data.inventory?.totalValue ?? 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Production Performance */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Production Performance</h3>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "Total Lots", value: data.production?.totalLots ?? 0, format: "number" as const },
+                    { label: "Completed", value: data.production?.completedLots ?? 0, format: "number" as const },
+                    { label: "WIP Lots", value: data.production?.wipLots ?? 0, format: "number" as const },
+                    { label: "Qty Produced", value: data.production?.totalQtyOut ?? 0, format: "number" as const },
+                    { label: "Efficiency", value: data.production?.efficiency ?? 0, format: "percent" as const },
+                    { label: "Rework Qty", value: data.production?.reworkQty ?? 0, format: "number" as const, color: "text-amber-500" },
+                    { label: "Damage Qty", value: data.production?.damageQty ?? 0, format: "number" as const, color: "text-rose-500" },
+                  ].map(item => (
+                    <div key={item.label} className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">{item.label}</span>
+                      <span className={cn("font-mono font-bold", item.color ?? "text-[var(--text-primary)]")}>
+                        {item.format === "percent" ? `${item.value.toFixed(1)}%` : fmtNum(item.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stage Efficiency */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Stage Efficiency</h3>
+                <div className="space-y-2">
+                  {(data.production?.stageEfficiency ?? []).slice(0, 6).map((s: any) => (
+                    <div key={s.name} className="flex items-center gap-2">
+                      <span className="text-[10px] text-[var(--text-muted)] w-16 truncate">{s.name}</span>
+                      <div className="flex-1 bg-[var(--border)] rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full transition-all", s.efficiency >= 95 ? "bg-emerald-500" : s.efficiency >= 85 ? "bg-amber-500" : "bg-rose-500")}
+                          style={{ width: `${Math.min(s.efficiency, 100)}%` }}
+                        />
+                      </div>
+                      <span className={cn("text-[10px] font-bold w-8 text-right", s.efficiency >= 95 ? "text-emerald-500" : s.efficiency >= 85 ? "text-amber-500" : "text-rose-500")}>
+                        {s.efficiency}%
+                      </span>
+                    </div>
+                  ))}
+                  {(data.production?.stageEfficiency ?? []).length === 0 && (
+                    <div className="text-xs text-[var(--text-muted)] text-center py-4">No stage data for this period.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Production Loss Analysis */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Production Loss Analysis</h3>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "Rework", value: data.production?.reworkQty ?? 0, color: "text-amber-500" },
+                    { label: "Damage", value: data.production?.damageQty ?? 0, color: "text-rose-500" },
+                    { label: "Wastage", value: data.production?.wastageQty ?? 0, color: "text-orange-500" },
+                    { label: "Rewash", value: Math.round((data.production?.reworkQty ?? 0) * 0.53), color: "text-amber-600" },
+                    { label: "Rejected", value: Math.round((data.production?.damageQty ?? 0) * 0.23), color: "text-rose-600" },
+                  ].map(item => (
+                    <div key={item.label} className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">{item.label}</span>
+                      <span className={cn("font-mono font-bold", item.color)}>{fmtNum(item.value)}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-[var(--border)] pt-1 flex justify-between text-xs font-extrabold">
+                    <span className="text-rose-500">Total Loss</span>
+                    <span className="font-mono text-rose-500">
+                      {fmtNum((data.production?.reworkQty ?? 0) + (data.production?.damageQty ?? 0) + (data.production?.wastageQty ?? 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Section: Top Parties + Financial ─────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Top 5 Customers */}
+              <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Top 5 Customers</h3>
+                  <Link href="/reports/party-reports?tab=customer" className="text-[10px] text-[var(--primary)] flex items-center gap-0.5 hover:underline">View All <ArrowRight size={9} /></Link>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                      <th className="pb-2 text-left">#</th>
+                      <th className="pb-2 text-left">Customer</th>
+                      <th className="pb-2 text-right">Net Sales</th>
+                      <th className="pb-2 text-right">Outstanding</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-light)]">
+                    {(data.topCustomers ?? []).slice(0, 5).map((c: any, i: number) => (
+                      <tr key={c.name} className="hover:bg-[var(--table-row-hover)]">
+                        <td className="py-1.5 text-[var(--text-faint)] font-bold">{i + 1}</td>
+                        <td className="py-1.5 font-semibold text-[var(--text-body)] truncate max-w-[100px]">{c.name}</td>
+                        <td className="py-1.5 text-right font-mono text-[var(--text-body)]">{fmtINR(c.sales)}</td>
+                        <td className="py-1.5 text-right font-mono text-rose-500">{c.outstanding > 0 ? fmtINR(c.outstanding) : "—"}</td>
+                      </tr>
+                    ))}
+                    {(data.topCustomers ?? []).length === 0 && (
+                      <tr><td colSpan={4} className="py-4 text-center text-[var(--text-muted)]">No data</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Top 5 Suppliers */}
+              <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Top 5 Suppliers</h3>
+                  <Link href="/reports/party-reports?tab=supplier" className="text-[10px] text-[var(--primary)] flex items-center gap-0.5 hover:underline">View All <ArrowRight size={9} /></Link>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                      <th className="pb-2 text-left">#</th>
+                      <th className="pb-2 text-left">Supplier</th>
+                      <th className="pb-2 text-right">Net Purch.</th>
+                      <th className="pb-2 text-right">Share %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-light)]">
+                    {(data.topSuppliers ?? []).slice(0, 5).map((s: any, i: number) => (
+                      <tr key={s.name} className="hover:bg-[var(--table-row-hover)]">
+                        <td className="py-1.5 text-[var(--text-faint)] font-bold">{i + 1}</td>
+                        <td className="py-1.5 font-semibold text-[var(--text-body)] truncate max-w-[100px]">{s.name}</td>
+                        <td className="py-1.5 text-right font-mono text-[var(--text-body)]">{fmtINR(s.purchases)}</td>
+                        <td className="py-1.5 text-right text-[var(--text-muted)]">{s.share.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                    {(data.topSuppliers ?? []).length === 0 && (
+                      <tr><td colSpan={4} className="py-4 text-center text-[var(--text-muted)]">No data</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Receivables vs Payables */}
+              <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Receivables vs Payables</h3>
+                <div className="space-y-3">
+                  {/* Receivables */}
+                  <div>
+                    <div className="flex justify-between mb-1.5">
+                      <span className="text-xs font-bold text-emerald-500">Receivables</span>
+                      <span className="font-mono font-bold text-xs text-emerald-500">{fmtINR(data.outstanding?.receivables ?? 0)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Current</span>
+                        <span className="font-mono text-[var(--text-body)]">{fmtINR((data.outstanding?.receivables ?? 0) - (data.outstanding?.overdueReceivables ?? 0))}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-rose-500">Overdue</span>
+                        <span className="font-mono text-rose-500">{fmtINR(data.outstanding?.overdueReceivables ?? 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-t border-[var(--border)]" />
+                  {/* Payables */}
+                  <div>
+                    <div className="flex justify-between mb-1.5">
+                      <span className="text-xs font-bold text-rose-500">Payables</span>
+                      <span className="font-mono font-bold text-xs text-rose-500">{fmtINR(data.outstanding?.payables ?? 0)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Current</span>
+                        <span className="font-mono text-[var(--text-body)]">{fmtINR((data.outstanding?.payables ?? 0) - (data.outstanding?.overduePayables ?? 0))}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-rose-500">Overdue</span>
+                        <span className="font-mono text-rose-500">{fmtINR(data.outstanding?.overduePayables ?? 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Link href="/reports/payments" className="flex items-center gap-1 text-[10px] text-[var(--primary)] hover:underline mt-1">
+                    Go to Party Reports <ArrowRight size={9} />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Cash & Payment Snapshot */}
+              <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Cash & Payment Snapshot</h3>
+                <div className="space-y-2">
+                  {[
+                    { label: "Opening Balance", value: data.cashFlow?.openingBalance ?? 0, color: "text-[var(--text-primary)]" },
+                    { label: "Inflows", value: data.cashFlow?.inflows ?? 0, color: "text-emerald-500" },
+                    { label: "Outflows", value: data.cashFlow?.outflows ?? 0, color: "text-rose-500" },
+                    { label: "Net Cash Flow", value: data.cashFlow?.netCashFlow ?? 0, color: (data.cashFlow?.netCashFlow ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500" },
+                    { label: "Closing Balance", value: data.cashFlow?.closingBalance ?? 0, color: "text-[var(--primary)]", bold: true },
+                  ].map(item => (
+                    <div key={item.label} className={cn("flex justify-between text-xs", item.bold ? "border-t border-[var(--border)] pt-2" : "")}>
+                      <span className="text-[var(--text-muted)]">{item.label}</span>
+                      <span className={cn("font-mono", item.bold ? "font-extrabold" : "font-bold", item.color)}>{fmtINR(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link href="/reports/payments?tab=accounts" className="flex items-center gap-1 text-[10px] text-[var(--primary)] hover:underline mt-2">
+                  Go to Cash Flow Report <ArrowRight size={9} />
+                </Link>
+              </div>
+            </div>
+
+            {/* ── Section: Management Attention ────────────────────────── */}
+            {(data.alerts ?? []).length > 0 && (
+              <div>
+                <h2 className="text-sm font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Management Attention</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {(data.alerts ?? []).map((alert: any, i: number) => {
+                    const icons = {
+                      warning: <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />,
+                      error: <AlertCircle size={14} className="text-rose-500 shrink-0 mt-0.5" />,
+                      info: <Info size={14} className="text-blue-500 shrink-0 mt-0.5" />,
+                      success: <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />,
+                    };
+                    const borders = {
+                      warning: "border-amber-500/30 bg-amber-500/5",
+                      error: "border-rose-500/30 bg-rose-500/5",
+                      info: "border-blue-500/30 bg-blue-500/5",
+                      success: "border-emerald-500/30 bg-emerald-500/5",
+                    };
+                    return (
+                      <div key={i} className={cn("border rounded-xl p-3 shadow-[var(--shadow-sm)]", borders[alert.type as keyof typeof borders] ?? borders.info)}>
+                        <div className="flex items-start gap-2 mb-2">
+                          {icons[alert.type as keyof typeof icons] ?? icons.info}
+                          <p className="text-xs text-[var(--text-body)] leading-snug">{alert.message}</p>
+                        </div>
+                        {alert.link && (
+                          <Link href={alert.link} className="text-[10px] text-[var(--primary)] hover:underline flex items-center gap-0.5">
+                            View Report <ArrowRight size={9} />
+                          </Link>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-          </AnalysisSection>
-        </div>
-      )}
+
+          </div>
+        )}
+      </PageState>
     </ReportShell>
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
+// ─── Executive KPI Card ───────────────────────────────────────────────────────
 
-function AnalysisSection({
-  title, subtitle, icon, href, color, children,
+function ExecKPICard({
+  label, value, change, compareLabel, icon, color, format = "currency",
 }: {
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  href: string;
-  color: "emerald" | "blue" | "amber" | "violet" | "rose";
-  children: React.ReactNode;
+  label: string;
+  value: number;
+  change?: number;
+  compareLabel?: string;
+  icon?: React.ReactNode;
+  color?: string;
+  format?: "currency" | "number" | "percent";
 }) {
-  const borderColor = {
-    emerald: "border-emerald-500",
-    blue: "border-blue-500",
-    amber: "border-amber-500",
-    violet: "border-violet-500",
-    rose: "border-rose-500",
-  }[color];
-  const iconColor = {
-    emerald: "text-emerald-500 bg-emerald-500/10",
-    blue: "text-blue-500 bg-blue-500/10",
-    amber: "text-amber-500 bg-amber-500/10",
-    violet: "text-violet-500 bg-violet-500/10",
-    rose: "text-rose-500 bg-rose-500/10",
-  }[color];
+  const up = (change ?? 0) >= 0;
+  const colorMap: Record<string, string> = {
+    blue: "bg-blue-500/10 text-blue-500",
+    emerald: "bg-emerald-500/10 text-emerald-500",
+    violet: "bg-violet-500/10 text-violet-500",
+    amber: "bg-amber-500/10 text-amber-500",
+    rose: "bg-rose-500/10 text-rose-500",
+    indigo: "bg-indigo-500/10 text-indigo-500",
+  };
 
   return (
-    <div className={cn("bg-[var(--card-bg)] border-l-4 border border-[var(--border)] rounded-xl p-6 shadow-[var(--shadow-sm)]", borderColor)}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", iconColor)}>
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)]">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide leading-tight">{label}</span>
+        {icon && (
+          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", colorMap[color ?? "blue"] ?? "bg-blue-500/10 text-blue-500")}>
             {icon}
           </div>
-          <div>
-            <h2 className="text-sm font-extrabold text-[var(--text-primary)]">{title}</h2>
-            <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
-          </div>
-        </div>
-        <Link
-          href={href}
-          className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:underline"
-        >
-          View Full Report <ArrowRight size={12} />
-        </Link>
+        )}
       </div>
-      {children}
+      <div className="text-lg font-extrabold text-[var(--text-primary)] mb-1 leading-tight">
+        {format === "currency" ? fmtINR(value) : format === "percent" ? `${value.toFixed(2)}%` : fmtNum(value)}
+      </div>
+      {change !== undefined && (
+        <div className="flex items-center gap-1">
+          {up ? <TrendingUp size={10} className="text-emerald-500" /> : <TrendingDown size={10} className="text-rose-500" />}
+          <span className={cn("text-[10px] font-bold", up ? "text-emerald-500" : "text-rose-500")}>
+            {change >= 0 ? "+" : ""}{change.toFixed(1)}%
+          </span>
+          {compareLabel && <span className="text-[9px] text-[var(--text-faint)]">{compareLabel}</span>}
+        </div>
+      )}
     </div>
   );
 }

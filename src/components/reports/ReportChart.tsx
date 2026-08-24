@@ -240,50 +240,56 @@ export function ReportDonutChart({
   const total = data.reduce((s, d) => s + d.value, 0);
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-        <Pie
-          data={data}
-          cx="50%"
-          cy={legendPosition === "bottom" ? "42%" : "50%"}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius}
-          paddingAngle={3}
-          dataKey="value"
+    <div style={{ overflow: "visible", position: "relative" }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <PieChart
+          margin={{ top: 15, right: 15, bottom: 15, left: 15 }}
+          style={{ overflow: "visible" }}
         >
-          {data.map((entry, i) => (
-            <Cell key={entry.name} fill={entry.color ?? CHART_COLORS[i % CHART_COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{
-            background: ct.tooltipBg,
-            border: `1px solid ${ct.tooltipBorder}`,
-            borderRadius: 8,
-            fontSize: 11,
-            color: ct.text,
-          }}
-          formatter={(value: any, name: any) => [
-            formatValue(Number(value || 0), valueFormat),
-            String(name || ""),
-          ]}
-        />
-        <Legend
-          layout={legendPosition === "bottom" ? "horizontal" : "vertical"}
-          align={legendPosition === "bottom" ? "center" : "right"}
-          verticalAlign={legendPosition === "bottom" ? "bottom" : "middle"}
-          iconType="circle"
-          iconSize={8}
-          wrapperStyle={{ fontSize: 10, color: ct.axisText, paddingTop: legendPosition === "bottom" ? 8 : 0 }}
-          formatter={(value, entry: any) => {
-            const pct = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : "0";
-            return `${value} (${pct}%)`;
-          }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+          <Pie
+            data={data}
+            cx="50%"
+            cy={legendPosition === "bottom" ? "42%" : "50%"}
+            innerRadius={innerRadius}
+            outerRadius={outerRadius}
+            paddingAngle={3}
+            dataKey="value"
+          >
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={entry.color ?? CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              background: ct.tooltipBg,
+              border: `1px solid ${ct.tooltipBorder}`,
+              borderRadius: 8,
+              fontSize: 11,
+              color: ct.text,
+            }}
+            formatter={(value: any, name: any) => [
+              formatValue(Number(value || 0), valueFormat),
+              String(name || ""),
+            ]}
+          />
+          <Legend
+            layout={legendPosition === "bottom" ? "horizontal" : "vertical"}
+            align={legendPosition === "bottom" ? "center" : "right"}
+            verticalAlign={legendPosition === "bottom" ? "bottom" : "middle"}
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: 10, color: ct.axisText, paddingTop: legendPosition === "bottom" ? 8 : 0 }}
+            formatter={(value, entry: any) => {
+              const pct = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : "0";
+              return `${value} (${pct}%)`;
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
+
 
 // ─── Chart Card Wrapper ───────────────────────────────────────────────────────
 
