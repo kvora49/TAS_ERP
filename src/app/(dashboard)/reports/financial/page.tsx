@@ -978,7 +978,7 @@ function BalanceTab({
               {data.is_balanced ? "✓ Balance Sheet is Balanced" : `Out of balance by ${fmtINR(Math.abs(data.difference))}`}
             </span>
             <span className="font-mono text-[11px] opacity-80">
-              Total Assets ({fmtINR(data.assets.total)}) = Total Liabilities + Owner's Funds ({fmtINR(data.assets.total)})
+              Total Assets ({fmtINR(data.assets.total)}) = Total Liabilities + Owner&apos;s Funds ({fmtINR(data.assets.total)})
             </span>
           </div>
 
@@ -988,7 +988,7 @@ function BalanceTab({
             <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)] bg-rose-500/10">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-                  Liabilities & Owner's Funds
+                  Liabilities &amp; Owner&apos;s Funds
                 </h3>
                 <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                   Amount (₹)
@@ -1130,7 +1130,7 @@ function BalanceTab({
                 <BSRowTotal label="Total Current Liabilities" value={data.liabilities.current.total} color="rose" />
 
                 <div className="flex justify-between px-5 py-3.5 bg-rose-500/5 border-t-2 border-[var(--border)] font-extrabold">
-                  <span className="text-xs uppercase text-rose-600 dark:text-rose-400">Total Liabilities + Owner's Funds</span>
+                  <span className="text-xs uppercase text-rose-600 dark:text-rose-400">Total Liabilities + Owner&apos;s Funds</span>
                   <span className="font-mono text-sm text-rose-600 dark:text-rose-400">{fmtINR(data.assets.total)}</span>
                 </div>
               </div>
