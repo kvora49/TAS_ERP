@@ -141,6 +141,7 @@ interface Supplier {
   name: string;
   company_name: string | null;
   default_godown_id?: string | null;
+  payment_terms?: string | null;
 }
 
 interface MaterialType {
@@ -687,6 +688,26 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const watchInvoiceDate = watch("invoice_date");
   const watchPaymentTerms = watch("payment_terms");
 
+  // Auto-calculate due date when invoice date or payment terms change
+  useEffect(() => {
+    if (watchInvoiceDate && watchPaymentTerms) {
+      const daysMap: Record<string, number> = {
+        "15_days": 15,
+        "30_days": 30,
+        "45_days": 45,
+        "60_days": 60,
+        "90_days": 90,
+        "immediate": 0,
+      };
+      const days = daysMap[watchPaymentTerms] ?? 0;
+      const d = new Date(watchInvoiceDate);
+      if (!isNaN(d.getTime())) {
+        d.setDate(d.getDate() + days);
+        setValue("due_date", d.toISOString().split("T")[0]);
+      }
+    }
+  }, [watchInvoiceDate, watchPaymentTerms, setValue]);
+
   // Fetch lists
   useEffect(() => {
     async function fetchSuppliers() {
@@ -1073,6 +1094,24 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                     const selectedSup = suppliers.find((s) => s.id === val);
                     if (selectedSup?.default_godown_id) {
                       setValue("godown_id", selectedSup.default_godown_id);
+                    }
+                    if (selectedSup?.payment_terms) {
+                      setValue("payment_terms", selectedSup.payment_terms);
+                      const invDate = watch("invoice_date");
+                      if (invDate) {
+                        const daysMap: Record<string, number> = {
+                          "15_days": 15,
+                          "30_days": 30,
+                          "45_days": 45,
+                          "60_days": 60,
+                          "90_days": 90,
+                          "immediate": 0,
+                        };
+                        const days = daysMap[selectedSup.payment_terms] ?? 0;
+                        const d = new Date(invDate);
+                        d.setDate(d.getDate() + days);
+                        setValue("due_date", d.toISOString().split("T")[0]);
+                      }
                     }
                   }}
                   suppliers={suppliers}

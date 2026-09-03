@@ -74,7 +74,9 @@ export async function GET(req: NextRequest) {
         .lte("resolution_date", to),
       supabase
         .from("production_stages")
-        .select("id, name, order_index")
+        .select("id, name, order_index, template_id")
+        .eq("business_id", bid)
+        .is("deleted_at", null)
         .order("order_index", { ascending: true }),
     ]);
 

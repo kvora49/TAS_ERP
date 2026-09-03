@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useForm } from "react-hook-form";
@@ -111,6 +111,19 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
     }
     fetchStages();
   }, []);
+
+  const stagesByTemplate = useMemo(() => {
+    const groups: Record<string, { templateName: string; stages: ProductionStage[] }> = {};
+    stages.forEach((stage: any) => {
+      const templateName = stage.template?.name || "General Stages";
+      const templateKey = stage.template?.id || "general";
+      if (!groups[templateKey]) {
+        groups[templateKey] = { templateName, stages: [] };
+      }
+      groups[templateKey].stages.push(stage);
+    });
+    return Object.values(groups);
+  }, [stages]);
 
   // Set initial data if editing
   useEffect(() => {
@@ -400,18 +413,22 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Preferred Production Stage
                 </label>
                 <select
                   {...register("preferred_stage_id")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Select Preferred Stage</option>
-                  {stages.map((stage) => (
-                    <option key={stage.id} value={stage.id}>
-                      {stage.name}
-                    </option>
+                  {stagesByTemplate.map((group) => (
+                    <optgroup key={group.templateName} label={group.templateName} className="font-bold text-[var(--text-secondary)] bg-[var(--card-bg)]">
+                      {group.stages.map((stage) => (
+                        <option key={stage.id} value={stage.id} className="text-[var(--text-primary)] bg-[var(--card-bg)] font-medium">
+                          {stage.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>

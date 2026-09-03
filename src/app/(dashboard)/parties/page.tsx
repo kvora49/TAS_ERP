@@ -9,13 +9,14 @@ import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, User } from "lucide-react";
+import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, User, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePartiesList } from "@/hooks/queries/useParties";
 import { formatCurrency, cn } from "@/lib/utils";
 import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
+import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
 
 interface Party {
   id: string;
@@ -346,70 +347,96 @@ export default function PartiesPage() {
           </div>
         </div>{/* end desktop filter bar */}
 
-        {/* ── MOBILE: Party card list ── */}
+        {/* ── MOBILE: Compact High-Density Row List ── */}
         <div className="md:hidden space-y-3">
-          {filteredParties.map((party) => (
-            <div key={party.id}
-              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-              onClick={() => router.push(`/parties/${party.id}`)}
-            >
-              {/* Header: Avatar initials + Name + Status */}
-              <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
-                <div className="w-9 h-9 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-black text-sm shrink-0 uppercase">
-                  {party.name?.charAt(0) || "?"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <Link href={`/parties/${party.id}`} onClick={(e) => e.stopPropagation()}
-                    className="font-bold text-[var(--text-primary)] text-sm hover:text-[var(--primary)] hover:underline block truncate"
-                  >{party.name}</Link>
-                  {party.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{party.company_name}</p>}
-                </div>
-                <StatusBadge active={party.status === "active"} />
-              </div>
-
-              {/* Type badges + Code */}
-              <div className="flex items-center gap-1.5 flex-wrap px-4 pb-2">
-                <span className="font-mono text-[10px] font-bold text-[var(--text-faint)] bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded">
-                  {party.code || "—"}
-                </span>
-                {party.type?.map((t) => {
-                  let variant: BadgeVariant = "gray";
-                  if (t === "supplier") variant = "primary";
-                  else if (t === "customer") variant = "green";
-                  else if (t === "worker") variant = "orange";
-                  return <Badge key={t} variant={variant} className="capitalize text-[10px]">{t}</Badge>;
-                })}
-              </div>
-
-              {/* Phone + GSTIN grid */}
-              <div className="grid grid-cols-2 gap-2 px-4 pb-2 border-t border-[var(--border-light)] pt-2">
-                <div>
-                  <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Phone</p>
-                  <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{party.phone || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">GSTIN</p>
-                  <p className="text-xs font-mono font-bold text-[var(--text-primary)] mt-0.5 truncate uppercase">{party.gstin || "—"}</p>
-                </div>
-              </div>
-
-              {/* Action footer */}
-              <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
-                <Link href={`/parties/${party.id}`} onClick={(e) => e.stopPropagation()}
-                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] flex items-center justify-center cursor-pointer" title="View Profile"
-                ><User size={13} /></Link>
-                <Link href={`/parties/${party.id}/ledger`} onClick={(e) => e.stopPropagation()}
-                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="Ledger"
-                ><FileText size={13} /></Link>
-                <Link href={`/parties/${party.id}/edit`} onClick={(e) => e.stopPropagation()}
-                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
-                ><Pencil size={13} /></Link>
-                <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenDelete(party); }}
-                  className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Delete"
-                ><Trash2 size={13} /></button>
-              </div>
+          {/* Mobile Search Bar + Filter Chips */}
+          <div className="space-y-2 pt-1">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search parties..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-9 h-10 rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
-          ))}
+
+            {/* Mobile Tab Chips */}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+              {[
+                { id: "all", label: "All" },
+                { id: "supplier", label: "Suppliers" },
+                { id: "customer", label: "Customers" },
+                { id: "worker", label: "Workers" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={cn(
+                    "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+                    activeTab === tab.id
+                      ? "bg-[var(--primary)] border-[var(--primary)] text-white"
+                      : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* High Density Rows Container */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
+            {filteredParties.map((party) => {
+              const primaryType = party.type?.[0] || "supplier";
+              let badgeVariant: BadgeVariant = "gray";
+              if (primaryType === "supplier") badgeVariant = "primary";
+              else if (primaryType === "customer") badgeVariant = "green";
+              else if (primaryType === "worker") badgeVariant = "orange";
+
+              return (
+                <MobileCompactRow
+                  key={party.id}
+                  icon={
+                    <div className="w-8 h-8 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center font-black text-xs uppercase">
+                      {party.name?.charAt(0) || "?"}
+                    </div>
+                  }
+                  title={party.name}
+                  subtitle={party.company_name || party.phone || "No contact"}
+                  value={party.code ? <span className="font-mono text-xs">{party.code}</span> : undefined}
+                  badge={
+                    <Badge variant={badgeVariant} className="capitalize text-[10px]">
+                      {primaryType}
+                    </Badge>
+                  }
+                  onClick={() => router.push(`/parties/${party.id}`)}
+                  leftAction={{
+                    label: "Edit",
+                    icon: <Pencil size={14} />,
+                    bgClass: "bg-amber-600 text-white",
+                    onAction: () => router.push(`/parties/${party.id}/edit`),
+                  }}
+                  rightAction={{
+                    label: "Delete",
+                    icon: <Trash2 size={14} />,
+                    bgClass: "bg-rose-600 text-white",
+                    onAction: () => handleOpenDelete(party),
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
 
         {/* ── DESKTOP: DataTable ── */}

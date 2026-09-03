@@ -340,14 +340,17 @@ export async function GET(request: Request) {
     const stages = stagesRes.data || [];
     const lots = lotsRes.data || [];
 
-    const stageMap = new Map<string, { name: string; color: string; count: number }>();
+    // Map stage_id -> stage metadata
+    const stageIdToMeta = new Map<string, { name: string; color: string }>();
     stages.forEach((stg: any) => {
-      stageMap.set(stg.id, {
+      stageIdToMeta.set(stg.id, {
         name: stg.name,
         color: stg.color || "#6366F1",
-        count: 0,
       });
     });
+
+    // Group counts by normalized stage name (case-insensitive deduplication across templates)
+    const normalizedStageMap = new Map<string, { displayName: string; color: string; count: number }>();
 
     const statusCounts: Record<string, { name: string; color: string; count: number }> = {
       draft: { name: "Draft", color: "#94A3B8", count: 0 },
@@ -358,8 +361,25 @@ export async function GET(request: Request) {
     };
 
     lots.forEach((lot: any) => {
-      if (lot.current_stage_id && stageMap.has(lot.current_stage_id)) {
-        stageMap.get(lot.current_stage_id)!.count++;
+      let stageName: string | null = null;
+      let stageColor = "#6366F1";
+
+      if (lot.current_stage_id && stageIdToMeta.has(lot.current_stage_id)) {
+        const meta = stageIdToMeta.get(lot.current_stage_id)!;
+        stageName = meta.name;
+        stageColor = meta.color;
+      } else if (lot.stage?.name) {
+        stageName = lot.stage.name;
+        stageColor = lot.stage.color || "#6366F1";
+      }
+
+      if (stageName) {
+        const key = stageName.trim().toLowerCase();
+        if (!normalizedStageMap.has(key)) {
+          const display = stageName.trim().charAt(0).toUpperCase() + stageName.trim().slice(1);
+          normalizedStageMap.set(key, { displayName: display, color: stageColor, count: 0 });
+        }
+        normalizedStageMap.get(key)!.count++;
       } else if (lot.status && statusCounts[lot.status]) {
         statusCounts[lot.status].count++;
       } else {
@@ -367,9 +387,9 @@ export async function GET(request: Request) {
       }
     });
 
-    const stageItems = Array.from(stageMap.values())
+    const stageItems = Array.from(normalizedStageMap.values())
       .filter((s) => s.count > 0)
-      .map((s) => ({ name: s.name, value: s.count, color: s.color }));
+      .map((s) => ({ name: s.displayName, value: s.count, color: s.color }));
 
     const statusItems = Object.values(statusCounts)
       .filter((s) => s.count > 0)

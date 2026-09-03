@@ -260,6 +260,16 @@ export default function CreateLotPage() {
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => { generateLotNumber(); }, []);
 
+  // Pre-select & auto-load default production template
+  useEffect(() => {
+    if (templatesData?.templates && templatesData.templates.length > 0 && !selectedTemplateId && assignedStages.length === 0) {
+      const defaultT = templatesData.templates.find((t: any) => t.is_default) || templatesData.templates[0];
+      if (defaultT?.id) {
+        handleLoadTemplate(defaultT.id);
+      }
+    }
+  }, [templatesData?.templates, selectedTemplateId, assignedStages.length]);
+
   useEffect(() => {
     if (selectedDesign) {
       const sizeSetId = selectedDesign.size_set?.id || selectedDesign.size_set_id || "";
@@ -625,6 +635,7 @@ export default function CreateLotPage() {
         specifications: { additional_details: additionalDetails, design_reference_text: designReferenceText, design_reference_photos: designReferencePhotos, custom_qa: customQa },
         spec_sheet: specSheetTemplate ? { template_id: specSheetTemplate.id, spec_values: specSheetValues } : null,
         sizes: sizesToSave, stages: assignedStages,
+        template_id: selectedTemplateId || null,
       };
 
       const res = await fetch("/api/production/lots", {
@@ -651,6 +662,7 @@ export default function CreateLotPage() {
     ...(buyerOrderRef ? [{ label: "Sales Order Ref", value: buyerOrderRef }] : []),
     { label: "Brand", value: brands.find((b) => b.id === brandId)?.name || "—" },
     { label: "Design", value: selectedDesign ? `${selectedDesign.design_number || selectedDesign.code || ""} - ${selectedDesign.name}` : "—" },
+    { label: "Workflow Template", value: productionTemplates.find((t) => t.id === selectedTemplateId)?.name || "Default Flow" },
     { label: "Allocated Fabric", value: `${totalAllocatedMeters.toFixed(1)} Meters` },
     ...(allocatedAccessories.length > 0 ? [{ label: "Allocated Accessories", value: `${allocatedAccessories.length} item(s)` }] : []),
     { label: "Colours Selected", value: selectedColours.map((c) => c.colour_name).join(", ") || "—" },

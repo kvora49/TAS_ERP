@@ -148,26 +148,20 @@ export default function ProductionTemplatesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
-          <Link href="/" className="hover:text-[#0F172A] transition-colors">
+        <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">
+          <Link href="/" className="hover:text-[var(--text-primary)] transition-colors">
             Dashboard
           </Link>
           <span>/</span>
           <span>Master Data</span>
           <span>/</span>
-          <span className="text-[#0F172A]">Production Templates</span>
+          <span className="text-[var(--text-primary)]">Production Stages &amp; Templates</span>
         </div>
-        <Link
-          href="/master-data/production-stages"
-          className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
-        >
-          Manage All Stages
-        </Link>
       </div>
 
       <PageHeader
-        title="Production Templates"
-        subtitle="Configure sequence templates for different manufacturing workflows"
+        title="Production Stages &amp; Templates"
+        subtitle="Manage workflow templates and stages for different manufacturing lines"
         searchPlaceholder="Search template name..."
         searchValue={search}
         onSearch={setSearch}

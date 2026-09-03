@@ -62,16 +62,21 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const requestedTemplateId = searchParams.get("template_id");
+  const requestedStageId = searchParams.get("id");
 
   try {
     let query = supabase
       .from("production_stages")
-      .select("*")
+      .select("*, template:production_templates(id, name, is_default)")
       .eq("business_id", businessId)
       .is("deleted_at", null);
 
     if (requestedTemplateId) {
       query = query.eq("template_id", requestedTemplateId);
+    }
+
+    if (requestedStageId) {
+      query = query.eq("id", requestedStageId);
     }
 
     const { data: stages, error } = await query.order("order_index", { ascending: true });

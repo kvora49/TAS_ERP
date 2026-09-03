@@ -26,6 +26,8 @@ import {
   CheckCircle,
   Sun,
   Moon,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -96,6 +98,8 @@ export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
@@ -180,7 +184,7 @@ export default function RegisterPage() {
 
   if (isWorkspaceLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050B1A] text-white">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#050B1A] text-white p-6">
         <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -207,10 +211,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#F1F5F9]">
+    <div className="min-h-[100dvh] w-full flex flex-col md:flex-row bg-[#F1F5F9]">
       {/* Left Panel - 45% Width */}
       <div
-        className="hidden md:flex md:w-[45%] flex-col justify-between p-10 text-white relative overflow-hidden"
+        className="hidden md:flex md:w-[45%] flex-col justify-between p-8 lg:p-10 text-white relative overflow-hidden shrink-0"
         style={{
           background: "linear-gradient(135deg, #050B1A 0%, #0A1430 50%, #111C45 100%)",
         }}
@@ -297,7 +301,7 @@ export default function RegisterPage() {
 
       {/* Right Panel - 55% Width */}
       <div className={cn(
-        "flex-1 flex flex-col items-center justify-center p-6 lg:p-12 overflow-y-auto relative transition-colors duration-300",
+        "flex-1 flex flex-col items-center justify-start md:justify-center px-4 py-8 sm:p-8 md:p-12 overflow-y-auto min-h-full relative transition-colors duration-300 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]",
         theme === "dark" ? "bg-[#0B0F19]" : "bg-[#F8FAFC]"
       )}>
         {/* Theme Toggle Button */}
@@ -305,7 +309,7 @@ export default function RegisterPage() {
           type="button"
           onClick={toggleTheme}
           className={cn(
-            "absolute top-6 right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
+            "absolute top-4 right-4 sm:top-6 sm:right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-yellow-400 hover:bg-[#1F2937]"
               : "bg-white border-[#E5E7EB] text-gray-500 hover:bg-slate-50"
@@ -317,49 +321,27 @@ export default function RegisterPage() {
 
         <div 
           className={cn(
-            "shadow-xl border transition-all duration-300",
+            "w-full max-w-[560px] p-5 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border transition-all duration-300 my-auto",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-white"
               : "bg-white border-[#E5E7EB] text-[#0F172A]"
           )}
-          style={{
-            width: "600px",
-            maxWidth: "600px",
-            minWidth: "600px",
-            padding: "48px",
-            borderRadius: "24px"
-          }}
         >
-          {/* User Icon */}
-          <div className="flex justify-center mb-4">
-            <div className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center shadow-inner",
-              theme === "dark" ? "bg-[#1E1B4B]/50" : "bg-[#EEF2FF]"
-            )}>
-              <svg
-                className="w-5 h-5 text-[#6366F1]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                />
-              </svg>
+          {/* Logo Badge */}
+          <div className="flex justify-center mb-4 sm:mb-5">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-[#1E293B] p-1 border border-[var(--border)] shadow-md flex items-center justify-center">
+              <img src="/logo.png" alt="TAS ERP Logo" className="w-full h-full object-contain" />
             </div>
           </div>
 
           <h2 className={cn(
-            "text-2xl font-bold text-center tracking-tight",
+            "text-xl sm:text-2xl font-bold text-center tracking-tight",
             theme === "dark" ? "text-white" : "text-[#0F172A]"
           )}>
             Create Your Account
           </h2>
           <p className={cn(
-            "text-sm text-center mt-1 mb-8",
+            "text-xs sm:text-sm text-center mt-1 mb-6 sm:mb-8",
             theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
           )}>
             Join TAS ERP and grow your business smarter
@@ -541,10 +523,10 @@ export default function RegisterPage() {
                     <Lock className="h-4 w-4 text-[#94A3B8]" />
                   </InputIconWrapper>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className={cn(
-                      "w-full h-11 pl-10 pr-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all",
+                      "w-full h-11 pl-10 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all",
                       theme === "dark"
                         ? "bg-[#0F1729] border-[#334155] text-white focus:ring-[#6366F1]"
                         : "bg-white border-[#D1D5DB] text-[#0F172A]"
@@ -552,6 +534,13 @@ export default function RegisterPage() {
                     {...register("password")}
                     disabled={loading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B] p-1.5 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 {errors.password && (
                   <p className="text-xs font-semibold text-[#DC2626]">
@@ -573,10 +562,10 @@ export default function RegisterPage() {
                     <Lock className="h-4 w-4 text-[#94A3B8]" />
                   </InputIconWrapper>
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className={cn(
-                      "w-full h-11 pl-10 pr-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all",
+                      "w-full h-11 pl-10 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all",
                       theme === "dark"
                         ? "bg-[#0F1729] border-[#334155] text-white focus:ring-[#6366F1]"
                         : "bg-white border-[#D1D5DB] text-[#0F172A]"
@@ -584,6 +573,13 @@ export default function RegisterPage() {
                     {...register("confirmPassword")}
                     disabled={loading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B] p-1.5 cursor-pointer"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 {errors.confirmPassword && (
                   <p className="text-xs font-semibold text-[#DC2626]">

@@ -17,6 +17,7 @@ import PageState from "@/components/shared/PageState";
 import AdvancesCreditNotesTab from "@/components/payments/AdvancesCreditNotesTab";
 import DirectLinkingTab from "@/components/payments/DirectLinkingTab";
 import { cn } from "@/lib/utils";
+import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
 
 function PaymentsContent() {
   const router = useRouter();
@@ -239,63 +240,47 @@ function PaymentsContent() {
             <div className="text-xs text-[var(--text-muted)]">Showing {payments.length} of {totalCount} records</div>
           </div>{/* end desktop filter bar */}
 
-          {/* ── MOBILE: payment card list ── */}
-          <div className="md:hidden space-y-3">
-            {payments.map((p) => (
-              <div key={p.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-                {/* Header: Voucher# + Direction badge */}
-                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                  <span className="font-mono font-black text-[var(--primary)] text-sm">{p.payment_number}</span>
-                  {p.direction === "received" ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600">
-                      <ArrowDownLeft className="w-3 h-3" /> Received
-                    </span>
-                  ) : p.direction === "contra" ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-600">
-                      <LinkIcon className="w-3 h-3" /> Contra
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600">
-                      <ArrowUpRight className="w-3 h-3" /> Paid
-                    </span>
-                  )}
-                </div>
-                {/* Party + Date */}
-                <div className="flex items-center justify-between px-4 pb-2">
-                  <div className="min-w-0 mr-2">
-                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{p.party?.name || "Unknown"}</p>
-                    {p.party?.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{p.party.company_name}</p>}
-                  </div>
-                  <span className="text-xs text-[var(--text-muted)] shrink-0">
-                    {p.payment_date ? new Date(p.payment_date).toLocaleDateString("en-IN") : "—"}
-                  </span>
-                </div>
-                {/* Amount grid */}
-                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Amount</p>
-                    <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{Number(p.amount || 0).toLocaleString("en-IN")}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Unalloc.</p>
-                    {Number(p.unallocated_amount || 0) > 0 ? (
-                      <p className="text-xs font-bold mt-0.5 text-amber-600">₹{Number(p.unallocated_amount).toLocaleString("en-IN")}</p>
-                    ) : (
-                      <p className="text-xs font-bold mt-0.5 text-emerald-600">₹0</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Status</p>
-                    <p className="text-[10px] font-bold mt-0.5 uppercase text-emerald-600">{p.status || "completed"}</p>
-                  </div>
-                </div>
-                {/* Mode + Ref */}
-                <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-light)] pt-2">
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] capitalize">{p.payment_mode?.replace("_", " ")}</span>
-                  {p.reference_no && <span className="text-[11px] text-[var(--text-faint)]">· Ref: {p.reference_no}</span>}
-                </div>
+          {/* ── MOBILE: High-Density Compact Payment Row List ── */}
+          <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
+            {payments.length === 0 ? (
+              <div className="p-8 text-center text-xs text-[var(--text-muted)] italic">
+                No payment vouchers found.
               </div>
-            ))}
+            ) : (
+              payments.map((p) => {
+                const isReceived = p.direction === "received";
+                const isContra = p.direction === "contra";
+
+                return (
+                  <MobileCompactRow
+                    key={p.id}
+                    title={p.party?.name || "Unknown Party"}
+                    subtitle={`${p.payment_number} • ${p.payment_date ? new Date(p.payment_date).toLocaleDateString("en-IN") : "—"} • ${p.payment_mode?.replace("_", " ")}`}
+                    value={
+                      <span className={cn("font-mono", isReceived ? "text-[var(--badge-green-text)]" : isContra ? "text-[var(--badge-blue-text)]" : "text-[var(--badge-orange-text)]")}>
+                        ₹{Number(p.amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    }
+                    subValue={Number(p.unallocated_amount || 0) > 0 ? `Unalloc: ₹${Number(p.unallocated_amount).toLocaleString("en-IN")}` : undefined}
+                    badge={
+                      isReceived ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--badge-green-bg)] text-[var(--badge-green-text)]">
+                          <ArrowDownLeft className="w-3 h-3" /> Received
+                        </span>
+                      ) : isContra ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]">
+                          <LinkIcon className="w-3 h-3" /> Contra
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--badge-orange-bg)] text-[var(--badge-orange-text)]">
+                          <ArrowUpRight className="w-3 h-3" /> Paid
+                        </span>
+                      )
+                    }
+                  />
+                );
+              })
+            )}
           </div>
 
           {/* ── DESKTOP: existing table ── */}

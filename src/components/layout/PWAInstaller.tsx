@@ -57,7 +57,7 @@ export default function PWAInstaller() {
     <>
       {/* Offline Status Bar */}
       {!isOnline && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between shadow-md select-none">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white text-xs font-bold px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))] flex items-center justify-between shadow-md select-none">
           <div className="flex items-center gap-2">
             <WifiOff className="w-4 h-4" />
             <span>You are currently offline. Viewing cached local data.</span>
@@ -68,7 +68,7 @@ export default function PWAInstaller() {
       {/* PWA Install Banner */}
       {showPrompt && isOnline && (
         <div className="fixed bottom-20 md:bottom-6 right-6 z-50 bg-[var(--card-bg)] border border-[var(--primary)] rounded-xl p-4 shadow-xl max-w-sm flex items-center gap-3 select-none">
-          <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-[var(--border)] p-0.5 shadow-xs flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] p-0.5 shadow-xs flex items-center justify-center shrink-0">
             <img src="/logo.png" alt="TAS ERP Logo" className="w-full h-full object-contain" />
           </div>
           <div className="flex-1 text-xs">

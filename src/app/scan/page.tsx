@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  QrCode,
+  Barcode,
   ArrowLeft,
   Zap,
   Clock,
@@ -19,15 +19,19 @@ import {
   ArrowRightLeft,
   SlidersHorizontal,
   RotateCcw,
+  Lock,
 } from "lucide-react";
-import { isValidQRUUID, isValidBarcodePayload } from "@/lib/utils/barcode";
+import { isValidBarcodePayload } from "@/lib/utils/barcode";
 import { toast } from "sonner";
 
 export default function MobileScanPWAPage() {
   const [manualInput, setManualInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [scannedResult, setScannedResult] = useState<any>(null);
-  
+
+  // Secure context detection (critical for camera permission on mobile)
+  const [isSecure, setIsSecure] = useState(true);
+
   // Camera state
   const [cameraState, setCameraState] = useState<"idle" | "requesting" | "permission_denied" | "active" | "error">("idle");
   const [cameraErrorMsg, setCameraErrorMsg] = useState("");
@@ -38,8 +42,27 @@ export default function MobileScanPWAPage() {
   const [isPaused, setIsPaused] = useState(false);
 
   const scannerRef = useRef<any>(null);
+  const html5QrCodeLibRef = useRef<any>(null);
   const lastScannedRef = useRef<{ code: string; time: number } | null>(null);
   const isProcessingRef = useRef<boolean>(false);
+
+  // Preload html5-qrcode module on client mount so user click gesture is preserved
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isLocal =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      setIsSecure(window.isSecureContext || isLocal);
+
+      import("html5-qrcode")
+        .then((lib) => {
+          html5QrCodeLibRef.current = lib;
+        })
+        .catch((err) => {
+          console.error("Failed to preload scanner library:", err);
+        });
+    }
+  }, []);
 
   const resumeScanning = () => {
     setScannedResult(null);
@@ -59,33 +82,30 @@ export default function MobileScanPWAPage() {
     isProcessingRef.current = false;
     setIsPaused(false);
 
+    // 1. Insecure Context Check (HTTP over LAN IP e.g. 192.168.x.x)
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      const isLocal =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      if (!isLocal) {
+        setCameraState("permission_denied");
+        setCameraErrorMsg(
+          "Camera access is blocked by your mobile browser on HTTP connections. Modern browsers strictly require HTTPS to activate camera hardware. Use the manual input below or open TAS ERP via HTTPS."
+        );
+        toast.error("HTTPS required for mobile camera.");
+        return;
+      }
+    }
+
     try {
-      // 0. Pre-flight user-gesture permission request (Critical for Android / iOS PWA standalone WebAPKs)
-      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-        try {
-          const testConstraints = {
-            video: facingMode === "environment" ? { facingMode: { ideal: "environment" } } : { facingMode: "user" },
-          };
-          const stream = await navigator.mediaDevices.getUserMedia(testConstraints);
-          // Release test stream tracks immediately so Html5Qrcode can bind without lock conflict
-          stream.getTracks().forEach((track) => track.stop());
-        } catch (permErr: any) {
-          if (
-            permErr?.name === "NotAllowedError" ||
-            permErr?.name === "PermissionDeniedError" ||
-            permErr?.message?.includes("Permission")
-          ) {
-            setCameraState("permission_denied");
-            setCameraErrorMsg(
-              "Camera permission was denied. Please tap the lock or site settings icon in your browser and allow Camera access for TAS ERP."
-            );
-            toast.error("Camera permission denied.");
-            return;
-          }
-        }
+      // 2. Obtain html5-qrcode library (use preloaded if available)
+      let lib = html5QrCodeLibRef.current;
+      if (!lib) {
+        lib = await import("html5-qrcode");
+        html5QrCodeLibRef.current = lib;
       }
 
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = lib;
 
       if (scannerRef.current) {
         try {
@@ -93,7 +113,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Enumerate available cameras now that permission is granted
+      // Enumerate available cameras
       let devices: { id: string; label: string }[] = [];
       try {
         devices = await Html5Qrcode.getCameras();
@@ -105,20 +125,21 @@ export default function MobileScanPWAPage() {
       const html5QrCode = new Html5Qrcode("pwa-qr-reader");
       scannerRef.current = html5QrCode;
 
-      // Dynamic 88% width box for wide 1D barcodes & native BarcodeDetector acceleration
+      // 1D Barcode-optimized configuration
       const config = {
-        fps: 15,
+        fps: 20,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const width = Math.min(Math.floor(viewfinderWidth * 0.88), 380);
-          const height = Math.min(Math.floor(viewfinderHeight * 0.55), 220);
+          const width = Math.min(Math.floor(viewfinderWidth * 0.90), 380);
+          const height = Math.min(Math.floor(viewfinderHeight * 0.42), 170);
           return { width, height };
         },
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true,
         },
+        // 1D Linear Barcode Formats ONLY (No QR codes)
         formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
           Html5QrcodeSupportedFormats.UPC_A,
@@ -134,7 +155,7 @@ export default function MobileScanPWAPage() {
         const now = Date.now();
         if (isProcessingRef.current) return;
 
-        // 3-second cooldown for identical code to prevent infinite continuous scan spam
+        // 3-second cooldown for identical code
         if (
           lastScannedRef.current &&
           lastScannedRef.current.code === decodedText &&
@@ -150,11 +171,10 @@ export default function MobileScanPWAPage() {
         handleScanSubmit(decodedText);
       };
 
-      // Progressive 4-tier camera initialization strategy with valid html5-qrcode syntax
       let started = false;
       const targetId = overrideDeviceId || selectedCameraId;
 
-      // Tier 1: Explicitly selected or cached device ID
+      // Tier 1: Explicit device ID
       if (targetId) {
         try {
           await html5QrCode.start(targetId, config, handleDecodedCode, () => {});
@@ -162,7 +182,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Tier 2: Search for Back / Rear / Environment camera in enumerated devices
+      // Tier 2: Back / Environment camera from enumerated devices
       if (!started && devices && devices.length > 0) {
         const backCam = devices.find(
           (d) =>
@@ -179,7 +199,7 @@ export default function MobileScanPWAPage() {
         }
       }
 
-      // Tier 3: Standard facingMode exact string constraint (mobile environment)
+      // Tier 3: Standard facingMode constraint
       if (!started && facingMode === "environment") {
         try {
           await html5QrCode.start({ facingMode: "environment" }, config, handleDecodedCode, () => {});
@@ -187,7 +207,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Tier 4: User facing / default webcam (laptops & front cameras)
+      // Tier 4: User facing / default webcam
       if (!started) {
         try {
           await html5QrCode.start({ facingMode: "user" }, config, handleDecodedCode, () => {});
@@ -195,7 +215,7 @@ export default function MobileScanPWAPage() {
         } catch (_) {}
       }
 
-      // Tier 5: Fallback to first available device ID
+      // Tier 5: First available device
       if (!started && devices && devices.length > 0) {
         await html5QrCode.start(devices[0].id, config, handleDecodedCode, () => {});
         setSelectedCameraId(devices[0].id);
@@ -203,10 +223,10 @@ export default function MobileScanPWAPage() {
       }
 
       if (!started) {
-        throw new Error("Unable to bind to any camera device. Please ensure camera is not in use.");
+        throw new Error("Unable to bind to any camera device. Please check permissions.");
       }
 
-      // Refresh camera devices list now that stream is live
+      // Refresh camera devices list
       try {
         const freshDevices = await Html5Qrcode.getCameras();
         if (freshDevices && freshDevices.length > 0) {
@@ -214,7 +234,7 @@ export default function MobileScanPWAPage() {
         }
       } catch (_) {}
 
-      // Force inline video playback for mobile browsers (iOS Safari & Android Chrome WebAPKs)
+      // Force inline video playback for mobile browsers
       setTimeout(() => {
         const videoElement = document.querySelector("#pwa-qr-reader video") as HTMLVideoElement;
         if (videoElement) {
@@ -227,16 +247,18 @@ export default function MobileScanPWAPage() {
       }, 100);
 
       setCameraState("active");
-      toast.success("Camera scanner active!");
+      toast.success("Barcode camera active!");
     } catch (err: any) {
       console.error("Camera init error:", err);
       if (
         err?.name === "NotAllowedError" ||
         err?.name === "PermissionDeniedError" ||
-        err?.message?.includes("Permission")
+        err?.message?.toLowerCase().includes("permission")
       ) {
         setCameraState("permission_denied");
-        setCameraErrorMsg("Camera access was denied. Please allow camera permissions in your browser or phone app settings.");
+        setCameraErrorMsg(
+          "Camera access was not granted by your browser. Tap the tune/lock icon in your browser's address bar -> Permissions -> Camera -> Allow, then tap Try Again."
+        );
       } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
         setCameraState("error");
         setCameraErrorMsg("No camera device found on this system.");
@@ -303,15 +325,15 @@ export default function MobileScanPWAPage() {
     };
   }, []);
 
-  const handleScanSubmit = async (uuidPayload: string) => {
-    const trimmed = uuidPayload.trim();
+  const handleScanSubmit = async (barcodePayload: string) => {
+    const trimmed = barcodePayload.trim();
     if (!trimmed) {
       isProcessingRef.current = false;
       return;
     }
 
     if (!isValidBarcodePayload(trimmed)) {
-      toast.error("Invalid QR / Barcode format.");
+      toast.error("Invalid barcode format.");
       isProcessingRef.current = false;
       return;
     }
@@ -322,7 +344,7 @@ export default function MobileScanPWAPage() {
       const res = await fetch("/api/finished-stock/barcode/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr_uuid: trimmed }),
+        body: JSON.stringify({ barcode: trimmed }),
       });
       const data = await res.json();
 
@@ -330,7 +352,7 @@ export default function MobileScanPWAPage() {
         setScannedResult(data.stock);
         toast.success("Stock details authenticated!");
 
-        // Auto pause scanner stream so result stays clear without auto-rescanning
+        // Auto pause scanner stream so result stays clear
         if (scannerRef.current) {
           try {
             scannerRef.current.pause(true);
@@ -343,7 +365,7 @@ export default function MobileScanPWAPage() {
         isProcessingRef.current = false;
       }
     } catch (err) {
-      toast.error("Scan lookup failed.");
+      toast.error("Barcode lookup failed.");
       isProcessingRef.current = false;
     } finally {
       setLoading(false);
@@ -353,14 +375,17 @@ export default function MobileScanPWAPage() {
   return (
     <div className="min-h-screen bg-[var(--page-bg)] text-[var(--text-primary)] pb-24 max-w-md mx-auto transition-colors">
       {/* Mobile Top Header */}
-      <div className="bg-[var(--card-bg)] border-b border-[var(--border)] text-[var(--text-primary)] p-4 sticky top-0 z-50 flex items-center justify-between shadow-sm">
+      <div className="bg-[var(--card-bg)] border-b border-[var(--border)] text-[var(--text-primary)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] sticky top-0 z-50 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
-          <Link href="/master-data/barcode-qr" className="p-1.5 rounded-lg bg-[var(--input-bg)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] transition-colors">
+          <Link
+            href="/master-data/barcode-qr"
+            className="p-1.5 rounded-lg bg-[var(--input-bg)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] transition-colors"
+          >
             <ArrowLeft className="w-5 h-5 text-[var(--text-primary)]" />
           </Link>
           <div>
-            <h1 className="text-base font-bold leading-none text-[var(--text-primary)]">TAS ERP PWA Scanner</h1>
-            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">1D Barcode & 2D Security QR Reader</p>
+            <h1 className="text-base font-bold leading-none text-[var(--text-primary)]">TAS ERP Barcode Scanner</h1>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">1D Linear Barcode Reader</p>
           </div>
         </div>
 
@@ -369,7 +394,9 @@ export default function MobileScanPWAPage() {
             <button
               onClick={toggleTorch}
               className={`p-2 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors ${
-                torchOn ? "bg-amber-400 text-slate-900" : "bg-[var(--input-bg)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--table-row-hover)]"
+                torchOn
+                  ? "bg-amber-400 text-slate-900"
+                  : "bg-[var(--input-bg)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--table-row-hover)]"
               }`}
             >
               <Zap className="w-4 h-4" />
@@ -387,35 +414,48 @@ export default function MobileScanPWAPage() {
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Insecure Context (HTTP) Notice Banner */}
+        {!isSecure && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-600 dark:text-amber-400">
+            <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">HTTP Connection Detected:</span>
+              <span className="text-[11px]">
+                Mobile browsers strictly require HTTPS to turn on the camera. If the camera doesn&apos;t open, enter or paste the barcode ID directly in the manual lookup field below.
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Info Banner */}
         <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded-xl p-3 flex items-start gap-2.5 text-xs text-[var(--text-body)]">
           <Info className="w-4 h-4 text-[var(--primary)] flex-shrink-0 mt-0.5" />
-          <span>Point camera at 1D Barcode or 2D QR label tag for real-time authentication and ERP workflow routing.</span>
+          <span>Point camera at any 1D garment barcode tag or enter the short ID (e.g. <strong>NIG.0042-M</strong>) for real-time inventory lookup.</span>
         </div>
 
         {/* Camera Scanner Container */}
-        <div className="relative rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-800 shadow-lg min-h-[280px] w-full flex flex-col items-center justify-center p-2">
-          {/* HTML5 QR Scanner DOM element - ALWAYS VISIBLE for dimension calculation */}
+        <div className="relative rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-800 shadow-lg min-h-[260px] w-full flex flex-col items-center justify-center p-2">
+          {/* HTML5 Scanner DOM element */}
           <div id="pwa-qr-reader" className="w-full block" />
 
           {/* Idle / Pre-permission State Modal Overlay */}
           {cameraState === "idle" && (
             <div className="absolute inset-0 bg-slate-900 z-10 p-6 text-center flex flex-col items-center justify-center space-y-4">
-              <div className="w-16 h-16 bg-[#6366F1]/20 rounded-2xl flex items-center justify-center mx-auto text-[#818CF8]">
-                <Camera className="w-8 h-8" />
+              <div className="w-16 h-16 bg-[var(--primary)]/20 rounded-2xl flex items-center justify-center mx-auto text-[var(--primary)]">
+                <Barcode className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Camera Access Required</h3>
+                <h3 className="text-sm font-bold text-white">Camera Barcode Scanner</h3>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  TAS ERP requires camera access to scan physical 1D barcodes & 2D security QR codes.
+                  Activate camera to scan 1D linear barcode tags directly.
                 </p>
               </div>
               <button
                 onClick={() => startCameraScanner()}
-                className="w-full py-3 px-4 rounded-xl bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Camera className="w-4 h-4" />
-                <span>Enable Camera & Start Scanning</span>
+                <span>Enable Camera & Scan Barcode</span>
               </button>
             </div>
           )}
@@ -424,7 +464,7 @@ export default function MobileScanPWAPage() {
           {cameraState === "requesting" && (
             <div className="absolute inset-0 bg-slate-900 z-10 p-8 text-center flex flex-col items-center justify-center space-y-3">
               <Loader2 className="w-8 h-8 text-[#818CF8] animate-spin mx-auto" />
-              <p className="text-xs text-slate-300 font-medium">Requesting camera permissions & initializing stream...</p>
+              <p className="text-xs text-slate-300 font-medium">Opening camera stream...</p>
             </div>
           )}
 
@@ -435,7 +475,7 @@ export default function MobileScanPWAPage() {
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white">Camera Access Error</h4>
+                <h4 className="text-xs font-bold text-white">Camera Access Blocked</h4>
                 <p className="text-[11px] text-slate-400 mt-1 leading-normal">{cameraErrorMsg}</p>
               </div>
               <button
@@ -469,9 +509,9 @@ export default function MobileScanPWAPage() {
           </div>
         )}
 
-        {/* Manual Input Fallback */}
+        {/* Manual Barcode Input Fallback */}
         <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 shadow-sm space-y-2">
-          <label className="text-xs font-semibold text-[var(--text-muted)]">Manual Barcode / QR Payload Entry</label>
+          <label className="text-xs font-semibold text-[var(--text-muted)]">Manual Barcode ID Entry</label>
           <div className="flex gap-2">
             <input
               type="text"
@@ -480,7 +520,7 @@ export default function MobileScanPWAPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleScanSubmit(manualInput);
               }}
-              placeholder="Paste raw UUID or scan code..."
+              placeholder="e.g. NIG.0042-M or DES-001..."
               className="flex-1 h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-xs font-mono font-bold transition-colors"
             />
             <button
@@ -536,7 +576,7 @@ export default function MobileScanPWAPage() {
                 className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Scan Next Item</span>
+                <span>Scan Next Barcode</span>
               </button>
 
               <div className="grid grid-cols-2 gap-2">
@@ -581,7 +621,7 @@ export default function MobileScanPWAPage() {
         </Link>
         <Link href="/scan" className="flex flex-col items-center text-[10px] text-[var(--primary)] font-semibold">
           <div className="w-10 h-10 rounded-full bg-[var(--primary)] text-white flex items-center justify-center -mt-5 shadow-lg border-2 border-[var(--card-bg)]">
-            <QrCode className="w-5 h-5" />
+            <Barcode className="w-5 h-5" />
           </div>
           <span className="mt-1">Scan</span>
         </Link>

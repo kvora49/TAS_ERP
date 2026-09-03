@@ -134,13 +134,22 @@ export default function ProductionReportsPage() {
     staleTime: 300_000,
   });
 
-  const stageOptions = [
-    { label: "All Stages", value: "all" },
-    ...(stagesData?.stages ?? []).map((s: any) => ({
-      label: s.name,
-      value: s.name.toLowerCase(),
-    })),
-  ];
+  const stageOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options = [{ label: "All Stages", value: "all" }];
+    (stagesData?.stages ?? []).forEach((s: any) => {
+      const val = s.name.trim().toLowerCase();
+      if (!seen.has(val)) {
+        seen.add(val);
+        const displayName = s.name.trim().charAt(0).toUpperCase() + s.name.trim().slice(1);
+        options.push({
+          label: displayName,
+          value: val,
+        });
+      }
+    });
+    return options;
+  }, [stagesData?.stages]);
 
   // Fetch Production Overview Data
   const prodQuery = useQuery({

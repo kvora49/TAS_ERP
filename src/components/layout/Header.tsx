@@ -49,6 +49,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "b-grade": "B-Grade & Aatri Stock",
   companies: "Companies",
   "company-profile": "Company Profile",
+  "barcode-qr": "Barcode Management",
 };
 
 export default function Header() {
@@ -109,30 +110,37 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-16 bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-3 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden">
-      {/* Left: Logo block + Hamburger + Breadcrumb */}
+    <header className="fixed top-0 right-0 left-0 h-[calc(3rem+env(safe-area-inset-top,0px))] sm:h-16 pt-[env(safe-area-inset-top,0px)] bg-[var(--card-bg)]/95 backdrop-blur-md border-b border-[var(--border)] z-30 flex items-center justify-between px-3 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden">
+      {/* Left: Logo block + Hamburger + Breadcrumb / Mobile Title */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
 
         {/* Branding & Company Switcher block */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
-          {/* Hamburger toggle */}
+          {/* Hamburger toggle (desktop/tablet only - mobile uses bottom nav) */}
           <button
             type="button"
             onClick={toggleSidebar}
-            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-all cursor-pointer shrink-0"
+            className="hidden sm:flex w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] items-center justify-center transition-all cursor-pointer shrink-0"
             title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
           >
             <Menu size={18} />
           </button>
 
-          {/* Company Switcher (Static if 1 company, Dropdown if 2+) */}
+          {/* Company Switcher */}
           <CompanySwitcher />
         </div>
 
-        {/* Divider */}
+        {/* Mobile Page Title (< sm) */}
+        <div className="sm:hidden flex items-center min-w-0 pl-1">
+          <span className="text-xs font-black text-[var(--text-primary)] truncate max-w-[130px]">
+            {getBreadcrumbs().slice(-1)[0] || "Dashboard"}
+          </span>
+        </div>
+
+        {/* Divider (desktop) */}
         <div className="h-5 w-px bg-[var(--border)] hidden lg:block" />
 
-        {/* Breadcrumb */}
+        {/* Breadcrumb (desktop) */}
         <div className="hidden lg:flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)] truncate">
           {getBreadcrumbs().map((part, idx, arr) => (
             <div key={idx} className="flex items-center gap-1.5 truncate">

@@ -23,7 +23,8 @@ export async function GET(
         brand:brands(id, name),
         design:designs(id, name, code:design_number, images, size_set:size_sets(id, name, sizes)),
         colour:design_colours(id, colour_name, hex_code:colour_hex),
-        size_set:size_sets(id, name, sizes)
+        size_set:size_sets(id, name, sizes),
+        template:production_templates(id, name, is_default)
       `)
       .eq("id", id)
       .eq("business_id", businessId)
@@ -44,10 +45,13 @@ export async function GET(
       .eq("lot_id", id)
       .eq("business_id", businessId);
 
-    // 3. Fetch Assigned Stages
+    // 3. Fetch Assigned Stages with stage definition (custom_fields, icon, color)
     const { data: stages } = await supabase
       .from("lot_production_stages")
-      .select("*")
+      .select(`
+        *,
+        stage:production_stages(id, name, icon, color, custom_fields)
+      `)
       .eq("lot_id", id)
       .eq("business_id", businessId)
       .order("sequence_no", { ascending: true });
@@ -417,6 +421,7 @@ export async function PUT(
       other_cost,
       sizes,  // array of { size, quantity }
       stages, // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, description }
+      template_id,
     } = body;
 
     // Get old values for audit
@@ -456,6 +461,7 @@ export async function PUT(
     const { data: lot, error } = await supabase
       .from("production_lots")
       .update({
+        template_id: template_id !== undefined ? (template_id || null) : undefined,
         brand_id: brand_id || undefined,
         design_id: design_id || undefined,
         colour_id: colour_id || undefined,

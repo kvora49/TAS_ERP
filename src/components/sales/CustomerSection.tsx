@@ -7,6 +7,48 @@ interface CustomerSectionProps {
 }
 
 export function CustomerSection({ state, parties, salesmen }: CustomerSectionProps) {
+  const selectedParty = parties.find((x) => x.id === state.partyId);
+
+  const calculateDueDate = (baseDateStr: string, terms: string) => {
+    if (!baseDateStr) return "";
+    const daysMap: Record<string, number> = {
+      "Immediate": 0,
+      "immediate": 0,
+      "Net 15": 15,
+      "15_days": 15,
+      "Net 30": 30,
+      "30_days": 30,
+      "Net 45": 45,
+      "45_days": 45,
+      "Net 60": 60,
+      "60_days": 60,
+      "Net 90": 90,
+      "90_days": 90,
+    };
+    const days = daysMap[terms] ?? 0;
+    const d = new Date(baseDateStr);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split("T")[0];
+  };
+
+  const normalizeTerms = (rawTerms: string) => {
+    const map: Record<string, string> = {
+      "15_days": "Net 15",
+      "Net 15": "Net 15",
+      "30_days": "Net 30",
+      "Net 30": "Net 30",
+      "45_days": "Net 45",
+      "Net 45": "Net 45",
+      "60_days": "Net 60",
+      "Net 60": "Net 60",
+      "90_days": "Net 90",
+      "Net 90": "Net 90",
+      "immediate": "Immediate",
+      "Immediate": "Immediate",
+    };
+    return map[rawTerms] || "Immediate";
+  };
+
   const handlePartyChange = (id: string) => {
     state.setPartyId(id);
     const p = parties.find((x) => x.id === id);
@@ -24,8 +66,20 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
       );
       state.setPhone(p.phone || "");
       state.setGstin(p.gstin || "");
-      state.setPaymentTerms(p.payment_terms || "Immediate");
+      const terms = normalizeTerms(p.payment_terms || "Immediate");
+      state.setPaymentTerms(terms);
+      state.setDueDate(calculateDueDate(state.billDate, terms));
     }
+  };
+
+  const handlePaymentTermsChange = (newTerms: string) => {
+    state.setPaymentTerms(newTerms);
+    state.setDueDate(calculateDueDate(state.billDate, newTerms));
+  };
+
+  const handleBillDateChange = (newDate: string) => {
+    state.setBillDate(newDate);
+    state.setDueDate(calculateDueDate(newDate, state.paymentTerms));
   };
 
   const inputClass = `
@@ -54,10 +108,33 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
             <option value="">Select Customer</option>
             {parties.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} {p.gstin ? `(${p.gstin})` : ""}
+                {p.name} {p.gstin && p.gstin !== "URP" ? `(${p.gstin})` : ""}
               </option>
             ))}
           </select>
+
+          {/* Selected Customer Credit & Tax Info Pill */}
+          {selectedParty && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              {selectedParty.phone && (
+                <span className="text-[var(--text-muted)]">📞 {selectedParty.phone}</span>
+              )}
+              {selectedParty.gstin && selectedParty.gstin !== "URP" && (
+                <span className="font-mono text-[var(--text-muted)]">GSTIN: {selectedParty.gstin}</span>
+              )}
+              {Number(selectedParty.credit_limit || 0) > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-[var(--input-bg)] border border-[var(--border)] font-bold text-[var(--text-secondary)] text-[11px]">
+                  Credit Limit: ₹{Number(selectedParty.credit_limit).toLocaleString("en-IN")}
+                </span>
+              )}
+              {Number(selectedParty.credit_limit || 0) > 0 &&
+                Number(state.grandTotal || 0) > Number(selectedParty.credit_limit) && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-[11px] flex items-center gap-1">
+                    ⚠️ Bill (₹{Math.round(state.grandTotal || 0).toLocaleString("en-IN")}) exceeds credit limit
+                  </span>
+                )}
+            </div>
+          )}
         </div>
 
         {/* Bill Date */}
@@ -68,7 +145,7 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
           <input
             type="date"
             value={state.billDate}
-            onChange={(e) => state.setBillDate(e.target.value)}
+            onChange={(e) => handleBillDateChange(e.target.value)}
             className={`${inputClass} w-full`}
           />
         </div>
@@ -81,14 +158,15 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
           </label>
           <select
             value={state.paymentTerms}
-            onChange={(e) => state.setPaymentTerms(e.target.value)}
+            onChange={(e) => handlePaymentTermsChange(e.target.value)}
             className={`${inputClass} w-full cursor-pointer`}
           >
             <option value="Immediate">Immediate</option>
-            <option value="Net 15">Net 15</option>
-            <option value="Net 30">Net 30</option>
-            <option value="Net 45">Net 45</option>
-            <option value="Net 60">Net 60</option>
+            <option value="Net 15">Net 15 (15 Days)</option>
+            <option value="Net 30">Net 30 (30 Days)</option>
+            <option value="Net 45">Net 45 (45 Days)</option>
+            <option value="Net 60">Net 60 (60 Days)</option>
+            <option value="Net 90">Net 90 (90 Days)</option>
           </select>
         </div>
 

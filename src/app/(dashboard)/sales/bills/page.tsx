@@ -33,6 +33,7 @@ import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
+import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -707,110 +708,60 @@ export default function SalesBillsListPage() {
                   onClick={() => { setSearch(""); setPartyId(""); setStatus(""); setStartDate(""); setEndDate(""); setPage(1); }}
                   className="text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer"
                 >
-                  Reset Filters
+          Reset Filters
                 </button>
               )}
             </div>
           </form>
         </div>{/* end desktop filter bar */}
-
-        {/* Mobile: Card list (md:hidden) — ALL data preserved */}
-        <div className="md:hidden space-y-3">
+        {/* ── MOBILE: High-Density Compact Bill List (md:hidden) ── */}
+        <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
           {bills.map((bill) => {
             const isReturn = bill.is_sales_return;
             const outstanding = isReturn ? 0 : bill.grand_total - bill.paid_amount;
             const detailHref = isReturn ? `/sales/returns/${bill.id}` : `/sales/bills/${bill.id}`;
-            const editHref = isReturn ? `/sales/returns/${bill.id}/edit` : `/sales/bills/${bill.id}/edit`;
             const printHref = isReturn ? `/sales/returns/${bill.id}/print` : `/sales/bills/${bill.id}/print`;
-            const downloadHref = isReturn ? `/sales/returns/${bill.id}/print?autoDownload=true` : `/sales/bills/${bill.id}/print?autoDownload=true`;
+
             return (
-              <div
+              <MobileCompactRow
                 key={bill.id}
-                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                onClick={() => router.push(detailHref)}
-              >
-                {/* Header: Bill# + Status */}
-                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
-                    className="font-mono font-black text-[var(--primary)] text-sm hover:underline"
-                  >{bill.bill_number}</Link>
-                  {isReturn ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">CREDITED</span>
+                title={bill.bill_number}
+                subtitle={`${bill.party?.name || "Unknown"} • ${new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`}
+                value={
+                  <span className={cn(isReturn ? "text-[var(--badge-red-text)]" : "text-[var(--text-primary)]")}>
+                    {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
+                  </span>
+                }
+                subValue={outstanding > 0 ? `Due ${formatCurrency(outstanding)}` : undefined}
+                badge={
+                  isReturn ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">
+                      RETURN
+                    </span>
                   ) : bill.is_temporary ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600">TEMPORARY</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30">
+                      TEMP
+                    </span>
                   ) : (
                     <Badge variant={getStatusVariant(bill.payment_status)}>{bill.payment_status}</Badge>
-                  )}
-                </div>
-                {/* Subheader: Party + Date */}
-                <div className="flex items-center justify-between px-4 pb-2">
-                  <span className="font-semibold text-[var(--text-primary)] text-sm truncate max-w-[60%]">{bill.party?.name}</span>
-                  <span className="text-xs text-[var(--text-muted)] shrink-0">
-                    {new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                  </span>
-                </div>
-                {/* Data Grid: Total / Paid / Due */}
-                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Total</p>
-                    <p className={cn("text-xs font-bold mt-0.5", isReturn ? "text-rose-500" : "text-[var(--text-primary)]")}>
-                      {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Paid</p>
-                    <p className={cn("text-xs font-bold mt-0.5", isReturn ? "text-[var(--text-muted)]" : "text-green-500")}>
-                      {isReturn ? "—" : formatCurrency(bill.paid_amount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Due</p>
-                    <p className={cn("text-xs font-bold mt-0.5", outstanding > 0 ? "text-red-500" : "text-[var(--text-muted)]")}>
-                      {formatCurrency(outstanding)}
-                    </p>
-                  </div>
-                </div>
-                {/* Badge strip: Type + GSTIN + Orig Bill + Due Date Counter */}
-                <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
-                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                    isReturn ? "bg-rose-500/10 text-rose-500" : bill.is_temporary ? "bg-purple-500/10 text-purple-600 border border-purple-200" :
-                    bill.bill_type === "pakka" ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"
-                  )}>
-                    {isReturn ? "RETURN" : bill.is_temporary ? `${bill.bill_type.toUpperCase()} (TEMP)` : bill.bill_type}
-                  </span>
-                  {bill.party?.gstin && <span className="text-[10px] text-[var(--text-muted)] font-bold font-mono">GST: {bill.party.gstin}</span>}
-                  {isReturn && bill.bill && (
-                    <Link href={`/sales/bills/${bill.bill.id}`} onClick={(e) => e.stopPropagation()}
-                      className="text-[10px] text-[var(--primary)] font-bold hover:underline"
-                    >← {bill.bill.bill_number}</Link>
-                  )}
-                  {!isReturn && (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <DueDateBadge dueDate={bill.due_date} isCompleted={bill.payment_status === "paid" || bill.payment_status === "settled"} type="bill" />
-                    </div>
-                  )}
-                </div>
-                {/* Action footer */}
-                <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
-                  {bill.is_temporary && (
-                    <button type="button" onClick={(e) => handleConvertClick(e, bill)}
-                      className="px-2.5 py-1.5 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
-                    ><CheckCircle2 size={11} /> Convert</button>
-                  )}
-                  <Link href={editHref} onClick={(e) => e.stopPropagation()}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
-                  ><Edit2 size={13} /></Link>
-                  <Link href={printHref} onClick={(e) => e.stopPropagation()}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-600 flex items-center justify-center cursor-pointer" title="Print"
-                  ><Printer size={13} /></Link>
-                  <Link href={downloadHref} onClick={(e) => e.stopPropagation()}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="PDF"
-                  ><Download size={13} /></Link>
-                  <button type="button" onClick={(e) => handleDeleteClick(e, bill)}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Delete"
-                  ><Trash2 size={13} /></button>
-                </div>
-              </div>
+                  )
+                }
+                onClick={() => router.push(detailHref)}
+                leftAction={{
+                  label: "Print",
+                  icon: <Printer size={14} />,
+                  bgClass: "bg-indigo-600 text-white",
+                  onAction: () => router.push(printHref),
+                }}
+                rightAction={{
+                  label: "Delete",
+                  icon: <Trash2 size={14} />,
+                  bgClass: "bg-rose-600 text-white",
+                  onAction: (e?: any) => {
+                    handleDeleteClick(e || { stopPropagation: () => {} } as any, bill);
+                  },
+                }}
+              />
             );
           })}
         </div>

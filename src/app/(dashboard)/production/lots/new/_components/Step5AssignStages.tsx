@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, GitBranch, Trash2 } from "lucide-react";
+import { useMemo } from "react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, GitBranch, Trash2, Layers } from "lucide-react";
 
 interface LotStageInput {
   stage_id: string;
@@ -11,7 +12,13 @@ interface LotStageInput {
   worker_ids: string[];
 }
 
-interface ProductionStage { id: string; name: string; type: string; custom_fields?: any[]; }
+interface ProductionStage { 
+  id: string; 
+  name: string; 
+  type: string; 
+  custom_fields?: any[];
+  template?: { id: string; name: string; is_default?: boolean };
+}
 interface Worker { id: string; name: string; stage_specialty?: string[] }
 
 interface Props {
@@ -34,6 +41,22 @@ export default function Step5AssignStages({
   onLoadTemplate, onAddWorker, onRemoveWorker,
   onNext, onBack,
 }: Props) {
+  // Group master stages by template to avoid duplicate/ambiguous stages across templates
+  const stagesByTemplate = useMemo(() => {
+    const groups: Record<string, { templateName: string; stages: ProductionStage[] }> = {};
+    masterStages.forEach((stage) => {
+      const templateName = stage.template?.name || "General Stages";
+      const templateKey = stage.template?.id || "general";
+      if (!groups[templateKey]) {
+        groups[templateKey] = { templateName, stages: [] };
+      }
+      groups[templateKey].stages.push(stage);
+    });
+    return Object.values(groups);
+  }, [masterStages]);
+
+  const currentTemplate = productionTemplates.find((t) => t.id === selectedTemplateId);
+
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4 text-[var(--text-primary)]">
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
@@ -41,6 +64,12 @@ export default function Step5AssignStages({
           <GitBranch className="h-4.5 w-4.5 text-[var(--primary)]" />
           Step 5: Assign Production Stages
         </h3>
+        {currentTemplate && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
+            <Layers size={13} />
+            Template: {currentTemplate.name}
+          </span>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -51,7 +80,7 @@ export default function Step5AssignStages({
             onChange={(e) => onLoadTemplate(e.target.value)}
             className="h-9 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 focus:ring-1 focus:ring-[var(--input-focus)]"
           >
-            <option value="">Load Production Template</option>
+            <option value="">Switch Production Template</option>
             {productionTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.stages?.length || 0} Stages)
@@ -199,7 +228,7 @@ export default function Step5AssignStages({
           </table>
         </div>
 
-        {/* Add Custom Stage row */}
+        {/* Add Stage row */}
         <div className="flex items-center gap-2 mt-3 mb-2">
           <select
             onChange={(e) => {
@@ -220,13 +249,17 @@ export default function Step5AssignStages({
               }
               e.currentTarget.value = "";
             }}
-            className="h-9 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] rounded-lg pl-3.5 pr-8 min-w-[195px] py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all cursor-pointer shadow-xs"
+            className="h-9 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] rounded-lg pl-3.5 pr-8 min-w-[210px] py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all cursor-pointer shadow-xs"
           >
-            <option value="" className="text-[var(--text-muted)] bg-[var(--card-bg)] font-medium">+ Add Custom Stage</option>
-            {masterStages.map((s) => (
-              <option key={s.id} value={s.id} className="text-[var(--text-primary)] bg-[var(--card-bg)] font-medium">
-                {s.name} ({s.type?.replace("_", " ")})
-              </option>
+            <option value="" className="text-[var(--text-muted)] bg-[var(--card-bg)] font-medium">+ Add Production Stage</option>
+            {stagesByTemplate.map((group) => (
+              <optgroup key={group.templateName} label={group.templateName} className="font-bold text-[var(--text-secondary)] bg-[var(--card-bg)]">
+                {group.stages.map((s) => (
+                  <option key={s.id} value={s.id} className="text-[var(--text-primary)] bg-[var(--card-bg)] font-medium">
+                    {s.name} ({s.type?.replace("_", " ")})
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

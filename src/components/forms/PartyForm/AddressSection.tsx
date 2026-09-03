@@ -70,6 +70,7 @@ export function AddressSection({
               <input
                 id="billing-pincode"
                 type="text"
+                inputMode="numeric"
                 placeholder="Pincode"
                 {...register("billing_pincode")}
                 className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
@@ -142,6 +143,7 @@ export function AddressSection({
               <input
                 id="shipping-pincode"
                 type="text"
+                inputMode="numeric"
                 placeholder="Pincode"
                 disabled={sameAsBilling}
                 {...register("shipping_pincode")}

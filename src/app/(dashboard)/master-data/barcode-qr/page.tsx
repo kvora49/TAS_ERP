@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  QrCode,
+  Barcode,
   CheckCircle2,
   AlertCircle,
   Eye,
@@ -20,12 +20,11 @@ import {
   X,
   ChevronRight,
 } from "lucide-react";
-import { isValidQRUUID, isValidBarcodePayload, generate1DBarcode } from "@/lib/utils/barcode";
+import { isValidBarcodePayload, generate1DBarcode } from "@/lib/utils/barcode";
 import { toast } from "sonner";
 
-export default function MasterDataBarcodeQRPage() {
+export default function MasterDataBarcodePage() {
   const [activeTab, setActiveTab] = useState<"scan" | "generator">("scan");
-  const [codeFormat, setCodeFormat] = useState<"barcode" | "qr">("barcode");
   const [inputUuid, setInputUuid] = useState("");
   const [loading, setLoading] = useState(false);
   const [scannedStock, setScannedStock] = useState<any>(null);
@@ -49,11 +48,13 @@ export default function MasterDataBarcodeQRPage() {
 
   const isSelectedForIndividualPrint = (lbl: any) => {
     if (!singlePrintLabel) return false;
+    const targetCode = singlePrintLabel.barcode || singlePrintLabel.qr_uuid;
+    const currentCode = lbl.barcode || lbl.qr_uuid;
+    if (targetCode && currentCode) {
+      return targetCode === currentCode;
+    }
     if (singlePrintLabel.id && lbl.id) {
       return singlePrintLabel.id === lbl.id;
-    }
-    if (singlePrintLabel.qr_uuid && lbl.qr_uuid) {
-      return singlePrintLabel.qr_uuid === lbl.qr_uuid;
     }
     return false;
   };
@@ -83,7 +84,7 @@ export default function MasterDataBarcodeQRPage() {
         toast.error(data.error || "Failed to load stock labels");
       }
     } catch (err) {
-      toast.error("Network error loading QR labels");
+      toast.error("Network error loading barcode labels");
     } finally {
       setLoadingLabels(false);
     }
@@ -95,8 +96,8 @@ export default function MasterDataBarcodeQRPage() {
     }
   }, [activeTab]);
 
-  const handleScanLookup = async (uuidToScan: string) => {
-    const trimmed = uuidToScan.trim();
+  const handleScanLookup = async (codeToScan: string) => {
+    const trimmed = codeToScan.trim();
     if (!trimmed) return;
 
     if (!isValidBarcodePayload(trimmed)) {
@@ -112,7 +113,7 @@ export default function MasterDataBarcodeQRPage() {
       const res = await fetch("/api/finished-stock/barcode/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr_uuid: trimmed }),
+        body: JSON.stringify({ barcode: trimmed }),
       });
       const data = await res.json();
 
@@ -122,17 +123,17 @@ export default function MasterDataBarcodeQRPage() {
         setScanHistory((prev) => [
           {
             id: data.stock.id,
-            qr_uuid: trimmed,
+            barcode: trimmed,
             design_code: data.stock.designs?.design_number || "DES-001",
-            colour: data.stock.design_colours?.colour_name || "Red",
-            size: data.stock.size || "M",
+            colour: data.stock.design_colours?.colour_name || "Standard",
+            size: data.stock.size || data.stock.resolved_size || "M",
             godown: data.stock.godowns?.name || "Main Godown",
             time: new Date().toLocaleTimeString(),
             status: "In Stock",
           },
           ...prev,
         ]);
-        toast.success("Item scanned successfully!");
+        toast.success("Item authenticated successfully!");
       } else {
         setScannedStock(null);
         setScanStatus("not_found");
@@ -149,16 +150,16 @@ export default function MasterDataBarcodeQRPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-0 print:m-0 print:max-w-none print:w-full">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B] print:hidden">
-        <Link href="/" className="hover:text-[#6366F1] transition-colors">
+      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] print:hidden">
+        <Link href="/" className="hover:text-[var(--primary)] transition-colors">
           Dashboard
         </Link>
-        <ChevronRight size={12} className="text-slate-400" />
-        <Link href="/master-data/designs" className="hover:text-[#6366F1] transition-colors">
+        <ChevronRight size={12} className="text-[var(--text-faint)]" />
+        <Link href="/master-data/designs" className="hover:text-[var(--primary)] transition-colors">
           Master Data
         </Link>
-        <ChevronRight size={12} className="text-slate-400" />
-        <span className="text-[#334155] font-bold">Barcode / QR Management</span>
+        <ChevronRight size={12} className="text-[var(--text-faint)]" />
+        <span className="text-[var(--text-primary)] font-bold">Barcode Management</span>
       </div>
 
       {/* Header */}
@@ -166,31 +167,35 @@ export default function MasterDataBarcodeQRPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/master-data/designs"
-            className="p-2 bg-white hover:bg-gray-50 border border-[#E2E8F0] rounded-xl transition-all cursor-pointer"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer"
           >
-            <ArrowLeft className="h-5 w-5 text-[#475569]" />
+            <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">Barcode & QR Management</h1>
-            <p className="text-sm text-[#64748B]">Generate printable SKU labels or scan items for real-time inventory lookup</p>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Barcode Management</h1>
+            <p className="text-sm text-[var(--text-muted)]">Generate printable 1D SKU labels or scan items for real-time inventory lookup</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Sub-tabs */}
-          <div className="bg-[#F1F5F9] p-1 rounded-xl flex gap-1 border border-[#E2E8F0]">
+          <div className="bg-[var(--input-bg)] p-1 rounded-xl flex gap-1 border border-[var(--border)]">
             <button
               onClick={() => setActiveTab("scan")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "scan" ? "bg-white text-[#6366F1] shadow-sm" : "text-[#64748B] hover:text-[#0F172A]"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "scan"
+                  ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Scan & Lookup
             </button>
             <button
               onClick={() => setActiveTab("generator")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "generator" ? "bg-white text-[#6366F1] shadow-sm" : "text-[#64748B] hover:text-[#0F172A]"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "generator"
+                  ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Generate & Print Labels
@@ -199,9 +204,9 @@ export default function MasterDataBarcodeQRPage() {
 
           <Link
             href="/scan"
-            className="flex items-center gap-2 h-10 px-4 rounded-xl bg-[#5B63D3] hover:bg-[#4F55C3] text-white text-sm font-bold transition-colors cursor-pointer shadow-md"
+            className="flex items-center gap-2 h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-bold transition-colors cursor-pointer shadow-md"
           >
-            <QrCode className="h-4 w-4" />
+            <Barcode className="h-4 w-4" />
             <span>Open Mobile PWA Scanner</span>
           </Link>
         </div>
@@ -209,39 +214,19 @@ export default function MasterDataBarcodeQRPage() {
 
       {/* Main Content View */}
       {activeTab === "generator" ? (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-6 print:p-0 print:border-none print:shadow-none print:bg-transparent">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] pb-4 print:hidden">
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm space-y-6 print:p-0 print:border-none print:shadow-none print:bg-transparent">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4 print:hidden">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">SKU Stock Label Generator</h2>
-              <p className="text-xs text-[#64748B]">
-                Lists all finished stock records. Select between standard <strong>1D Barcode</strong> or <strong>2D QR Code</strong> formats to print labels.
+              <h2 className="text-base font-bold text-[var(--text-primary)]">SKU 1D Barcode Generator</h2>
+              <p className="text-xs text-[var(--text-muted)]">
+                Prints standard high-contrast 1D linear barcodes (CODE128) based on brand numbering, design code, and size.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Format Toggle: 1D Barcode vs 2D QR */}
-              <div className="bg-[#F1F5F9] p-1 rounded-xl flex gap-1 border border-[#E2E8F0] text-xs font-semibold">
-                <button
-                  onClick={() => setCodeFormat("barcode")}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
-                    codeFormat === "barcode" ? "bg-white text-[#6366F1] shadow-sm" : "text-[#64748B]"
-                  }`}
-                >
-                  1D Barcode (CODE128)
-                </button>
-                <button
-                  onClick={() => setCodeFormat("qr")}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
-                    codeFormat === "qr" ? "bg-white text-[#6366F1] shadow-sm" : "text-[#64748B]"
-                  }`}
-                >
-                  2D Security QR Code
-                </button>
-              </div>
-
               <button
                 onClick={handlePrintAll}
-                className="h-9 px-4 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                className="h-9 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>Print All Labels</span>
@@ -251,15 +236,15 @@ export default function MasterDataBarcodeQRPage() {
 
           {/* Labels Grid */}
           {loadingLabels ? (
-            <div className="py-20 text-center text-slate-500 font-bold text-xs flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin h-5 w-5 text-[#6366F1]" />
+            <div className="py-20 text-center text-[var(--text-muted)] font-bold text-xs flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin h-5 w-5 text-[var(--primary)]" />
               <span>Loading stock labels from database...</span>
             </div>
           ) : generatedLabels.length === 0 ? (
-            <div className="py-16 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-              <QrCode className="mx-auto text-slate-300 h-10 w-10 mb-2" />
-              <p className="text-sm font-bold text-slate-700">No Stock Items Found</p>
-              <p className="text-xs text-slate-500 mt-0.5">Post stock entries or production lots to generate printable tags.</p>
+            <div className="py-16 text-center bg-[var(--page-bg)] rounded-xl border border-dashed border-[var(--border)]">
+              <Barcode className="mx-auto text-[var(--text-faint)] h-10 w-10 mb-2" />
+              <p className="text-sm font-bold text-[var(--text-primary)]">No Stock Items Found</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">Post stock entries or production lots to generate printable tags.</p>
             </div>
           ) : (
             <div
@@ -270,76 +255,68 @@ export default function MasterDataBarcodeQRPage() {
               }
             >
               {generatedLabels.map((lbl, idx) => {
-                const barcodeImg = generate1DBarcode(lbl.qr_uuid);
+                const barcodePayload = lbl.barcode || lbl.qr_uuid;
+                const barcodeImg = generate1DBarcode(barcodePayload, { height: 48, width: 2 });
                 const isHiddenInPrint = singlePrintLabel !== null && !isSelectedForIndividualPrint(lbl);
 
                 return (
                   <div
-                    key={lbl.id || lbl.stock_id || lbl.qr_uuid || idx}
-                    className={`border-2 border-dashed border-slate-300 rounded-xl p-4 bg-white space-y-3 relative group hover:border-[#6366F1] transition-all print:border-solid print:border-slate-400 print:rounded-lg print:w-[85mm] print:mx-auto print:break-inside-avoid break-inside-avoid ${
+                    key={lbl.id || lbl.stock_id || barcodePayload || idx}
+                    className={`border-2 border-dashed border-[var(--border)] rounded-xl p-4 bg-[var(--card-bg)] space-y-3 relative group hover:border-[var(--primary)] transition-all print:border-solid print:border-slate-400 print:rounded-lg print:w-[85mm] print:mx-auto print:break-inside-avoid break-inside-avoid print:bg-white print:text-black ${
                       isHiddenInPrint ? "print:hidden" : ""
                     }`}
                   >
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <div className="flex items-center justify-between border-b border-[var(--border)] print:border-slate-200 pb-2">
                       <div>
-                        <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">TAS ERP GARMENTS</span>
-                        <h4 className="font-extrabold text-sm text-slate-900 leading-tight">{lbl.design_name}</h4>
+                        <span className="text-[10px] font-black uppercase text-[var(--primary)] print:text-indigo-600 tracking-wider">TAS ERP GARMENTS</span>
+                        <h4 className="font-extrabold text-sm text-[var(--text-primary)] print:text-slate-900 leading-tight">{lbl.design_name}</h4>
                       </div>
-                      <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-800 font-extrabold text-xs rounded">
+                      <span className="px-2 py-0.5 bg-[var(--input-bg)] print:bg-slate-100 border border-[var(--border)] print:border-slate-200 text-[var(--text-primary)] print:text-slate-800 font-extrabold text-xs rounded">
                         SIZE: {lbl.size}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Design Code</span>
-                        <span className="font-extrabold text-slate-800">{lbl.design_code || lbl.design_number || "—"}</span>
+                        <span className="text-[9px] text-[var(--text-muted)] print:text-slate-400 font-bold uppercase block">Design Code</span>
+                        <span className="font-extrabold text-[var(--text-primary)] print:text-slate-800">{lbl.design_code || lbl.design_number || "—"}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 font-bold uppercase block">Colour</span>
+                        <span className="text-[9px] text-[var(--text-muted)] print:text-slate-400 font-bold uppercase block">Colour</span>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {lbl.colour_hex && (
                             <span
-                              className="w-2.5 h-2.5 rounded-full border border-slate-400 inline-block print:border-black"
+                              className="w-2.5 h-2.5 rounded-full border border-[var(--border)] print:border-slate-400 inline-block"
                               style={{ backgroundColor: lbl.colour_hex }}
                             />
                           )}
-                          <span className="font-extrabold text-slate-800 capitalize">{lbl.colour_name}</span>
+                          <span className="font-extrabold text-[var(--text-primary)] print:text-slate-800 capitalize">{lbl.colour_name}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Barcode / QR Code Representation */}
-                    <div className="py-2 bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center justify-center space-y-1 min-h-[70px]">
-                      {codeFormat === "barcode" ? (
-                        barcodeImg ? (
-                          <img src={barcodeImg} alt="Barcode" className="h-10 object-contain" />
-                        ) : (
-                          <div className="flex items-end justify-center h-10 gap-[1.5px] px-2 overflow-hidden">
-                            {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 1, 3, 2, 1, 4, 1, 2].map((w, idx) => (
-                              <div key={idx} className="bg-slate-900 h-full" style={{ width: `${w * 1.5}px` }} />
-                            ))}
-                          </div>
-                        )
+                    {/* 1D Barcode Representation */}
+                    <div className="py-2.5 px-2 bg-white rounded-lg border border-[var(--border)] print:border-slate-200 flex flex-col items-center justify-center space-y-1">
+                      {barcodeImg ? (
+                        <img src={barcodeImg} alt="1D Barcode" className="h-12 w-auto max-w-full object-contain" />
                       ) : (
-                        <div className="w-16 h-16 bg-white p-1 rounded border border-slate-300 flex items-center justify-center">
-                          {lbl.qr_data_url ? (
-                            <img src={lbl.qr_data_url} alt="2D QR Code" className="w-14 h-14 object-contain" />
-                          ) : (
-                            <QrCode className="w-12 h-12 text-slate-900" />
-                          )}
+                        <div className="flex items-end justify-center h-12 gap-[1.5px] px-2 overflow-hidden">
+                          {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 1, 3, 2, 1, 4, 1, 2].map((w, idx) => (
+                            <div key={idx} className="bg-slate-900 h-full" style={{ width: `${w * 1.5}px` }} />
+                          ))}
                         </div>
                       )}
-                      <span className="text-[9px] font-mono font-bold text-slate-500 truncate max-w-[200px]">
-                        {lbl.qr_uuid}
+                      {/* Short, Readable Barcode ID */}
+                      <span className="text-xs font-mono font-black text-slate-900 tracking-wider">
+                        {barcodePayload}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 pt-1">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-[var(--text-muted)] print:text-slate-500 pt-1">
                       <span>PRICE: ₹{Number(lbl.sale_price || 0).toFixed(2)}</span>
                       <button
                         onClick={() => handlePrintIndividual(lbl)}
-                        className="p-1 text-[#6366F1] hover:bg-indigo-50 rounded transition-colors print:hidden flex items-center gap-1"
+                        className="p-1 text-[var(--primary)] hover:bg-[var(--primary-light)] rounded transition-colors print:hidden flex items-center gap-1 cursor-pointer font-bold"
                         title="Print Single Tag"
                       >
                         <Printer size={13} />
@@ -357,14 +334,14 @@ export default function MasterDataBarcodeQRPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 2 Cols: Manual / Hardware Scanner Input */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-sm space-y-4">
-              <h2 className="text-base font-extrabold text-[#0F172A] flex items-center gap-2">
-                <Keyboard className="h-5 w-5 text-[#6366F1]" />
-                <span>Barcode / QR Scanner Lookup</span>
+            <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] p-6 shadow-sm space-y-4">
+              <h2 className="text-base font-extrabold text-[var(--text-primary)] flex items-center gap-2">
+                <Keyboard className="h-5 w-5 text-[var(--primary)]" />
+                <span>1D Barcode Lookup</span>
               </h2>
 
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                Scan or paste a security QR / Barcode UUID token. All raw business details are look-up authenticated without revealing sensitive data externally.
+              <p className="text-xs text-[var(--text-muted)] font-medium leading-relaxed">
+                Scan with a handheld 1D laser scanner or type a barcode ID (e.g. <strong>NIG.0042-M</strong>, <strong>DES-001-FREE</strong>). Instant stock lookup with zero external exposure.
               </p>
 
               <div className="space-y-2">
@@ -376,13 +353,13 @@ export default function MasterDataBarcodeQRPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleScanLookup(inputUuid);
                     }}
-                    placeholder="Scan barcode payload or enter UUID..."
-                    className="flex-1 h-11 px-4 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:ring-2 focus:ring-[#5B63D3] outline-none"
+                    placeholder="Scan barcode or enter ID (e.g. NIG.0042-M)..."
+                    className="flex-1 h-11 px-4 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] text-xs font-mono font-bold transition-colors"
                   />
                   <button
                     onClick={() => handleScanLookup(inputUuid)}
                     disabled={loading || !inputUuid.trim()}
-                    className="h-11 px-5 rounded-xl bg-[#5B63D3] hover:bg-[#4F55C3] text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="h-11 px-5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
                     {loading ? <Loader2 className="animate-spin h-4 w-4" /> : <Eye size={16} />}
                     <span>Lookup</span>
@@ -393,60 +370,60 @@ export default function MasterDataBarcodeQRPage() {
 
             {/* Scanned Stock Result Card */}
             {scannedStock && (
-              <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-md space-y-4 bg-emerald-50/20">
-                <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+              <div className="bg-[var(--card-bg)] rounded-2xl border border-emerald-500/40 p-6 shadow-md space-y-4">
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    <span className="text-sm font-extrabold text-slate-900">Stock Item Authenticated</span>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <span className="text-sm font-extrabold text-[var(--text-primary)]">Stock Item Authenticated</span>
                   </div>
-                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full uppercase">
+                  <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold rounded-full uppercase">
                     Status: {scannedStock.status || "In Stock"}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Design Code</span>
-                    <span className="font-extrabold text-[#6366F1]">{scannedStock.designs?.design_number || "—"}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Design Code</span>
+                    <span className="font-extrabold text-[var(--primary)]">{scannedStock.designs?.design_number || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Style Name</span>
-                    <span className="font-bold text-slate-900">{scannedStock.designs?.name || "—"}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Style Name</span>
+                    <span className="font-bold text-[var(--text-primary)]">{scannedStock.designs?.name || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Colour</span>
-                    <span className="font-bold text-slate-800">{scannedStock.design_colours?.colour_name || "—"}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Colour</span>
+                    <span className="font-bold text-[var(--text-primary)]">{scannedStock.design_colours?.colour_name || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Size</span>
-                    <span className="font-extrabold text-slate-900">{scannedStock.size || scannedStock.resolved_size || "—"}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Size</span>
+                    <span className="font-extrabold text-[var(--text-primary)]">{scannedStock.size || scannedStock.resolved_size || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Storage Godown</span>
-                    <span className="font-bold text-slate-800">{scannedStock.godowns?.name || "—"}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Storage Godown</span>
+                    <span className="font-bold text-[var(--text-primary)]">{scannedStock.godowns?.name || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Available Stock</span>
-                    <span className="font-extrabold text-emerald-600">{scannedStock.resolved_quantity ?? scannedStock.total_quantity ?? 1} Pcs</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Available Stock</span>
+                    <span className="font-extrabold text-emerald-500">{scannedStock.resolved_quantity ?? scannedStock.total_quantity ?? 1} Pcs</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Sale Price</span>
-                    <span className="font-extrabold text-indigo-600">₹{Number(scannedStock.designs?.sale_price || 0).toFixed(2)}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block">Sale Price</span>
+                    <span className="font-extrabold text-[var(--primary)]">₹{Number(scannedStock.designs?.sale_price || 0).toFixed(2)}</span>
                   </div>
                 </div>
 
                 {/* Quick ERP Action Buttons */}
-                <div className="pt-3 border-t border-emerald-100 flex flex-wrap gap-2">
+                <div className="pt-3 border-t border-[var(--border)] flex flex-wrap gap-2">
                   <Link
                     href={`/sales/bills/new?stock_id=${scannedStock.id}&design_id=${scannedStock.design_id || ""}&size=${encodeURIComponent(scannedStock.size || "")}&price=${scannedStock.designs?.sale_price || 0}`}
-                    className="px-3.5 py-2 rounded-xl bg-[#5B63D3] hover:bg-[#4F55C3] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🛒 Create Sales Bill</span>
                   </Link>
 
                   <Link
                     href={`/sales/returns/new?stock_id=${scannedStock.id}&design_id=${scannedStock.design_id || ""}&size=${encodeURIComponent(scannedStock.size || "")}`}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-[var(--input-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>↩️ Create Sales Return</span>
                   </Link>
@@ -460,7 +437,7 @@ export default function MasterDataBarcodeQRPage() {
 
                   <Link
                     href={`/finished-stock/operations?tab=adjustment&stock_id=${scannedStock.id}&size=${encodeURIComponent(scannedStock.size || "")}`}
-                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-[var(--input-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>⚡ Stock Adjustment</span>
                   </Link>
@@ -470,26 +447,26 @@ export default function MasterDataBarcodeQRPage() {
           </div>
 
           {/* Right Col: Scan History */}
-          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-extrabold text-[#0F172A] flex items-center gap-2">
-              <Clock className="h-4 w-4 text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] p-5 shadow-sm space-y-4">
+            <h3 className="text-sm font-extrabold text-[var(--text-primary)] flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[var(--primary)]" />
               <span>Recent Scan History ({scanHistory.length})</span>
             </h3>
 
             {scanHistory.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+              <div className="py-12 text-center text-[var(--text-muted)] bg-[var(--page-bg)] rounded-xl border border-dashed border-[var(--border)] text-xs">
                 No items scanned in this session.
               </div>
             ) : (
               <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
                 {scanHistory.map((item, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                  <div key={idx} className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)] text-xs space-y-1">
                     <div className="flex items-center justify-between font-bold">
-                      <span className="text-[#6366F1]">{item.design_code}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{item.time}</span>
+                      <span className="text-[var(--primary)]">{item.barcode || item.design_code}</span>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">{item.time}</span>
                     </div>
-                    <p className="text-[11px] text-slate-700 font-medium">
-                      Colour: <strong>{item.colour}</strong> • Size: <strong>{item.size}</strong>
+                    <p className="text-[11px] text-[var(--text-secondary)] font-medium">
+                      Colour: <strong className="text-[var(--text-primary)]">{item.colour}</strong> • Size: <strong className="text-[var(--text-primary)]">{item.size}</strong>
                     </p>
                   </div>
                 ))}

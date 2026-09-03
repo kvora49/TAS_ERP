@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Home, Boxes, Users, Grid, Plus } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Home, ShoppingBag, Boxes, Grid, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { triggerHaptic } from "@/lib/haptics";
 import { MobileMoreDrawer } from "./MobileMoreDrawer";
 
 // ─── Context-aware FAB action map ─────────────────────────────────────────────
-// Maps route prefixes to the action the central + button takes.
-// Checked from most specific to least specific (order matters).
 const FAB_ROUTES: Array<{ prefix: string; exact?: boolean; href: string; label: string }> = [
   // Sales
   { prefix: "/sales/bills",              href: "/sales/bills/new",              label: "New Invoice"     },
@@ -43,114 +42,139 @@ function getFabAction(pathname: string): { href: string; label: string } {
   return { href: "/sales/bills/new", label: "New Invoice" };
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
-
 export default function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [fabTooltipVisible, setFabTooltipVisible] = useState(false);
 
   const fabAction = getFabAction(pathname);
 
-  const triggerHaptic = () => {
-    if (typeof window !== "undefined" && window.navigator?.vibrate) {
-      try {
-        window.navigator.vibrate(10);
-      } catch (_) {}
-    }
-  };
+  const isHome = pathname === "/";
+  const isSales = pathname.startsWith("/sales");
+  const isStock =
+    pathname.startsWith("/finished-stock") ||
+    pathname.startsWith("/raw-materials") ||
+    pathname.startsWith("/stock");
+
+  // Automatically hide bottom navigation on full-screen form pages so virtual keyboards and sticky action bars have full view
+  const isFormRoute =
+    pathname.endsWith("/new") ||
+    pathname.endsWith("/edit") ||
+    pathname.includes("/new/") ||
+    pathname.includes("/edit/");
+
+  if (isFormRoute) {
+    return null;
+  }
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--card-bg)] border-t border-[var(--border)] flex items-center justify-around z-40 select-none print:hidden shadow-lg backdrop-blur-md">
-        {/* Home Tab */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--card-bg)]/90 backdrop-blur-xl border-t border-[var(--border)] flex items-center justify-around z-40 select-none print:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        {/* 1. Home Tab */}
         <Link
           href="/"
-          onClick={triggerHaptic}
+          onClick={() => triggerHaptic("selection")}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname === "/" ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
+            "flex flex-col items-center justify-center gap-1 min-w-[56px] h-full text-[11px] font-bold tracking-tight transition-all active:scale-90",
+            isHome ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
-          <Home className="h-5 w-5" />
+          <div className="relative flex items-center justify-center">
+            <Home className="h-5 w-5 stroke-[2.2]" />
+            {isHome && (
+              <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[var(--primary)] animate-pulse" />
+            )}
+          </div>
           <span>Home</span>
         </Link>
 
-        {/* Stock Tab */}
+        {/* 2. Sales Tab */}
         <Link
-          href="/finished-stock"
-          onClick={triggerHaptic}
+          href="/sales/bills"
+          onClick={() => triggerHaptic("selection")}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname.startsWith("/finished-stock") || pathname.startsWith("/raw-materials") || pathname.startsWith("/stock")
-              ? "text-[var(--primary)] font-bold"
-              : "text-[var(--text-muted)]"
+            "flex flex-col items-center justify-center gap-1 min-w-[56px] h-full text-[11px] font-bold tracking-tight transition-all active:scale-90",
+            isSales ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
-          <Boxes className="h-5 w-5" />
-          <span>Stock</span>
+          <div className="relative flex items-center justify-center">
+            <ShoppingBag className="h-5 w-5 stroke-[2.2]" />
+            {isSales && (
+              <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[var(--primary)] animate-pulse" />
+            )}
+          </div>
+          <span>Sales</span>
         </Link>
 
-        {/* Central Floating Quick Action Button — context-aware */}
-        <div className="relative -top-3 flex items-center justify-center">
-          {/* Tooltip on long-press */}
+        {/* 3. Central Floating Action Button (FAB) */}
+        <div className="relative -top-3.5 flex items-center justify-center">
+          {/* Tooltip on long-press (Dark mode safe: uses card-bg and text-primary) */}
           {fabTooltipVisible && (
-            <div className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--text-primary)] text-white text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-lg pointer-events-none z-50">
+            <div className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--card-bg)] text-[var(--text-primary)] border border-[var(--border)] text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-2xl pointer-events-none z-50">
               {fabAction.label}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--text-primary)]" />
+              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--card-bg)]" />
             </div>
           )}
           <Link
             href={fabAction.href}
             onClick={() => {
-              triggerHaptic();
+              triggerHaptic("impactMedium");
               setFabTooltipVisible(false);
             }}
             onContextMenu={(e) => {
               e.preventDefault();
               setFabTooltipVisible(true);
-              setTimeout(() => setFabTooltipVisible(false), 2000);
+              setTimeout(() => setFabTooltipVisible(false), 2500);
             }}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center shadow-lg shadow-[var(--primary)]/30 border-2 border-[var(--card-bg)] active:scale-95 transition-transform"
+            className="w-13 h-13 rounded-full bg-gradient-to-tr from-[var(--primary-dark)] to-[var(--primary)] text-white flex items-center justify-center shadow-lg shadow-[var(--primary)]/35 border-2 border-[var(--card-bg)] active:scale-90 transition-transform touch-ripple"
             title={fabAction.label}
             aria-label={fabAction.label}
           >
-            <Plus className="h-6 w-6 stroke-[2.5]" />
+            <Plus className="h-6 w-6 stroke-[2.8]" />
           </Link>
         </div>
 
-        {/* Parties Tab */}
+        {/* 4. Stock Tab */}
         <Link
-          href="/parties"
-          onClick={triggerHaptic}
+          href="/finished-stock"
+          onClick={() => triggerHaptic("selection")}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors",
-            pathname.startsWith("/parties") ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
+            "flex flex-col items-center justify-center gap-1 min-w-[56px] h-full text-[11px] font-bold tracking-tight transition-all active:scale-90",
+            isStock ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
-          <Users className="h-5 w-5" />
-          <span>Parties</span>
+          <div className="relative flex items-center justify-center">
+            <Boxes className="h-5 w-5 stroke-[2.2]" />
+            {isStock && (
+              <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[var(--primary)] animate-pulse" />
+            )}
+          </div>
+          <span>Stock</span>
         </Link>
 
-        {/* More Tab */}
+        {/* 5. More Launcher Tab */}
         <button
           type="button"
           onClick={() => {
-            triggerHaptic();
+            triggerHaptic("selection");
             setDrawerOpen(true);
           }}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 w-14 h-full text-[10px] font-semibold tracking-wider transition-colors cursor-pointer",
-            drawerOpen ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
+            "flex flex-col items-center justify-center gap-1 min-w-[56px] h-full text-[11px] font-bold tracking-tight transition-all active:scale-90 cursor-pointer",
+            drawerOpen ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
-          <Grid className="h-5 w-5" />
+          <div className="relative flex items-center justify-center">
+            <Grid className="h-5 w-5 stroke-[2.2]" />
+            {drawerOpen && (
+              <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[var(--primary)] animate-pulse" />
+            )}
+          </div>
           <span>More</span>
         </button>
       </nav>
 
-      {/* PWA Launcher Sheet */}
+      {/* PWA Launcher Sheet (Swipeable Bottom Sheet) */}
       <MobileMoreDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
     </>
   );

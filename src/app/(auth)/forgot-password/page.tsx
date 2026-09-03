@@ -65,10 +65,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#F1F5F9]">
+    <div className="min-h-[100dvh] w-full flex flex-col md:flex-row bg-[#F1F5F9]">
       {/* Left Panel - 45% Width */}
       <div
-        className="hidden md:flex md:w-[45%] flex-col justify-between p-10 text-white relative overflow-hidden"
+        className="hidden md:flex md:w-[45%] flex-col justify-between p-8 lg:p-10 text-white relative overflow-hidden shrink-0"
         style={{
           background: "linear-gradient(135deg, #050B1A 0%, #0A1430 50%, #111C45 100%)",
         }}
@@ -146,7 +146,7 @@ export default function ForgotPasswordPage() {
 
       {/* Right Panel - 55% Width */}
       <div className={cn(
-        "flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative transition-colors duration-300",
+        "flex-1 flex flex-col items-center justify-start md:justify-center px-4 py-8 sm:p-8 md:p-12 overflow-y-auto min-h-full relative transition-colors duration-300 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]",
         theme === "dark" ? "bg-[#0B0F19]" : "bg-[#F8FAFC]"
       )}>
         {/* Theme Toggle Button */}
@@ -154,7 +154,7 @@ export default function ForgotPasswordPage() {
           type="button"
           onClick={toggleTheme}
           className={cn(
-            "absolute top-6 right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
+            "absolute top-4 right-4 sm:top-6 sm:right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-yellow-400 hover:bg-[#1F2937]"
               : "bg-white border-[#E5E7EB] text-gray-500 hover:bg-slate-50"
@@ -166,18 +166,11 @@ export default function ForgotPasswordPage() {
 
         <div 
           className={cn(
-            "shadow-xl border transition-all duration-300",
+            "w-full max-w-[480px] sm:max-w-[520px] p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border transition-all duration-300 my-auto",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-white"
               : "bg-white border-[#E5E7EB] text-[#0F172A]"
-          )}
-          style={{
-            width: "600px",
-            maxWidth: "600px",
-            minWidth: "600px",
-            padding: "48px",
-            borderRadius: "24px"
-          }}>
+          )}>
           {submitted ? (
             <div className="text-center space-y-4 py-4">
               <div className="flex justify-center">

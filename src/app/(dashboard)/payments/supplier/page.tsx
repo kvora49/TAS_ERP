@@ -8,6 +8,7 @@ import { Search, Receipt, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
+import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
 
 interface Payment {
   id: string;
@@ -128,59 +129,82 @@ export default function SupplierPaymentsPage() {
       />
 
       {/* STAT CARDS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-green-50 rounded-lg text-green-600">
-            <Wallet className="h-6 w-6" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-xs flex items-center gap-3.5">
+          <div className="p-2.5 sm:p-3 bg-[var(--badge-green-bg)] text-[var(--badge-green-text)] rounded-xl shrink-0">
+            <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-[#64748B]">Total Outflow</span>
-            <p className="text-2xl font-bold text-[#16A34A]">{formatCurrency(totalPaid)}</p>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Total Outflow</span>
+            <p className="text-xl sm:text-2xl font-black text-[var(--badge-green-text)]">{formatCurrency(totalPaid)}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-lg text-[#6366F1]">
-            <Receipt className="h-6 w-6" />
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-xs flex items-center gap-3.5">
+          <div className="p-2.5 sm:p-3 bg-[var(--primary-light)] text-[var(--primary)] rounded-xl shrink-0">
+            <Receipt className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-[#64748B]">Bank / NEFT Outflow</span>
-            <p className="text-2xl font-bold text-slate-800">{formatCurrency(bankPayments)}</p>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Bank / NEFT</span>
+            <p className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">{formatCurrency(bankPayments)}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
-            <Banknote className="h-6 w-6" />
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-xs flex items-center gap-3.5">
+          <div className="p-2.5 sm:p-3 bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)] rounded-xl shrink-0">
+            <Banknote className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-[#64748B]">UPI Outflow</span>
-            <p className="text-2xl font-bold text-slate-800">{formatCurrency(upiPayments)}</p>
+            <span className="text-xs font-semibold text-[var(--text-muted)]">UPI Outflow</span>
+            <p className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">{formatCurrency(upiPayments)}</p>
           </div>
         </div>
       </div>
 
       {/* FILTER & SEARCH BAR */}
-      <div className="flex items-center justify-between gap-4 bg-white border border-[#E2E8F0] p-4 rounded-xl shadow-sm">
-        <div className="text-xs font-bold text-[#64748B] uppercase tracking-wider">
+      <div className="flex items-center justify-between gap-3 bg-[var(--card-bg)] border border-[var(--border)] p-3 sm:p-4 rounded-xl shadow-xs">
+        <div className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider hidden sm:block">
           Transaction History
         </div>
 
         {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]" />
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--text-faint)]" />
           <input
             type="text"
-            placeholder="Search supplier, PO, UTR, remarks..."
+            placeholder="Search supplier, PO, UTR..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-1 focus:ring-[#6366F1] focus:border-[#6366F1] transition-all"
+            className="w-full pl-9 pr-4 py-2 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
           />
         </div>
       </div>
 
-      {/* PAYMENTS TABLE */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      {/* MOBILE: Compact High-Density Row List */}
+      <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
+        {filteredPayments.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[var(--text-muted)] italic">
+            No supplier payments found.
+          </div>
+        ) : (
+          filteredPayments.map((p) => (
+            <MobileCompactRow
+              key={p.id}
+              title={p.supplier?.name || "Unknown Supplier"}
+              subtitle={`${p.payment_date ? formatDate(p.payment_date) : "—"} • ${p.payment_mode?.replace("_", " ").toUpperCase()}${p.reference_no ? ` • Ref: ${p.reference_no}` : ""}`}
+              value={<span className="text-[var(--badge-green-text)] font-mono">{formatCurrency(p.paid_amount)}</span>}
+              badge={
+                <Badge variant="primary" className="capitalize text-[10px]">
+                  {p.payment_mode?.replace("_", " ")}
+                </Badge>
+              }
+            />
+          ))
+        )}
+      </div>
+
+      {/* DESKTOP: Full DataTable */}
+      <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xs overflow-hidden">
         <DataTable
           columns={columns}
           data={filteredPayments}

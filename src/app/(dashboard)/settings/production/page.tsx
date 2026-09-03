@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
@@ -15,6 +16,7 @@ import {
   FileText,
   Save,
   Info,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +48,8 @@ export default function ProductionSettingsPage() {
   // Lists
   const [stages, setStages] = useState<Stage[]>([]);
   const [godowns, setGodowns] = useState<Godown[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [defaultTemplateId, setDefaultTemplateId] = useState("");
 
   // Settings states
   const [jobWorkBillType, setJobWorkBillType] = useState("Job Work In");
@@ -69,6 +73,14 @@ export default function ProductionSettingsPage() {
         setDefaultWorkCenterId(data.settings.default_work_center_id || "");
       }
 
+      setTemplates(data.templates || []);
+      if (data.defaultTemplate?.id) {
+        setDefaultTemplateId(data.defaultTemplate.id);
+      } else if (data.templates && data.templates.length > 0) {
+        const def = data.templates.find((t: any) => t.is_default) || data.templates[0];
+        setDefaultTemplateId(def?.id || "");
+      }
+
       setStages(data.stages && data.stages.length > 0 ? data.stages : MOCK_STAGES);
       setGodowns(data.godowns || []);
     } catch (err: any) {
@@ -83,6 +95,14 @@ export default function ProductionSettingsPage() {
     fetchProductionSettings();
   }, []);
 
+  const handleSelectDefaultTemplate = (tempId: string) => {
+    setDefaultTemplateId(tempId);
+    const matched = templates.find((t) => t.id === tempId);
+    if (matched?.stages && matched.stages.length > 0) {
+      setStages(matched.stages);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -95,6 +115,7 @@ export default function ProductionSettingsPage() {
           allow_back_date_production: allowBackDateProduction,
           lock_completed_lots: lockCompletedLots,
           default_work_center_id: defaultWorkCenterId,
+          default_template_id: defaultTemplateId || null,
           // Staging sort orders of stages if they were reordered (currently static in UI)
           stages: stages.map((s, idx) => ({ id: s.id, sort_order: idx + 1 })),
         }),
@@ -175,17 +196,43 @@ export default function ProductionSettingsPage() {
             subtitle="Configure production process and defaults"
           >
             <div className="flex flex-col gap-6">
-              {/* SECTION A — Default Production Stage Flow */}
-              <div>
-                <label className="text-sm font-semibold text-[#374151] block mb-1">
-                  Default Production Stage Flow
-                </label>
-                <p className="text-xs text-[#94A3B8] mb-3">
-                  Define and manage the default stage sequence for production
-                </p>
+              {/* SECTION A — Default Production Workflow Template & Stages */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-sm font-semibold text-[var(--text-body)] block mb-0.5">
+                      Default Workflow Template
+                    </label>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Select which production template new lots inherit by default
+                    </p>
+                  </div>
+                  <Link
+                    href="/master-data/production-stages/templates"
+                    className="text-xs font-bold text-[var(--primary)] hover:underline inline-flex items-center gap-1 shrink-0"
+                  >
+                    Manage Workflow Templates →
+                  </Link>
+                </div>
+
+                {templates.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={defaultTemplateId}
+                      onChange={(e) => handleSelectDefaultTemplate(e.target.value)}
+                      className="h-10 px-3 rounded-lg border border-[var(--input-border)] text-sm bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] min-w-[240px]"
+                    >
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.stages?.length || 0} Stages){t.is_default ? " — Current Default" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Horizontal scroll flow */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-3 pt-1 select-none scrollbar-thin">
+                <div className="flex items-center gap-2 overflow-x-auto pb-3 pt-2 select-none scrollbar-thin">
                   {stages.map((stage, idx) => (
                     <div key={stage.id} className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-sm text-[var(--text-body)] font-medium shadow-[var(--shadow-sm)] hover:shadow-md transition-shadow">
@@ -196,9 +243,6 @@ export default function ProductionSettingsPage() {
                           {stage.icon || "•"}
                         </span>
                         <span>{stage.name}</span>
-                        {idx === stages.length - 1 && (
-                          <ChevronDown size={14} className="text-[var(--text-faint)] ml-1 shrink-0" />
-                        )}
                       </div>
                       {idx < stages.length - 1 && (
                         <ChevronRight size={14} className="text-[var(--text-faint)] shrink-0" />

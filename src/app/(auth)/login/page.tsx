@@ -136,7 +136,7 @@ function LoginContent() {
 
   if (isWorkspaceLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050B1A] text-white">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#050B1A] text-white p-6">
         <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -163,10 +163,10 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#F1F5F9]">
+    <div className="min-h-[100dvh] w-full flex flex-col md:flex-row bg-[#F1F5F9]">
       {/* Left Panel - 45% Width */}
       <div
-        className="hidden md:flex md:w-[45%] flex-col justify-between p-10 text-white relative overflow-hidden"
+        className="hidden md:flex md:w-[45%] flex-col justify-between p-8 lg:p-10 text-white relative overflow-hidden shrink-0"
         style={{
           background: "linear-gradient(135deg, #050B1A 0%, #0A1430 50%, #111C45 100%)",
         }}
@@ -246,7 +246,7 @@ function LoginContent() {
 
       {/* Right Panel - 55% Width */}
       <div className={cn(
-        "flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative transition-colors duration-300",
+        "flex-1 flex flex-col items-center justify-start md:justify-center px-4 py-8 sm:p-8 md:p-12 overflow-y-auto min-h-full relative transition-colors duration-300 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]",
         theme === "dark" ? "bg-[#0B0F19]" : "bg-[#F8FAFC]"
       )}>
         {/* Theme Toggle Button */}
@@ -254,7 +254,7 @@ function LoginContent() {
           type="button"
           onClick={toggleTheme}
           className={cn(
-            "absolute top-6 right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
+            "absolute top-4 right-4 sm:top-6 sm:right-6 w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 z-20",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-yellow-400 hover:bg-[#1F2937]"
               : "bg-white border-[#E5E7EB] text-gray-500 hover:bg-slate-50"
@@ -266,34 +266,27 @@ function LoginContent() {
 
         <div 
           className={cn(
-            "shadow-xl border transition-all duration-300",
+            "w-full max-w-[480px] sm:max-w-[520px] p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border transition-all duration-300 my-auto",
             theme === "dark"
               ? "bg-[#111827] border-[#1F2937] text-white"
               : "bg-white border-[#E5E7EB] text-[#0F172A]"
           )}
-          style={{
-            width: "600px",
-            maxWidth: "600px",
-            minWidth: "600px",
-            padding: "48px",
-            borderRadius: "24px"
-          }}
         >
           {/* Logo Badge */}
-          <div className="flex justify-center mb-5">
-            <div className="w-14 h-14 rounded-2xl bg-white dark:bg-[#1E293B] p-1 border border-[var(--border)] shadow-md flex items-center justify-center">
+          <div className="flex justify-center mb-4 sm:mb-5">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-[#1E293B] p-1 border border-[var(--border)] shadow-md flex items-center justify-center">
               <img src="/logo.png" alt="TAS ERP Logo" className="w-full h-full object-contain" />
             </div>
           </div>
 
           <h2 className={cn(
-            "text-2xl font-bold text-center tracking-tight",
+            "text-xl sm:text-2xl font-bold text-center tracking-tight",
             theme === "dark" ? "text-white" : "text-[#0F172A]"
           )}>
             Welcome Back
           </h2>
           <p className={cn(
-            "text-sm text-center mt-1.5 mb-8",
+            "text-xs sm:text-sm text-center mt-1.5 mb-6 sm:mb-8",
             theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
           )}>
             Sign in to access TAS ERP
@@ -378,7 +371,7 @@ function LoginContent() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B]"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B] p-1.5 cursor-pointer"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />

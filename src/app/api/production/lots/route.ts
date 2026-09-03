@@ -32,7 +32,8 @@ export async function GET(request: Request) {
         brand:brands(id, name),
         design:designs(id, name, code:design_number),
         colour:design_colours(id, colour_name, hex_code:colour_hex),
-        size_set:size_sets(id, name, sizes)
+        size_set:size_sets(id, name, sizes),
+        template:production_templates(id, name, is_default)
       `)
       .eq("business_id", businessId)
       .is("deleted_at", null)
@@ -351,6 +352,7 @@ export async function POST(request: Request) {
       spec_sheet,            // object of { template_id, spec_values }
       sizes,   // array of { size, quantity, colour_id }
       stages,  // array of { stage_id, stage_name, stage_type, sequence_no, is_mandatory, worker_ids }
+      template_id, // string - ID of the production_template
     } = body;
 
     if (!lot_number || !brand_id || !design_id || !lot_date || !total_quantity) {
@@ -375,23 +377,56 @@ export async function POST(request: Request) {
       }
     }
 
-    // Default stage flow from business settings if no custom stages provided
+    // Resolve template_id if not explicitly provided
+    let finalTemplateId = template_id || null;
     let effectiveStages = stages;
-    if (!effectiveStages || !Array.isArray(effectiveStages) || effectiveStages.length === 0) {
-      const { data: dbStages } = await supabase
-        .from("production_stages")
-        .select("id, name, is_active")
-        .eq("business_id", businessId)
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true });
 
-      if (dbStages && dbStages.length > 0) {
-        effectiveStages = dbStages.map((s, idx) => ({
-          stage_id: s.id,
-          stage_name: s.name,
-          sequence_no: idx + 1,
-          is_mandatory: true,
-        }));
+    if (!finalTemplateId) {
+      const { data: defaultTemp } = await supabase
+        .from("production_templates")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("is_default", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (defaultTemp?.id) {
+        finalTemplateId = defaultTemp.id;
+      } else {
+        const { data: firstTemp } = await supabase
+          .from("production_templates")
+          .select("id")
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        finalTemplateId = firstTemp?.id || null;
+      }
+    }
+
+    // Default stage flow from template if no custom stages provided
+    if (!effectiveStages || !Array.isArray(effectiveStages) || effectiveStages.length === 0) {
+      if (finalTemplateId) {
+        const { data: dbStages } = await supabase
+          .from("production_stages")
+          .select("id, name, type, order_index")
+          .eq("business_id", businessId)
+          .eq("template_id", finalTemplateId)
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .order("order_index", { ascending: true });
+
+        if (dbStages && dbStages.length > 0) {
+          effectiveStages = dbStages.map((s: any, idx: number) => ({
+            stage_id: s.id,
+            stage_name: s.name,
+            stage_type: s.type || "in_house",
+            sequence_no: s.order_index || idx + 1,
+            is_mandatory: true,
+            worker_ids: [],
+          }));
+        }
       }
     }
 
@@ -484,6 +519,7 @@ export async function POST(request: Request) {
         garment_type_id: garment_type_id || null,
         design_type: design_type || null,
         lot_name: lot_name || null,
+        template_id: finalTemplateId,
       })
       .select("*")
       .single();
@@ -521,8 +557,8 @@ export async function POST(request: Request) {
     }
 
     // 3. Insert lot production stages
-    if (stages && stages.length > 0) {
-      const stagesToInsert = stages.map((s: any) => ({
+    if (effectiveStages && effectiveStages.length > 0) {
+      const stagesToInsert = effectiveStages.map((s: any) => ({
         business_id: businessId,
         lot_id: lot.id,
         stage_id: s.stage_id,
@@ -545,7 +581,7 @@ export async function POST(request: Request) {
       // Insert assigned workers into lot_stage_workers join table
       const workersToInsert: any[] = [];
       dbStages.forEach((dbStage) => {
-        const inputStage = stages.find((s: any) => s.stage_id === dbStage.stage_id);
+        const inputStage = effectiveStages.find((s: any) => s.stage_id === dbStage.stage_id || s.stage_name === dbStage.stage_name);
         if (inputStage && Array.isArray(inputStage.worker_ids) && inputStage.worker_ids.length > 0) {
           inputStage.worker_ids.forEach((workerId: string) => {
             workersToInsert.push({
@@ -567,9 +603,9 @@ export async function POST(request: Request) {
       }
 
       // Automatically set current_stage_id of lot to the first stage
-      const firstStage = stages.find((s: any) => s.sequence_no === 1);
+      const firstStage = effectiveStages.find((s: any) => s.sequence_no === 1) || effectiveStages[0];
       if (firstStage) {
-        const dbFirstStage = dbStages.find((s: any) => s.sequence_no === 1);
+        const dbFirstStage = dbStages.find((s: any) => s.sequence_no === firstStage.sequence_no) || dbStages[0];
         if (dbFirstStage) {
           await supabase
             .from("production_lots")

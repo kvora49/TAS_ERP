@@ -115,7 +115,8 @@ export function ContactSection({
           <label htmlFor="phone-number" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Phone Number</label>
           <input
             id="phone-number"
-            type="text"
+            type="tel"
+            inputMode="tel"
             placeholder="10-digit mobile number"
             {...register("phone")}
             className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
@@ -135,7 +136,8 @@ export function ContactSection({
           </label>
           <input
             id="whatsapp-number"
-            type="text"
+            type="tel"
+            inputMode="tel"
             placeholder="WhatsApp number"
             {...register("whatsapp_number")}
             className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
@@ -177,7 +179,8 @@ export function ContactSection({
                     </label>
                     <input
                       id={`contact-number-${field.id}`}
-                      type="text"
+                      type="tel"
+                      inputMode="tel"
                       placeholder="e.g. 9876543210"
                       className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                       {...register(`contact_numbers.${index}.number` as const)}

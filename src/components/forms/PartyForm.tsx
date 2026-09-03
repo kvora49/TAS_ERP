@@ -15,6 +15,7 @@ import { partySchema, PartyFormValues, Godown, Stage } from "./PartyForm/party.s
 import { WorkerFieldsSection } from "./PartyForm/WorkerFieldsSection";
 import { AddressSection } from "./PartyForm/AddressSection";
 import { ContactSection } from "./PartyForm/ContactSection";
+import { MobileStickyFormBar } from "@/components/forms/MobileStickyFormBar";
 
 interface PartyFormProps {
   initialData?: any;
@@ -416,46 +417,46 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
               </div>
 
               <div>
-                <label htmlFor="pan" className="block text-xs font-semibold text-[#64748B] mb-1.5">PAN Card Number</label>
+                <label htmlFor="pan" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">PAN Card Number</label>
                 <input
                   id="pan"
                   type="text"
                   placeholder="10-digit PAN"
                   {...register("pan")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono uppercase"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
 
               <div>
-                <label htmlFor="aadhar" className="block text-xs font-semibold text-[#64748B] mb-1.5">Aadhar Number</label>
+                <label htmlFor="aadhar" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Aadhar Number</label>
                 <input
                   id="aadhar"
                   type="text"
                   placeholder="12-digit Aadhar"
                   {...register("aadhar")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
 
               <div>
-                <label htmlFor="msme-number" className="block text-xs font-semibold text-[#64748B] mb-1.5">MSME Registration Number</label>
+                <label htmlFor="msme-number" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">MSME Registration Number</label>
                 <input
                   id="msme-number"
                   type="text"
                   placeholder="UDYAM-XX-00-0000000"
                   {...register("msme_number")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono uppercase"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
 
               <div>
-                <label htmlFor="tan" className="block text-xs font-semibold text-[#64748B] mb-1.5">TAN Number</label>
+                <label htmlFor="tan" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">TAN Number</label>
                 <input
                   id="tan"
                   type="text"
                   placeholder="10-digit TAN"
                   {...register("tan")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono uppercase"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
             </div>
@@ -570,6 +571,14 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
           </div>
         </div>
       </div>
+
+      {/* Mobile Sticky Action Bar */}
+      <MobileStickyFormBar
+        onCancel={() => router.push("/parties")}
+        onSave={handleSubmit(onSubmit)}
+        isSaving={isSubmitting}
+        saveText={id ? "Save Changes" : "Create Party"}
+      />
     </form>
   );
 }

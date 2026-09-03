@@ -338,6 +338,12 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
             <span className="text-[10px] font-semibold text-[var(--text-faint)] block">Payment Terms</span>
             <span className="text-xs font-semibold text-[var(--text-secondary)] capitalize">{party.payment_terms?.replace(/_/g, " ") || "—"}</span>
           </div>
+          {Number(party.credit_limit || 0) > 0 && (
+            <div>
+              <span className="text-[10px] font-semibold text-[var(--text-faint)] block">Credit Limit</span>
+              <span className="text-xs font-bold text-[var(--primary)]">{formatCurrency(party.credit_limit)}</span>
+            </div>
+          )}
         </div>
 
         {/* Dynamic KPI Cards (Updates per Active Tab) — Mobile Snap Scroll + Desktop Grid */}

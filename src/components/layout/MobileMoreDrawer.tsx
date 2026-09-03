@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,9 +14,15 @@ import {
   QrCode,
   PlusCircle,
   FolderOpen,
+  Search,
+  Receipt,
+  Building2,
+  Calendar,
+  X,
 } from "lucide-react";
-import { Modal } from "@/components/shared/Modal";
+import { MobileBottomSheet } from "@/components/shared/MobileBottomSheet";
 import { usePermissions } from "@/hooks/usePermissions";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface MobileMoreDrawerProps {
   open: boolean;
@@ -26,30 +32,60 @@ interface MobileMoreDrawerProps {
 export function MobileMoreDrawer({ open, onOpenChange }: MobileMoreDrawerProps) {
   const pathname = usePathname();
   const { canView } = usePermissions();
+  const [search, setSearch] = useState("");
 
   const launcherItems = [
-    { label: "Scan Code", href: "/scan", module: "Scan (PWA)", icon: QrCode, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-    { label: "New Bill", href: "/sales/bills/new", module: "Sales & Billing", icon: PlusCircle, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
-    { label: "Stock Items", href: "/finished-stock", module: "Stock", icon: Boxes, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-    { label: "Raw Materials", href: "/raw-materials/stock", module: "Stock", icon: FolderOpen, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-    { label: "Production", href: "/production", module: "Production", icon: Scissors, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-    { label: "Parties", href: "/parties", module: "Parties", icon: Users, color: "bg-pink-500/10 text-pink-600 dark:text-pink-400" },
-    { label: "Master Data", href: "/master-data/brands", module: "Master Data", icon: Sliders, color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400" },
-    { label: "Expenses", href: "/expenses", module: "Payments & Finance", icon: DollarSign, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
-    { label: "Reports", href: "/reports", module: "Reports", icon: BarChart3, color: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
-    { label: "Settings", href: "/settings", module: "Settings", icon: Settings, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
+    { label: "Scan Code", href: "/scan", module: "Scan (PWA)", icon: QrCode, category: "Quick" },
+    { label: "New Bill", href: "/sales/bills/new", module: "Sales & Billing", icon: PlusCircle, category: "Quick" },
+    { label: "Finished Stock", href: "/finished-stock", module: "Stock", icon: Boxes, category: "Inventory" },
+    { label: "Raw Materials", href: "/raw-materials/stock", module: "Stock", icon: FolderOpen, category: "Inventory" },
+    { label: "Production", href: "/production", module: "Production", icon: Scissors, category: "Operations" },
+    { label: "Parties", href: "/parties", module: "Parties", icon: Users, category: "Parties & Finance" },
+    { label: "Expenses", href: "/expenses", module: "Payments & Finance", icon: DollarSign, category: "Parties & Finance" },
+    { label: "Payments", href: "/payments", module: "Payments & Finance", icon: Receipt, category: "Parties & Finance" },
+    { label: "Reminders", href: "/reminders", module: "Payments & Finance", icon: Calendar, category: "Parties & Finance" },
+    { label: "Master Data", href: "/master-data/brands", module: "Master Data", icon: Sliders, category: "Operations" },
+    { label: "Reports", href: "/reports", module: "Reports", icon: BarChart3, category: "System" },
+    { label: "Company Profile", href: "/settings/company-profile", module: "Settings", icon: Building2, category: "System" },
+    { label: "Settings", href: "/settings", module: "Settings", icon: Settings, category: "System" },
   ];
 
-  const visibleItems = launcherItems.filter((item) => canView(item.module));
+  const visibleItems = launcherItems
+    .filter((item) => canView(item.module))
+    .filter((item) => !search.trim() || item.label.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="TAS ERP Launcher" maxWidth="max-w-md">
-      <div className="space-y-4 pt-1">
-        <p className="text-xs text-[var(--text-muted)] font-medium">
-          Select a module or quick action to navigate
-        </p>
+    <MobileBottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="TAS ERP Navigation"
+      description="Quick access to all modules and actions"
+      maxHeight="max-h-[85dvh]"
+    >
+      <div className="space-y-4">
+        {/* Instant Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Find any module..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-9 h-10 rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 pt-2">
+        {/* Modules Grid */}
+        <div className="grid grid-cols-3 gap-2.5 pt-1">
           {visibleItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = pathname.startsWith(item.href);
@@ -58,24 +94,39 @@ export function MobileMoreDrawer({ open, onOpenChange }: MobileMoreDrawerProps) 
               <Link
                 key={idx}
                 href={item.href}
-                onClick={() => onOpenChange(false)}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center group cursor-pointer ${
+                onClick={() => {
+                  triggerHaptic("selection");
+                  onOpenChange(false);
+                }}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all text-center group cursor-pointer touch-ripple active:scale-95 ${
                   isActive
-                    ? "border-[var(--primary)] bg-[var(--primary-light)] shadow-xs"
-                    : "border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)]"
+                    ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)] shadow-sm"
+                    : "border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)]"
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl ${item.color} flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110`}>
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 transition-transform group-hover:scale-105 ${
+                    isActive
+                      ? "bg-[var(--primary)] text-white"
+                      : "bg-[var(--page-bg)] text-[var(--primary)]"
+                  }`}
+                >
                   <Icon className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">
+                <span className="text-[11px] font-bold leading-tight truncate w-full px-0.5">
                   {item.label}
                 </span>
               </Link>
             );
           })}
         </div>
+
+        {visibleItems.length === 0 && (
+          <div className="py-8 text-center text-xs text-[var(--text-muted)] font-medium">
+            No module found matching &ldquo;{search}&rdquo;
+          </div>
+        )}
       </div>
-    </Modal>
+    </MobileBottomSheet>
   );
 }

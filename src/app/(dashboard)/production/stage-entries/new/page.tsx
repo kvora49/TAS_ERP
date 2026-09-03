@@ -170,15 +170,18 @@ export default function NewStageEntryPage() {
   // Selected lot stage info
   const selectedLotStage = lotStages.find((s) => s.id === stageId);
 
-  // Find corresponding master stage definition to read custom_fields
+  // Find corresponding stage definition to read custom_fields directly from lot stage relation or fallback
   const matchedMasterStage = masterStages.find(
     (ms: any) =>
       ms.id === selectedLotStage?.stage_id ||
-      ms.name?.toLowerCase() === selectedLotStage?.stage_name?.toLowerCase()
+      ms.name?.trim().toLowerCase() === selectedLotStage?.stage_name?.trim().toLowerCase()
   );
 
   const stageCustomFields: { name: string; type: "text" | "number" | "boolean" | "date"; required: boolean }[] =
-    matchedMasterStage?.custom_fields || [];
+    (selectedLotStage as any)?.stage?.custom_fields ||
+    (selectedLotStage as any)?.custom_fields ||
+    matchedMasterStage?.custom_fields ||
+    [];
 
   // Reset/Initialize custom field values whenever selected stage changes
   useEffect(() => {
@@ -191,7 +194,7 @@ export default function NewStageEntryPage() {
     } else {
       setCustomFieldValues({});
     }
-  }, [stageId, matchedMasterStage?.id]);
+  }, [stageId, selectedLotStage?.id, matchedMasterStage?.id]);
 
   // Sync Job Work Type and prefilled Qty In, and pre-fill worker when stage changes
   useEffect(() => {

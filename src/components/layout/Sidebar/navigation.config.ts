@@ -189,7 +189,7 @@ export const navItems: NavItem[] = [
       { name: "Banks & UPI", href: "/master-data/banks-upi" },
       { name: "Units", href: "/master-data/units" },
       { name: "Garment Types", href: "/master-data/garment-types" },
-      { name: "Barcode / QR", href: "/master-data/barcode-qr" },
+      { name: "Barcode Management", href: "/master-data/barcode-qr" },
     ],
   },
   { name: "Parties", href: "/parties", icon: Users },

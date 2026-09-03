@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import {
   Trash2,
   Info,
   RefreshCw,
+  Layers,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -98,6 +99,7 @@ export default function EditLotPage({ params }: EditLotProps) {
 
   // Assigned stages state
   const [assignedStages, setAssignedStages] = useState<LotStageInput[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   // Fabric rolls allocation state
   const [allocatedRolls, setAllocatedRolls] = useState<any[]>([]);
@@ -130,7 +132,7 @@ export default function EditLotPage({ params }: EditLotProps) {
     },
   });
 
-  const { data: masterStagesData } = useQuery<{ stages: ProductionStage[] }>({
+  const { data: masterStagesData } = useQuery<{ stages: any[] }>({
     queryKey: ["master-stages-list"],
     queryFn: async () => {
       const res = await fetch("/api/master-data/production-stages");
@@ -138,11 +140,62 @@ export default function EditLotPage({ params }: EditLotProps) {
     },
   });
 
+  const { data: templatesData } = useQuery<{ templates: any[] }>({
+    queryKey: ["production-templates-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/production-templates");
+      return res.json();
+    },
+  });
+
   const brands = brandsData?.brands || [];
   const designs = designsData?.designs || [];
   const masterStages = masterStagesData?.stages || [];
+  const productionTemplates = templatesData?.templates || [];
+
+  const stagesByTemplate = useMemo(() => {
+    const groups: Record<string, { templateName: string; stages: any[] }> = {};
+    masterStages.forEach((stage: any) => {
+      const templateName = stage.template?.name || "General Stages";
+      const templateKey = stage.template?.id || "general";
+      if (!groups[templateKey]) {
+        groups[templateKey] = { templateName, stages: [] };
+      }
+      groups[templateKey].stages.push(stage);
+    });
+    return Object.values(groups);
+  }, [masterStages]);
 
   const selectedDesign = designs.find((d) => d.id === designId);
+
+  const handleLoadTemplate = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    try {
+      const res = await fetch(`/api/master-data/production-templates/${templateId}`);
+      if (!res.ok) throw new Error("Failed to load template");
+      const data = await res.json();
+      const rawStages = data.stages || data.template?.stages || [];
+      if (rawStages.length === 0) {
+        toast.info("Selected template does not have any linked stages.");
+      }
+      setAssignedStages(
+        rawStages.map((s: any, idx: number) => ({
+          stage_id: s.id || s.stage_id,
+          stage_name: s.name || s.stage_name,
+          stage_type: s.type || s.stage_type || "in_house",
+          sequence_no: idx + 1,
+          is_mandatory: true,
+          description: s.description || "",
+        }))
+      );
+      if (rawStages.length > 0) {
+        toast.success(`Loaded ${rawStages.length} stages from template`);
+      }
+    } catch {
+      toast.error("Failed to load template stages");
+    }
+  };
 
   // Load existing lot values into state
   useEffect(() => {
@@ -150,6 +203,7 @@ export default function EditLotPage({ params }: EditLotProps) {
       const lot = lotData.lot;
       setBrandId(lot.brand_id || "");
       setDesignId(lot.design_id || "");
+      setSelectedTemplateId(lot.template_id || lot.template?.id || "");
       setLotNumber(lot.lot_number || "");
       setLotDate(lot.lot_date || "");
       setColourId(lot.colour_id || "");
@@ -295,6 +349,7 @@ export default function EditLotPage({ params }: EditLotProps) {
           quantity,
         })),
         stages: assignedStages,
+        template_id: selectedTemplateId || null,
       };
 
       const res = await fetch(`/api/production/lots/${id}`, {
@@ -639,18 +694,40 @@ export default function EditLotPage({ params }: EditLotProps) {
           </div>
 
           {/* Section 3: Stages */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--border)] pb-3 gap-3">
               <div className="flex items-center gap-3">
-                <span className="w-6 h-6 rounded-full bg-[#EDE9FE] text-[#7C3AED] font-bold text-xs flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
                   3
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
                     Assign Production Stages
                   </h3>
-                  <p className="text-[11px] text-[#64748B]">Add, remove or reorder stages for this lot</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">Add, remove or reorder stages for this lot</p>
                 </div>
+              </div>
+
+              {/* Template switcher */}
+              <div className="flex items-center gap-2">
+                {selectedTemplateId && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
+                    <Layers size={13} />
+                    {productionTemplates.find((t) => t.id === selectedTemplateId)?.name || "Current Template"}
+                  </span>
+                )}
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => handleLoadTemplate(e.target.value)}
+                  className="h-8 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2 focus:ring-1 focus:ring-[var(--input-focus)]"
+                >
+                  <option value="">Switch / Reload Template</option>
+                  {productionTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.stages?.length || 0} Stages)
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -731,13 +808,17 @@ export default function EditLotPage({ params }: EditLotProps) {
                   if (e.target.value) handleAddStage(e.target.value);
                   e.target.value = "";
                 }}
-                className="h-9 text-xs rounded-lg border border-[#E5E7EB] bg-white px-2.5 focus:ring-1 focus:ring-[#6366F1] w-48"
+                className="h-9 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[210px] w-auto max-w-xs"
               >
                 <option value="">+ Add Production Stage</option>
-                {masterStages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.type})
-                  </option>
+                {stagesByTemplate.map((group) => (
+                  <optgroup key={group.templateName} label={group.templateName} className="font-bold text-[var(--text-secondary)] bg-[var(--card-bg)]">
+                    {group.stages.map((s) => (
+                      <option key={s.id} value={s.id} className="text-[var(--text-primary)] bg-[var(--card-bg)] font-medium">
+                        {s.name} ({s.type?.replace("_", " ")})
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
 
