@@ -42,13 +42,36 @@ export async function GET(
       .eq("business_id", businessId)
       .is("deleted_at", null);
 
-    // 4. Fetch all finished stock entries for this design
-    const { data: ledger, error: ledgerErr } = await supabase
-      .from("finished_stock")
-      .select("*")
-      .eq("design_id", designId)
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
+    // 4. Fetch all finished stock and B-grade stock entries for this design in parallel
+    const [fsRes, bgRes] = await Promise.all([
+      supabase
+        .from("finished_stock")
+        .select("*")
+        .eq("design_id", designId)
+        .eq("business_id", businessId)
+        .is("deleted_at", null),
+      supabase
+        .from("b_grade_stock")
+        .select(`
+          *,
+          colour:design_colours (id, colour_name, colour_hex),
+          godown:godowns (id, name)
+        `)
+        .eq("design_id", designId)
+        .eq("business_id", businessId)
+        .eq("status", "available")
+        .is("deleted_at", null),
+    ]);
+
+    const ledger = fsRes.data || [];
+    const bgStockEntries = bgRes.data || [];
+    let bGradeStockQty = 0;
+    let bGradeStockValue = 0;
+
+    bgStockEntries.forEach((bg: any) => {
+      bGradeStockQty += Number(bg.total_quantity || 0);
+      bGradeStockValue += Number(bg.total_value || 0);
+    });
 
     // 5. Aggregate stock by colour_id, godown_id, and size
     const matrix: Record<string, Record<string, Record<string, number>>> = {};
@@ -188,6 +211,9 @@ export async function GET(
       totalDesignStockQty,
       totalDesignStockValue,
       overallAvgCost,
+      bGradeStock: bgStockEntries,
+      bGradeStockQty,
+      bGradeStockValue,
       productionLots: productionLots || [],
     });
   } catch (err: any) {

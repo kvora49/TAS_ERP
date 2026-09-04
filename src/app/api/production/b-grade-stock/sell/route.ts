@@ -23,7 +23,7 @@ export async function GET(request: Request) {
         lot:production_lots (id, lot_number, lot_name)
       `)
       .eq("business_id", businessId)
-      .eq("status", "available")
+      .in("status", ["available", "partially_sold"])
       .is("deleted_at", null)
       .gt("total_quantity", 0)
       .order("created_at", { ascending: false });
@@ -77,9 +77,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "B-grade stock record not found." }, { status: 404 });
     }
 
-    if (bgStock.status !== "available") {
+    if (!["available", "partially_sold"].includes(bgStock.status)) {
       return NextResponse.json(
-        { error: `B-grade stock status is '${bgStock.status}' — only 'available' stock can be sold.` },
+        { error: `B-grade stock status is '${bgStock.status}' — only available stock can be sold.` },
         { status: 400 }
       );
     }
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const saleValue = qtySold * saleRate;
     const newQty = Number(bgStock.total_quantity) - qtySold;
     const newValue = newQty * Number(bgStock.cost_per_piece || 0);
-    const newStatus = newQty <= 0 ? "sold" : "available";
+    const newStatus = newQty <= 0 ? "fully_sold" : "partially_sold";
 
     // Compute updated size_quantities
     let updatedSizeQty = { ...(bgStock.size_quantities || {}) } as Record<string, number>;
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     // Stock ledger outflow entry
     await supabase.from("stock_ledger").insert({
       business_id: businessId,
-      item_type: "finished_good",
+      item_type: "b_grade_stock",
       item_id: bgStock.design_id,
       godown_id: bgStock.godown_id,
       transaction_type: "b_grade_sale",

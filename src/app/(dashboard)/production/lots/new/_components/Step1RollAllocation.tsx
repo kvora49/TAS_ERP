@@ -344,7 +344,7 @@ export default function Step1RollAllocation({
                         <select
                           value={roll.colour_id || ""}
                           onChange={(e) => onRollColourChange?.(roll.purchase_roll_id, e.target.value)}
-                          className="h-7 px-2 text-xs border border-[var(--input-border)] rounded bg-[var(--input-bg)] text-[var(--text-primary)]"
+                          className="h-8.5 py-1 px-2.5 text-xs border border-[var(--input-border)] rounded-lg bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] min-w-[140px] leading-normal cursor-pointer"
                         >
                           <option value="">-- Unmapped / Auto --</option>
                           {selectedColours.map((c) => (

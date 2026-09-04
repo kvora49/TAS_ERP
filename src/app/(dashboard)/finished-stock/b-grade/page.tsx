@@ -18,6 +18,7 @@ import {
   Trash2,
   ChevronRight,
   IndianRupee,
+  ShoppingCart,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,6 +28,9 @@ import AsyncButton from "@/components/shared/AsyncButton";
 import ColourDot from "@/components/shared/ColourDot";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useBGradeStock, BGradeStockItem } from "@/hooks/queries/useDefects";
+import { usePartiesList } from "@/hooks/queries/useParties";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { FINISHED_STOCK_NAV } from "@/lib/moduleNav";
 
 export default function BGradeStockPage() {
   const queryClient = useQueryClient();
@@ -95,8 +99,103 @@ export default function BGradeStockPage() {
     await updatePriceMutation.mutateAsync({ id: editingItem.id, price });
   };
 
+  const { data: partiesData } = usePartiesList("customer");
+  const customers = partiesData?.parties || [];
+
+  // Quick Sell Modal
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [sellingItem, setSellingItem] = useState<BGradeStockItem | null>(null);
+  const [sellPartyId, setSellPartyId] = useState<string>("");
+  const [sellRateInput, setSellRateInput] = useState<string>("");
+  const [sellSizeQuantities, setSellSizeQuantities] = useState<Record<string, number>>({});
+  const [sellRemarks, setSellRemarks] = useState<string>("");
+
+  const sellStockMutation = useMutation({
+    mutationFn: async (payload: {
+      b_grade_stock_id: string;
+      qty_sold: number;
+      sale_rate: number;
+      party_id?: string;
+      size_quantities?: Record<string, number>;
+      remarks?: string;
+    }) => {
+      const res = await fetch("/api/production/b-grade-stock/sell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to record sale");
+      }
+      return res.json();
+    },
+    onSuccess: (resData) => {
+      queryClient.invalidateQueries({ queryKey: ["b-grade-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-ledger"] });
+      toast.success(`Successfully sold ${resData?.sale?.qty_sold || "selected"} pieces of B-Grade stock`);
+      setSellModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to record sale");
+    },
+  });
+
+  const handleOpenSellModal = (item: BGradeStockItem) => {
+    setSellingItem(item);
+    setSellPartyId("");
+    setSellRateInput(item.b_grade_sale_price ? String(item.b_grade_sale_price) : String(item.cost_per_piece || ""));
+    const initSizes: Record<string, number> = {};
+    for (const [sz, q] of Object.entries(item.size_quantities || {})) {
+      initSizes[sz] = Math.max(0, Number(q) || 0);
+    }
+    setSellSizeQuantities(initSizes);
+    setSellRemarks("");
+    setSellModalOpen(true);
+  };
+
+  const totalSellQty = Object.values(sellSizeQuantities).reduce(
+    (acc, v) => acc + Math.max(0, Number(v) || 0),
+    0
+  );
+  const sellRate = parseFloat(sellRateInput);
+  const totalSellValue = !isNaN(sellRate) && sellRate >= 0 ? totalSellQty * sellRate : 0;
+
+  const handleConfirmSell = async () => {
+    if (!sellingItem) return;
+    if (isNaN(sellRate) || sellRate < 0) {
+      toast.error("Please enter a valid positive sale rate");
+      return;
+    }
+    if (totalSellQty <= 0) {
+      toast.error("Please allocate at least 1 piece to sell");
+      return;
+    }
+
+    const availableSizes = sellingItem.size_quantities || {};
+    for (const [sz, q] of Object.entries(sellSizeQuantities)) {
+      const avail = Number(availableSizes[sz] || 0);
+      if (q > avail) {
+        toast.error(`Size ${sz}: cannot sell ${q} pcs. Only ${avail} available.`);
+        return;
+      }
+    }
+
+    await sellStockMutation.mutateAsync({
+      b_grade_stock_id: sellingItem.id,
+      qty_sold: totalSellQty,
+      sale_rate: sellRate,
+      party_id: sellPartyId || undefined,
+      size_quantities: sellSizeQuantities,
+      remarks: sellRemarks.trim() || undefined,
+    });
+  };
+
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={FINISHED_STOCK_NAV} />
+
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -205,7 +304,124 @@ export default function BGradeStockPage() {
         emptyTitle="No B-Grade Stock Found"
         emptyDescription="There are currently no B-grade pieces recorded in your inventory. Any defects resolved as 'B-Grade' from production lots will appear here automatically."
       >
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)] overflow-hidden">
+        {/* Mobile View: Cards */}
+        <div className="md:hidden space-y-3">
+          {stockList.map((item) => {
+            const sizes = item.size_quantities || {};
+            return (
+              <div
+                key={item.id}
+                className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)] space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-sm text-[var(--text-primary)]">
+                      {item.design?.design_number || item.design?.name || "N/A"}
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)] flex items-center gap-1.5 mt-0.5">
+                      {item.design?.name && item.design.design_number && (
+                        <span>{item.design.name}</span>
+                      )}
+                      {item.lot && (
+                        <Link
+                          href={`/production/lots/${item.lot.id}`}
+                          className="font-mono text-primary hover:underline"
+                        >
+                          Lot #{item.lot.lot_number}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] font-medium px-2 py-0.5 rounded bg-[var(--page-bg)] border border-[var(--border)]">
+                    <Warehouse className="h-3 w-3 text-[var(--text-faint)]" />
+                    {item.godown?.name || "Unknown"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  {item.colour && (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-body)]">
+                      <ColourDot colourHex={item.colour.colour_hex} size="sm" />
+                      <span>{item.colour.colour_name}</span>
+                    </div>
+                  )}
+                  {item.resolution?.defect && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                      {item.resolution.defect.defect_category} ({item.resolution.defect.defect_number})
+                    </span>
+                  )}
+                </div>
+
+                {/* Sizes */}
+                {Object.keys(sizes).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {Object.entries(sizes).map(([sz, q]) => (
+                      <span
+                        key={sz}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[var(--page-bg)] border border-[var(--border)] text-[11px] font-mono"
+                      >
+                        <span className="text-[var(--text-muted)]">{sz}:</span>
+                        <strong className="text-orange-600 dark:text-orange-400">{q}</strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Quantity, Cost, Sale Price, Valuation */}
+                <div className="pt-2 border-t border-[var(--border-light)] grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[var(--text-faint)] text-[10px] block">Stock Quantity</span>
+                    <span className="font-bold text-sm text-[var(--text-primary)]">
+                      {item.total_quantity} <span className="text-xs font-normal text-[var(--text-faint)]">pcs</span>
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[var(--text-faint)] text-[10px] block">Valuation</span>
+                    <span className="font-bold font-mono text-[var(--text-primary)]">
+                      {formatCurrency(item.total_value)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--text-faint)] text-[10px] block">Unit Cost</span>
+                    <span className="font-mono text-[var(--text-muted)]">
+                      {formatCurrency(item.cost_per_piece)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[var(--text-faint)] text-[10px] block">B-Grade Sale Price</span>
+                    {item.b_grade_sale_price ? (
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        {formatCurrency(item.b_grade_sale_price)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-[var(--text-faint)] italic">Not set</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[var(--border-light)] flex gap-2 justify-end">
+                  <button
+                    onClick={() => handleOpenPriceModal(item)}
+                    className="flex-1 py-1.5 bg-[var(--page-bg)] hover:bg-[var(--primary-light)] text-[var(--text-primary)] hover:text-primary border border-[var(--border)] rounded-lg text-xs font-semibold transition text-center"
+                  >
+                    {item.b_grade_sale_price ? "Edit Price" : "Set Price"}
+                  </button>
+                  <button
+                    onClick={() => handleOpenSellModal(item)}
+                    disabled={item.total_quantity <= 0}
+                    className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                  >
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    Sell Stock
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden md:block rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-semibold uppercase tracking-wider">
@@ -326,12 +542,22 @@ export default function BGradeStockPage() {
 
                       {/* Action */}
                       <td className="p-3.5 text-center">
-                        <button
-                          onClick={() => handleOpenPriceModal(item)}
-                          className="px-2.5 py-1 bg-[var(--page-bg)] hover:bg-[var(--primary-light)] text-[var(--text-primary)] hover:text-primary border border-[var(--border)] rounded-md text-[11px] font-semibold transition"
-                        >
-                          {item.b_grade_sale_price ? "Edit Price" : "Set Price"}
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenPriceModal(item)}
+                            className="px-2.5 py-1 bg-[var(--page-bg)] hover:bg-[var(--primary-light)] text-[var(--text-primary)] hover:text-primary border border-[var(--border)] rounded-md text-[11px] font-semibold transition"
+                          >
+                            {item.b_grade_sale_price ? "Edit Price" : "Set Price"}
+                          </button>
+                          <button
+                            onClick={() => handleOpenSellModal(item)}
+                            disabled={item.total_quantity <= 0}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-md text-[11px] font-semibold transition flex items-center gap-1"
+                          >
+                            <ShoppingCart className="h-3 w-3" />
+                            Sell
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -395,6 +621,131 @@ export default function BGradeStockPage() {
               </button>
               <AsyncButton onClick={handleSavePrice} variant="primary">
                 Save Price
+              </AsyncButton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── QUICK SELL B-GRADE STOCK MODAL ─────────────────────────────── */}
+      <Modal
+        open={sellModalOpen}
+        onOpenChange={setSellModalOpen}
+        title="Quick Sell B-Grade Stock"
+        maxWidth="max-w-lg"
+      >
+        {sellingItem && (
+          <div className="space-y-4">
+            <div className="p-3 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] text-xs space-y-1">
+              <div className="flex justify-between">
+                <span><strong>Design:</strong> {sellingItem.design?.design_number || sellingItem.design?.name}</span>
+                <span><strong>Available:</strong> <span className="font-bold text-amber-600 dark:text-amber-400">{sellingItem.total_quantity} pcs</span></span>
+              </div>
+              <div className="flex justify-between">
+                <span><strong>Godown:</strong> {sellingItem.godown?.name}</span>
+                <span><strong>Unit Cost:</strong> {formatCurrency(sellingItem.cost_per_piece)}</span>
+              </div>
+            </div>
+
+            {/* Customer Selection */}
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1.5">
+                Customer / Buyer (Optional)
+              </label>
+              <select
+                value={sellPartyId}
+                onChange={(e) => setSellPartyId(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              >
+                <option value="">-- Cash / Direct Buyer --</option>
+                {customers.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.city ? `(${c.city})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sale Rate */}
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1.5">
+                Sale Rate (₹/pc) <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <IndianRupee className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Rate per piece"
+                  value={sellRateInput}
+                  onChange={(e) => setSellRateInput(e.target.value)}
+                  className="w-full pl-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Size quantities breakdown */}
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1.5">
+                Quantity to Sell by Size <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {Object.entries(sellingItem.size_quantities || {}).map(([sz, avail]) => (
+                  <div key={sz} className="p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] text-center">
+                    <div className="text-[11px] font-bold text-[var(--text-primary)] uppercase">{sz}</div>
+                    <div className="text-[10px] text-[var(--text-faint)] mb-1">Avail: {Number(avail) || 0}</div>
+                    <input
+                      type="number"
+                      min="0"
+                      max={Number(avail) || 0}
+                      value={sellSizeQuantities[sz] ?? 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setSellSizeQuantities((prev) => ({ ...prev, [sz]: val }));
+                      }}
+                      className="w-full text-center bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded h-8 text-xs font-semibold"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary & Remarks */}
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs flex justify-between items-center">
+              <div>
+                <span className="text-[var(--text-muted)] block text-[10px]">TOTAL PCS</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{totalSellQty} pcs</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[var(--text-muted)] block text-[10px]">TOTAL AMOUNT</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalSellValue)}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1.5">
+                Remarks (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Clearance sale, lot clearance, cash received"
+                value={sellRemarks}
+                onChange={(e) => setSellRemarks(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setSellModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-[var(--border)] text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition"
+              >
+                Cancel
+              </button>
+              <AsyncButton onClick={handleConfirmSell} variant="primary">
+                Confirm & Deduct Stock
               </AsyncButton>
             </div>
           </div>

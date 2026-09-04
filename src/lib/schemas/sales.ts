@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 export const SaleBillItemSchema = z.object({
-  item_type: z.enum(["finished_goods", "fabric", "accessory", "others"]).optional().nullable().default("finished_goods"),
+  item_type: z.enum(["finished_goods", "fabric", "accessory", "others", "b_grade"]).optional().nullable().default("finished_goods"),
   design_id: z.string().optional().nullable(),
   material_type_id: z.string().optional().nullable(),
+  b_grade_stock_id: z.string().optional().nullable(),
+  is_b_grade: z.boolean().optional().default(false),
   item_name: z.string().optional().nullable(),
   colour_id: z.string().optional().nullable(),
   size: z.string().optional().nullable(),

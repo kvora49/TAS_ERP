@@ -250,7 +250,7 @@ export default function InventoryReportsPage() {
                           </h3>
                           <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalDesigns ?? 0} Designs</span>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -291,6 +291,36 @@ export default function InventoryReportsPage() {
                             </tfoot>
                           </table>
                         </div>
+                        {/* Mobile Finished Goods Cards */}
+                        <div className="md:hidden divide-y divide-[var(--border-light)]">
+                          {(data.fgRows ?? []).length === 0 ? (
+                            <div className="p-4 text-center text-xs text-[var(--text-muted)]">No finished goods records found.</div>
+                          ) : (
+                            (data.fgRows ?? []).map((r: any) => (
+                              <div key={r.design_id} className="p-3.5 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  {r.design_id && r.design_id !== "unknown" ? (
+                                    <Link href={`/finished-stock/designs/${r.design_id}`} className="font-mono font-bold text-xs text-[var(--primary)] hover:underline">
+                                      {r.design_number}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-mono font-bold text-xs text-[var(--text-primary)]">{r.design_number}</span>
+                                  )}
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{r.brand}</span>
+                                </div>
+                                <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{r.design_name}</p>
+                                <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                                  <span className="text-[var(--text-muted)]">{fmtNum(r.total_qty)} pcs</span>
+                                  <span className="font-mono font-bold text-[var(--primary)]">{fmtINR(r.total_value)}</span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                          <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+                            <span className="text-[var(--text-muted)]">Total FG ({fmtNum(s.totalFGQty)} pcs)</span>
+                            <span className="font-mono text-[var(--primary)]">{fmtINR(s.totalFGValue)}</span>
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -303,7 +333,7 @@ export default function InventoryReportsPage() {
                           </h3>
                           <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalRMTypes ?? 0} Materials</span>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -340,6 +370,29 @@ export default function InventoryReportsPage() {
                             </tfoot>
                           </table>
                         </div>
+                        {/* Mobile RM Cards */}
+                        <div className="md:hidden divide-y divide-[var(--border-light)]">
+                          {(data.rmRows ?? []).length === 0 ? (
+                            <div className="p-4 text-center text-xs text-[var(--text-muted)]">No materials found.</div>
+                          ) : (
+                            (data.rmRows ?? []).map((r: any) => (
+                              <div key={r.id} className="p-3.5 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-xs text-[var(--text-primary)] truncate max-w-[65%]">{r.name}</span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)] uppercase">{r.category}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-[var(--text-muted)]">
+                                  <span>Qty: <strong className="text-[var(--text-primary)] font-mono">{fmtNum(r.total_qty)}</strong> {r.unit}</span>
+                                  <span className="font-mono font-bold text-[var(--primary)]">{fmtINR(r.total_value)}</span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                          <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+                            <span className="text-[var(--text-muted)]">Total Materials & Acc.</span>
+                            <span className="font-mono text-[var(--primary)]">{fmtINR((s.totalRMValue ?? 0) + (s.totalAccValue ?? 0))}</span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -354,7 +407,7 @@ export default function InventoryReportsPage() {
                       </h3>
                       <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalGodowns ?? 0} Active Godowns</span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -396,6 +449,46 @@ export default function InventoryReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+                    {/* Mobile Warehouse Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)]">
+                      {(data.rows ?? []).length === 0 ? (
+                        <div className="p-4 text-center text-xs text-[var(--text-muted)]">No warehouse stock found.</div>
+                      ) : (
+                        (data.rows ?? []).map((r: any) => (
+                          <div key={r.id} className="p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Link href="/master-data/godowns" className="font-bold text-xs text-[var(--primary)] hover:underline">
+                                {r.name}
+                              </Link>
+                              <span className="font-mono font-bold text-xs text-[var(--primary)]">{fmtINR(r.value)}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--text-muted)] truncate">{r.address || r.location || "Facility"}</p>
+                            <div className="grid grid-cols-4 gap-1 text-center bg-[var(--table-header-bg)] rounded-lg p-2 border border-[var(--border)]">
+                              <div>
+                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">FG</p>
+                                <p className="text-xs font-mono font-semibold text-[var(--text-primary)]">{fmtNum(r.fg_qty)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">RM</p>
+                                <p className="text-xs font-mono text-[var(--text-muted)]">{fmtNum(r.rm_qty)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Acc</p>
+                                <p className="text-xs font-mono text-[var(--text-muted)]">{fmtNum(r.acc_qty)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Total</p>
+                                <p className="text-xs font-mono font-bold text-[var(--text-primary)]">{fmtNum(r.qty)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+                        <span className="text-[var(--text-muted)]">Total ({fmtNum(s.totalQty)} pcs)</span>
+                        <span className="font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -408,7 +501,7 @@ export default function InventoryReportsPage() {
                       </h3>
                       <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalItems ?? 0} Variant Items</span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -455,6 +548,39 @@ export default function InventoryReportsPage() {
                           </tr>
                         </tfoot>
                       </table>
+                    </div>
+                    {/* Mobile Design Variant Stock Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)]">
+                      {(data.rows ?? []).length === 0 ? (
+                        <div className="p-4 text-center text-xs text-[var(--text-muted)]">No design variant stock records found.</div>
+                      ) : (
+                        (data.rows ?? []).map((r: any) => (
+                          <div key={r.id} className="p-3.5 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              {r.design_id ? (
+                                <Link href={`/finished-stock/designs/${r.design_id}`} className="font-mono font-bold text-xs text-[var(--primary)] hover:underline">
+                                  {r.design_number}
+                                </Link>
+                              ) : (
+                                <span className="font-mono font-bold text-xs text-[var(--text-primary)]">{r.design_number}</span>
+                              )}
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{r.colour}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-[var(--text-primary)] font-medium truncate max-w-[60%]">{r.design_name}</span>
+                              <span className="text-[var(--text-muted)]">{r.godown}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                              <span className="text-[var(--text-muted)]">{fmtNum(r.quantity)} pcs @ {fmtINR(r.cost_per_piece)}</span>
+                              <span className="font-mono font-bold text-[var(--primary)]">{fmtINR(r.value)}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+                        <span className="text-[var(--text-muted)]">Total Variant Stock ({fmtNum(s.totalQty)} pcs)</span>
+                        <span className="font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</span>
+                      </div>
                     </div>
                   </div>
                 )}

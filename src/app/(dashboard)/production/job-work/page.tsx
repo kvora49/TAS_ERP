@@ -41,6 +41,8 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { PRODUCTION_NAV } from "@/lib/moduleNav";
 import {
   Dialog,
   DialogContent,
@@ -576,6 +578,8 @@ export default function UnifiedJobWorkPage() {
           </Link>
         </div>
       </div>
+
+      <ModuleSubNav items={PRODUCTION_NAV} />
 
       {/* ── MOBILE: snap-scroll KPI cards ── */}
       <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">

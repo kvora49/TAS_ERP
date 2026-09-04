@@ -97,3 +97,84 @@ export function useRawMaterialsList(filters?: Record<string, string>) {
     staleTime: 30_000,
   });
 }
+
+// --- GARMENT TYPES ---
+export function useGarmentTypesList() {
+  return useQuery({
+    queryKey: ["master-data", "garment-types"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/garment-types");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch garment types");
+      }
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+// --- EXPENSE TYPES ---
+export function useExpenseTypesList() {
+  return useQuery({
+    queryKey: ["master-data", "expense-types"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/expense-types");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch expense types");
+      }
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+// --- BANKS / UPI ---
+export function useBanksList() {
+  return useQuery({
+    queryKey: ["master-data", "banks-upi"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/banks-upi");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch banks & UPI");
+      }
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+// --- PRODUCTION STAGES ---
+export function useProductionStagesList() {
+  return useQuery({
+    queryKey: ["master-data", "production-stages"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/production-stages");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch production stages");
+      }
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+// --- WORKERS ---
+export function useWorkersList() {
+  return useQuery({
+    queryKey: ["master-data", "workers"],
+    queryFn: async () => {
+      const res = await fetch("/api/master-data/workers");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch workers");
+      }
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+}
+

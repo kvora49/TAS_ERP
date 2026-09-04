@@ -32,6 +32,8 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { PRODUCTION_NAV } from "@/lib/moduleNav";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +53,10 @@ interface Lot {
   target_due_date: string | null;
   total_quantity: number;
   completed_quantity: number;
+  defect_quantity?: number;
+  reworked_quantity?: number;
+  b_grade_quantity?: number;
+  scrapped_quantity?: number;
   status: "draft" | "in_progress" | "completed" | "on_hold" | "cancelled";
   brand?: { name: string };
   design?: { name: string; code: string; size_set?: { id?: string; name?: string; sizes: string[] } };
@@ -215,14 +221,14 @@ export default function ProductionLotsPage() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
+    <div className="space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Header and Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Production Lots
           </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-0.5 font-medium">
+          <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-0.5 font-medium">
             View and manage all production lots
           </p>
         </div>
@@ -246,6 +252,8 @@ export default function ProductionLotsPage() {
           </AsyncButton>
         </div>
       </div>
+
+      <ModuleSubNav items={PRODUCTION_NAV} />
 
         {/* 5 Stat Cards */}
         <motion.div
@@ -554,6 +562,25 @@ export default function ProductionLotsPage() {
                       <span>{pct}%</span>
                     </div>
                     <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
+                    {(Number(lot.b_grade_quantity || 0) > 0 || Number(lot.scrapped_quantity || 0) > 0 || Number(lot.reworked_quantity || 0) > 0) && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[10px]">
+                        {Number(lot.b_grade_quantity || 0) > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
+                            📦 {lot.b_grade_quantity} B-Grade
+                          </span>
+                        )}
+                        {Number(lot.scrapped_quantity || 0) > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
+                            🗑️ {lot.scrapped_quantity} Scrap
+                          </span>
+                        )}
+                        {Number(lot.reworked_quantity || 0) > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                            ⚠️ {lot.reworked_quantity} Reworked
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Meta strip: payment status + dates */}
@@ -705,6 +732,25 @@ export default function ProductionLotsPage() {
                           </span>
                         </div>
                         <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
+                        {(Number(lot.b_grade_quantity || 0) > 0 || Number(lot.scrapped_quantity || 0) > 0 || Number(lot.reworked_quantity || 0) > 0) && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5 text-[10px]">
+                            {Number(lot.b_grade_quantity || 0) > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium" title="Diverted to B-Grade stock">
+                                📦 {lot.b_grade_quantity} B-Grade
+                              </span>
+                            )}
+                            {Number(lot.scrapped_quantity || 0) > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium" title="Scrapped / written off">
+                                🗑️ {lot.scrapped_quantity} Scrap
+                              </span>
+                            )}
+                            {Number(lot.reworked_quantity || 0) > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium" title="Reworked">
+                                ⚠️ {lot.reworked_quantity} Rework
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">

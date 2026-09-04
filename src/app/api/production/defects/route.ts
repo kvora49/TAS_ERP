@@ -71,7 +71,13 @@ export async function GET(request: Request) {
 
     if (lotId) query = query.eq("lot_id", lotId);
     if (workerId) query = query.eq("responsible_worker_id", workerId);
-    if (status && status !== "all") query = query.eq("status", status);
+    if (status && status !== "all") {
+      if (status === "in_rework" || status === "sent_for_rework") {
+        query = query.in("status", ["sent_for_rework", "in_rework"]);
+      } else {
+        query = query.eq("status", status);
+      }
+    }
     if (search && search.trim()) {
       const term = search.trim();
       query = query.or(`defect_number.ilike.%${term}%,description.ilike.%${term}%,defect_category.ilike.%${term}%`);
@@ -149,33 +155,24 @@ export async function POST(request: Request) {
       .single();
 
     if (lotError || !lot) {
-      return NextResponse.json({ error: "Production lot not found." }, { status: 404 });
+      return NextResponse.json({ error: "Lot not found." }, { status: 404 });
     }
 
-    if (lot.status === "cancelled") {
-      return NextResponse.json(
-        { error: "Cannot log defects on a cancelled lot." },
-        { status: 400 }
-      );
-    }
-
-    // Determine source — post_stock means lot already moved to finished stock
-    const source = lot.status === "completed" ? "post_stock" : "in_production";
+    // BUG 6 FIX: Allow logging defects on completed lots as "post_stock" defects
+    const isCompletedLot = lot.status === "completed";
+    const source = isCompletedLot ? "post_stock" : "in_production";
 
     // sent_for_rework: immediately deducts pieces from the live lot (in_production only)
     const sentForRework = !!(body.sent_for_rework) && source === "in_production";
 
-    // If sending for rework, validate enough pieces are available
-    if (sentForRework) {
-      const effectiveLotQty = Number(lot.total_quantity || 0);
-      if (qty > effectiveLotQty) {
-        return NextResponse.json(
-          {
-            error: `Cannot send ${qty} pieces for rework — lot only has ${effectiveLotQty} pieces available.`,
-          },
-          { status: 400 }
-        );
-      }
+    // If sent_for_rework is requested, ensure lot has sufficient live pieces to deduct
+    if (sentForRework && Number(lot.total_quantity || 0) < qty) {
+      return NextResponse.json(
+        {
+          error: `Cannot send ${qty} piece(s) for rework — lot only has ${lot.total_quantity} live piece(s) remaining.`,
+        },
+        { status: 400 }
+      );
     }
 
     const {
@@ -183,9 +180,9 @@ export async function POST(request: Request) {
     } = await supabase.auth.getSession();
     const userId = session?.user?.id || null;
 
-    // ── Generate defect number ─────────────────────────────────────────────
+    // ── Generate defect number: DEF-YYMM-XXXX ─────────────────────────────────
     const now = new Date();
-    const yy = String(now.getFullYear()).substring(2);
+    const yy = String(now.getFullYear()).slice(-2);
     const mm = String(now.getMonth() + 1).padStart(2, "0");
     const prefix = `DEF-${yy}${mm}`;
 
@@ -206,7 +203,7 @@ export async function POST(request: Request) {
     const defectNumber = `${prefix}-${String(nextNum).padStart(4, "0")}`;
 
     // ── Insert defect ──────────────────────────────────────────────────────
-    const initialStatus = sentForRework ? "in_rework" : "pending";
+    const initialStatus = sentForRework ? "sent_for_rework" : "pending";
 
     const { data: defect, error: insertError } = await supabase
       .from("lot_defects")
@@ -256,24 +253,35 @@ export async function POST(request: Request) {
         })
         .eq("id", lot_id);
 
-      // 2. Deduct per-size from lot_size_quantities
+      // 2. Deduct per-size from lot_size_quantities matching colour_id
       for (const [size, sizeQty] of Object.entries(size_quantities as Record<string, number>)) {
         const numQty = Math.max(0, Number(sizeQty) || 0);
         if (numQty <= 0) continue;
 
-        const { data: existingSq } = await supabase
+        let query = supabase
           .from("lot_size_quantities")
-          .select("id, quantity")
+          .select("id, quantity, colour_id")
           .eq("lot_id", lot_id)
           .eq("size", size)
-          .eq("business_id", businessId)
-          .maybeSingle();
+          .eq("business_id", businessId);
 
-        if (existingSq) {
-          await supabase
-            .from("lot_size_quantities")
-            .update({ quantity: Math.max(0, Number(existingSq.quantity || 0) - numQty) })
-            .eq("id", existingSq.id);
+        if (colour_id) {
+          query = query.eq("colour_id", colour_id);
+        }
+
+        const { data: existingSqs } = await query;
+        if (existingSqs && existingSqs.length > 0) {
+          let remToDeduct = numQty;
+          for (const sq of existingSqs) {
+            if (remToDeduct <= 0) break;
+            const curQty = Number(sq.quantity || 0);
+            const deduct = Math.min(curQty, remToDeduct);
+            await supabase
+              .from("lot_size_quantities")
+              .update({ quantity: Math.max(0, curQty - deduct) })
+              .eq("id", sq.id);
+            remToDeduct -= deduct;
+          }
         }
       }
     }

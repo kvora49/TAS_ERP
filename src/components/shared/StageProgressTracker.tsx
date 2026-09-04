@@ -9,6 +9,7 @@ export interface StageNode {
   status: "completed" | "in_progress" | "pending" | "skipped";
   date?: string | null;
   qty?: number | null;
+  targetQty?: number | null;
 }
 
 interface StageProgressTrackerProps {
@@ -30,6 +31,7 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
           const isActive = stage.status === "in_progress";
           const isPending = stage.status === "pending" || stage.status === "skipped";
           const isLast = idx === stages.length - 1;
+          const isPartial = isActive && !!stage.qty && !!stage.targetQty && stage.qty < stage.targetQty;
 
           return (
             <div key={stage.id} className="relative flex items-start gap-4 pb-6 last:pb-0">
@@ -69,11 +71,12 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
                     className={cn(
                       "text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider",
                       isCompleted && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                      isActive && "bg-[var(--primary)]/10 text-[var(--primary)]",
+                      isPartial && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+                      isActive && !isPartial && "bg-[var(--primary)]/10 text-[var(--primary)]",
                       isPending && "bg-[var(--card-bg)] text-[var(--text-muted)] border border-[var(--border)]"
                     )}
                   >
-                    {stage.status === "in_progress" ? "In Progress" : stage.status}
+                    {isPartial ? `Partial (${stage.qty}/${stage.targetQty})` : stage.status === "in_progress" ? "In Progress" : stage.status}
                   </span>
                 </div>
 
@@ -85,6 +88,9 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
                   {stage.qty !== undefined && stage.qty !== null ? (
                     <span className="font-semibold text-[var(--text-body)]">
                       Qty: <span className="text-[var(--primary)] font-bold">{stage.qty}</span>
+                      {stage.targetQty && (
+                        <span className="text-[10px] text-[var(--text-muted)]"> / {stage.targetQty} Pcs</span>
+                      )}
                     </span>
                   ) : (
                     <span>Qty: —</span>
@@ -111,6 +117,7 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
             const isActive = stage.status === "in_progress";
             const isPending = stage.status === "pending" || stage.status === "skipped";
             const isLast = idx === stages.length - 1;
+            const isPartial = isActive && !!stage.qty && !!stage.targetQty && stage.qty < stage.targetQty;
 
             // Connector state between this node and the next
             const nextStage = stages[idx + 1];
@@ -146,11 +153,12 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
                       className={cn(
                         "text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 uppercase tracking-wide",
                         isCompleted && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                        isActive && "bg-[var(--primary)]/10 text-[var(--primary)]",
+                        isPartial && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+                        isActive && !isPartial && "bg-[var(--primary)]/10 text-[var(--primary)]",
                         isPending && "bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)]"
                       )}
                     >
-                      {stage.status === "in_progress" ? "In Progress" : stage.status}
+                      {isPartial ? `Partial (${stage.qty}/${stage.targetQty})` : stage.status === "in_progress" ? "In Progress" : stage.status}
                     </span>
 
                     {stage.date && (
@@ -162,6 +170,9 @@ export default function StageProgressTracker({ stages }: StageProgressTrackerPro
                     {stage.qty !== undefined && stage.qty !== null && (
                       <span className="text-[11px] text-[var(--text-muted)] font-medium mt-0.5">
                         Qty: <span className="font-bold text-[var(--text-primary)]">{stage.qty}</span>
+                        {stage.targetQty && (
+                          <span className="text-[10px] text-[var(--text-muted)]"> / {stage.targetQty}</span>
+                        )}
                       </span>
                     )}
                   </div>

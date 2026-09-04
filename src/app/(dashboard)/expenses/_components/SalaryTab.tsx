@@ -130,7 +130,8 @@ export default function SalaryTab() {
         emptyMessage="No worker salary records match the selected year and month filters."
       >
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -163,6 +164,45 @@ export default function SalaryTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Salary Cards */}
+          <div className="md:hidden divide-y divide-[var(--border-light)]">
+            {salaries.map((s) => (
+              <div key={s.id} className="p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-[var(--text-primary)]">{s.worker?.name || "—"}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">
+                    {MONTHS[s.salary_month - 1]} {s.salary_year}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1 text-center bg-[var(--table-header-bg)] rounded-lg p-2 border border-[var(--border-light)]">
+                  <div>
+                    <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Base</p>
+                    <p className="text-xs font-mono font-medium text-[var(--text-body)]">{fmt(s.base_salary)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Allowances</p>
+                    <p className="text-xs font-mono font-medium text-emerald-600">+{fmt(s.allowances)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Deductions</p>
+                    <p className="text-xs font-mono font-medium text-rose-600">-{fmt(s.deductions)}</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                  <span className="text-[var(--text-muted)] text-[11px] capitalize">
+                    {s.payment_mode.replace(/_/g, " ")} · {new Date(s.payment_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-[10px] text-[var(--text-muted)] mr-1.5 uppercase font-bold">Net</span>
+                    <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{fmt(s.net_salary)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </PageState>

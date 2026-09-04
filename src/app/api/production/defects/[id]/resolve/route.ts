@@ -51,6 +51,30 @@ export async function POST(
       remarks,
     } = body;
 
+    // Normalize resolution_type to DB constraint values:
+    // ('reworked_to_lot', 'reworked_to_stock_grade_a', 'moved_to_b_grade', 'worker_deduction_and_scrap', 'partial_recovery')
+    const isPartialSplit =
+      resolution_type === "partial_rework_split" || resolution_type === "partial_recovery";
+    const isScrappedWaste =
+      resolution_type === "scrapped_waste" || resolution_type === "worker_deduction_and_scrap";
+
+    let dbResolutionType = resolution_type;
+    if (isPartialSplit) {
+      dbResolutionType = "partial_recovery";
+    } else if (isScrappedWaste) {
+      dbResolutionType = "worker_deduction_and_scrap";
+    } else if (
+      ![
+        "reworked_to_lot",
+        "reworked_to_stock_grade_a",
+        "moved_to_b_grade",
+        "worker_deduction_and_scrap",
+        "partial_recovery",
+      ].includes(dbResolutionType)
+    ) {
+      dbResolutionType = "partial_recovery";
+    }
+
     // ── 1. Fetch Defect & Lot ────────────────────────────────────────────────
     const { data: defect, error: defectErr } = await supabase
       .from("lot_defects")
@@ -161,7 +185,7 @@ export async function POST(
         .eq("business_id", businessId),
       supabase
         .from("stage_entries")
-        .select("qty_out, job_work_rate, lot_stage_id")
+        .select("qty_out, qty_in, job_work_rate, lot_stage_id, job_work_type")
         .eq("lot_id", lot.id)
         .eq("business_id", businessId),
       supabase
@@ -186,11 +210,25 @@ export async function POST(
       Number(lot.accessory_cost || 0) +
       Number(lot.other_cost || 0);
 
-    const totalLotQty = Number(lot.total_quantity || 1);
-    const unitCost = totalLotQty > 0 ? totalLotCost / totalLotQty : 0;
+    // Calculate total cut / batch quantity to prevent division by 0 or 1 when pieces were deducted for rework
+    const cuttingEntry = (stageEntries || []).find((se: any) =>
+      se.job_work_type?.toLowerCase()?.includes("cut")
+    );
+    const cutQty = Number(cuttingEntry?.qty_out || cuttingEntry?.qty_in || 0);
+
+    const effectiveLotQty = Math.max(
+      1,
+      cutQty > 0 ? cutQty : 0,
+      Number(lot.total_quantity || 0) +
+        (defect.sent_for_rework ? Number(defect.quantity || 0) : 0) +
+        Number(lot.scrapped_quantity || 0) +
+        Number(lot.b_grade_quantity || 0)
+    );
+
+    const unitCost = effectiveLotQty > 0 ? totalLotCost / effectiveLotQty : 0;
 
     // Unit fabric cost (for scrap write-off valuation)
-    const unitFabricCost = totalLotQty > 0 ? totalFabricCost / totalLotQty : 0;
+    const unitFabricCost = effectiveLotQty > 0 ? totalFabricCost / effectiveLotQty : 0;
 
     // Stage rate for auto-deduction (free rework)
     let stageJobWorkRate = 0;
@@ -200,8 +238,8 @@ export async function POST(
       );
       if (matchedEntry) stageJobWorkRate = Number(matchedEntry.job_work_rate || 0);
     }
-    if (stageJobWorkRate === 0 && totalLotQty > 0) {
-      stageJobWorkRate = totalLaborCost / totalLotQty;
+    if (stageJobWorkRate === 0 && effectiveLotQty > 0) {
+      stageJobWorkRate = totalLaborCost / effectiveLotQty;
     }
 
     // BUG 5 FIX: Rework cost per piece (only applied to reworked pieces, not whole lot)
@@ -271,51 +309,123 @@ export async function POST(
       });
     }
 
-    // ── 5. In-Production Lot: Deduct pieces leaving the lot (B-grade, Scrap, Direct Stock) ──
+    // ── 5. In-Production Lot: Deduct pieces leaving the lot or restore reworked pieces ──
     if (!isPostStock) {
-      // Collect all quantities leaving the lot
-      const leavingSizes: Record<string, number> = {
-        ...b_grade_size_quantities,
-        ...scrapped_size_quantities,
-      };
-      if (resolution_type === "reworked_to_stock_grade_a") {
-        for (const [s, q] of Object.entries(recovered_size_quantities)) {
-          leavingSizes[s] = (leavingSizes[s] || 0) + Number(q || 0);
+      const isSentForRework = !!defect.sent_for_rework;
+      const colourId = defect.colour_id || null;
+
+      if (!isSentForRework) {
+        // CASE A: Defect was NOT sent_for_rework.
+        // That means pieces remained in lot.total_quantity and lot_size_quantities.
+        // Therefore, any pieces LEAVING the lot (B-grade, Scrap, or Direct Grade-A Stock) MUST be deducted now.
+        const leavingSizes: Record<string, number> = {
+          ...b_grade_size_quantities,
+          ...scrapped_size_quantities,
+        };
+        if (resolution_type === "reworked_to_stock_grade_a") {
+          for (const [s, q] of Object.entries(recovered_size_quantities)) {
+            leavingSizes[s] = (leavingSizes[s] || 0) + Number(q || 0);
+          }
         }
-      }
 
-      for (const [size, qty] of Object.entries(leavingSizes)) {
-        const numQty = Math.max(0, Number(qty) || 0);
-        if (numQty <= 0) continue;
+        // Deduct from lot_size_quantities matching colour_id
+        for (const [size, qty] of Object.entries(leavingSizes)) {
+          const numQty = Math.max(0, Number(qty) || 0);
+          if (numQty <= 0) continue;
 
-        const { data: existingSq } = await supabase
-          .from("lot_size_quantities")
-          .select("id, quantity")
-          .eq("lot_id", lot.id)
-          .eq("size", size)
-          .eq("business_id", businessId)
-          .maybeSingle();
-
-        if (existingSq) {
-          await supabase
+          let sqQuery = supabase
             .from("lot_size_quantities")
-            .update({ quantity: Math.max(0, Number(existingSq.quantity || 0) - numQty) })
-            .eq("id", existingSq.id);
-        }
-      }
+            .select("id, quantity")
+            .eq("lot_id", lot.id)
+            .eq("size", size)
+            .eq("business_id", businessId);
 
-      const totalLeaving = bQty + scrapQty + (resolution_type === "reworked_to_stock_grade_a" ? recQty : 0);
-      if (totalLeaving > 0) {
-        await supabase
-          .from("production_lots")
-          .update({
-            total_quantity: Math.max(0, Number(lot.total_quantity || 0) - totalLeaving),
-          })
-          .eq("id", lot.id);
+          if (colourId) sqQuery = sqQuery.eq("colour_id", colourId);
+
+          const { data: sqs } = await sqQuery;
+          if (sqs && sqs.length > 0) {
+            let rem = numQty;
+            for (const sq of sqs) {
+              if (rem <= 0) break;
+              const cur = Number(sq.quantity || 0);
+              const dec = Math.min(cur, rem);
+              await supabase
+                .from("lot_size_quantities")
+                .update({ quantity: Math.max(0, cur - dec) })
+                .eq("id", sq.id);
+              rem -= dec;
+            }
+          }
+        }
+
+        const totalLeaving = bQty + scrapQty + (resolution_type === "reworked_to_stock_grade_a" ? recQty : 0);
+        if (totalLeaving > 0) {
+          const { data: curLot } = await supabase
+            .from("production_lots")
+            .select("total_quantity")
+            .eq("id", lot.id)
+            .single();
+
+          if (curLot) {
+            await supabase
+              .from("production_lots")
+              .update({
+                total_quantity: Math.max(0, Number(curLot.total_quantity || 0) - totalLeaving),
+              })
+              .eq("id", lot.id);
+          }
+        }
+      } else {
+        // CASE B: Defect WAS sent_for_rework.
+        // That means all defect.quantity pieces were ALREADY deducted at creation.
+        // Therefore, pieces leaving the lot (B-grade, Scrap, Direct Stock) are ALREADY OUT.
+        // We DO NOT deduct them again!
+        // We only ADD BACK the pieces that were physically recovered to the lot!
+        if ((resolution_type === "reworked_to_lot" || isPartialSplit) && recQty > 0) {
+          // Restore total_quantity
+          const { data: curLot } = await supabase
+            .from("production_lots")
+            .select("total_quantity")
+            .eq("id", lot.id)
+            .single();
+
+          if (curLot) {
+            await supabase
+              .from("production_lots")
+              .update({
+                total_quantity: Number(curLot.total_quantity || 0) + recQty,
+              })
+              .eq("id", lot.id);
+          }
+
+          // Restore per-size quantities matching colour_id
+          for (const [size, sizeQty] of Object.entries(recovered_size_quantities as Record<string, number>)) {
+            const numQty = Math.max(0, Number(sizeQty) || 0);
+            if (numQty <= 0) continue;
+
+            let sqQuery = supabase
+              .from("lot_size_quantities")
+              .select("id, quantity")
+              .eq("lot_id", lot.id)
+              .eq("size", size)
+              .eq("business_id", businessId);
+
+            if (colourId) sqQuery = sqQuery.eq("colour_id", colourId);
+
+            const { data: sqs } = await sqQuery;
+            if (sqs && sqs.length > 0) {
+              const target = sqs[0];
+              await supabase
+                .from("lot_size_quantities")
+                .update({ quantity: Number(target.quantity || 0) + numQty })
+                .eq("id", target.id);
+            }
+          }
+        }
       }
 
       // BUG 10 FIX: If reworked to lot and rework_cost > 0, add rework_cost to lot.other_cost
-      if (resolution_type === "reworked_to_lot" && Number(rework_cost || 0) > 0) {
+      if ((resolution_type === "reworked_to_lot" || isPartialSplit) && Number(rework_cost || 0) > 0) {
         const { data: currentLot } = await supabase
           .from("production_lots")
           .select("other_cost")
@@ -326,48 +436,6 @@ export async function POST(
             .from("production_lots")
             .update({ other_cost: Number(currentLot.other_cost || 0) + Number(rework_cost) })
             .eq("id", lot.id);
-        }
-      }
-
-      // ── Rework-to-lot: restore pieces back into the lot ──────────────────
-      // If the defect was sent_for_rework (deducted at creation), restore those
-      // pieces now that they are physically back in the lot.
-      if (resolution_type === "reworked_to_lot" && defect.sent_for_rework) {
-        // Restore total_quantity
-        const { data: freshLot } = await supabase
-          .from("production_lots")
-          .select("total_quantity")
-          .eq("id", lot.id)
-          .single();
-
-        if (freshLot) {
-          await supabase
-            .from("production_lots")
-            .update({
-              total_quantity: Number(freshLot.total_quantity || 0) + recQty,
-            })
-            .eq("id", lot.id);
-        }
-
-        // Restore per-size quantities
-        for (const [size, sizeQty] of Object.entries(recovered_size_quantities as Record<string, number>)) {
-          const numQty = Math.max(0, Number(sizeQty) || 0);
-          if (numQty <= 0) continue;
-
-          const { data: existingSq } = await supabase
-            .from("lot_size_quantities")
-            .select("id, quantity")
-            .eq("lot_id", lot.id)
-            .eq("size", size)
-            .eq("business_id", businessId)
-            .maybeSingle();
-
-          if (existingSq) {
-            await supabase
-              .from("lot_size_quantities")
-              .update({ quantity: Number(existingSq.quantity || 0) + numQty })
-              .eq("id", existingSq.id);
-          }
         }
       }
     }
@@ -409,43 +477,7 @@ export async function POST(
       });
     }
 
-    // ── 7. B-Grade → b_grade_stock (BUG 7 FIX — NOT finished_stock) ─────────
-    if (bQty > 0 && target_godown_id) {
-      const colourId = defect.colour_id || lot.colour_id || null;
-      const bVal = bQty * unitCost;
-
-      const { error: bgErr } = await supabase.from("b_grade_stock").insert({
-        business_id: businessId,
-        lot_id: lot.id,
-        design_id: lot.design_id,
-        colour_id: colourId,
-        godown_id: target_godown_id,
-        size_quantities: b_grade_size_quantities,
-        total_quantity: bQty,
-        cost_per_piece: unitCost,
-        total_value: bVal,
-        b_grade_sale_price: null,   // Set later when user prices it for sale
-        status: "available",
-        created_by: userId,
-        // defect_resolution_id will be linked after resolution record is created (step 9)
-      });
-
-      if (bgErr) throw new Error(`Failed to push B-Grade stock: ${bgErr.message}`);
-
-      // Stock ledger entry for B-grade (internal tracking only)
-      await supabase.from("stock_ledger").insert({
-        business_id: businessId,
-        item_type: "finished_good",
-        item_id: lot.design_id,
-        godown_id: target_godown_id,
-        transaction_type: "defect_b_grade_push",
-        quantity_delta: bQty,
-        value_delta: bVal,
-        reference_table: "lot_defects",
-        reference_id: defect.id,
-        created_by: userId,
-      });
-    }
+    // ── 7. B-Grade → deferred to Step 11 so defect_resolution_id is available ──
 
     // ── 8. Scrap Write-Off (BUG 11 FIX) ─────────────────────────────────────
     const materialWriteOffValue = scrapQty > 0 ? scrapQty * unitFabricCost : 0;
@@ -538,7 +570,7 @@ export async function POST(
       .insert({
         business_id: businessId,
         defect_id: defect.id,
-        resolution_type,
+        resolution_type: dbResolutionType,
         resolution_date: resolution_date || new Date().toISOString().split("T")[0],
         qty_recovered: recQty,
         qty_b_grade: bQty,
@@ -564,16 +596,42 @@ export async function POST(
 
     if (resErr) throw new Error(`Failed to record defect resolution: ${resErr.message}`);
 
-    // ── 11. Link b_grade_stock to resolution ─────────────────────────────────
+    // ── 11. B-Grade → b_grade_stock (BUG 7 FIX — NOT finished_stock) ─────────
     if (bQty > 0 && target_godown_id) {
-      await supabase
-        .from("b_grade_stock")
-        .update({ defect_resolution_id: resRecord.id })
-        .eq("business_id", businessId)
-        .eq("lot_id", lot.id)
-        .is("defect_resolution_id", null)
-        .order("created_at", { ascending: false })
-        .limit(1);
+      const colourId = defect.colour_id || lot.colour_id || null;
+      const bVal = bQty * unitCost;
+
+      const { error: bgErr } = await supabase.from("b_grade_stock").insert({
+        business_id: businessId,
+        defect_resolution_id: resRecord.id,
+        lot_id: lot.id,
+        design_id: lot.design_id,
+        colour_id: colourId,
+        godown_id: target_godown_id,
+        size_quantities: b_grade_size_quantities,
+        total_quantity: bQty,
+        cost_per_piece: unitCost,
+        total_value: bVal,
+        b_grade_sale_price: null,   // Set later when user prices it for sale
+        status: "available",
+        created_by: userId,
+      });
+
+      if (bgErr) throw new Error(`Failed to push B-Grade stock: ${bgErr.message}`);
+
+      // Stock ledger entry for B-grade (internal tracking only)
+      await supabase.from("stock_ledger").insert({
+        business_id: businessId,
+        item_type: "finished_good",
+        item_id: lot.design_id,
+        godown_id: target_godown_id,
+        transaction_type: "defect_b_grade_push",
+        quantity_delta: bQty,
+        value_delta: bVal,
+        reference_table: "lot_defects",
+        reference_id: defect.id,
+        created_by: userId,
+      });
     }
 
     // ── 12. Update Defect Status ──────────────────────────────────────────────
@@ -602,8 +660,8 @@ export async function POST(
         scrapped_quantity: Number(currentLot.scrapped_quantity || 0) + scrapQty,
       };
 
-      // For rework-to-lot, reduce defect_quantity so lot knows pieces returned
-      if (resolution_type === "reworked_to_lot") {
+      // For rework-to-lot or partial recovery, reduce defect_quantity so lot knows pieces returned
+      if ((resolution_type === "reworked_to_lot" || isPartialSplit) && recQty > 0) {
         lotUpdates.defect_quantity = Math.max(0, Number(currentLot.defect_quantity || 0) - recQty);
       }
 

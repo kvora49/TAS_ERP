@@ -81,7 +81,8 @@ export default function ExpensesTab() {
         emptyMessage="No operational or overhead expenses recorded matching your search."
       >
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -137,6 +138,46 @@ export default function ExpensesTab() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Expenses Cards */}
+          <div className="md:hidden divide-y divide-[var(--border-light)]">
+            {filteredExpenses.map((exp) => {
+              const isPaid = exp.bank_account !== null;
+              const total = Number(exp.amount) + Number(exp.gst_amount || 0);
+
+              return (
+                <div key={exp.id} className="p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-[var(--primary)]">{exp.expense_number}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{exp.expense_type?.name || "General"}</span>
+                    </div>
+                    {isPaid ? (
+                      <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-emerald-500/20">
+                        Paid
+                      </span>
+                    ) : (
+                      <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-rose-500/20">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-medium text-[var(--text-primary)] truncate max-w-[65%]">{exp.vendor_name || "Direct Expense"}</span>
+                    <span className="font-mono text-[var(--text-muted)] text-[11px]">
+                      {new Date(exp.expense_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                    <span className="text-[var(--text-muted)] text-[11px]">{exp.bank_account?.account_name || "Cash / Pending"}</span>
+                    <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{formatCurrency(total)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </PageState>

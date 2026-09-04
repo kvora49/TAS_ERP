@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     // 0. Run ground-truth finished stock reconciliation
     await reconcileFinishedStock(supabase, businessId);
 
-    // 1. Fetch Finished Stock entries
+    // 1. Fetch Finished Stock entries (Grade A)
     let stockQuery = supabase
       .from("finished_stock")
       .select(`
@@ -70,13 +70,69 @@ export async function GET(request: Request) {
       stockQuery = stockQuery.in("entry_type", ["adjustment", "transfer_out", "challan_out"]);
     }
 
-    const { data: rawEntries, error } = await stockQuery;
+    // 2. Fetch B-Grade Stock entries (Grade B) unless movementType is specifically stock_out
+    let bgQuery: any = null;
+    if (movementType !== "stock_out") {
+      bgQuery = supabase
+        .from("b_grade_stock")
+        .select(`
+          id,
+          business_id,
+          design_id,
+          colour_id,
+          lot_id,
+          godown_id,
+          size_quantities,
+          total_quantity,
+          cost_per_piece,
+          total_value,
+          created_at,
+          design:designs(id, name, design_number, category, brand:brands(name)),
+          colour:design_colours(id, colour_name, colour_hex),
+          godown:godowns(id, name),
+          lot:production_lots(id, lot_number)
+        `)
+        .eq("business_id", businessId)
+        .eq("status", "available")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (godownId && godownId !== "all") {
+        bgQuery = bgQuery.eq("godown_id", godownId);
+      }
+      if (designId && designId !== "all") {
+        bgQuery = bgQuery.eq("design_id", designId);
+      }
+      if (colourId && colourId !== "all") {
+        bgQuery = bgQuery.eq("colour_id", colourId);
+      }
+      if (lotId && lotId !== "all") {
+        bgQuery = bgQuery.eq("lot_id", lotId);
+      }
     }
 
-    const entries = rawEntries || [];
+    // Execute both in parallel for optimal latency
+    const [fsRes, bgRes] = await Promise.all([
+      stockQuery,
+      bgQuery ? bgQuery : Promise.resolve({ data: [] as any[], error: null }),
+    ]);
+
+    if (fsRes.error) {
+      return NextResponse.json({ error: fsRes.error.message }, { status: 500 });
+    }
+
+    const fsEntries = (fsRes.data || []).map((row: any) => ({
+      ...row,
+      stock_grade: "A",
+    }));
+
+    const bgEntries = (bgRes.data || []).map((row: any) => ({
+      ...row,
+      entry_type: "b_grade",
+      stock_grade: "B",
+    }));
+
+    const entries = [...fsEntries, ...bgEntries];
 
     // Filter by design_number search or size filter if specified
     const now = new Date();

@@ -174,27 +174,27 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
                     min="0"
                     value={state.discountValue}
                     onChange={(e) => state.setDiscountValue(Number(e.target.value))}
-                    className="h-8 w-20 px-2 border border-slate-300 rounded text-xs focus:outline-none"
+                    className="h-8 w-20 px-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded text-xs focus:outline-none"
                   />
                 )}
               </div>
             </div>
             {totals.discount_amount > 0 && (
-              <div className="flex justify-between text-[#DC2626] font-semibold text-xs">
+              <div className="flex justify-between text-rose-500 font-semibold text-xs">
                 <span>Discount Amount Applied:</span>
                 <span>-₹{totals.discount_amount.toFixed(2)}</span>
               </div>
             )}
           </div>
 
-          <div className="flex justify-between text-slate-600 font-semibold border-t border-slate-100 pt-3">
+          <div className="flex justify-between text-[var(--text-body)] font-semibold border-t border-[var(--border-light)] pt-3">
             <span>Taxable Amount:</span>
             <span>₹{totals.taxable_amount.toFixed(2)}</span>
           </div>
 
           {/* Tax Splits details */}
           {state.gstTreatment === "regular" && (
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs space-y-1.5 text-slate-500 font-medium">
+            <div className="bg-[var(--page-bg)] p-2.5 rounded-lg border border-[var(--border-light)] text-xs space-y-1.5 text-[var(--text-muted)] font-medium">
               {totals.cgst > 0 && (
                 <div className="flex justify-between">
                   <span>CGST:</span>
@@ -208,7 +208,7 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
                 </div>
               )}
               {totals.igst > 0 && (
-                <div className="flex justify-between font-bold text-[#6366F1]">
+                <div className="flex justify-between font-bold text-[var(--primary)]">
                   <span>IGST (Interstate):</span>
                   <span>₹{totals.igst.toFixed(2)}</span>
                 </div>
@@ -216,14 +216,14 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
             </div>
           )}
 
-          <div className="flex justify-between text-slate-500 text-xs">
+          <div className="flex justify-between text-[var(--text-muted)] text-xs">
             <span>Round Off Adjustment:</span>
             <span>₹{totals.round_off.toFixed(2)}</span>
           </div>
 
-          <div className="flex justify-between text-lg font-bold text-slate-800 border-t-2 border-slate-200 pt-3">
+          <div className="flex justify-between text-lg font-bold text-[var(--text-primary)] border-t-2 border-[var(--border)] pt-3">
             <span>Grand Total Due:</span>
-            <span className="text-[#6366F1]">₹{totals.grand_total.toLocaleString("en-IN")}</span>
+            <span className="text-[var(--primary)]">₹{totals.grand_total.toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>

@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 interface Payment {
   id: string;
@@ -77,8 +79,8 @@ export default function SupplierPaymentsPage() {
       header: "Supplier",
       render: (row) => (
         <div>
-          <span className="font-bold text-[#0F172A] block">{row.supplier?.name || "—"}</span>
-          {row.supplier?.company_name && <span className="text-xs text-[#64748B]">{row.supplier.company_name}</span>}
+          <span className="font-bold text-[var(--text-primary)] block">{row.supplier?.name || "—"}</span>
+          {row.supplier?.company_name && <span className="text-xs text-[var(--text-muted)]">{row.supplier.company_name}</span>}
         </div>
       ),
     },
@@ -87,7 +89,7 @@ export default function SupplierPaymentsPage() {
       header: "Purchase Ref",
       width: "130px",
       render: (row) => (
-        <span className="font-mono text-xs font-bold text-[#6366F1]">{row.purchase?.purchase_number || "—"}</span>
+        <span className="font-mono text-xs font-bold text-[var(--primary)]">{row.purchase?.purchase_number || "—"}</span>
       ),
     },
     {
@@ -104,25 +106,28 @@ export default function SupplierPaymentsPage() {
       key: "reference_no",
       header: "Ref / UTR No.",
       width: "130px",
-      render: (row) => <span className="font-mono text-xs text-[#64748B]">{row.reference_no || "—"}</span>,
+      render: (row) => <span className="font-mono text-xs text-[var(--text-muted)]">{row.reference_no || "—"}</span>,
     },
     {
       key: "remarks",
       header: "Remarks",
-      render: (row) => <span className="text-xs text-[#64748B]">{row.remarks || "—"}</span>,
+      render: (row) => <span className="text-xs text-[var(--text-muted)]">{row.remarks || "—"}</span>,
     },
     {
       key: "paid_amount",
       header: "Amount Paid",
       width: "140px",
       render: (row) => (
-        <span className="font-mono text-xs font-extrabold text-green-700">{formatCurrency(row.paid_amount)}</span>
+        <span className="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.paid_amount)}</span>
       ),
     },
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={PAYMENTS_NAV} />
+
       <PageHeader
         title="Supplier Payments"
         subtitle="Comprehensive ledger log of all cash, UPI, and bank transfer outlays to suppliers."

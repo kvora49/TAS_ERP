@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { openWhatsApp, shareInvoiceWithWhatsApp } from "@/lib/utils/whatsapp";
@@ -34,6 +35,8 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PakkaBillTemplate } from "@/components/sales/PakkaBillTemplate";
 import { KachaBillTemplate } from "@/components/sales/KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { SALES_NAV } from "@/lib/moduleNav";
 
 interface BillItem {
   id: string;
@@ -151,7 +154,7 @@ export default function SaleBillDetailPage() {
   const [copied, setCopied] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
 
-  const { data, isPending: loading, refetch } = useERPQuery(
+  const { data, isPending: loading, isError, error, refetch } = useERPQuery(
     ["sales-bill-detail", id as string],
     async () => {
       const res = await fetch(`/api/sales/bills/${id}`);
@@ -259,25 +262,25 @@ export default function SaleBillDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading || isError || !bill) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
-        <Loader2 className="h-8 w-8 text-[#6366F1] animate-spin" />
-        <span className="text-xs text-[#64748B] font-semibold uppercase tracking-wider">Loading invoice details...</span>
-      </div>
-    );
-  }
-
-  if (!bill) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[300px] text-center gap-3">
-        <AlertCircle className="h-10 w-10 text-red-500" />
-        <h2 className="text-lg font-bold text-slate-800">Bill Not Found</h2>
-        <p className="text-sm text-slate-500">The requested sales bill does not exist or has been deleted.</p>
-        <Link href="/sales/bills" className="text-sm font-semibold text-[#6366F1] hover:underline">
-          Go Back to List
-        </Link>
-      </div>
+      <PageState
+        isLoading={loading}
+        isError={isError}
+        error={error instanceof Error ? error.message : "Failed to load bill"}
+        onRetry={refetch}
+        isEmpty={!loading && !bill}
+        emptyTitle="Bill Not Found"
+        emptyMessage="The requested sales bill does not exist or has been deleted."
+        emptyAction={
+          <Link href="/sales/bills" className="text-sm font-semibold text-[var(--primary)] hover:underline">
+            Go Back to List
+          </Link>
+        }
+        skeletonVariant="form"
+      >
+        <></>
+      </PageState>
     );
   }
 
@@ -320,8 +323,10 @@ export default function SaleBillDetailPage() {
   };
 
   return (
+    <div className="flex flex-col gap-4 sm:gap-6 pb-20 md:pb-0">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={SALES_NAV} />
 
-    <div className="flex flex-col gap-6 pb-20 md:pb-0">
       {/* ── MOBILE APP HEADER ── */}
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
@@ -433,49 +438,49 @@ export default function SaleBillDetailPage() {
         {/* Left Columns (Col Span 2): Bill Details & Items */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           {/* Section 1: Parties details */}
-          <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider border-b border-[#F3F4F6] pb-1 flex items-center gap-1.5">
-                <User className="h-4 w-4 text-[#6366F1]" />
+              <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border-light)] pb-1 flex items-center gap-1.5">
+                <User className="h-4 w-4 text-[var(--primary)]" />
                 <span>Billed To</span>
               </span>
-              <span className="font-bold text-sm text-[#0F172A]">{bill.party?.name}</span>
+              <span className="font-bold text-sm text-[var(--text-primary)]">{bill.party?.name}</span>
               {bill.party?.company_name && (
-                <span className="text-xs text-[#475569]">{bill.party.company_name}</span>
+                <span className="text-xs text-[var(--text-secondary)]">{bill.party.company_name}</span>
               )}
               {bill.billing_address && (
-                <p className="text-xs text-[#64748B] leading-relaxed max-w-xs">{bill.billing_address}</p>
+                <p className="text-xs text-[var(--text-muted)] leading-relaxed max-w-xs">{bill.billing_address}</p>
               )}
-              {bill.phone && <span className="text-xs text-[#64748B]">Mobile: {bill.phone}</span>}
-              {bill.gstin && <span className="text-xs text-[#15803D] font-semibold">GSTIN: {bill.gstin}</span>}
+              {bill.phone && <span className="text-xs text-[var(--text-muted)]">Mobile: {bill.phone}</span>}
+              {bill.gstin && <span className="text-xs text-emerald-600 font-semibold">GSTIN: {bill.gstin}</span>}
             </div>
 
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider border-b border-[#F3F4F6] pb-1 flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-[#6366F1]" />
+              <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border-light)] pb-1 flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-[var(--primary)]" />
                 <span>Invoice Details</span>
               </span>
-              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs text-[#475569]">
-                <span className="text-[#64748B]">Invoice Date:</span>
-                <span className="font-semibold">{new Date(bill.bill_date).toLocaleDateString("en-IN")}</span>
+              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs text-[var(--text-secondary)]">
+                <span className="text-[var(--text-muted)]">Invoice Date:</span>
+                <span className="font-semibold text-[var(--text-primary)]">{new Date(bill.bill_date).toLocaleDateString("en-IN")}</span>
 
-                <span className="text-[#64748B]">Due Date:</span>
-                <span className="font-semibold">
+                <span className="text-[var(--text-muted)]">Due Date:</span>
+                <span className="font-semibold text-[var(--text-primary)]">
                   {bill.due_date && !isNaN(new Date(bill.due_date).getTime()) && new Date(bill.due_date).getFullYear() > 1970
                     ? new Date(bill.due_date).toLocaleDateString("en-IN")
                     : "—"}
                 </span>
 
-                <span className="text-[#64748B]">Payment Terms:</span>
-                <span className="font-semibold capitalize">{bill.payment_terms ? bill.payment_terms.replace("_", " ") : "—"}</span>
+                <span className="text-[var(--text-muted)]">Payment Terms:</span>
+                <span className="font-semibold capitalize text-[var(--text-primary)]">{bill.payment_terms ? bill.payment_terms.replace("_", " ") : "—"}</span>
 
-                <span className="text-[#64748B]">GST Treatment:</span>
-                <span className="font-semibold capitalize">{bill.gst_treatment}</span>
+                <span className="text-[var(--text-muted)]">GST Treatment:</span>
+                <span className="font-semibold capitalize text-[var(--text-primary)]">{bill.gst_treatment}</span>
 
                 {bill.reference_no && (
                   <>
-                    <span className="text-[#64748B]">Reference No:</span>
-                    <span className="font-semibold font-mono">{bill.reference_no}</span>
+                    <span className="text-[var(--text-muted)]">Reference No:</span>
+                    <span className="font-semibold font-mono text-[var(--text-primary)]">{bill.reference_no}</span>
                   </>
                 )}
               </div>
@@ -484,29 +489,29 @@ export default function SaleBillDetailPage() {
 
           {/* Section 2: Transport & Remarks */}
           {(bill.transporter_name || bill.vehicle_no || bill.remarks) && (
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] grid grid-cols-1 md:grid-cols-2 gap-6">
               {(bill.transporter_name || bill.vehicle_no) && (
                 <div className="flex flex-col gap-2 text-xs">
-                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider border-b border-[#F3F4F6] pb-1 flex items-center gap-1.5">
-                    <Truck className="h-4 w-4 text-[#6366F1]" />
+                  <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border-light)] pb-1 flex items-center gap-1.5">
+                    <Truck className="h-4 w-4 text-[var(--primary)]" />
                     <span>Transport details</span>
                   </span>
-                  <div className="grid grid-cols-2 gap-y-2 text-[#475569]">
-                    <span className="text-[#64748B]">Transporter:</span>
-                    <span className="font-semibold">{bill.transporter_name || "N/A"}</span>
+                  <div className="grid grid-cols-2 gap-y-2 text-[var(--text-secondary)]">
+                    <span className="text-[var(--text-muted)]">Transporter:</span>
+                    <span className="font-semibold text-[var(--text-primary)]">{bill.transporter_name || "N/A"}</span>
 
-                    <span className="text-[#64748B]">Vehicle No:</span>
-                    <span className="font-semibold">{bill.vehicle_no || "N/A"}</span>
+                    <span className="text-[var(--text-muted)]">Vehicle No:</span>
+                    <span className="font-semibold text-[var(--text-primary)]">{bill.vehicle_no || "N/A"}</span>
                   </div>
                 </div>
               )}
 
               {bill.remarks && (
                 <div className="flex flex-col gap-2">
-                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider border-b border-[#F3F4F6] pb-1">
+                  <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border-light)] pb-1">
                     Internal Remarks
                   </span>
-                  <p className="text-xs text-[#475569] leading-relaxed italic bg-slate-50 border border-slate-100 rounded-lg p-2.5">
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed italic bg-[var(--page-bg)] border border-[var(--border-light)] rounded-lg p-2.5">
                     {bill.remarks}
                   </p>
                 </div>
@@ -515,13 +520,90 @@ export default function SaleBillDetailPage() {
           )}
 
           {/* Section 3: Items Table */}
-          <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden flex flex-col">
-            <h3 className="px-5 py-4 border-b border-[#F3F4F6] text-sm font-bold text-[#0F172A]">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden flex flex-col">
+            <h3 className="px-5 py-4 border-b border-[var(--border-light)] text-sm font-bold text-[var(--text-primary)]">
               Items Invoiced ({bill.items.length})
             </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-[#E5E7EB] text-left text-xs">
-                <thead className="bg-[#F9FAFB] text-[#64748B] font-bold uppercase tracking-wider select-none">
+            {/* Mobile View: Item Cards (md:hidden) */}
+            <div className="md:hidden divide-y divide-[var(--border)]">
+              {bill.items.map((it, idx) => {
+                const gross = it.quantity * it.rate;
+                const netTaxable = gross * (1 - it.discount_percent / 100);
+                const itemGst = netTaxable * (it.tax_percent / 100);
+                const totalAmount = netTaxable + itemGst;
+
+                return (
+                  <div key={it.id} className="p-3.5 space-y-2 bg-[var(--card-bg)]">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-[var(--page-bg)] border border-[var(--border)] text-[10px] font-bold text-[var(--text-muted)] flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          {it.item_type === "fabric" || it.material_type_id || it.material_type ? (
+                            <>
+                              <span className="font-bold text-xs text-[var(--text-primary)] block truncate">
+                                {it.material_type?.name || it.item_name || "Raw Material Fabric"}
+                              </span>
+                              {it.rolls && it.rolls.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {it.rolls.map((r: any, rIdx: number) => (
+                                    <span key={rIdx} className="px-1.5 py-0.5 bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded text-[10px] font-mono font-bold text-[var(--primary)]">
+                                      Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-bold text-xs text-[var(--text-primary)] block truncate">
+                                {it.design?.design_number || it.design_code || "Design"} {it.design?.name ? `— ${it.design.name}` : ""}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-[var(--text-muted)]">
+                                <span>Size: <strong className="text-[var(--text-secondary)]">{it.size || "Free"}</strong></span>
+                                <span>·</span>
+                                <span>Colour: <strong className="text-[var(--text-secondary)]">{it.colour?.colour_name || it.colour_name || "—"}</strong></span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <span className="font-bold font-mono text-sm text-[var(--primary)] shrink-0">
+                        ₹{totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    {/* Rates & Qty breakdown */}
+                    <div className="grid grid-cols-3 text-center border-t border-[var(--border-light)] pt-1.5 text-xs">
+                      <div>
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase block">Qty</span>
+                        <span className="font-bold text-[var(--text-primary)] font-mono">
+                          {it.quantity} {it.item_type === "fabric" || it.material_type_id ? "M" : "Pcs"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase block">Rate</span>
+                        <span className="font-bold text-[var(--text-primary)] font-mono">
+                          ₹{it.rate.toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase block">Tax</span>
+                        <span className="font-semibold text-blue-600 font-mono">
+                          {it.tax_percent}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View: Full Table (hidden md:block) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-[var(--border)] text-left text-xs">
+                <thead className="bg-[var(--table-header-bg)] text-[var(--text-muted)] font-bold uppercase tracking-wider select-none">
                   <tr>
                     <th className="px-5 py-3">#</th>
                     <th className="px-5 py-3">Item Details</th>
@@ -532,7 +614,7 @@ export default function SaleBillDetailPage() {
                     <th className="px-5 py-3 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB] text-sm bg-white text-[#1E293B]">
+                <tbody className="divide-y divide-[var(--border)] text-sm bg-[var(--card-bg)] text-[var(--text-primary)]">
                   {bill.items.map((it, idx) => {
                     const gross = it.quantity * it.rate;
                     const netTaxable = gross * (1 - it.discount_percent / 100);
@@ -540,19 +622,19 @@ export default function SaleBillDetailPage() {
                     const totalAmount = netTaxable + itemGst;
 
                     return (
-                      <tr key={it.id} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="px-5 py-4 text-xs text-[#64748B] font-semibold">{idx + 1}</td>
+                      <tr key={it.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                        <td className="px-5 py-4 text-xs text-[var(--text-muted)] font-semibold">{idx + 1}</td>
                         <td className="px-5 py-4">
                           <div className="flex flex-col">
                             {it.item_type === "fabric" || it.material_type_id || it.material_type ? (
                               <>
-                                <span className="font-semibold text-slate-900">
+                                <span className="font-semibold text-[var(--text-primary)]">
                                   {it.material_type?.name || it.item_name || "Raw Material Fabric"}
                                 </span>
                                 {it.rolls && it.rolls.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-1.5">
                                     {it.rolls.map((r: any, rIdx: number) => (
-                                      <span key={rIdx} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[10px] font-mono font-bold text-indigo-700">
+                                      <span key={rIdx} className="px-1.5 py-0.5 bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded text-[10px] font-mono font-bold text-[var(--primary)]">
                                         Roll #{r.roll_number}: {r.meters}m{r.shade ? ` (${r.shade})` : ""}
                                       </span>
                                     ))}
@@ -562,7 +644,7 @@ export default function SaleBillDetailPage() {
                             ) : (
                               <>
                                 <span className="font-semibold">{it.design?.design_number || it.design_code || "Unknown Design"} ({it.size})</span>
-                                <span className="text-[10px] text-[#64748B] font-mono">Colour: {it.colour?.colour_name || it.colour_name || "—"}</span>
+                                <span className="text-[10px] text-[var(--text-faint)] font-mono">Colour: {it.colour?.colour_name || it.colour_name || "—"}</span>
                               </>
                             )}
                           </div>
@@ -571,7 +653,7 @@ export default function SaleBillDetailPage() {
                         <td className="px-5 py-4 text-right">₹{it.rate.toFixed(2)}</td>
                         <td className="px-5 py-4 text-center">{it.discount_percent}%</td>
                         <td className="px-5 py-4 text-center">
-                          <span className="px-2 py-0.5 bg-[#EEF2FF] text-[#6366F1] rounded text-[10px] font-semibold">
+                          <span className="px-2 py-0.5 bg-[var(--primary-light)] text-[var(--primary)] rounded text-[10px] font-semibold">
                             {it.tax_percent}%
                           </span>
                         </td>
@@ -590,30 +672,30 @@ export default function SaleBillDetailPage() {
         {/* Right Column: Totals Summary & Conditional Profit Margin Panel */}
         <div className="lg:col-span-1 flex flex-col gap-6">
           {/* Bill Totals Summary Card */}
-          <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm flex flex-col gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-[#0F172A] mb-2 pb-2 border-b border-[#F3F4F6]">
-              <FileText className="h-4.5 w-4.5 text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex flex-col gap-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] mb-2 pb-2 border-b border-[var(--border-light)]">
+              <FileText className="h-4.5 w-4.5 text-[var(--primary)]" />
               <span>Bill Totals</span>
             </h3>
 
-            <div className="flex flex-col gap-2.5 text-xs text-[#475569]">
+            <div className="flex flex-col gap-2.5 text-xs text-[var(--text-secondary)]">
               <div className="flex items-center justify-between">
                 <span>Gross Item Value</span>
-                <span className="font-semibold text-[#1E293B]">{formatCurrency(bill.item_total)}</span>
+                <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(bill.item_total)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Charges Total</span>
-                <span className="font-semibold text-[#1E293B]">{formatCurrency(bill.charges_total)}</span>
+                <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(bill.charges_total)}</span>
               </div>
               {bill.discount_amount > 0 && (
-                <div className="flex items-center justify-between text-[#DC2626] font-semibold">
+                <div className="flex items-center justify-between text-red-500 font-semibold">
                   <span>Overall Discount</span>
                   <span>-{formatCurrency(bill.discount_amount)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between border-t border-[#F3F4F6] pt-2 text-xs">
+              <div className="flex items-center justify-between border-t border-[var(--border-light)] pt-2 text-xs">
                 <span>Taxable Amount</span>
-                <span className="font-semibold text-[#1E293B]">{formatCurrency(bill.taxable_amount)}</span>
+                <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(bill.taxable_amount)}</span>
               </div>
               {bill.cgst > 0 && (
                 <div className="flex items-center justify-between">
@@ -633,25 +715,25 @@ export default function SaleBillDetailPage() {
                   <span>{formatCurrency(bill.igst)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-2 text-[10px] text-[#64748B]">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-2 text-[10px] text-[var(--text-muted)]">
                 <span>Round Off</span>
                 <span>{bill.round_off >= 0 ? "+" : ""}{formatCurrency(bill.round_off)}</span>
               </div>
               <div className="flex items-center justify-between py-1 text-sm">
-                <span className="font-semibold text-[#0F172A]">Grand Total</span>
-                <span className="text-lg font-bold text-[#6366F1]">{formatCurrency(bill.grand_total)}</span>
+                <span className="font-semibold text-[var(--text-primary)]">Grand Total</span>
+                <span className="text-lg font-bold text-[var(--primary)]">{formatCurrency(bill.grand_total)}</span>
               </div>
 
               {/* Amount in words */}
-              <div className="bg-[#DCFCE7] rounded-lg p-3 mt-2 border border-[#BBF7D0] relative flex items-start justify-between gap-3">
+              <div className="bg-emerald-500/10 rounded-lg p-3 mt-2 border border-emerald-500/20 relative flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-[#15803D] uppercase tracking-wider">Amount in Words</span>
-                  <span className="text-xs font-semibold text-[#15803D] leading-relaxed">{amountInWords}</span>
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Amount in Words</span>
+                  <span className="text-xs font-semibold text-emerald-600 leading-relaxed">{amountInWords}</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleCopyWords}
-                  className="text-[#15803D] hover:bg-[#BBF7D0]/40 p-1 rounded transition-colors shrink-0"
+                  className="text-emerald-600 hover:bg-emerald-500/20 p-1 rounded transition-colors shrink-0 cursor-pointer"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
@@ -661,38 +743,38 @@ export default function SaleBillDetailPage() {
 
           {/* Conditional RLS/Role-Protected Profit Margin Card */}
           {profit && (
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm flex flex-col gap-4 animate-fadeIn">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#0F172A] border-b border-[#F3F4F6] pb-3">
-                <Lock className="h-4.5 w-4.5 text-[#15803D]" />
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex flex-col gap-4 animate-fadeIn">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-3">
+                <Lock className="h-4.5 w-4.5 text-emerald-600" />
                 <span>Profit Margin & COGS</span>
               </h3>
 
-              <div className="flex flex-col gap-3.5 text-xs text-[#475569]">
+              <div className="flex flex-col gap-3.5 text-xs text-[var(--text-secondary)]">
                 <div className="flex justify-between items-center">
                   <span>Cost of Goods Sold (COGS)</span>
-                  <span className="font-semibold text-[#0F172A]">{formatCurrency(profit.cogs)}</span>
+                  <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(profit.cogs)}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <span>Net Sale Value (Post-Tax)</span>
-                  <span className="font-semibold text-[#0F172A]">{formatCurrency(profit.sale_value)}</span>
+                  <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(profit.sale_value)}</span>
                 </div>
 
-                <div className="flex justify-between items-center border-t border-[#F3F4F6] pt-3">
-                  <span className="font-medium">Net Profit Amount</span>
-                  <span className={`font-bold text-sm ${profit.net_profit >= 0 ? "text-[#15803D]" : "text-[#DC2626]"}`}>
+                <div className="flex justify-between items-center border-t border-[var(--border-light)] pt-3">
+                  <span className="font-medium text-[var(--text-primary)]">Net Profit Amount</span>
+                  <span className={`font-bold text-sm ${profit.net_profit >= 0 ? "text-emerald-600" : "text-red-500"}`}>
                     {formatCurrency(profit.net_profit)}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">Net Profit Margin (%)</span>
+                  <span className="font-medium text-[var(--text-primary)]">Net Profit Margin (%)</span>
                   <span
                     className={`font-extrabold text-sm px-2.5 py-0.5 rounded-full flex items-center gap-1 ${profit.profit_margin_percent >= 15
-                        ? "bg-[#DCFCE7] text-[#15803D]"
+                        ? "bg-emerald-500/10 text-emerald-600"
                         : profit.profit_margin_percent >= 5
-                          ? "bg-[#FEF3C7] text-[#D97706]"
-                          : "bg-[#FEE2E2] text-[#DC2626]"
+                          ? "bg-amber-500/10 text-amber-600"
+                          : "bg-red-500/10 text-red-500"
                       }`}
                   >
                     {profit.profit_margin_percent >= 0 ? (
@@ -705,8 +787,8 @@ export default function SaleBillDetailPage() {
                 </div>
 
                 {/* Secure Badge */}
-                <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-2.5 text-[10px] text-[#1E40AF] font-medium leading-normal flex items-start gap-2">
-                  <Lock className="h-3.5 w-3.5 text-[#1D4ED8] shrink-0 mt-0.5" />
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 text-[10px] text-blue-500 font-medium leading-normal flex items-start gap-2">
+                  <Lock className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
                   <span>
                     Secure RLS Panel. This detailed cost and margin information is encrypted and accessible only to authorized Administrators and Owners.
                   </span>

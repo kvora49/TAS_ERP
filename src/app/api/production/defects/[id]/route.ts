@@ -140,13 +140,17 @@ export async function PATCH(
       updates.responsible_worker_id = responsible_worker_id || null;
     if (responsible_stage_id !== undefined)
       updates.responsible_stage_id = responsible_stage_id || null;
-    if (status !== undefined) updates.status = status;
+    if (status !== undefined) {
+      updates.status = status === "in_rework" ? "sent_for_rework" : status;
+    }
     if (colour_id !== undefined) updates.colour_id = colour_id || null;
 
-    // Toggle sent_for_rework (only allowed on pending/in_rework defects with no resolutions)
+    // Toggle sent_for_rework (only allowed on pending/sent_for_rework defects with no resolutions)
     if (body.sent_for_rework !== undefined) {
       const newSentForRework = !!body.sent_for_rework;
-      const currentlyInRework = existing.sent_for_rework && existing.status === "in_rework";
+      const currentlyInRework =
+        existing.sent_for_rework &&
+        (existing.status === "sent_for_rework" || existing.status === "in_rework");
 
       if (newSentForRework !== existing.sent_for_rework) {
         // Block if already has resolutions
@@ -180,10 +184,21 @@ export async function PATCH(
             for (const [size, sizeQty] of Object.entries((existing.size_quantities || {}) as Record<string, number>)) {
               const numQty = Math.max(0, Number(sizeQty) || 0);
               if (numQty <= 0) continue;
-              const { data: sq } = await supabase.from("lot_size_quantities").select("id, quantity").eq("lot_id", existing.lot_id).eq("size", size).eq("business_id", businessId).maybeSingle();
-              if (sq) await supabase.from("lot_size_quantities").update({ quantity: Math.max(0, Number(sq.quantity || 0) - numQty) }).eq("id", sq.id);
+              let sqQuery = supabase.from("lot_size_quantities").select("id, quantity").eq("lot_id", existing.lot_id).eq("size", size).eq("business_id", businessId);
+              if (existing.colour_id) sqQuery = sqQuery.eq("colour_id", existing.colour_id);
+              const { data: sqs } = await sqQuery;
+              if (sqs && sqs.length > 0) {
+                let rem = numQty;
+                for (const sq of sqs) {
+                  if (rem <= 0) break;
+                  const cur = Number(sq.quantity || 0);
+                  const dec = Math.min(cur, rem);
+                  await supabase.from("lot_size_quantities").update({ quantity: Math.max(0, cur - dec) }).eq("id", sq.id);
+                  rem -= dec;
+                }
+              }
             }
-            updates.status = "in_rework";
+            updates.status = "sent_for_rework";
           } else if (!newSentForRework && currentlyInRework) {
             // Restore to lot
             await supabase
@@ -194,8 +209,13 @@ export async function PATCH(
             for (const [size, sizeQty] of Object.entries((existing.size_quantities || {}) as Record<string, number>)) {
               const numQty = Math.max(0, Number(sizeQty) || 0);
               if (numQty <= 0) continue;
-              const { data: sq } = await supabase.from("lot_size_quantities").select("id, quantity").eq("lot_id", existing.lot_id).eq("size", size).eq("business_id", businessId).maybeSingle();
-              if (sq) await supabase.from("lot_size_quantities").update({ quantity: Number(sq.quantity || 0) + numQty }).eq("id", sq.id);
+              let sqQuery = supabase.from("lot_size_quantities").select("id, quantity").eq("lot_id", existing.lot_id).eq("size", size).eq("business_id", businessId);
+              if (existing.colour_id) sqQuery = sqQuery.eq("colour_id", existing.colour_id);
+              const { data: sqs } = await sqQuery;
+              if (sqs && sqs.length > 0) {
+                const target = sqs[0];
+                await supabase.from("lot_size_quantities").update({ quantity: Number(target.quantity || 0) + numQty }).eq("id", target.id);
+              }
             }
             updates.status = "pending";
           }
@@ -318,7 +338,10 @@ export async function DELETE(
       };
 
       // If pieces were live-deducted when defect was created (sent_for_rework), restore them
-      if (existing.sent_for_rework && existing.status === "in_rework") {
+      if (
+        existing.sent_for_rework &&
+        (existing.status === "sent_for_rework" || existing.status === "in_rework")
+      ) {
         lotRestorePayload.total_quantity = Number(lot.total_quantity || 0) + existing.quantity;
       }
 
@@ -328,24 +351,33 @@ export async function DELETE(
         .eq("id", existing.lot_id);
 
       // Also restore per-size quantities if in_rework
-      if (existing.sent_for_rework && existing.status === "in_rework" && existing.size_quantities) {
+      if (
+        existing.sent_for_rework &&
+        (existing.status === "sent_for_rework" || existing.status === "in_rework") &&
+        existing.size_quantities
+      ) {
         for (const [size, sizeQty] of Object.entries(existing.size_quantities as Record<string, number>)) {
           const numQty = Math.max(0, Number(sizeQty) || 0);
           if (numQty <= 0) continue;
 
-          const { data: existingSq } = await supabase
+          let sqQuery = supabase
             .from("lot_size_quantities")
             .select("id, quantity")
             .eq("lot_id", existing.lot_id)
             .eq("size", size)
-            .eq("business_id", businessId)
-            .maybeSingle();
+            .eq("business_id", businessId);
 
-          if (existingSq) {
+          if (existing.colour_id) {
+            sqQuery = sqQuery.eq("colour_id", existing.colour_id);
+          }
+
+          const { data: sqs } = await sqQuery;
+          if (sqs && sqs.length > 0) {
+            const target = sqs[0];
             await supabase
               .from("lot_size_quantities")
-              .update({ quantity: Number(existingSq.quantity || 0) + numQty })
-              .eq("id", existingSq.id);
+              .update({ quantity: Number(target.quantity || 0) + numQty })
+              .eq("id", target.id);
           }
         }
       }

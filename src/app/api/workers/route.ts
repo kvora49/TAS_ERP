@@ -38,12 +38,87 @@ export async function GET(request: Request) {
       }
     }
 
-    const { data: workers, error } = await query;
+    const { data: dbWorkers, error } = await query;
     if (error) {
       throw error;
     }
 
-    return NextResponse.json({ workers: workers || [] });
+    // Also fetch parties that are workers/job_workers to ensure base rate (wage_rate) and wage_type are merged
+    let partyQuery = supabase
+      .from("parties")
+      .select("id, code, name, phone, billing_address_line1, remarks, is_active, type, wage_rate, wage_type, worker_type, stage_specialty, preferred_stage_id")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+
+    if (activeOnly) {
+      partyQuery = partyQuery.eq("is_active", true);
+    }
+
+    const { data: partyWorkers } = await partyQuery;
+
+    const partyMap = new Map<string, any>();
+    (partyWorkers || []).forEach((p: any) => {
+      const isWorkerParty = Array.isArray(p.type)
+        ? (p.type.includes("worker") || p.type.includes("job_worker"))
+        : (p.type === "worker" || p.type === "job_worker");
+      if (isWorkerParty) {
+        partyMap.set(p.id, p);
+      }
+    });
+
+    const existingWorkerIds = new Set<string>();
+
+    const mergedWorkers = (dbWorkers || []).map((w: any) => {
+      existingWorkerIds.add(w.id);
+      const party = partyMap.get(w.id);
+      const partyRate = party?.wage_rate ? Number(party.wage_rate) : undefined;
+      const workerRate = w.default_rate ? Number(w.default_rate) : undefined;
+      const finalRate = partyRate ?? workerRate ?? 0;
+
+      return {
+        ...w,
+        default_rate: finalRate,
+        wage_rate: finalRate,
+        wage_type: party?.wage_type || w.payment_cycle || "piece_rate",
+        worker_type: party?.worker_type || w.type,
+        stage_specialty: party?.stage_specialty || (w.specialization ? [w.specialization] : []),
+      };
+    });
+
+    // If there are worker parties that don't exist in the `workers` table yet, include them
+    partyMap.forEach((p: any, pId: string) => {
+      if (!existingWorkerIds.has(pId)) {
+        if (search) {
+          const s = search.toLowerCase().trim();
+          const match =
+            (p.name && p.name.toLowerCase().includes(s)) ||
+            (p.code && p.code.toLowerCase().includes(s)) ||
+            (p.phone && p.phone.toLowerCase().includes(s));
+          if (!match) return;
+        }
+
+        const rate = p.wage_rate ? Number(p.wage_rate) : 0;
+        mergedWorkers.push({
+          id: p.id,
+          business_id: businessId,
+          name: p.name,
+          worker_id: p.code || `WRK_${p.id.substring(0, 6)}`,
+          type: p.worker_type === "in_house" ? "permanent" : "job_worker",
+          phone: p.phone || null,
+          address: p.billing_address_line1 || null,
+          default_rate: rate,
+          wage_rate: rate,
+          wage_type: p.wage_type || "piece_rate",
+          worker_type: p.worker_type || "job_worker",
+          stage_specialty: p.stage_specialty || [],
+          preferred_stage_id: p.preferred_stage_id || null,
+          is_active: p.is_active !== false,
+          remarks: p.remarks || null,
+        });
+      }
+    });
+
+    return NextResponse.json({ workers: mergedWorkers });
   } catch (err: any) {
     return handleApiError(err);
   }

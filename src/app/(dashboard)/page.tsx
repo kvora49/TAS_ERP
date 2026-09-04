@@ -39,7 +39,7 @@ import {
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { triggerHaptic } from "@/lib/haptics";
 import { PullToRefresh } from "@/components/shared/PullToRefresh";
@@ -178,10 +178,6 @@ export default function DashboardPage() {
       };
     }
   }, [user?.businessId, queryClient]);
-
-  const formatCurrency = (val: number) => {
-    return formatAppCurrency(val);
-  };
 
   return (
     <PageState

@@ -33,6 +33,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { FINISHED_STOCK_NAV } from "@/lib/moduleNav";
 
 interface GodownBreakdown {
   godown_name: string;
@@ -112,7 +114,7 @@ export default function FinishedStockOverviewPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
@@ -133,37 +135,39 @@ export default function FinishedStockOverviewPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Finished Stock Overview</h1>
-          <p className="text-sm text-[var(--text-muted)]">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Finished Stock Overview</h1>
+          <p className="text-xs sm:text-sm text-[var(--text-muted)]">
             Real-time garments inventory status, grade classification, and warehouse ledger control
           </p>
         </div>
 
         {/* Quick Actions Panel */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href="/finished-stock/adjustments/new"
-            className="flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 px-4 py-2.5 rounded-xl hover:bg-rose-500/20 active:bg-rose-500/20 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3.5 py-2 rounded-xl hover:bg-rose-500/20 active:bg-rose-500/20 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Adjust Stock</span>
           </Link>
           <Link
             href="/finished-stock/transfers/new"
-            className="flex items-center gap-2 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] px-4 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] px-3.5 py-2 rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Transfer Stock</span>
           </Link>
           <Link
             href="/finished-stock/challans/new"
-            className="flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 rounded-xl hover:bg-emerald-500/20 active:bg-emerald-500/20 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 active:bg-emerald-500/20 transition-all cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span>Create Challan</span>
           </Link>
         </div>
       </div>
+
+      <ModuleSubNav items={FINISHED_STOCK_NAV} />
 
       {/* Stock Grade Filter Tabs */}
       <div className="flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--border)] p-1.5 rounded-xl w-fit shadow-[var(--shadow-sm)]">

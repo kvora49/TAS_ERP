@@ -9,19 +9,16 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown, Calculator, Calendar } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import MainDesignStockFiltersPanel from "./_components/MainDesignStockFiltersPanel";
+import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 
 // Validation schema for sub-colour modal
 const colorSchema = z.object({
@@ -150,6 +147,11 @@ export default function DesignsPage() {
   } = useForm<DesignFormValues>({
     resolver: zodResolver(designSchema) as any,
   });
+
+  const { lookupGst, hsnOptions } = useGstRateLookup();
+  const watchHsn = watch("hsn_code");
+  const watchSalePrice = watch("sale_price");
+  const resolvedGst = lookupGst(watchHsn, Number(watchSalePrice || 0));
 
   // Color Subform
   const {
@@ -590,7 +592,8 @@ export default function DesignsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      <ModuleSubNav items={MASTER_DATA_NAV} />
       {!isEditing ? (
         <>
           <PageHeader
@@ -729,25 +732,25 @@ export default function DesignsPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             
             {/* CARD 1: Basic Info */}
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider pb-2 border-b border-[#F3F4F6]">
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider pb-2 border-b border-[var(--border-light)]">
                 1. Basic Information
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {/* Design Name */}
                 <div className="space-y-1.5 font-bold">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Design / Style Name *
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. Vintage Denim Jacket"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                     {...register("name")}
                   />
                   {errors.name && (
-                    <p className="text-xs font-semibold text-[#DC2626]">
+                    <p className="text-xs font-semibold text-red-500">
                       {errors.name.message}
                     </p>
                   )}
@@ -755,11 +758,11 @@ export default function DesignsPage() {
 
                 {/* Brand Selector */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Associated Brand *
                   </label>
                   <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all cursor-pointer font-semibold"
                     {...register("brand_id")}
                   >
                     {brands.map((b) => (
@@ -772,20 +775,20 @@ export default function DesignsPage() {
 
                 {/* Design number input (Auto-generated but editable) */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
                     Design Number *
                     <span title="Auto-computed based on brand settings, editable.">
-                      <HelpCircle size={12} className="text-[#94A3B8]" />
+                      <HelpCircle size={12} className="text-[var(--text-faint)]" />
                     </span>
                   </label>
                   <input
                     type="text"
                     placeholder="Auto-generated"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-mono"
                     {...register("design_number")}
                   />
                   {errors.design_number && (
-                    <p className="text-xs font-semibold text-[#DC2626]">
+                    <p className="text-xs font-semibold text-red-500">
                       {errors.design_number.message}
                     </p>
                   )}
@@ -793,11 +796,11 @@ export default function DesignsPage() {
 
                 {/* Size Set */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Sizing Scale (Size Set) *
                   </label>
                   <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all cursor-pointer font-semibold"
                     {...register("size_set_id")}
                   >
                     <option value="">— Select Size Set —</option>
@@ -811,11 +814,11 @@ export default function DesignsPage() {
 
                 {/* Category */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Category
                   </label>
                   <select
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all cursor-pointer font-semibold"
                     {...register("category")}
                   >
                     {CATEGORIES.map((c) => (
@@ -828,46 +831,44 @@ export default function DesignsPage() {
 
                 {/* Sub category */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Sub-Category
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. Slim-fit, Crewneck"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                     {...register("sub_category")}
                   />
                 </div>
 
                 {/* Season */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Collection / Season
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. Summer 2026, Festive"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
                     {...register("season")}
                   />
                 </div>
 
-
-
                 {/* Wholesale / Sale Price */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Sale Price (₹ / Piece)
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     placeholder="e.g. 750.00"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-mono font-semibold"
                     {...register("sale_price", { valueAsNumber: true })}
                   />
                   {errors.sale_price && (
-                    <p className="text-xs font-semibold text-[#DC2626]">
+                    <p className="text-xs font-semibold text-red-500">
                       {errors.sale_price.message}
                     </p>
                   )}
@@ -875,26 +876,49 @@ export default function DesignsPage() {
 
                 {/* HSN code */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     HSN Code (HS Code)
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. 6203"
-                    className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono"
+                    list="designs-hsn-datalist"
+                    placeholder="e.g. 6203, 6109, 6204"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-mono"
                     {...register("hsn_code")}
                   />
+                  <datalist id="designs-hsn-datalist">
+                    {hsnOptions.map((opt) => (
+                      <option key={opt.hsn_code} value={opt.hsn_code}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </datalist>
+                  {resolvedGst && (
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--primary)] font-semibold">
+                      <span>GST Rate: {resolvedGst.gstPercent}%</span>
+                      {resolvedGst.isAutoTier && (
+                        <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                          (Auto-tier slab: &le; ₹{resolvedGst.matchedRate?.tier_threshold ?? 1000} &rarr; {resolvedGst.matchedRate?.tier_low_gst ?? 5}%, &gt; ₹{resolvedGst.matchedRate?.tier_threshold ?? 1000} &rarr; {resolvedGst.matchedRate?.tier_high_gst ?? 12}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {!resolvedGst && watchHsn && watchHsn.trim().length > 0 && (
+                    <p className="text-[10px] text-amber-500 mt-1">
+                      HSN code not found in GST Rates master (will use default billing rate).
+                    </p>
+                  )}
                 </div>
 
                 {/* Description */}
                 <div className="sm:col-span-2 space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                     Style Notes & Description
                   </label>
                   <textarea
                     placeholder="Describe fits, stitching detailing, target fabric, packaging guidelines..."
                     rows={2}
-                    className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
+                    className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all resize-none"
                     {...register("description")}
                   />
                 </div>
@@ -902,14 +926,14 @@ export default function DesignsPage() {
                 {/* Status */}
                 <div className="flex items-center justify-between sm:col-span-1 pt-4 self-center">
                   <div>
-                    <h4 className="text-xs font-bold text-[#0F172A]">Active Catalog Item</h4>
-                    <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-none">
+                    <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Catalog Item</h4>
+                    <p className="text-[10px] text-[var(--text-muted)] font-medium mt-0.5 leading-none">
                       Allows creation of active production lots.
                     </p>
                   </div>
                   <input
                     type="checkbox"
-                    className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
+                    className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--input-focus)] border-[var(--border)] rounded cursor-pointer"
                     {...register("is_active")}
                   />
                 </div>
@@ -917,8 +941,8 @@ export default function DesignsPage() {
             </div>
 
             {/* CARD 2: Images flex upload grid */}
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider pb-2 border-b border-[#F3F4F6]">
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider pb-2 border-b border-[var(--border-light)]">
                 2. Design Image Gallery
               </h3>
 
@@ -927,7 +951,7 @@ export default function DesignsPage() {
                 {uploadedImages.map((img, idx) => (
                   <div
                     key={idx}
-                    className="w-[140px] aspect-[4/3] rounded-lg border border-[#E5E7EB] relative overflow-hidden bg-[#F8FAFC] flex items-center justify-center shadow-sm group"
+                    className="w-[140px] aspect-[4/3] rounded-lg border border-[var(--border)] relative overflow-hidden bg-[var(--page-bg)] flex items-center justify-center shadow-sm group"
                   >
                     <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
                     
@@ -944,7 +968,7 @@ export default function DesignsPage() {
                 ))}
 
                 {/* Dashed "+" slot for R2 upload */}
-                <div className="w-[140px] aspect-[4/3] border border-dashed border-[#D1D5DB] rounded-lg bg-[#F8FAFC] flex items-center justify-center p-2 relative">
+                <div className="w-[140px] aspect-[4/3] border border-dashed border-[var(--border)] rounded-lg bg-[var(--page-bg)] flex items-center justify-center p-2 relative">
                   <ImageUpload
                     value=""
                     folder="design_catalogs"
@@ -955,15 +979,15 @@ export default function DesignsPage() {
                     }}
                     onRemove={() => {}}
                     label="+"
-                    className="border-none w-full h-full p-0 flex flex-col justify-center text-xs font-bold text-[#6366F1]"
+                    className="border-none w-full h-full p-0 flex flex-col justify-center text-xs font-bold text-[var(--primary)]"
                   />
                 </div>
               </div>
             </div>
 
             {/* CARD 3: Colours Swatches */}
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider pb-2 border-b border-[#F3F4F6]">
+            <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider pb-2 border-b border-[var(--border-light)]">
                 3. Colour swatches & thumbnails
               </h3>
 
@@ -972,36 +996,36 @@ export default function DesignsPage() {
                 {activeColours.map((col, idx) => (
                   <div
                     key={idx}
-                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm"
+                    className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm"
                   >
                     {/* 40x40 thumbnail or hex */}
                     {col.image_url ? (
                       <img
                         src={col.image_url}
                         alt={col.colour_name}
-                        className="w-10 h-10 rounded-lg object-cover border border-[#E5E7EB]"
+                        className="w-10 h-10 rounded-lg object-cover border border-[var(--border)]"
                       />
                     ) : (
                       <span
-                        className="w-10 h-10 rounded-lg border border-black/10 inline-block shrink-0 shadow-inner"
-                        style={{ backgroundColor: col.colour_hex || "#6366F1" }}
+                        className="w-10 h-10 rounded-lg border border-[var(--border)] inline-block shrink-0 shadow-inner"
+                        style={{ backgroundColor: col.colour_hex || "var(--primary)" }}
                       />
                     )}
 
                     <div className="pr-2">
-                      <span className="text-sm font-medium text-[#0F172A] block leading-none mb-1">
+                      <span className="text-sm font-medium text-[var(--text-primary)] block leading-none mb-1">
                         {col.colour_name}
                       </span>
-                      <span className="text-[10px] font-bold font-mono text-[#64748B]">
+                      <span className="text-[10px] font-bold font-mono text-[var(--text-muted)]">
                         {col.colour_hex}
                       </span>
                     </div>
 
-                    {/* close button styled with text-[#94A3B8] */}
+                    {/* close button */}
                     <button
                       type="button"
                       onClick={() => removeColourSwatch(idx)}
-                      className="text-[#94A3B8] hover:text-red-500 cursor-pointer p-0.5 hover:bg-red-50 rounded transition-colors"
+                      className="text-[var(--text-faint)] hover:text-red-500 cursor-pointer p-0.5 hover:bg-red-500/10 rounded transition-colors"
                       title="Remove Color"
                     >
                       <X size={16} />
@@ -1013,9 +1037,9 @@ export default function DesignsPage() {
                 <button
                   type="button"
                   onClick={handleOpenAddColour}
-                  className="w-[140px] h-[66px] border border-dashed border-[#CBD5E1] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-[#6366F1] hover:text-[#4F46E5] hover:bg-[#F8FAFC] hover:border-[#6366F1] transition-all cursor-pointer shadow-sm bg-white"
+                  className="w-[140px] h-[66px] border border-dashed border-[var(--border)] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-[var(--primary)] hover:border-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer shadow-sm bg-[var(--card-bg)]"
                 >
-                  <Plus size={16} className="text-[#6366F1]" />
+                  <Plus size={16} />
                   <span>Add Colour</span>
                 </button>
               </div>
@@ -1026,13 +1050,13 @@ export default function DesignsPage() {
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="h-10 px-5 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
+                className="h-10 px-5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
               >
                 Back to List
               </button>
               <button
                 type="submit"
-                className="h-10 px-6 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all shadow-md shadow-[#6366F1]/10 flex items-center gap-1.5 cursor-pointer"
+                className="h-10 px-6 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all shadow-md shadow-[var(--primary)]/10 flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus size={16} /> Save Design
               </button>
@@ -1042,80 +1066,81 @@ export default function DesignsPage() {
       )}
 
       {/* Add Colour Modal */}
-      <Dialog open={colorModalOpen} onOpenChange={setColorModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-1.5">
-              <Palette size={18} className="text-[#6366F1]" /> Add Colour Specification
-            </DialogTitle>
-          </DialogHeader>
+      <Modal
+        open={colorModalOpen}
+        onOpenChange={setColorModalOpen}
+        title={
+          <span className="flex items-center gap-1.5 font-bold text-[var(--text-primary)]">
+            <Palette size={18} className="text-[var(--primary)]" /> Add Colour Specification
+          </span>
+        }
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmitColor(onAddColourSubmit)} className="space-y-4 pt-2">
+          {/* Colour Name */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Colour Swatch Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Navy Blue, Emerald Green"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+              {...registerColor("colour_name")}
+            />
+            {colorErrors.colour_name && (
+              <p className="text-xs font-semibold text-red-500">
+                {colorErrors.colour_name.message}
+              </p>
+            )}
+          </div>
 
-          <form onSubmit={handleSubmitColor(onAddColourSubmit)} className="space-y-4 pt-2">
-            {/* Colour Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Colour Swatch Name *
-              </label>
+          {/* Colour Hex value */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Visual Swatch Hex
+            </label>
+            <div className="flex items-center gap-3">
               <input
-                type="text"
-                placeholder="e.g. Navy Blue, Emerald Green"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...registerColor("colour_name")}
+                type="color"
+                className="w-10 h-10 border border-[var(--input-border)] rounded-lg cursor-pointer p-0 bg-transparent"
+                {...registerColor("colour_hex")}
               />
-              {colorErrors.colour_name && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {colorErrors.colour_name.message}
-                </p>
-              )}
+              <span className="text-xs font-mono font-medium text-[var(--text-secondary)]">{colorHexValue}</span>
             </div>
+          </div>
 
-            {/* Colour Hex value */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Visual Swatch Hex
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  className="w-10 h-10 border border-[#D1D5DB] rounded-lg cursor-pointer p-0 bg-transparent"
-                  {...registerColor("colour_hex")}
-                />
-                <span className="text-xs font-mono font-medium text-[#475569]">{colorHexValue}</span>
-              </div>
-            </div>
+          {/* Colour Swatch R2 image (optional) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Fabric Pattern Photo (Optional)
+            </label>
+            <ImageUpload
+              value={colorImageUrl}
+              folder="design_colours"
+              onChange={(url) => setValueColor("image_url", url)}
+              onRemove={() => setValueColor("image_url", "")}
+              label="Upload Pattern Swatch"
+            />
+          </div>
 
-            {/* Colour Swatch R2 image (optional) */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Fabric Pattern Photo (Optional)
-              </label>
-              <ImageUpload
-                value={colorImageUrl}
-                folder="design_colours"
-                onChange={(url) => setValueColor("image_url", url)}
-                onRemove={() => setValueColor("image_url", "")}
-                label="Upload Pattern Swatch"
-              />
-            </div>
-
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setColorModalOpen(false)}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#6366F1]/10"
-              >
-                Add Colour
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div className="pt-4 border-t border-[var(--border-light)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setColorModalOpen(false)}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[var(--primary)]/10"
+            >
+              Add Colour
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Confirm Soft Delete */}
       <ConfirmDialog

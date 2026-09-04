@@ -8,13 +8,9 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
+import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, AlertTriangle, Package } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +18,7 @@ import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useERPQuery } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
+import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 
 // Form validation schema
 const materialSchema = z.object({
@@ -58,6 +55,7 @@ const UNITS = ["Meters", "Kilograms", "Pieces", "Cones", "Yards", "Rolls", "Sets
 export default function RawMaterialsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { lookupGst, hsnOptions } = useGstRateLookup();
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -129,6 +127,14 @@ export default function RawMaterialsPage() {
       is_active: material.is_active,
     });
     setModalOpen(true);
+  };
+
+  const handleHsnChange = (code: string) => {
+    setValue("hsn_code", code);
+    const resolved = lookupGst(code, 0);
+    if (resolved) {
+      setValue("gst_percent", String(resolved.gstPercent));
+    }
   };
 
   const onSubmit = async (values: MaterialFormValues) => {
@@ -247,7 +253,7 @@ export default function RawMaterialsPage() {
       key: "name",
       header: "Material Name",
       render: (row) => (
-        <span className="font-bold text-[#6366F1] cursor-pointer">
+        <span className="font-bold text-[var(--primary)] cursor-pointer">
           {row.name}
         </span>
       ),
@@ -265,14 +271,14 @@ export default function RawMaterialsPage() {
       key: "unit",
       header: "Measurement Unit",
       render: (row) => (
-        <span className="text-xs font-semibold text-[#475569]">{row.unit}</span>
+        <span className="text-xs font-semibold text-[var(--text-secondary)]">{row.unit}</span>
       ),
     },
     {
       key: "reorder",
       header: "Reorder Alert Level",
       render: (row) => (
-        <div className="flex items-center gap-1.5 font-bold font-mono text-xs text-[#E11D48]">
+        <div className="flex items-center gap-1.5 font-bold font-mono text-xs text-rose-600 dark:text-rose-400">
           <AlertTriangle size={13} />
           {row.reorder_level} {row.unit}
         </div>
@@ -294,7 +300,7 @@ export default function RawMaterialsPage() {
               e.stopPropagation();
               handleOpenEdit(row);
             }}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Material"
           >
             <Pencil size={15} />
@@ -304,7 +310,7 @@ export default function RawMaterialsPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-rose-500/20 rounded-lg hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center cursor-pointer transition-all"
             title="Delete Material"
           >
             <Trash2 size={15} />
@@ -332,191 +338,275 @@ export default function RawMaterialsPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      <DataTable
-        columns={columns}
-        data={filteredMaterials}
-        isLoading={loading}
-        total={filteredMaterials.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        onRowClick={(row) => router.push(`/master-data/raw-materials/${row.id}`)}
-        emptyMessage="No material categories configured. Click Add Material Type to create one."
-      />
+      <ModuleSubNav items={MASTER_DATA_NAV} />
 
-      {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingMaterial ? "Edit Material Configuration" : "Add Material Configuration"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Image Upload */}
-              <div className="sm:col-span-2 flex flex-col gap-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Material Image (Swatch/Photo)
-                </label>
-                <ImageUpload
-                  value={imageUrl}
-                  folder="material_thumbnails"
-                  onChange={(url) => setValue("image_url", url)}
-                  onRemove={() => setValue("image_url", "")}
-                  label="Upload Swatch / Photo"
-                />
-              </div>
-
-              {/* Material Name */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Material Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cotton Drill Navy 240GSM, YKK Zipper 8-inch"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs font-semibold text-[#DC2626]">
-                    {errors.name.message}
-                  </p>
+      {/* ── MOBILE: Raw Materials Card List ── */}
+      <div className="md:hidden space-y-3">
+        {filteredMaterials.length === 0 ? (
+          <div className="text-center py-10 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 text-sm text-[var(--text-muted)]">
+            No raw material types found.
+          </div>
+        ) : (
+          filteredMaterials.map((mat) => (
+            <div
+              key={mat.id}
+              onClick={() => router.push(`/master-data/raw-materials/${mat.id}`)}
+              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer active:scale-[0.99] transition-transform"
+            >
+              <div className="flex items-start gap-3">
+                {mat.image_url ? (
+                  <div
+                    className="w-16 h-16 rounded-xl border border-[var(--border)] overflow-hidden shrink-0 bg-[var(--page-bg)]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setZoomImageUrl(mat.image_url);
+                    }}
+                  >
+                    <img src={mat.image_url} alt={mat.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-xl border border-dashed border-[var(--border)] bg-[var(--page-bg)] flex items-center justify-center text-[var(--text-muted)] shrink-0">
+                    <Package size={20} />
+                  </div>
                 )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <Badge variant="purple" className="text-[10px] font-bold uppercase tracking-wider">
+                      {mat.category || "General"}
+                    </Badge>
+                    <StatusBadge active={mat.is_active} />
+                  </div>
+                  <h4 className="font-bold text-sm text-[var(--text-primary)] mt-1 truncate">{mat.name}</h4>
+                  <p className="text-xs text-[var(--text-muted)]">Unit: <span className="font-semibold text-[var(--text-secondary)]">{mat.unit}</span></p>
+                </div>
               </div>
 
-              {/* Category */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Material Category *
-                </label>
-                <select
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
-                  {...register("category")}
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <div className="flex items-center justify-between border-t border-[var(--border-light)] pt-2 text-xs">
+                <div className="flex items-center gap-1 font-bold font-mono text-rose-600 dark:text-rose-400">
+                  <AlertTriangle size={12} />
+                  <span>Reorder: {mat.reorder_level} {mat.unit}</span>
+                </div>
 
-              {/* Unit */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Measurement Unit *
-                </label>
-                <select
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all cursor-pointer font-semibold text-[#334155]"
-                  {...register("unit")}
-                >
-                  {UNITS.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Reorder Level */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Reorder Level Alert Threshold
-                </label>
-                <input
-                  type="number"
-                  placeholder="e.g. 50"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                  {...register("reorder_level")}
-                />
-              </div>
-
-              {/* HSN / SAC Code */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  HSN / SAC Code
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 5208, 6006"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
-                  {...register("hsn_code")}
-                />
-              </div>
-
-              {/* GST Percent */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  GST Tax Rate (%)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 5, 12, 18"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-semibold"
-                  {...register("gst_percent")}
-                />
-              </div>
-
-              {/* Description */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                  Specification / Notes
-                </label>
-                <textarea
-                  placeholder="Material specifications, yarn count, density, thread weight, etc."
-                  rows={2}
-                  className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                  {...register("description")}
-                />
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(mat)}
+                    className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(mat)}
+                    className="px-2.5 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
               </div>
             </div>
+          ))
+        )}
+      </div>
 
-            {/* Active Status */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F3F4F6]">
-              <div>
-                <h4 className="text-xs font-bold text-[#0F172A]">Active Material</h4>
-                <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                  Allows purchase and lot consumption tagging.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                {...register("is_active")}
+      {/* ── DESKTOP: DataTable ── */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={filteredMaterials}
+          isLoading={loading}
+          total={filteredMaterials.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          onRowClick={(row) => router.push(`/master-data/raw-materials/${row.id}`)}
+          emptyMessage="No material categories configured. Click Add Material Type to create one."
+        />
+      </div>
+
+      {/* Add/Edit Modal */}
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingMaterial ? "Edit Material Configuration" : "Add Material Configuration"}
+        maxWidth="max-w-xl"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Image Upload */}
+            <div className="sm:col-span-2 flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Material Image (Swatch/Photo)
+              </label>
+              <ImageUpload
+                value={imageUrl}
+                folder="material_thumbnails"
+                onChange={(url) => setValue("image_url", url)}
+                onRemove={() => setValue("image_url", "")}
+                label="Upload Swatch / Photo"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
+            {/* Material Name */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Material Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Cotton Drill Navy 240GSM, YKK Zipper 8-inch"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-xs font-semibold text-rose-500">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Category */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Material Category *
+              </label>
+              <select
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors cursor-pointer font-semibold"
+                {...register("category")}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Unit */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Measurement Unit *
+              </label>
+              <select
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors cursor-pointer font-semibold"
+                {...register("unit")}
               >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Material"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                {UNITS.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reorder Level */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Reorder Level Alert Threshold
+              </label>
+              <input
+                type="number"
+                placeholder="e.g. 50"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                {...register("reorder_level")}
+              />
+            </div>
+
+            {/* HSN / SAC Code */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                HSN / SAC Code
+              </label>
+              <input
+                type="text"
+                list="raw-materials-hsn-datalist"
+                placeholder="e.g. 5208, 6006"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
+                {...register("hsn_code")}
+                onChange={(e) => {
+                  register("hsn_code").onChange(e);
+                  handleHsnChange(e.target.value);
+                }}
+              />
+              <datalist id="raw-materials-hsn-datalist">
+                {hsnOptions.map((opt) => (
+                  <option key={opt.hsn_code} value={opt.hsn_code}>
+                    {opt.label}
+                  </option>
+                ))}
+              </datalist>
+            </div>
+
+            {/* GST Percent */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                GST Tax Rate (%)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 5, 12, 18"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
+                {...register("gst_percent")}
+              />
+            </div>
+
+            {/* Description */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Specification / Notes
+              </label>
+              <textarea
+                placeholder="Material specifications, yarn count, density, thread weight, etc."
+                rows={2}
+                className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors resize-none"
+                {...register("description")}
+              />
+            </div>
+          </div>
+
+          {/* Active Status */}
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border-light)]">
+            <div>
+              <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Material</h4>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                Allows purchase and lot consumption tagging.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+              {...register("is_active")}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[var(--primary)]/10"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Material"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Confirm Soft Delete */}
       <ConfirmDialog
@@ -528,25 +618,23 @@ export default function RawMaterialsPage() {
         loading={deleteLoading}
       />
 
-      {/* Image Preview Lightbox Dialog */}
-      <Dialog open={!!zoomImageUrl} onOpenChange={() => setZoomImageUrl(null)}>
-        <DialogContent className="max-w-2xl bg-[var(--card-bg)] border border-[var(--border)] p-4 sm:p-6 rounded-2xl flex flex-col items-center">
-          <DialogHeader className="w-full text-left border-b border-[var(--border)] pb-3 mb-4">
-            <DialogTitle className="text-base font-bold text-[var(--text-primary)]">
-              Material Image Preview
-            </DialogTitle>
-          </DialogHeader>
-          {zoomImageUrl && (
-            <div className="w-full flex items-center justify-center p-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <img
-                src={zoomImageUrl}
-                alt="Full size material image"
-                className="max-h-[70vh] object-contain rounded-lg shadow-md"
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Image Preview Lightbox Modal */}
+      <Modal
+        open={!!zoomImageUrl}
+        onOpenChange={() => setZoomImageUrl(null)}
+        title="Material Image Preview"
+        maxWidth="max-w-2xl"
+      >
+        {zoomImageUrl && (
+          <div className="w-full flex items-center justify-center p-2 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <img
+              src={zoomImageUrl}
+              alt="Full size material image"
+              className="max-h-[70vh] object-contain rounded-lg shadow-md"
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

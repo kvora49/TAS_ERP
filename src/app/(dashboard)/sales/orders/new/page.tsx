@@ -294,38 +294,38 @@ export default function NewSalesOrderPage() {
   }
 
   return (
-    <form onSubmit={handleSubmitOrder} className="space-y-6 pb-12">
+    <form onSubmit={handleSubmitOrder} className="space-y-6 pb-12 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E7EB] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => router.push("/sales/orders")}
-            className="p-2 border border-[#E5E7EB] hover:bg-slate-100 rounded-lg text-slate-600 cursor-pointer transition-all"
+            className="p-2 border border-[var(--border)] hover:bg-[var(--table-row-hover)] rounded-xl text-[var(--text-body)] cursor-pointer transition-all active:scale-95"
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">Record Sales Order Booking</h1>
-            <p className="text-xs text-[#64748B] font-medium">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Record Sales Order Booking</h1>
+            <p className="text-xs text-[var(--text-muted)] font-medium">
               Create an itemized customer booking with design, color, size set quantities, and locked rates
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => router.push("/sales/orders")}
-            className="text-xs font-semibold cursor-pointer"
+            className="border-[var(--border)] text-[var(--text-body)] text-xs font-semibold cursor-pointer"
           >
             Cancel
           </Button>
           <Button
             type="submit"
             disabled={saving}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2 text-xs font-semibold cursor-pointer shadow-sm"
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center gap-2 text-xs font-semibold cursor-pointer shadow-sm"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
             <span>Save Order Booking</span>
@@ -338,20 +338,20 @@ export default function NewSalesOrderPage() {
         {/* Left 2 Cols: Form & Line Items */}
         <div className="lg:col-span-2 space-y-6">
           {/* Card 1: Order Header */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-[var(--primary)]" />
               <span>Customer & Booking Header</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Customer */}
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-[#374151]">Customer *</label>
+                <label className="text-xs font-bold text-[var(--text-primary)]">Customer *</label>
                 <select
                   value={selectedPartyId}
                   onChange={(e) => setSelectedPartyId(e.target.value)}
-                  className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer"
                   required
                 >
                   <option value="">Choose Customer...</option>
@@ -365,62 +365,62 @@ export default function NewSalesOrderPage() {
 
               {/* Order Date */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#374151]">Order Date *</label>
+                <label className="text-xs font-bold text-[var(--text-primary)]">Order Date *</label>
                 <input
                   type="date"
                   value={orderDate}
                   onChange={(e) => setOrderDate(e.target.value)}
-                  className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                   required
                 />
               </div>
 
               {/* Expected Delivery */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#374151]">Expected Delivery Date</label>
+                <label className="text-xs font-bold text-[var(--text-primary)]">Expected Delivery Date</label>
                 <input
                   type="date"
                   value={expectedDelivery}
                   onChange={(e) => setExpectedDelivery(e.target.value)}
-                  className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* Notes */}
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-[#374151]">Special Instructions / Notes</label>
+                <label className="text-xs font-bold text-[var(--text-primary)]">Special Instructions / Notes</label>
                 <input
                   type="text"
                   placeholder="e.g. Packing specifications, dispatch terms, tag instructions..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-10 border border-[#E5E7EB] rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#6366F1] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
             </div>
           </div>
 
           {/* Card 2: Multi-Item Booking Grid */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-3">
               <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-[#6366F1]" />
-                <h2 className="text-sm font-bold text-[#0F172A]">Order Itemized Line Items</h2>
+                <Package className="h-5 w-5 text-[var(--primary)]" />
+                <h2 className="text-sm font-bold text-[var(--text-primary)]">Order Line Items ({items.length})</h2>
               </div>
               <Button
                 type="button"
                 onClick={handleAddItem}
-                className="bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#6366F1] flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                className="bg-[var(--primary-light)] hover:bg-[var(--primary-light)]/80 text-[var(--primary)] border border-[var(--primary)]/20 flex items-center gap-1.5 text-xs font-bold cursor-pointer active:scale-95"
               >
                 <Plus size={15} />
-                <span>Add Design Line Item</span>
+                <span>Add Design Line</span>
               </Button>
             </div>
 
             {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-slate-400 gap-2 border-2 border-dashed border-[#E2E8F0] rounded-xl bg-slate-50/50">
-                <Package className="h-8 w-8 text-slate-300" />
-                <span className="text-xs font-semibold">No line items added yet. Click &quot;+ Add Design Line Item&quot; above.</span>
+              <div className="flex flex-col items-center justify-center p-8 text-[var(--text-muted)] gap-2 border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--page-bg)]">
+                <Package className="h-8 w-8 text-[var(--text-faint)]" />
+                <span className="text-xs font-semibold">No line items added yet. Click &quot;+ Add Design Line&quot; above.</span>
               </div>
             ) : (
               <div className="space-y-4">
@@ -432,16 +432,16 @@ export default function NewSalesOrderPage() {
                   return (
                     <div
                       key={it.key}
-                      className="p-4 border border-[#E2E8F0] rounded-xl bg-slate-50/40 space-y-3.5 relative hover:border-[#CBD5E1] transition-all"
+                      className="p-3.5 sm:p-4 border border-[var(--border)] rounded-xl bg-[var(--page-bg)] space-y-3 relative hover:border-[var(--primary)]/30 transition-all"
                     >
-                      <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
-                        <span className="text-xs font-bold text-[#6366F1] font-mono uppercase tracking-wider">
+                      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-light)] pb-2">
+                        <span className="text-xs font-bold text-[var(--primary)] font-mono uppercase tracking-wider">
                           Item #{idx + 1}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(it.key)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-500/10 rounded cursor-pointer transition-colors"
                           title="Remove item"
                         >
                           <Trash2 size={16} />
@@ -452,7 +452,7 @@ export default function NewSalesOrderPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Design *</label>
+                            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Design *</label>
                             <button
                               type="button"
                               onClick={() => {
@@ -549,10 +549,10 @@ export default function NewSalesOrderPage() {
                       </div>
 
                       {/* Line Summary (Rate & Amount) */}
-                      <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#E2E8F0]">
+                      <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[var(--border-light)]">
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-slate-500">Unit Rate (₹):</span>
+                            <span className="text-xs font-semibold text-[var(--text-muted)]">Unit Rate (₹):</span>
                             <input
                               type="number"
                               min="0"
@@ -560,17 +560,17 @@ export default function NewSalesOrderPage() {
                               placeholder="0.00"
                               value={it.unit_rate || ""}
                               onChange={(e) => handleUnitRateChange(it.key, e.target.value)}
-                              className="w-24 h-8 px-2 border border-[#D1D5DB] rounded text-xs bg-white focus:ring-1 focus:ring-[#6366F1] outline-none font-bold text-slate-800"
+                              className="w-24 h-8 px-2 border border-[var(--input-border)] rounded text-xs bg-[var(--input-bg)] focus:ring-1 focus:ring-[var(--input-focus)] outline-none font-bold text-[var(--text-primary)]"
                             />
                           </div>
 
-                          <div className="text-xs font-semibold text-slate-600">
-                            Total Pcs: <span className="font-bold text-[#6366F1] font-mono">{it.total_qty}</span>
+                          <div className="text-xs font-semibold text-[var(--text-secondary)]">
+                            Total Pcs: <span className="font-bold text-[var(--primary)] font-mono">{it.total_qty}</span>
                           </div>
                         </div>
 
-                        <div className="text-xs font-bold text-slate-800">
-                          Line Total: <span className="text-[#16A34A] font-mono">{formatCurrency(it.line_amount)}</span>
+                        <div className="text-xs font-bold text-[var(--text-primary)]">
+                          Line Total: <span className="text-emerald-600 font-mono">{formatCurrency(it.line_amount)}</span>
                         </div>
                       </div>
                     </div>
@@ -583,33 +583,33 @@ export default function NewSalesOrderPage() {
 
         {/* Right 1 Col: Summary Card */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4 sticky top-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#64748B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-[#16A34A]" />
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4 sticky top-6">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
               <span>Booking Summary</span>
             </h2>
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center text-slate-600">
+              <div className="flex justify-between items-center text-[var(--text-muted)]">
                 <span className="text-xs font-semibold">Total Line Items:</span>
-                <span className="font-bold text-slate-800">{items.length}</span>
+                <span className="font-bold text-[var(--text-primary)]">{items.length}</span>
               </div>
 
-              <div className="flex justify-between items-center text-slate-600">
+              <div className="flex justify-between items-center text-[var(--text-muted)]">
                 <span className="text-xs font-semibold">Total Order Quantity:</span>
-                <span className="font-bold text-[#6366F1] font-mono">{totalOrderQty} pcs</span>
+                <span className="font-bold text-[var(--primary)] font-mono">{totalOrderQty} pcs</span>
               </div>
 
-              <div className="border-t border-[#F1F5F9] pt-3 flex justify-between items-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Est. Total Booking Value</span>
-                <span className="text-xl font-bold text-[#16A34A] font-mono">{formatCurrency(totalOrderValue)}</span>
+              <div className="border-t border-[var(--border-light)] pt-3 flex justify-between items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Est. Total Booking Value</span>
+                <span className="text-xl font-bold text-emerald-600 font-mono">{formatCurrency(totalOrderValue)}</span>
               </div>
             </div>
 
             <Button
               type="submit"
               disabled={saving}
-              className="w-full h-11 bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center justify-center gap-2 font-bold cursor-pointer shadow-sm rounded-lg"
+              className="w-full h-11 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center gap-2 font-bold cursor-pointer shadow-sm rounded-lg active:scale-95 transition-all"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
               <span>Save Order Booking</span>

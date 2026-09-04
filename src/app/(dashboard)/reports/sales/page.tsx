@@ -484,33 +484,58 @@ export default function SalesReportsPage() {
                         </div>
                       ) : (
                         <>
-                          <table className="w-full text-left text-xs">
-                            <thead>
-                              <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                                {["Return No.", "Date", "Customer", "Amount", "Status"].map(h => (
-                                  <th key={h} className={`py-2.5 px-4 ${h === "Amount" ? "text-right" : ""}`}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-                              {(data.returns ?? []).map((r: any) => (
-                                <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                                  <td className="py-2 px-4 font-mono font-bold text-[var(--primary)]">{r.return_number}</td>
-                                  <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.return_date)}</td>
-                                  <td className="py-2 px-4 font-semibold">{r.party}</td>
-                                  <td className="py-2 px-4 text-right font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</td>
-                                  <td className="py-2 px-4 capitalize text-[var(--text-muted)]">{r.status}</td>
+                          <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                                  {["Return No.", "Date", "Customer", "Amount", "Status"].map(h => (
+                                    <th key={h} className={`py-2.5 px-4 ${h === "Amount" ? "text-right" : ""}`}>{h}</th>
+                                  ))}
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
-                                <td colSpan={3} className="py-2.5 px-4 text-xs text-[var(--text-muted)]">Total Returns ({data.returns?.length})</td>
-                                <td className="py-2.5 px-4 text-right font-mono text-rose-600">{fmtINR(summary.totalReturns ?? 0)}</td>
-                                <td></td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
+                                {(data.returns ?? []).map((r: any) => (
+                                  <tr key={r.id} className="hover:bg-[var(--table-row-hover)] h-10">
+                                    <td className="py-2 px-4 font-mono font-bold text-[var(--primary)]">{r.return_number}</td>
+                                    <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.return_date)}</td>
+                                    <td className="py-2 px-4 font-semibold">{r.party}</td>
+                                    <td className="py-2 px-4 text-right font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</td>
+                                    <td className="py-2 px-4 capitalize text-[var(--text-muted)]">{r.status}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
+                                  <td colSpan={3} className="py-2.5 px-4 text-xs text-[var(--text-muted)]">Total Returns ({data.returns?.length})</td>
+                                  <td className="py-2.5 px-4 text-right font-mono text-rose-600">{fmtINR(summary.totalReturns ?? 0)}</td>
+                                  <td></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                          {/* Mobile Returns Cards */}
+                          <div className="md:hidden divide-y divide-[var(--border-light)]">
+                            {(data.returns ?? []).map((r: any) => (
+                              <div key={r.id} className="p-3.5 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono font-bold text-xs text-[var(--primary)]">{r.return_number}</span>
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-rose-500/20 bg-rose-500/10 text-rose-600 capitalize">{r.status}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{r.party}</span>
+                                  <span className="text-[var(--text-muted)] text-[11px]">{fmtDate(r.return_date)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                                  <span className="text-[var(--text-muted)]">Return Total</span>
+                                  <span className="font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</span>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+                              <span className="text-[var(--text-muted)]">Total Returns ({data.returns?.length})</span>
+                              <span className="font-mono text-rose-600">{fmtINR(summary.totalReturns ?? 0)}</span>
+                            </div>
+                          </div>
                         </>
                       )}
                     </div>
@@ -553,35 +578,69 @@ export default function SalesReportsPage() {
                   {/* ── Tab: Top Customers ── */}
                   {subTab === "top_customers" && (
                     <div>
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                            <th className="py-2.5 px-4">#</th>
-                            <th className="py-2.5 px-4">Customer</th>
-                            <th className="py-2.5 px-4 text-center">Bills</th>
-                            <th className="py-2.5 px-4 text-right">Revenue</th>
-                            <th className="py-2.5 px-4 text-right">Outstanding</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-                          {(data.topParties ?? []).map((p: any, i: number) => (
-                            <tr key={p.id} className="hover:bg-[var(--table-row-hover)] h-10">
-                              <td className="py-2 px-4 text-[var(--text-faint)] font-bold">{i + 1}</td>
-                              <td className="py-2 px-4 font-bold text-[var(--text-primary)]">
-                                {p.id && p.id !== "unknown"
-                                  ? <Link href={`/parties/${p.id}/ledger`} className="hover:underline text-[var(--primary)]">{p.name}</Link>
-                                  : p.name}
-                              </td>
-                              <td className="py-2 px-4 text-center text-[var(--text-muted)]">{p.bills}</td>
-                              <td className="py-2 px-4 text-right font-mono font-bold text-emerald-600">{fmtINR(p.total)}</td>
-                              <td className="py-2 px-4 text-right font-mono text-rose-600">{fmtINR(p.outstanding)}</td>
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                              <th className="py-2.5 px-4">#</th>
+                              <th className="py-2.5 px-4">Customer</th>
+                              <th className="py-2.5 px-4 text-center">Bills</th>
+                              <th className="py-2.5 px-4 text-right">Revenue</th>
+                              <th className="py-2.5 px-4 text-right">Outstanding</th>
                             </tr>
-                          ))}
-                          {(data.topParties ?? []).length === 0 && (
-                            <tr><td colSpan={5} className="py-8 text-center text-[var(--text-muted)]">No customers found.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
+                            {(data.topParties ?? []).map((p: any, i: number) => (
+                              <tr key={p.id} className="hover:bg-[var(--table-row-hover)] h-10">
+                                <td className="py-2 px-4 text-[var(--text-faint)] font-bold">{i + 1}</td>
+                                <td className="py-2 px-4 font-bold text-[var(--text-primary)]">
+                                  {p.id && p.id !== "unknown"
+                                    ? <Link href={`/parties/${p.id}/ledger`} className="hover:underline text-[var(--primary)]">{p.name}</Link>
+                                    : p.name}
+                                </td>
+                                <td className="py-2 px-4 text-center text-[var(--text-muted)]">{p.bills}</td>
+                                <td className="py-2 px-4 text-right font-mono font-bold text-emerald-600">{fmtINR(p.total)}</td>
+                                <td className="py-2 px-4 text-right font-mono text-rose-600">{fmtINR(p.outstanding)}</td>
+                              </tr>
+                            ))}
+                            {(data.topParties ?? []).length === 0 && (
+                              <tr><td colSpan={5} className="py-8 text-center text-[var(--text-muted)]">No customers found.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* Mobile Top Customers Cards */}
+                      <div className="md:hidden divide-y divide-[var(--border-light)]">
+                        {(data.topParties ?? []).length === 0 ? (
+                          <div className="py-8 text-center text-[var(--text-muted)] text-xs">No customers found.</div>
+                        ) : (
+                          (data.topParties ?? []).map((p: any, i: number) => (
+                            <div key={p.id} className="p-3.5 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-[var(--table-header-bg)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)]">{i + 1}</span>
+                                  {p.id && p.id !== "unknown" ? (
+                                    <Link href={`/parties/${p.id}/ledger`} className="font-bold text-xs text-[var(--primary)] hover:underline truncate max-w-[200px]">{p.name}</Link>
+                                  ) : (
+                                    <span className="font-bold text-xs text-[var(--text-primary)] truncate max-w-[200px]">{p.name}</span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{p.bills} bills</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--border-light)]">
+                                <div>
+                                  <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Revenue</p>
+                                  <p className="text-xs font-bold font-mono text-emerald-600">{fmtINR(p.total)}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Outstanding</p>
+                                  <p className="text-xs font-bold font-mono text-rose-600">{fmtINR(p.outstanding)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

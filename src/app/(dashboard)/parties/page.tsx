@@ -17,6 +17,8 @@ import { usePartiesList } from "@/hooks/queries/useParties";
 import { formatCurrency, cn } from "@/lib/utils";
 import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PARTIES_NAV } from "@/lib/moduleNav";
 
 interface Party {
   id: string;
@@ -217,10 +219,13 @@ export default function PartiesPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={PARTIES_NAV} />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Parties Directory</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Parties Directory</h1>
           <p className="text-xs text-[var(--text-muted)]">Manage suppliers, customers, and workers in one unified system.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

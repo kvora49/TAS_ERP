@@ -19,6 +19,7 @@ import { Modal } from "@/components/shared/Modal";
 import { PakkaBillTemplate } from "./PakkaBillTemplate";
 import { KachaBillTemplate } from "./KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -41,6 +42,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
   // Company profile for preview
   const { business, getEffectiveLogo } = useCompanyProfile();
+  const { lookupGst } = useGstRateLookup();
 
   // Brand config for preview
   const { data: brandData } = useERPQuery(["brand-config-preview"], async () => {
@@ -84,6 +86,11 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
             const json = await res.json();
             if (res.ok && json.found && json.stock) {
               const stk = json.stock;
+              const itemRate = Number(price || stk.designs?.sale_price || 0);
+              const itemHsn = stk.designs?.hsn_code || "6204";
+              const resolved = lookupGst(itemHsn, itemRate);
+              const taxPct = type === "kacha" ? 0 : (resolved ? resolved.gstPercent : 5);
+
               const newItem = {
                 id: crypto.randomUUID(),
                 finished_stock_id: stk.id,
@@ -94,10 +101,11 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 colour_name: stk.design_colours?.colour_name || "Standard",
                 size: size || stk.size || "Free Size",
                 quantity: 1,
-                rate: Number(price || stk.designs?.sale_price || 0),
+                rate: itemRate,
                 unit: "Pcs",
+                hsn_sac: itemHsn,
                 discount_percent: 0,
-                tax_percent: 0,
+                tax_percent: taxPct,
               };
               state.setItems([newItem]);
               toast.success(`Scanned item pre-filled: ${stk.designs?.name || "Item"} (Size: ${size || stk.size || "Free Size"})`);
@@ -109,7 +117,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         fetchInitialItem();
       }
     }
-  }, [mode]);
+  }, [mode, lookupGst, type]);
 
   // Sync showEway check if editing and transporter/vehicle exists
   useEffect(() => {
@@ -417,7 +425,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   const brandConfig = billConfigData?.config || brandData?.brandConfig || null;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-6 pb-20 md:pb-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+    <div className="space-y-6 max-w-5xl mx-auto p-3.5 sm:p-6 pb-20 md:pb-6 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
 
       {/* Back button and title */}
       <div className="flex items-center gap-4">
@@ -511,60 +519,108 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                 <div className="bg-[var(--table-header-bg)] border-b border-[var(--border)] p-3">
                   <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block font-mono">Items In Invoice ({state.items.length})</span>
                 </div>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] text-[var(--text-muted)] uppercase font-mono font-bold tracking-wider">
-                      <th className="py-2 px-3">Item</th>
-                      <th className="py-2 px-3">Details</th>
-                      <th className="py-2 px-3">Size</th>
-                      <th className="py-2 px-3 text-right">Qty</th>
-                      <th className="py-2 px-3 text-right">Rate</th>
-                      <th className="py-2 px-3 text-right">Dis %</th>
-                      {effectiveType === "pakka" && <th className="py-2 px-3 text-right">Tax %</th>}
-                      <th className="py-2 px-3 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
-                    {state.items.map((it: any, idx: number) => {
-                      const design = designs.find((d: any) => d.id === it.design_id);
-                      const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
-                      const isFabric = it.item_type === "fabric" || !!it.material_type_id || !!it.material_type;
-                      const itemName = it.item_name || design?.name || (isFabric ? "Fabric Material" : "Item");
-                      const itemCode = it.design_code || design?.design_number;
 
-                      let detailsDisplay = colour?.colour_name || it.colour_name || "—";
-                      if (isFabric) {
-                        if (it.rolls?.length) {
-                          detailsDisplay = `${it.rolls.length} Rolls: ` + it.rolls.map((r: any) => `#${r.roll_number} (${r.meters}m)`).join(", ");
-                        } else {
-                          detailsDisplay = it.description || "Fabric Material";
-                        }
-                      } else if (it.size_quantities && Object.keys(it.size_quantities).length > 0) {
-                        const sq = Object.entries(it.size_quantities)
-                          .filter(([, q]) => Number(q) > 0)
-                          .map(([s, q]) => `${s}:${q}`)
-                          .join(", ");
-                        if (sq) detailsDisplay += ` [Sizes: ${sq}]`;
+                {/* Mobile View: Item Cards */}
+                <div className="md:hidden divide-y divide-[var(--border)] bg-[var(--card-bg)]">
+                  {state.items.map((it: any, idx: number) => {
+                    const design = designs.find((d: any) => d.id === it.design_id);
+                    const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
+                    const isFabric = it.item_type === "fabric" || !!it.material_type_id || !!it.material_type;
+                    const itemName = it.item_name || design?.name || (isFabric ? "Fabric Material" : "Item");
+                    const itemCode = it.design_code || design?.design_number;
+
+                    let detailsDisplay = colour?.colour_name || it.colour_name || "—";
+                    if (isFabric) {
+                      if (it.rolls?.length) {
+                        detailsDisplay = `${it.rolls.length} Rolls: ` + it.rolls.map((r: any) => `#${r.roll_number} (${r.meters}m)`).join(", ");
+                      } else {
+                        detailsDisplay = it.description || "Fabric Material";
                       }
+                    } else if (it.size_quantities && Object.keys(it.size_quantities).length > 0) {
+                      const sq = Object.entries(it.size_quantities)
+                        .filter(([, q]) => Number(q) > 0)
+                        .map(([s, q]) => `${s}:${q}`)
+                        .join(", ");
+                      if (sq) detailsDisplay += ` [Sizes: ${sq}]`;
+                    }
 
-                      return (
-                        <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                          <td className="py-2 px-3 text-[var(--primary)] font-mono font-bold">
-                            {itemName}
-                            {itemCode && <span className="text-[10px] text-[var(--text-muted)] font-normal block font-sans">Art: {itemCode}</span>}
-                          </td>
-                          <td className="py-2 px-3 text-[var(--text-secondary)]">{detailsDisplay}</td>
-                          <td className="py-2 px-3 font-mono">{it.size || (isFabric ? "Meters" : "Pcs")}</td>
-                          <td className="py-2 px-3 text-right font-mono">{it.quantity} {it.unit || (isFabric ? "MTR" : "PCS")}</td>
-                          <td className="py-2 px-3 text-right font-mono">₹{it.rate}</td>
-                          <td className="py-2 px-3 text-right font-mono">{it.discount_percent || 0}%</td>
-                          {effectiveType === "pakka" && <td className="py-2 px-3 text-right font-mono">{it.tax_percent || 0}%</td>}
-                          <td className="py-2 px-3 text-right font-mono font-bold">₹{it.amount}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                    return (
+                      <div key={idx} className="p-3 space-y-1.5 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-bold text-[var(--text-primary)] font-mono">{itemName}</span>
+                            {itemCode && <span className="text-[10px] text-[var(--text-muted)] block font-sans">Art: {itemCode}</span>}
+                          </div>
+                          <span className="font-bold font-mono text-[var(--primary)] text-sm">₹{it.amount}</span>
+                        </div>
+                        <div className="text-[11px] text-[var(--text-secondary)]">{detailsDisplay}</div>
+                        <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] border-t border-[var(--border-light)] pt-1">
+                          <span>Size: <strong className="text-[var(--text-primary)]">{it.size || (isFabric ? "Meters" : "Pcs")}</strong></span>
+                          <span>Qty: <strong className="text-[var(--text-primary)]">{it.quantity} {it.unit || (isFabric ? "MTR" : "PCS")}</strong></span>
+                          <span>Rate: <strong className="text-[var(--text-primary)]">₹{it.rate}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] text-[var(--text-muted)] uppercase font-mono font-bold tracking-wider">
+                        <th className="py-2 px-3">Item</th>
+                        <th className="py-2 px-3">Details</th>
+                        <th className="py-2 px-3">Size</th>
+                        <th className="py-2 px-3 text-right">Qty</th>
+                        <th className="py-2 px-3 text-right">Rate</th>
+                        <th className="py-2 px-3 text-right">Dis %</th>
+                        {effectiveType === "pakka" && <th className="py-2 px-3 text-right">Tax %</th>}
+                        <th className="py-2 px-3 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
+                      {state.items.map((it: any, idx: number) => {
+                        const design = designs.find((d: any) => d.id === it.design_id);
+                        const colour = design?.design_colours?.find((c: any) => c.id === it.colour_id);
+                        const isFabric = it.item_type === "fabric" || !!it.material_type_id || !!it.material_type;
+                        const itemName = it.item_name || design?.name || (isFabric ? "Fabric Material" : "Item");
+                        const itemCode = it.design_code || design?.design_number;
+
+                        let detailsDisplay = colour?.colour_name || it.colour_name || "—";
+                        if (isFabric) {
+                          if (it.rolls?.length) {
+                            detailsDisplay = `${it.rolls.length} Rolls: ` + it.rolls.map((r: any) => `#${r.roll_number} (${r.meters}m)`).join(", ");
+                          } else {
+                            detailsDisplay = it.description || "Fabric Material";
+                          }
+                        } else if (it.size_quantities && Object.keys(it.size_quantities).length > 0) {
+                          const sq = Object.entries(it.size_quantities)
+                            .filter(([, q]) => Number(q) > 0)
+                            .map(([s, q]) => `${s}:${q}`)
+                            .join(", ");
+                          if (sq) detailsDisplay += ` [Sizes: ${sq}]`;
+                        }
+
+                        return (
+                          <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                            <td className="py-2 px-3 text-[var(--primary)] font-mono font-bold">
+                              {itemName}
+                              {itemCode && <span className="text-[10px] text-[var(--text-muted)] font-normal block font-sans">Art: {itemCode}</span>}
+                            </td>
+                            <td className="py-2 px-3 text-[var(--text-secondary)]">{detailsDisplay}</td>
+                            <td className="py-2 px-3 font-mono">{it.size || (isFabric ? "Meters" : "Pcs")}</td>
+                            <td className="py-2 px-3 text-right font-mono">{it.quantity} {it.unit || (isFabric ? "MTR" : "PCS")}</td>
+                            <td className="py-2 px-3 text-right font-mono">₹{it.rate}</td>
+                            <td className="py-2 px-3 text-right font-mono">{it.discount_percent || 0}%</td>
+                            {effectiveType === "pakka" && <td className="py-2 px-3 text-right font-mono">{it.tax_percent || 0}%</td>}
+                            <td className="py-2 px-3 text-right font-mono font-bold">₹{it.amount}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Totals Summary */}

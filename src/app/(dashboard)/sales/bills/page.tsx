@@ -34,6 +34,8 @@ import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { SALES_NAV } from "@/lib/moduleNav";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -430,7 +432,8 @@ export default function SalesBillsListPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5 sm:gap-6">
+      <ModuleSubNav items={SALES_NAV} />
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex flex-col gap-1">

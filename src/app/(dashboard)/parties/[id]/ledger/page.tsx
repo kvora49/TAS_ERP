@@ -8,6 +8,8 @@ import { formatDate, cn } from "@/lib/utils";
 import { ManualNoteModal } from "@/components/sales/ManualNoteModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { counterVariants } from "@/lib/animations";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PARTIES_NAV } from "@/lib/moduleNav";
 
 interface Allocation {
   billNo: string;
@@ -188,7 +190,10 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
     : "customer";
 
   return (
-    <div className="p-6 space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={PARTIES_NAV} />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">

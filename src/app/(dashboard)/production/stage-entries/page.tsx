@@ -20,6 +20,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { PRODUCTION_NAV } from "@/lib/moduleNav";
 
 interface StageEntry {
   id: string;
@@ -117,18 +119,18 @@ export default function StageEntriesListPage() {
   const totalLaborCost = entries.reduce((acc, curr) => acc + curr.total_job_work_amount, 0);
 
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
+    <div className="space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Breadcrumb and Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
-            <Link href="/" className="hover:text-[var(--primary)] transition-colors">
+            <Link href="/production" className="hover:text-[var(--primary)] transition-colors">
               Production
             </Link>
             <ChevronRight size={12} className="text-[var(--text-faint)]" />
             <span className="text-[var(--text-secondary)]">Stage Entries</span>
           </nav>
-          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Stage Entries
           </h1>
         </div>
@@ -142,6 +144,8 @@ export default function StageEntriesListPage() {
           Log Stage Entry
         </button>
       </div>
+
+      <ModuleSubNav items={PRODUCTION_NAV} />
 
       {/* ── MOBILE: snap-scroll KPI cards ── */}
       <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">

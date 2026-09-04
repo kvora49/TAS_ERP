@@ -85,7 +85,7 @@ const PRESET_CATEGORIES = [
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending: { label: "Pending Inspection", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
   in_rework: { label: "In Rework", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-  sent_for_rework: { label: "Sent for Rework", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  sent_for_rework: { label: "In Rework", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
   reworked_fixed: { label: "Reworked & Fixed (Grade A)", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   rework_failed: { label: "Rework Failed", color: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
   moved_to_b_grade: { label: "Moved to B-Grade Stock", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" },
@@ -430,7 +430,12 @@ export default function DefectManagement({
     });
 
     const payload: any = {
-      resolution_type: resActionType,
+      resolution_type:
+        resActionType === "partial_rework_split"
+          ? "partial_recovery"
+          : resActionType === "scrapped_waste"
+          ? "worker_deduction_and_scrap"
+          : resActionType,
       resolution_date: resDate,
       recovered_size_quantities: recoveredMap,
       b_grade_size_quantities: bGradeMap,
@@ -470,7 +475,7 @@ export default function DefectManagement({
 
     defects.forEach((d) => {
       totalLogged += Number(d.quantity || 0);
-      if (d.status === "in_rework") {
+      if (d.status === "in_rework" || d.status === "sent_for_rework") {
         inReworkQty += Number(d.quantity || 0);
       }
       (d.resolutions || []).forEach((r) => {

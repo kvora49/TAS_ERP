@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { QuickAddDesignModal } from "@/components/forms/QuickAddDesignModal";
 import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
+import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -520,6 +521,7 @@ interface PurchaseFormProps {
 export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { lookupGst, hsnOptions } = useGstRateLookup();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const [godowns, setGodowns] = useState<any[]>([]);
@@ -814,11 +816,19 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const handleMaterialChange = (index: number, matId: string) => {
     const selectedMat = materialTypes.find((m) => m.id === matId);
     if (selectedMat) {
-      setValue(`items.${index}.hsn_sac`, selectedMat.hsn_code || "");
+      const matHsn = selectedMat.hsn_code || "";
+      setValue(`items.${index}.hsn_sac`, matHsn);
       setValue(`items.${index}.unit`, selectedMat.unit || "Meters");
-      if (selectedMat.gst_percent !== undefined && selectedMat.gst_percent !== null) {
-        setValue(`items.${index}.gst_percent`, Number(selectedMat.gst_percent));
+
+      const currentRate = Number(watchItems[index]?.rate || 0);
+      const fallbackPct = selectedMat.gst_percent !== undefined && selectedMat.gst_percent !== null ? Number(selectedMat.gst_percent) : undefined;
+      const resolved = lookupGst(matHsn, currentRate, fallbackPct);
+      if (resolved) {
+        setValue(`items.${index}.gst_percent`, resolved.gstPercent);
+      } else if (fallbackPct !== undefined) {
+        setValue(`items.${index}.gst_percent`, fallbackPct);
       }
+
       if (selectedMat.category) {
         const cat = selectedMat.category.toLowerCase();
         if (cat.includes("fabric")) {
@@ -830,6 +840,17 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
       // Trigger recalc
       recalcItem(index);
     }
+  };
+
+  // Handle manual HSN change on any item line
+  const handleHsnChange = (index: number, newHsn: string) => {
+    setValue(`items.${index}.hsn_sac`, newHsn);
+    const currentRate = Number(watchItems[index]?.rate || 0);
+    const resolved = lookupGst(newHsn, currentRate);
+    if (resolved) {
+      setValue(`items.${index}.gst_percent`, resolved.gstPercent);
+    }
+    recalcItem(index);
   };
 
   const handleCreateMaterialType = async (e: React.FormEvent) => {
@@ -891,7 +912,16 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     const qty = Number(watchItems[index]?.quantity || 0);
     const rate = Number(watchItems[index]?.rate || 0);
     const disc = Number(watchItems[index]?.discount_percent || 0);
-    const gstPct = Number(watchItems[index]?.gst_percent || 0);
+    let gstPct = Number(watchItems[index]?.gst_percent || 0);
+
+    const itemHsn = watchItems[index]?.hsn_sac;
+    if (itemHsn) {
+      const resolved = lookupGst(itemHsn, rate);
+      if (resolved && resolved.isAutoTier && resolved.gstPercent !== gstPct) {
+        gstPct = resolved.gstPercent;
+        setValue(`items.${index}.gst_percent`, gstPct);
+      }
+    }
 
     const taxableValue = qty * rate * (1 - disc / 100);
     const gstAmount = watchGstType === "with_gst" ? (taxableValue * gstPct) / 100 : 0;
@@ -1331,10 +1361,16 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   const selectedDes = designs.find((d) => d.id === val);
                                   if (selectedDes?.hsn_code) {
                                     setValue(`items.${index}.hsn_sac`, selectedDes.hsn_code);
+                                    const currentRate = Number(watchItems[index]?.rate || 0);
+                                    const resolved = lookupGst(selectedDes.hsn_code, currentRate);
+                                    if (resolved) {
+                                      setValue(`items.${index}.gst_percent`, resolved.gstPercent);
+                                    }
                                   }
                                   if (selectedDes?.design_colours?.length) {
                                     setValue(`items.${index}.colour_id`, selectedDes.design_colours[0].id);
                                   }
+                                  recalcItem(index);
                                 }}
                                 designs={designs}
                                 disabled={loadingDesigns}
@@ -1367,8 +1403,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                               <input
                                 type="text"
+                                list="purchase-hsn-datalist"
                                 placeholder="6109"
-                                {...register(`items.${index}.hsn_sac` as const)}
+                                value={watchItems[index]?.hsn_sac || ""}
+                                onChange={(e) => handleHsnChange(index, e.target.value)}
                                 className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                               />
                             </div>
@@ -1453,8 +1491,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                               <input
                                 type="text"
+                                list="purchase-hsn-datalist"
                                 placeholder="HSN/SAC"
-                                {...register(`items.${index}.hsn_sac` as const)}
+                                value={watchItems[index]?.hsn_sac || ""}
+                                onChange={(e) => handleHsnChange(index, e.target.value)}
                                 className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                               />
                             </div>
@@ -1566,8 +1606,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                               <input
                                 type="text"
+                                list="purchase-hsn-datalist"
                                 placeholder="e.g. 520811"
-                                {...register(`items.${index}.hsn_sac` as const)}
+                                value={watchItems[index]?.hsn_sac || ""}
+                                onChange={(e) => handleHsnChange(index, e.target.value)}
                                 className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                               />
                             </div>
@@ -1658,8 +1700,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                               <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">HSN/SAC</label>
                               <input
                                 type="text"
+                                list="purchase-hsn-datalist"
                                 placeholder="HSN"
-                                {...register(`items.${index}.hsn_sac` as const)}
+                                value={watchItems[index]?.hsn_sac || ""}
+                                onChange={(e) => handleHsnChange(index, e.target.value)}
                                 className="w-full h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                               />
                             </div>
@@ -2328,6 +2372,12 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             setValue(`items.${quickAddDesignItemIndex}.design_id`, newDesign.id, { shouldValidate: true });
             if (newDesign.hsn_code) {
               setValue(`items.${quickAddDesignItemIndex}.hsn_sac`, newDesign.hsn_code);
+              const currentRate = Number(watchItems[quickAddDesignItemIndex]?.rate || 0);
+              const resolved = lookupGst(newDesign.hsn_code, currentRate);
+              if (resolved) {
+                setValue(`items.${quickAddDesignItemIndex}.gst_percent`, resolved.gstPercent);
+              }
+              recalcItem(quickAddDesignItemIndex);
             }
             if (newDesign.design_colours && newDesign.design_colours.length > 0) {
               setValue(`items.${quickAddDesignItemIndex}.colour_id`, newDesign.design_colours[0].id);
@@ -2341,6 +2391,14 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           }
         }}
       />
+
+      <datalist id="purchase-hsn-datalist">
+        {hsnOptions.map((opt) => (
+          <option key={opt.hsn_code} value={opt.hsn_code}>
+            {opt.label}
+          </option>
+        ))}
+      </datalist>
     </form>
   );
 }

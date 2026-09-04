@@ -56,13 +56,32 @@ export async function GET(
       .eq("business_id", businessId)
       .order("sequence_no", { ascending: true });
 
-    // 4. Fetch Stage Entries completed for this lot
+    // 4. Fetch Stage Entries completed for this lot (chronological order: first logged to last logged)
     const { data: rawStageEntries, error: entriesError } = await supabase
       .from("stage_entries")
       .select("*")
       .eq("lot_id", id)
       .eq("business_id", businessId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
+
+    // Extract unique colours from lot, design_colours, and lot_size_quantities
+    const colourMap = new Map();
+    if (lot.colour) colourMap.set(lot.colour.id || "default", lot.colour);
+
+    if (lot.design_id) {
+      const { data: designColours } = await supabase
+        .from("design_colours")
+        .select("id, colour_name, colour_hex")
+        .eq("design_id", lot.design_id);
+      (designColours || []).forEach((dc: any) => {
+        colourMap.set(dc.id, { id: dc.id, colour_name: dc.colour_name, hex_code: dc.colour_hex });
+      });
+    }
+
+    (sizeQuantities || []).forEach((sq: any) => {
+      if (sq.colour) colourMap.set(sq.colour.id, sq.colour);
+    });
+    const colours = Array.from(colourMap.values());
 
     let stageEntries: any[] = [];
     if (!entriesError && rawStageEntries && rawStageEntries.length > 0) {
@@ -91,20 +110,17 @@ export async function GET(
         }
       }
 
-      stageEntries = rawStageEntries.map((e) => ({
-        ...e,
-        worker: e.worker_id ? workersMap.get(e.worker_id) : null,
-        stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
-      }));
+      stageEntries = rawStageEntries.map((e) => {
+        const cId = e.colour_id || e.custom_field_values?.colour_id || e.custom_field_values?.color_id || null;
+        return {
+          ...e,
+          colour_id: cId,
+          colour: cId ? colourMap.get(cId) || null : null,
+          worker: e.worker_id ? workersMap.get(e.worker_id) : null,
+          stage: e.lot_stage_id ? stagesMap.get(e.lot_stage_id) : null,
+        };
+      });
     }
-
-    // Extract unique colours from lot and lot_size_quantities
-    const colourMap = new Map();
-    if (lot.colour) colourMap.set(lot.colour.id || "default", lot.colour);
-    (sizeQuantities || []).forEach((sq: any) => {
-      if (sq.colour) colourMap.set(sq.colour.id, sq.colour);
-    });
-    const colours = Array.from(colourMap.values());
     const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
 
     // Extract first image as image_url
@@ -267,18 +283,52 @@ export async function GET(
       .eq("business_id", businessId)
       .maybeSingle();
 
-    // 8. Fetch Stage Workers
+    // 8. Fetch Stage Workers with complete worker rate info
     const stageIds = (stages || []).map((s: any) => s.id);
-    const { data: stageWorkers } = stageIds.length > 0
-      ? await supabase
-          .from("lot_stage_workers")
-          .select(`
-            *,
-            worker:workers(id, name, worker_id)
-          `)
-          .in("lot_stage_id", stageIds)
-          .eq("business_id", businessId)
-      : { data: [] };
+    let stageWorkers: any[] = [];
+    if (stageIds.length > 0) {
+      const { data: rawStageWorkers } = await supabase
+        .from("lot_stage_workers")
+        .select("id, lot_stage_id, worker_id")
+        .in("lot_stage_id", stageIds)
+        .eq("business_id", businessId);
+
+      if (rawStageWorkers && rawStageWorkers.length > 0) {
+        const swWorkerIds = rawStageWorkers.map((sw: any) => sw.worker_id).filter(Boolean);
+        const [workersRes, partiesRes] = await Promise.all([
+          supabase
+            .from("workers")
+            .select("id, name, worker_id, default_rate")
+            .in("id", swWorkerIds),
+          supabase
+            .from("parties")
+            .select("id, name, code, wage_rate, wage_type")
+            .in("id", swWorkerIds),
+        ]);
+
+        const wMap = new Map((workersRes.data || []).map((w: any) => [w.id, w]));
+        const pMap = new Map((partiesRes.data || []).map((p: any) => [p.id, p]));
+
+        stageWorkers = rawStageWorkers.map((sw: any) => {
+          const w = wMap.get(sw.worker_id);
+          const p = pMap.get(sw.worker_id);
+          const rate = p?.wage_rate !== null && p?.wage_rate !== undefined
+            ? Number(p.wage_rate)
+            : (w?.default_rate ? Number(w.default_rate) : 0);
+          return {
+            ...sw,
+            worker: {
+              id: sw.worker_id,
+              name: p?.name || w?.name || "Worker",
+              worker_id: p?.code || w?.worker_id || "WRK",
+              default_rate: rate,
+              wage_rate: rate,
+              wage_type: p?.wage_type || "piece_rate",
+            },
+          };
+        });
+      }
+    }
 
     // Map stageWorkers into stages
     const stageWorkersMap = new Map();

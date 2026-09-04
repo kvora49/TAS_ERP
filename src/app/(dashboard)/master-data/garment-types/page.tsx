@@ -1,23 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, RefreshCw, Shirt, ClipboardList } from "lucide-react";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
+import { Pencil, Trash2, Plus, Shirt, ClipboardList } from "lucide-react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGarmentTypesList } from "@/hooks/queries/useMasterData";
 import { DeleteMasterItemDialog } from "@/components/shared/DeleteMasterItemDialog";
 
 // Zod schemas
@@ -53,8 +51,7 @@ interface GarmentType {
 }
 
 export default function GarmentTypesPage() {
-  const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
   // Centralized Modal
@@ -64,7 +61,10 @@ export default function GarmentTypesPage() {
   // Delete Garment Type Modal
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingType, setDeletingType] = useState<GarmentType | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // TanStack Query
+  const { data: garmentTypesData, isLoading: loading, error, refetch } = useGarmentTypesList();
+  const garmentTypes: GarmentType[] = garmentTypesData?.garmentTypes || [];
 
   // Unified Form Hook
   const {
@@ -88,31 +88,13 @@ export default function GarmentTypesPage() {
     name: "fields",
   });
 
-  const watchFieldsList = watch("fields") || [];
-
-  const fetchGarmentTypes = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/master-data/garment-types");
-      if (!res.ok) throw new Error("Failed to load garment types");
-      const result = await res.json();
-      setGarmentTypes(result.garmentTypes || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching garment types");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGarmentTypes();
-  }, []);
+  const watchFieldsList = watch("fields");
 
   const handleOpenAdd = () => {
     setEditingType(null);
     reset({
       name: "",
-      fields: [{ name: "Size / Dimensions", type: "text", options: "" }],
+      fields: [],
     });
     setModalOpen(true);
   };
@@ -121,11 +103,13 @@ export default function GarmentTypesPage() {
     setEditingType(type);
     reset({
       name: type.name,
-      fields: type.specTemplate?.fields?.map((f) => ({
-        name: f.name,
-        type: f.type,
-        options: f.options || "",
-      })) || [{ name: "Size / Dimensions", type: "text", options: "" }],
+      fields: type.specTemplate?.fields
+        ? type.specTemplate.fields.map((f) => ({
+            name: f.name,
+            type: f.type,
+            options: f.options || "",
+          }))
+        : [],
     });
     setModalOpen(true);
   };
@@ -137,117 +121,72 @@ export default function GarmentTypesPage() {
 
   const onSubmitType = async (data: GarmentTypeFormValues) => {
     try {
-      const url = editingType
-        ? `/api/master-data/garment-types/${editingType.id}`
-        : "/api/master-data/garment-types";
-      const method = editingType ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.name }),
-      });
-
-      if (!res.ok) {
-        const errorResult = await res.json();
-        throw new Error(errorResult.error || "Failed to save garment type");
-      }
-
-      const typeRes = await res.json();
-      const savedGarmentTypeId = editingType ? editingType.id : typeRes.garmentType?.id;
-
-      if (savedGarmentTypeId) {
-        // Save/Update the Spec Template
-        const existingSpec = editingType?.specTemplate;
-        const specUrl = existingSpec
-          ? `/api/master-data/design-spec-templates/${existingSpec.id}`
-          : "/api/master-data/design-spec-templates";
-        const specMethod = existingSpec ? "PUT" : "POST";
-
-        const specPayload = existingSpec
-          ? { fields: data.fields }
-          : { garment_type_id: savedGarmentTypeId, fields: data.fields };
-
-        const specRes = await fetch(specUrl, {
-          method: specMethod,
+      if (editingType) {
+        const res = await fetch(`/api/master-data/garment-types/${editingType.id}`, {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(specPayload),
+          body: JSON.stringify(data),
         });
-
-        if (!specRes.ok) {
-          console.error("Warning: Garment type saved, but spec template configuration failed.");
-        }
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.error || "Failed to update Garment Type");
+        toast.success("Garment Type updated successfully");
+      } else {
+        const res = await fetch("/api/master-data/garment-types", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.error || "Failed to create Garment Type");
+        toast.success("Garment Type created successfully");
       }
 
-      toast.success(
-        editingType
-          ? "Garment type updated successfully"
-          : "Garment type created successfully"
-      );
       setModalOpen(false);
-      fetchGarmentTypes();
+      queryClient.invalidateQueries({ queryKey: ["master-data", "garment-types"] });
     } catch (err: any) {
       toast.error(err.message || "Something went wrong");
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!deletingType) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`/api/master-data/garment-types/${deletingType.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const errorResult = await res.json();
-        throw new Error(errorResult.error || "Failed to delete garment type");
-      }
-
-      toast.success("Garment type deleted successfully");
-      setDeleteOpen(false);
-      fetchGarmentTypes();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete garment type");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  const filtered = garmentTypes.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = garmentTypes.filter((g) =>
+    g.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const columns: DataTableColumn<GarmentType>[] = [
     {
       key: "name",
-      header: "Garment Type Name",
+      header: "Garment Type",
       render: (row) => (
-        <div className="flex items-center gap-2 font-bold text-[#0F172A]">
-          <Shirt size={16} className="text-[#6366F1]" />
-          <span>{row.name}</span>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+            <Shirt size={16} />
+          </div>
+          <span className="font-bold text-[var(--text-primary)] text-sm">{row.name}</span>
         </div>
       ),
     },
     {
-      key: "specTemplate",
-      header: "Design Spec Template Fields",
+      key: "fields",
+      header: "Design Spec Template",
       render: (row) => {
-        const spec = row.specTemplate;
-        if (spec && spec.fields && spec.fields.length > 0) {
+        const specFields = row.specTemplate?.fields || [];
+        if (specFields.length > 0) {
           return (
-            <div className="flex flex-wrap gap-1 max-w-[280px] sm:max-w-xs md:max-w-sm py-1">
-              {spec.fields.map((f, idx) => (
-                <Badge key={idx} variant="purple" className="text-[10px] font-bold">
-                  {f.name} ({f.type})
-                </Badge>
+            <div className="flex flex-wrap gap-1.5 max-w-lg">
+              {specFields.map((f, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-secondary)] px-2 py-0.5 rounded"
+                >
+                  <span>{f.name}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-mono">({f.type})</span>
+                </span>
               ))}
             </div>
           );
         }
-
         return (
-          <span className="text-xs text-[#94A3B8] font-bold italic">No fields defined</span>
+          <span className="text-xs text-[var(--text-faint)] font-medium italic">No fields defined</span>
         );
       },
     },
@@ -255,7 +194,7 @@ export default function GarmentTypesPage() {
       key: "created_at",
       header: "Date Created",
       render: (row) => (
-        <span className="text-[#64748B] font-semibold text-xs">
+        <span className="text-[var(--text-muted)] font-semibold text-xs">
           {new Date(row.created_at).toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
@@ -272,14 +211,14 @@ export default function GarmentTypesPage() {
         <div className="flex items-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => handleOpenEdit(row)}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Type"
           >
             <Pencil size={15} />
           </button>
           <button
             onClick={() => handleOpenDelete(row)}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-red-500/20 rounded-lg hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
             title="Delete Type"
           >
             <Trash2 size={15} />
@@ -290,18 +229,9 @@ export default function GarmentTypesPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
-          <Link href="/" className="hover:text-[#0F172A] transition-colors">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span>Master Data</span>
-          <span>/</span>
-          <span className="text-[#0F172A]">Garment Types</span>
-        </div>
-      </div>
+    <div className="space-y-4 sm:space-y-6">
+      {/* ── Sub-Navigation ── */}
+      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       <PageHeader
         title="Garment Types"
@@ -314,203 +244,222 @@ export default function GarmentTypesPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
-      {/* ── MOBILE: Garment Types Card List ── */}
-      <div className="md:hidden space-y-3">
-        {filtered.map((gt) => {
-          const fieldCount = gt.specTemplate?.fields?.length || 0;
-          return (
-            <div key={gt.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
-                    <Shirt size={18} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-[var(--primary)] text-sm">{gt.name}</p>
-                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{fieldCount} Spec Field{fieldCount === 1 ? "" : "s"}</p>
+      <PageState
+        isLoading={loading}
+        isError={!!error}
+        error={error ? (error instanceof Error ? error.message : "Failed to load garment types") : undefined}
+        onRetry={refetch}
+        isEmpty={filtered.length === 0}
+        emptyTitle="No Garment Types Found"
+        emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
+        emptyAction={
+          <AsyncButton onClick={handleOpenAdd} variant="primary">
+            + Add First Garment Type
+          </AsyncButton>
+        }
+        skeletonVariant="table"
+        skeletonRows={6}
+        skeletonColumns={4}
+      >
+        {/* ── MOBILE: Garment Types Card List ── */}
+        <div className="md:hidden space-y-3">
+          {filtered.map((gt) => {
+            const fieldCount = gt.specTemplate?.fields?.length || 0;
+            return (
+              <div key={gt.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
+                      <Shirt size={18} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-[var(--text-primary)] text-sm">{gt.name}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{fieldCount} Spec Field{fieldCount === 1 ? "" : "s"}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {fieldCount > 0 ? (
-                <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
-                  {gt.specTemplate!.fields.map((f, idx) => (
-                    <span key={idx} className="text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded">
-                      {f.name} ({f.type})
-                    </span>
-                  ))}
+                {fieldCount > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 border-t border-[var(--border-light)] pt-2.5">
+                    {gt.specTemplate!.fields.map((f, idx) => (
+                      <span key={idx} className="text-[10px] font-bold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20 px-2 py-0.5 rounded-md">
+                        {f.name} ({f.type})
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-faint)] italic border-t border-[var(--border-light)] pt-2">No spec fields configured</p>
+                )}
+
+                <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(gt)}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer hover:bg-[var(--card-bg)] transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(gt)}
+                    className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/10 text-xs font-bold text-red-500 flex items-center gap-1 cursor-pointer hover:bg-red-500/20 transition-colors"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
                 </div>
-              ) : (
-                <p className="text-xs text-[var(--text-faint)] italic border-t border-[var(--border-light)] pt-2">No spec fields configured</p>
-              )}
-
-              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
-                <button type="button" onClick={() => handleOpenEdit(gt)}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
-                ><Pencil size={12} /> Edit</button>
-                <button type="button" onClick={() => handleOpenDelete(gt)}
-                  className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
-                ><Trash2 size={12} /> Delete</button>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      {/* ── DESKTOP: DataTable ── */}
-      <div className="hidden md:block">
-        <DataTable
-          columns={columns}
-          data={filtered}
-          isLoading={loading}
-          total={filtered.length}
-          page={1}
-          perPage={10}
-          onPageChange={() => {}}
-          emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
-        />
-      </div>
-
+        {/* ── DESKTOP: DataTable ── */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filtered}
+            isLoading={loading}
+            total={filtered.length}
+            page={1}
+            perPage={10}
+            onPageChange={() => {}}
+            emptyMessage="No garment types defined yet. Click Add Garment Type to begin."
+          />
+        </div>
+      </PageState>
 
       {/* Unified Add/Edit Garment Type & Fields Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <ClipboardList className="text-[#6366F1]" size={20} />
-              <span>{editingType ? "Edit Garment Type" : "Add Garment Type"}</span>
-            </DialogTitle>
-          </DialogHeader>
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={
+          <span className="flex items-center gap-2 text-lg font-bold text-[var(--text-primary)]">
+            <ClipboardList className="text-[var(--primary)]" size={20} />
+            <span>{editingType ? "Edit Garment Type" : "Add Garment Type"}</span>
+          </span>
+        }
+        maxWidth="max-w-2xl"
+      >
+        <form onSubmit={handleSubmit(onSubmitType)} className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Garment Type Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Jeans, Jacket, T-Shirt"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold"
+              {...register("name")}
+            />
+            {errors.name && (
+              <p className="text-xs font-semibold text-red-500">
+                {errors.name.message}
+              </p>
+            )}
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmitType)} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Garment Type Name *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Jeans, Jacket, T-Shirt"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold"
-                {...register("name")}
-              />
-              {errors.name && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.name.message}
+          <div className="border border-[var(--border)] rounded-xl p-4 space-y-4 bg-[var(--card-bg)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                  Design Spec Sheet Fields
+                </h3>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium mt-0.5 leading-normal max-w-md">
+                  Define the fields that must be entered when creating a new Design for this Garment Type.
                 </p>
-              )}
-            </div>
-
-            <div className="border border-[#E5E7EB] rounded-xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">
-                    Design Spec Sheet Fields
-                  </h3>
-                  <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-normal max-w-md">
-                    Define the fields that must be entered when creating a new Design for this Garment Type.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => append({ name: "", type: "text", options: "" })}
-                  className="h-8 px-3 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus size={12} /> Add Field
-                </button>
               </div>
-
-              {fields.length === 0 ? (
-                <p className="text-xs text-center py-6 text-[#94A3B8] font-bold">
-                  No spec fields added yet. Click &quot;Add Field&quot; to begin.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {fields.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200"
-                    >
-                      {/* Field Name */}
-                      <div className="flex-1 w-full space-y-1">
-                        <input
-                          type="text"
-                          placeholder="Field Name (e.g. Chest, Length, Fabric Composition)"
-                          className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...register(`fields.${index}.name` as const)}
-                        />
-                        {errors.fields?.[index]?.name && (
-                          <p className="text-[10px] text-red-500 font-bold">
-                            {errors.fields[index]?.name?.message}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Field Type selector */}
-                      <div className="w-full sm:w-36">
-                        <select
-                          className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...register(`fields.${index}.type` as const)}
-                        >
-                          <option value="text">Short Text</option>
-                          <option value="textarea">Paragraph Description</option>
-                          <option value="dropdown">Dropdown Options</option>
-                          <option value="photo">Photo / Attachment</option>
-                        </select>
-                      </div>
-
-                      {/* Options string input (Only visible/applicable for Dropdown type) */}
-                      {watchFieldsList[index]?.type === "dropdown" && (
-                        <div className="w-full sm:w-44">
-                          <input
-                            type="text"
-                            placeholder="Options (comma separated)"
-                            className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                            {...register(`fields.${index}.options` as const)}
-                          />
-                        </div>
-                      )}
-
-                      {/* Remove Field button */}
-                      <button
-                        type="button"
-                        onClick={() => remove(index)}
-                        className="w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center shrink-0 ml-auto cursor-pointer"
-                        title="Remove field"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="pt-4 border-t border-[#F1F5F9] flex flex-col sm:flex-row gap-2 justify-end">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all cursor-pointer shadow-md shadow-[#6366F1]/10 disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Garment Type"
-                )}
-              </button>
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
-                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+                onClick={() => append({ name: "", type: "text", options: "" })}
+                className="h-8 px-3 rounded-lg border border-[var(--primary)]/30 text-[var(--primary)] hover:bg-[var(--primary-light)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
               >
-                Cancel
+                <Plus size={12} /> Add Field
               </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </div>
+
+            {fields.length === 0 ? (
+              <p className="text-xs text-center py-6 text-[var(--text-faint)] font-bold">
+                No spec fields added yet. Click &quot;Add Field&quot; to begin.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {fields.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--page-bg)] p-3 rounded-xl border border-[var(--border)]"
+                  >
+                    {/* Field Name */}
+                    <div className="flex-1 w-full space-y-1">
+                      <input
+                        type="text"
+                        placeholder="Field Name (e.g. Chest, Length, Fabric Composition)"
+                        className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                        {...register(`fields.${index}.name` as const)}
+                      />
+                      {errors.fields?.[index]?.name && (
+                        <p className="text-[10px] text-red-500 font-bold">
+                          {errors.fields[index]?.name?.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Field Type selector */}
+                    <div className="w-full sm:w-36">
+                      <select
+                        className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] cursor-pointer"
+                        {...register(`fields.${index}.type` as const)}
+                      >
+                        <option value="text">Short Text</option>
+                        <option value="textarea">Paragraph Description</option>
+                        <option value="dropdown">Dropdown Options</option>
+                        <option value="photo">Photo / Attachment</option>
+                      </select>
+                    </div>
+
+                    {/* Options string input */}
+                    {watchFieldsList[index]?.type === "dropdown" && (
+                      <div className="w-full sm:w-44">
+                        <input
+                          type="text"
+                          placeholder="Options (comma separated)"
+                          className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                          {...register(`fields.${index}.options` as const)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Remove Field button */}
+                    <button
+                      type="button"
+                      onClick={() => remove(index)}
+                      className="w-8 h-8 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 flex items-center justify-center shrink-0 ml-auto cursor-pointer transition-colors"
+                      title="Remove field"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border-light)] flex flex-col sm:flex-row gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={isSubmitting}
+              variant="primary"
+            >
+              Save Garment Type
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Garment Type Dialog */}
       <DeleteMasterItemDialog
@@ -521,7 +470,9 @@ export default function GarmentTypesPage() {
         allItems={garmentTypes}
         apiEndpoint="/api/master-data/garment-types"
         targetQueryParam="target_garment_type_id"
-        onSuccess={fetchGarmentTypes}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["master-data", "garment-types"] });
+        }}
       />
     </div>
   );

@@ -19,7 +19,14 @@ interface ProductionStage {
   custom_fields?: any[];
   template?: { id: string; name: string; is_default?: boolean };
 }
-interface Worker { id: string; name: string; stage_specialty?: string[] }
+interface Worker {
+  id: string;
+  name: string;
+  stage_specialty?: string[];
+  wage_rate?: number;
+  default_rate?: number;
+  wage_type?: string;
+}
 
 interface Props {
   assignedStages: LotStageInput[];
@@ -175,30 +182,47 @@ export default function Step5AssignStages({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <select
                           onChange={(e) => { onAddWorker(index, e.target.value); e.currentTarget.value = ""; }}
-                          className="h-8 py-1 text-xs rounded border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[140px] shrink-0 leading-normal"
+                          className="h-8 py-1 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[170px] shrink-0 leading-normal"
                         >
                           <option value="">+ Assign Worker</option>
-                          {specialists.map((w) => (
-                            <option key={w.id} value={w.id}>{w.name}</option>
-                          ))}
+                          {specialists.map((w) => {
+                            const rate = w.wage_rate ?? w.default_rate;
+                            return (
+                              <option key={w.id} value={w.id}>
+                                {w.name} {rate ? `(₹${rate}/pc)` : ""}
+                              </option>
+                            );
+                          })}
                           {specialists.length === 0 &&
-                            workers.map((w) => (
-                              <option key={w.id} value={w.id}>{w.name} (General)</option>
-                            ))}
+                            workers.map((w) => {
+                              const rate = w.wage_rate ?? w.default_rate;
+                              return (
+                                <option key={w.id} value={w.id}>
+                                  {w.name} {rate ? `(₹${rate}/pc)` : ""} (General)
+                                </option>
+                              );
+                            })}
                         </select>
 
                         {(stage.worker_ids || []).map((workerId) => {
-                          const name = workers.find((w) => w.id === workerId)?.name || "Worker";
+                          const w = workers.find((w) => w.id === workerId);
+                          const name = w?.name || "Worker";
+                          const rate = w?.wage_rate ?? w?.default_rate;
                           return (
                             <span
                               key={workerId}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--page-bg)] text-[var(--text-primary)] text-[10px] font-semibold border border-[var(--border)]"
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--page-bg)] text-[var(--text-primary)] text-[10px] font-semibold border border-[var(--border)]"
                             >
-                              {name}
+                              <span>{name}</span>
+                              {rate !== undefined && rate !== null && rate > 0 && (
+                                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded text-[9px]">
+                                  ₹{rate}/pc
+                                </span>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => onRemoveWorker(index, workerId)}
-                                className="text-[var(--text-faint)] hover:text-red-500 font-bold font-mono cursor-pointer"
+                                className="text-[var(--text-faint)] hover:text-red-500 font-bold font-mono cursor-pointer ml-0.5"
                               >
                                 ×
                               </button>

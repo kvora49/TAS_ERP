@@ -104,9 +104,15 @@ export default function EditStageEntryPage({ params }: EditStageEntryPageProps) 
     setWorkerId(wId);
     if (wId) {
       const matched = workers.find((w: any) => w.id === wId);
-      if (matched && matched.default_rate !== undefined && matched.default_rate !== null) {
-        setJobWorkRate(matched.default_rate);
+      if (matched) {
+        const rate = matched.wage_rate ?? matched.default_rate ?? 0;
+        setJobWorkRate(rate);
+        if (matched.wage_type) {
+          setPaymentType(matched.wage_type);
+        }
       }
+    } else {
+      setJobWorkRate(0);
     }
   };
 
@@ -370,11 +376,14 @@ export default function EditStageEntryPage({ params }: EditStageEntryPageProps) 
                   className="w-full h-10 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] px-3 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
                 >
                   <option value="">Select Worker</option>
-                  {workers.map((w: any) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.worker_id || "WRK"}) — ₹{w.default_rate || 0}/pc
-                    </option>
-                  ))}
+                  {workers.map((w: any) => {
+                    const rate = w.wage_rate ?? w.default_rate ?? 0;
+                    return (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.worker_id || "WRK"}) — ₹{rate}/pc
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

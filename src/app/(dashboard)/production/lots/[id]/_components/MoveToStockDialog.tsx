@@ -18,6 +18,8 @@ interface Props {
   lotId: string;
   designCode?: string;
   totalQty: number;
+  bGradeQty?: number;
+  scrappedQty?: number;
   godowns: Godown[];
   lotRolls: LotRoll[];
   avgMetersPerPiece?: number;
@@ -30,6 +32,8 @@ export function MoveToStockDialog({
   lotId,
   designCode,
   totalQty,
+  bGradeQty = 0,
+  scrappedQty = 0,
   godowns,
   lotRolls,
   avgMetersPerPiece,
@@ -40,13 +44,18 @@ export function MoveToStockDialog({
   const [allocationMode, setAllocationMode] = useState<"proportional" | "fifo" | "full">("proportional");
   const [moving, setMoving] = useState(false);
 
+  const bGradeCount = Number(bGradeQty || 0);
+  const scrapCount = Number(scrappedQty || 0);
+  const totalCutQty = totalQty + bGradeCount + scrapCount;
+
   const totalAllocatedMeters = lotRolls.reduce((acc, r) => acc + Number(r.allocated_meters || 0), 0);
   
   // Default avg meters per piece from props or historical ratio or fallback 1.2m
+  // Calculated against total cut pieces (Grade A + B-Grade + Scrap) so actual consumption is accurate
   const defaultAvg = avgMetersPerPiece && avgMetersPerPiece > 0
     ? avgMetersPerPiece
-    : totalQty > 0 && totalAllocatedMeters > 0
-    ? Number((totalAllocatedMeters / totalQty).toFixed(3))
+    : totalCutQty > 0 && totalAllocatedMeters > 0
+    ? Number((totalAllocatedMeters / totalCutQty).toFixed(3))
     : 1.2;
 
   const [avgMeters, setAvgMeters] = useState<number>(defaultAvg);
@@ -56,9 +65,10 @@ export function MoveToStockDialog({
     (mode: "proportional" | "fifo" | "full", currentAvg: number) => {
       if (lotRolls.length === 0) return {};
 
+      // Fabric consumed must cover all pieces cut from the rolls: Grade A + B-Grade + Scrapped pieces
       const targetConsumption = Math.min(
         totalAllocatedMeters,
-        Number((totalQty * (currentAvg || 1.2)).toFixed(2))
+        Number((totalCutQty * (currentAvg || 1.2)).toFixed(2))
       );
 
       const result: Record<string, number> = {};
@@ -89,7 +99,7 @@ export function MoveToStockDialog({
 
       return result;
     },
-    [lotRolls, totalQty, totalAllocatedMeters]
+    [lotRolls, totalCutQty, totalAllocatedMeters]
   );
 
   // Sync auto-calculated roll usages when dialog opens or parameters change
@@ -97,7 +107,7 @@ export function MoveToStockDialog({
     if (open && lotRolls.length > 0) {
       setRollUsages(calculateRollUsages(allocationMode, avgMeters));
     }
-  }, [open, lotRolls, totalQty, avgMeters, allocationMode, calculateRollUsages]);
+  }, [open, lotRolls, totalCutQty, avgMeters, allocationMode, calculateRollUsages]);
 
   if (!open) return null;
 
@@ -146,8 +156,13 @@ export function MoveToStockDialog({
           Move Lot to Finished Stock
         </h3>
         <p className="text-xs text-[var(--text-muted)] leading-normal">
-          Finalizing production lot for <strong className="font-bold text-[var(--text-primary)]">{totalQty} pieces</strong> of design{" "}
-          <strong className="font-bold text-[var(--text-primary)]">{designCode}</strong>. Select target godown and verify fabric consumption distribution.
+          Finalizing production lot for <strong className="font-bold text-[var(--text-primary)]">{totalQty} Grade A pieces</strong> of design{" "}
+          <strong className="font-bold text-[var(--text-primary)]">{designCode}</strong>.
+          {(bGradeCount > 0 || scrapCount > 0) && (
+            <span className="block mt-1 text-[var(--text-secondary)] font-medium">
+              Cutting total: <strong>{totalCutQty} pieces</strong> ({totalQty} Grade A + {bGradeCount} B-Grade + {scrapCount} Scrap).
+            </span>
+          )}
         </p>
 
         <div className="space-y-4">
@@ -173,9 +188,17 @@ export function MoveToStockDialog({
                 <Calculator size={15} className="text-[var(--primary)]" />
                 Fabric Consumption Calculator
               </span>
-              <span className="text-[10px] font-bold font-mono text-[var(--primary)] bg-[var(--card-bg)] px-2.5 py-0.5 rounded-full border border-[var(--border)]">
-                {totalQty} Pcs
-              </span>
+              <div className="flex items-center gap-1">
+                {(bGradeCount > 0 || scrapCount > 0) ? (
+                  <span className="text-[10px] font-bold font-mono text-[var(--primary)] bg-[var(--card-bg)] px-2 py-0.5 rounded-full border border-[var(--border)]">
+                    {totalCutQty} Cut Pcs ({totalQty} A + {bGradeCount} B + {scrapCount} Scrap)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold font-mono text-[var(--primary)] bg-[var(--card-bg)] px-2.5 py-0.5 rounded-full border border-[var(--border)]">
+                    {totalQty} Pcs
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3 text-[11px] pt-1">
@@ -205,6 +228,12 @@ export function MoveToStockDialog({
                 </span>
               </div>
             </div>
+
+            {(bGradeCount > 0 || scrapCount > 0) && (
+              <p className="text-[10px] text-[var(--text-muted)] bg-[var(--card-bg)] p-2 rounded-lg border border-[var(--border)] leading-relaxed">
+                ℹ️ Fabric consumption accounts for all <strong>{totalCutQty} cut pieces</strong> ({totalQty} Grade A + {bGradeCount} B-Grade + {scrapCount} Scrapped) to ensure accurate remaining roll meters are returned to raw material inventory.
+              </p>
+            )}
           </div>
 
           {lotRolls.length > 0 && (

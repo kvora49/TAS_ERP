@@ -18,6 +18,8 @@ import AdvancesCreditNotesTab from "@/components/payments/AdvancesCreditNotesTab
 import DirectLinkingTab from "@/components/payments/DirectLinkingTab";
 import { cn } from "@/lib/utils";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 function PaymentsContent() {
   const router = useRouter();
@@ -70,7 +72,10 @@ function PaymentsContent() {
     .reduce((sum, p) => sum + Number(p.unallocated_amount || 0), 0);
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <div className="p-2.5 sm:p-6 max-w-[1600px] mx-auto space-y-4 sm:space-y-6">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={PAYMENTS_NAV} />
+
       {/* Top Header & Direct Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

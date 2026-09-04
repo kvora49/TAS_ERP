@@ -62,6 +62,8 @@ interface StockEntry {
 
 import { useGeneralSettings } from "@/hooks/useGeneralSettings";
 import { useChartTheme } from "@/hooks/useChartTheme";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { RAW_MATERIALS_NAV } from "@/lib/moduleNav";
 
 export default function RawMaterialStockPage() {
   const router = useRouter();
@@ -239,7 +241,7 @@ export default function RawMaterialStockPage() {
               router.push(`/master-data/raw-materials/${row.material_type_id}`);
             }
           }}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#EEF2FF] dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[var(--primary-light)] text-[var(--primary)] text-xs font-bold rounded-lg hover:opacity-90 transition-colors"
         >
           View Details & Aging <ChevronRight className="w-3.5 h-3.5" />
         </button>
@@ -359,7 +361,7 @@ export default function RawMaterialStockPage() {
       render: (row) => (
         <Link
           href={`/stock/raw-materials/${row.id}`}
-          className="font-mono font-bold text-xs text-[#6366F1] hover:underline whitespace-nowrap"
+          className="font-mono font-bold text-xs text-[var(--primary)] hover:underline whitespace-nowrap"
         >
           {row.stock_entry_number}
         </Link>
@@ -391,21 +393,24 @@ export default function RawMaterialStockPage() {
       key: "godown",
       header: "Target Godown",
       width: "160px",
-      render: (row) => <span className="text-xs text-[#334155] font-semibold">{row.godown?.name || "Main Godown"}</span>,
+      render: (row) => <span className="text-xs text-[var(--text-body)] font-semibold">{row.godown?.name || "Main Godown"}</span>,
     },
     {
       key: "grand_total",
       header: "Valuation Amount",
       width: "140px",
-      render: (row) => <span className="font-mono text-xs font-bold text-[#0F172A]">{formatCurrency(row.grand_total)}</span>,
+      render: (row) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{formatCurrency(row.grand_total)}</span>,
     },
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={RAW_MATERIALS_NAV} />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Raw Material Inventory Stock</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Raw Material Inventory Stock</h1>
           <p className="text-xs text-[var(--text-muted)]">Real-time raw material balances, fabric inventory roll logs, and stock movements.</p>
         </div>
         <div className="flex items-center gap-2.5">

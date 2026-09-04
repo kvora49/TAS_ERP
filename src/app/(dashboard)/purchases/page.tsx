@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { RAW_MATERIALS_NAV } from "@/lib/moduleNav";
 
 interface PurchaseLog {
   id: string;
@@ -399,7 +401,10 @@ export default function PurchasesPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={RAW_MATERIALS_NAV} />
+
       {/* Header & Dual Action Buttons */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

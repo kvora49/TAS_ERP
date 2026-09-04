@@ -582,14 +582,32 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
                 <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block border-b border-[var(--border)] pb-1.5 mb-2">Stage Parameters</span>
                 {entry.custom_field_values && Object.keys(entry.custom_field_values).length > 0 ? (
                   <div className="space-y-1.5 font-medium text-xs">
-                    {Object.entries(entry.custom_field_values).map(([key, val]) => (
-                      <div key={key} className="flex items-center justify-between gap-2">
-                        <span className="text-[var(--text-muted)] font-semibold">{key}:</span>
-                        <span className="text-[var(--text-primary)] font-bold bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)] font-mono">
-                          {typeof val === "boolean" ? (val ? "Yes / Approved" : "No / Pending") : String(val || "—")}
-                        </span>
-                      </div>
-                    ))}
+                    {Object.entries(entry.custom_field_values).map(([key, val]) => {
+                      const isColourField = key === "colour_id" || key === "color_id";
+                      const coloursList = entry?.lot?.colours || [];
+                      const matchedColour = isColourField
+                        ? (coloursList.find((c: any) => c.id === String(val)) || entry.colour || entry.lot?.colour)
+                        : null;
+
+                      return (
+                        <div key={key} className="flex items-center justify-between gap-2">
+                          <span className="text-[var(--text-muted)] font-semibold">{isColourField ? "Colour" : `${key}:`}</span>
+                          {isColourField ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)]">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
+                                style={{ backgroundColor: matchedColour?.colour_hex || matchedColour?.hex_code || "#6366F1" }}
+                              />
+                              {matchedColour?.colour_name || String(val)}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--text-primary)] font-bold bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)] font-mono">
+                              {typeof val === "boolean" ? (val ? "Yes / Approved" : "No / Pending") : String(val || "—")}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--text-faint)] italic">No custom parameters recorded.</p>

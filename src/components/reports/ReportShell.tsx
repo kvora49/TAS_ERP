@@ -15,6 +15,8 @@ import {
 import { DATE_PRESETS, DatePreset, getPresetDates, printReport, fmtDate } from "@/lib/report-export";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { REPORTS_NAV, NavItem } from "@/lib/moduleNav";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ export interface ReportShellProps {
   title: string;
   infoTooltip?: string;
   breadcrumbs: string[];
+  subNavItems?: NavItem[];
   /** Called when Apply is clicked — receives current filter state */
   onApply: (filters: ReportFilters) => void;
   /** Called by Export PDF button (uses formal jsPDF generator if provided) */
@@ -62,6 +65,7 @@ export default function ReportShell({
   title,
   infoTooltip,
   breadcrumbs,
+  subNavItems = REPORTS_NAV,
   onApply,
   onExportPDF,
   onExportExcel,
@@ -112,23 +116,16 @@ export default function ReportShell({
   return (
     <div className="flex flex-col min-h-full bg-[var(--page-bg)]">
       {/* ── Top Header Bar ── */}
-      <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-6 pt-5 pb-0 print:hidden">
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium mb-2">
-          {breadcrumbs.map((crumb, idx) => (
-            <React.Fragment key={idx}>
-              {idx > 0 && <ChevronRight size={12} className="text-[var(--text-faint)]" />}
-              <span className={idx === breadcrumbs.length - 1 ? "text-[var(--text-secondary)] font-semibold" : ""}>
-                {crumb}
-              </span>
-            </React.Fragment>
-          ))}
-        </div>
+      <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-3 sm:px-6 pt-3 sm:pt-4 pb-0 print:hidden space-y-3 md:space-y-0">
+        {/* Module Sub Nav for instant switching on mobile */}
+        {subNavItems && subNavItems.length > 0 && (
+          <ModuleSubNav items={subNavItems} />
+        )}
 
         {/* Title row + actions */}
-        <div className="flex items-center justify-between pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 md:pb-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[var(--text-primary)]">{title}</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-[var(--text-primary)]">{title}</h1>
             {infoTooltip && (
               <div className="relative">
                 <button
@@ -149,7 +146,7 @@ export default function ReportShell({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <ActionBtn
               icon={<FileText size={14} className="text-red-500" />}
               label="Export (PDF)"

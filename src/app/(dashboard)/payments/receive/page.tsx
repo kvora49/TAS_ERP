@@ -3,6 +3,8 @@
 import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ReceivePaymentView from "@/components/payments/ReceivePaymentView";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 function ReceivePaymentContent() {
   const router = useRouter();
@@ -13,11 +15,14 @@ function ReceivePaymentContent() {
     "";
 
   return (
-    <ReceivePaymentView
-      initialPartyId={initialPartyId}
-      onSuccess={() => router.push("/payments")}
-      onCancel={() => router.push("/payments")}
-    />
+    <div className="p-2.5 sm:p-6 space-y-4 max-w-7xl mx-auto">
+      <ModuleSubNav items={PAYMENTS_NAV} />
+      <ReceivePaymentView
+        initialPartyId={initialPartyId}
+        onSuccess={() => router.push("/payments")}
+        onCancel={() => router.push("/payments")}
+      />
+    </div>
   );
 }
 

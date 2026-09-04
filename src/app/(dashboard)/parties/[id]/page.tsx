@@ -30,6 +30,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import ModuleSubNav from "@/components/shared/ModuleSubNav";
+import { PARTIES_NAV } from "@/lib/moduleNav";
 
 interface ContactNumber {
   label: string;
@@ -231,7 +233,10 @@ export default function PartyDetailPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
+    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
+      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
+      <ModuleSubNav items={PARTIES_NAV} />
+
       {/* Top Breadcrumb and Edit Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">

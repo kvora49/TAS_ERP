@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { isValidBarcodePayload, generate1DBarcode } from "@/lib/utils/barcode";
 import { toast } from "sonner";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 
 export default function MasterDataBarcodePage() {
   const [activeTab, setActiveTab] = useState<"scan" | "generator">("scan");
@@ -163,26 +165,26 @@ export default function MasterDataBarcodePage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <Link
-            href="/master-data/designs"
-            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer"
+            href="/master-data"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer shrink-0"
           >
             <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Barcode Management</h1>
-            <p className="text-sm text-[var(--text-muted)]">Generate printable 1D SKU labels or scan items for real-time inventory lookup</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Barcode Management</h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)]">Generate printable 1D SKU labels or scan items for real-time inventory lookup</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           {/* Sub-tabs */}
           <div className="bg-[var(--input-bg)] p-1 rounded-xl flex gap-1 border border-[var(--border)]">
             <button
               onClick={() => setActiveTab("scan")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                 activeTab === "scan"
                   ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -192,25 +194,27 @@ export default function MasterDataBarcodePage() {
             </button>
             <button
               onClick={() => setActiveTab("generator")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                 activeTab === "generator"
                   ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
-              Generate & Print Labels
+              Generate & Print
             </button>
           </div>
 
           <Link
             href="/scan"
-            className="flex items-center gap-2 h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-bold transition-colors cursor-pointer shadow-md"
+            className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-bold transition-colors cursor-pointer shadow-md"
           >
             <Barcode className="h-4 w-4" />
-            <span>Open Mobile PWA Scanner</span>
+            <span>Open PWA Scanner</span>
           </Link>
         </div>
       </div>
+
+      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       {/* Main Content View */}
       {activeTab === "generator" ? (

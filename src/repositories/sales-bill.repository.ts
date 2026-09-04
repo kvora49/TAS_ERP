@@ -325,6 +325,8 @@ export class SalesBillRepository {
           amount: Number(it.amount || 0),
           cost_per_piece: it.cost_per_piece !== undefined ? Number(it.cost_per_piece) : null,
           description: it.description || null,
+          b_grade_stock_id: it.b_grade_stock_id || null,
+          is_b_grade: !!(it.is_b_grade || it.item_type === "b_grade" || it.b_grade_stock_id),
         };
 
         if (it.grade) payload.grade = it.grade;
@@ -333,6 +335,7 @@ export class SalesBillRepository {
         if (!payload.design_id) delete payload.design_id;
         if (!payload.colour_id) delete payload.colour_id;
         if (!payload.brand_id) delete payload.brand_id;
+        if (!payload.b_grade_stock_id) delete payload.b_grade_stock_id;
 
         return payload;
       });
@@ -380,9 +383,61 @@ export class SalesBillRepository {
         const qty = Number(item.quantity || 0);
         if (qty <= 0) continue;
 
-        const isFabric = item.item_type === "fabric" || !!item.material_type_id;
+        const isBGrade = !!(item.is_b_grade || item.item_type === "b_grade" || item.b_grade_stock_id);
+        const isFabric = !isBGrade && (item.item_type === "fabric" || !!item.material_type_id);
 
-        if (isFabric && insertedItem) {
+        if (isBGrade) {
+          if (!billData.is_temporary) {
+            let bStockQuery = this.supabase
+              .from("b_grade_stock")
+              .select("id, godown_id, total_quantity, size_quantities")
+              .eq("business_id", billData.business_id);
+
+            if (item.b_grade_stock_id) {
+              bStockQuery = bStockQuery.eq("id", item.b_grade_stock_id);
+            } else if (item.design_id) {
+              bStockQuery = bStockQuery.eq("design_id", item.design_id);
+              if (item.colour_id) {
+                bStockQuery = bStockQuery.eq("colour_id", item.colour_id);
+              }
+            }
+
+            const { data: bStocks } = await bStockQuery.in("status", ["available", "partially_sold"]).limit(1);
+            const targetBStock = bStocks?.[0];
+
+            if (targetBStock) {
+              const newTotal = Math.max(0, Number(targetBStock.total_quantity || 0) - qty);
+              const newSizes = { ...(targetBStock.size_quantities || {}) };
+              if (item.size && item.size !== "—" && newSizes[item.size] !== undefined) {
+                newSizes[item.size] = Math.max(0, Number(newSizes[item.size] || 0) - qty);
+              }
+              const newStatus = newTotal === 0 ? "fully_sold" : "partially_sold";
+
+              await this.supabase
+                .from("b_grade_stock")
+                .update({
+                  total_quantity: newTotal,
+                  size_quantities: newSizes,
+                  status: newStatus,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", targetBStock.id);
+
+              await this.supabase.from("stock_ledger").insert({
+                business_id: billData.business_id,
+                item_type: "b_grade_stock",
+                item_id: item.design_id || targetBStock.id,
+                godown_id: targetBStock.godown_id,
+                transaction_type: "b_grade_sale",
+                quantity_delta: -qty,
+                value_delta: -Number(item.amount || 0),
+                reference_table: "sale_bills",
+                reference_id: bill.id,
+                created_by: billData.created_by || null,
+              });
+            }
+          }
+        } else if (isFabric && insertedItem) {
           // A) Insert fabric rolls into sale_rolls
           if (item.rolls && Array.isArray(item.rolls) && item.rolls.length > 0) {
             const rollsToInsert = item.rolls.map((r: any) => ({
@@ -517,7 +572,14 @@ export class SalesBillRepository {
       // Reconcile finished stock to update ground truth without double counting
       if (!billData.is_temporary) {
         try {
-          const designIdsToReconcile = Array.from(new Set(items.map((it: any) => it.design_id).filter(Boolean)));
+          const designIdsToReconcile = Array.from(
+            new Set(
+              items
+                .filter((it: any) => !it.is_b_grade && it.item_type !== "b_grade" && !it.b_grade_stock_id)
+                .map((it: any) => it.design_id)
+                .filter(Boolean)
+            )
+          );
           for (const dId of designIdsToReconcile) {
             await reconcileFinishedStock(this.supabase, billData.business_id, dId as string);
           }
@@ -543,10 +605,17 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
     // 0. Capture old design_ids BEFORE deleting items — needed to reconcile stock for removed designs
     const { data: oldItems } = await this.supabase
       .from("sale_bill_items")
-      .select("design_id, material_type_id")
+      .select("design_id, material_type_id, is_b_grade, item_type, b_grade_stock_id")
       .eq("bill_id", billId)
       .eq("business_id", businessId);
-    const oldDesignIds = Array.from(new Set((oldItems || []).map((it: any) => it.design_id).filter(Boolean))) as string[];
+    const oldDesignIds = Array.from(
+      new Set(
+        (oldItems || [])
+          .filter((it: any) => !it.is_b_grade && it.item_type !== "b_grade" && !it.b_grade_stock_id)
+          .map((it: any) => it.design_id)
+          .filter(Boolean)
+      )
+    ) as string[];
     const oldMaterialIds = Array.from(new Set((oldItems || []).map((it: any) => it.material_type_id).filter(Boolean))) as string[];
 
     // 1. Update parent bill
@@ -570,7 +639,7 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
         const itemsToInsert = items.map((it) => ({
           business_id: businessId,
           bill_id: billId,
-          item_type: it.item_type || (it.material_type_id ? "fabric" : "finished_goods"),
+          item_type: it.item_type || (it.b_grade_stock_id || it.is_b_grade ? "b_grade" : it.material_type_id ? "fabric" : "finished_goods"),
           material_type_id: it.material_type_id || null,
           design_id: it.design_id || null,
           colour_id: it.colour_id || null,
@@ -585,6 +654,8 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
           amount: Number(it.amount || 0),
           cost_per_piece: it.cost_per_piece !== undefined ? Number(it.cost_per_piece) : null,
           description: it.description || null,
+          b_grade_stock_id: it.b_grade_stock_id || null,
+          is_b_grade: !!(it.is_b_grade || it.item_type === "b_grade" || it.b_grade_stock_id),
         }));
 
         const { error: itemsErr } = await this.supabase
@@ -625,7 +696,14 @@ async updateAtomic(billId: string, businessId: string, billData: any, items: any
     //    Reconcile both old design_ids (stock should be restored) AND new design_ids (stock should be deducted)
     if (!billData.is_temporary) {
       try {
-        const newDesignIds = Array.from(new Set((items || []).map((it: any) => it.design_id).filter(Boolean))) as string[];
+        const newDesignIds = Array.from(
+          new Set(
+            (items || [])
+              .filter((it: any) => !it.is_b_grade && it.item_type !== "b_grade" && !it.b_grade_stock_id)
+              .map((it: any) => it.design_id)
+              .filter(Boolean)
+          )
+        ) as string[];
         const allDesignIds = Array.from(new Set([...oldDesignIds, ...newDesignIds]));
         for (const dId of allDesignIds) {
           await reconcileFinishedStock(this.supabase, businessId, dId as string);

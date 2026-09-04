@@ -48,6 +48,7 @@ export async function GET(
     let brand = null;
     let design = null;
     let colour = null;
+    let colours: any[] = [];
     let sizeSet = null;
 
     if (lot) {
@@ -62,32 +63,49 @@ export async function GET(
         if (!effectiveSizeSetId && d?.size_set_id) {
           effectiveSizeSetId = d.size_set_id;
         }
+
+        const { data: dcs } = await supabase
+          .from("design_colours")
+          .select("id, colour_name, colour_hex")
+          .eq("design_id", lot.design_id);
+        colours = (dcs || []).map((c: any) => ({ id: c.id, colour_name: c.colour_name, hex_code: c.colour_hex }));
       }
+
       if (lot.colour_id) {
+        const c = colours.find((col) => col.id === lot.colour_id);
+        colour = c ? c : null;
+      }
+      if (!colour && lot.colour_id) {
         const { data: c } = await supabase.from("design_colours").select("id, colour_name, colour_hex").eq("id", lot.colour_id).maybeSingle();
         colour = c ? { id: c.id, colour_name: c.colour_name, hex_code: c.colour_hex } : null;
       }
+
       if (effectiveSizeSetId) {
         const { data: s } = await supabase.from("size_sets").select("id, name, sizes").eq("id", effectiveSizeSetId).maybeSingle();
         sizeSet = s;
       }
     }
 
-    const entry = {
-      ...rawEntry,
-      lot: lot ? {
-        id: lot.id,
-        lot_number: lot.lot_number,
-        total_quantity: lot.total_quantity,
-        completed_quantity: lot.completed_quantity,
-        brand,
-        design,
-        colour,
-        size_set: sizeSet
-      } : null,
-      stage,
-      worker
-    };
+    const entryColId = rawEntry.colour_id || rawEntry.custom_field_values?.colour_id || rawEntry.custom_field_values?.color_id || null;
+    const entryColour = entryColId ? ((lot as any)?.colours?.find((c: any) => c.id === entryColId) || colour) : colour;
+
+      const entry = {
+        ...rawEntry,
+        colour: entryColour,
+        lot: lot ? {
+          id: lot.id,
+          lot_number: lot.lot_number,
+          total_quantity: lot.total_quantity,
+          completed_quantity: lot.completed_quantity,
+          brand,
+          design,
+          colour,
+          colours,
+          size_set: sizeSet
+        } : null,
+        stage,
+        worker
+      };
 
     // Load total stages count for context
     const { data: stages } = await supabase

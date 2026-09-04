@@ -11,7 +11,7 @@ export default function LegacyPurchasesRedirectPage() {
   }, [router]);
 
   return (
-    <div className="p-8 text-center text-slate-500 text-sm font-semibold">
+    <div className="p-8 text-center text-[var(--text-muted)] text-sm font-semibold">
       Redirecting to Purchases...
     </div>
   );

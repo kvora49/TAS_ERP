@@ -1,13 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Calendar, FileText, ShoppingCart, ShoppingBag, CheckCircle2, XCircle, ChevronRight, Pencil, Trash2, Loader2, Link as LinkIcon, Layers } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Plus,
+  Search,
+  Calendar,
+  ShoppingCart,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  Link as LinkIcon,
+  Layers,
+  Filter,
+} from "lucide-react";
+import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
 import Link from "next/link";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
+import { Badge } from "@/components/shared/Badge";
+import PageState from "@/components/shared/PageState";
+import AsyncButton from "@/components/shared/AsyncButton";
+import { Modal } from "@/components/shared/Modal";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { SALES_NAV } from "@/lib/moduleNav";
 import { cn } from "@/lib/utils";
 
 interface Party {
@@ -36,9 +52,6 @@ interface SaleOrder {
 
 export default function SalesOrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<SaleOrder[]>([]);
-  const [customers, setCustomers] = useState<Party[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -61,102 +74,128 @@ export default function SalesOrdersPage() {
   const [status, setStatus] = useState<SaleOrder["status"]>("pending");
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  // Fetch orders & customers
-  const fetchData = async () => {
-    setLoading(true);
-    try {
+  // TanStack Query for orders
+  const {
+    data: ordersData,
+    isPending: loadingOrders,
+    isError: isOrdersError,
+    error: ordersError,
+    refetch: refetchOrders,
+  } = useERPQuery(
+    ["sales-orders", statusFilter, startDate, endDate, search],
+    async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append("status", statusFilter);
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
       if (search) params.append("search", search);
 
-      const [ordersRes, customersRes] = await Promise.all([
-        fetch(`/api/sales/orders?${params.toString()}`),
-        fetch("/api/parties?type=customer"),
-      ]);
-
-      if (!ordersRes.ok || !customersRes.ok) {
-        throw new Error("Failed to load orders data");
-      }
-
-      const ordersData = await ordersRes.json();
-      const customersData = await customersRes.json();
-
-      setOrders(ordersData.orders || []);
-      setCustomers(customersData.parties || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching sales orders");
-    } finally {
-      setLoading(false);
+      const res = await fetch(`/api/sales/orders?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load orders");
+      return res.json();
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [statusFilter, startDate, endDate, search]);
-
-  // Stats
-  const pendingOrders = orders.filter((o) => o.status === "pending" || o.status === "in_process");
-  const totalPendingVal = pendingOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const readyCount = orders.filter((o) => o.status === "ready").length;
-  const dispatchedCount = orders.filter((o) => o.status === "dispatched" || o.converted_bill_id).length;
-
-  const handleOpenAdd = () => {
-    setPartyId("");
-    setOrderDate(new Date().toISOString().split("T")[0]);
-    setExpectedDelivery("");
-    setTotalAmount("");
-    setNotes("");
-    setIsAddOpen(true);
-  };
-
-  const handleCreateOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!partyId) {
-      toast.error("Please select a customer");
-      return;
+  // TanStack Query for customers list
+  const { data: customersData } = useERPQuery(
+    ["parties", "customer"],
+    async () => {
+      const res = await fetch("/api/parties?type=customer");
+      if (!res.ok) throw new Error("Failed to load customers");
+      return res.json();
     }
-    if (!orderDate) {
-      toast.error("Please select order date");
-      return;
-    }
+  );
 
-    setSaving(true);
-    try {
+  const orders: SaleOrder[] = ordersData?.orders || [];
+  const customers: Party[] = customersData?.parties || [];
+
+  // Mutations
+  const createMutation = useERPMutation(
+    async (payload: any) => {
       const res = await fetch("/api/sales/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          party_id: partyId,
-          order_date: orderDate,
-          expected_delivery: expectedDelivery || null,
-          total_amount: Number(totalAmount || 0),
-          notes,
-        }),
+        body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create sale order");
+        throw new Error(err.error || "Failed to record order");
       }
-
-      toast.success("Order booking recorded successfully!");
-      setIsAddOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
+      return res.json();
+    },
+    {
+      successMessage: "Order booking recorded successfully!",
+      invalidates: [["sales-orders"]],
+      onSuccess: () => {
+        setIsAddOpen(false);
+        resetForm();
+      },
     }
+  );
+
+  const updateMutation = useERPMutation(
+    async (payload: any) => {
+      if (!selectedOrder) throw new Error("No order selected");
+      const res = await fetch(`/api/sales/orders/${selectedOrder.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update order");
+      }
+      return res.json();
+    },
+    {
+      successMessage: "Order details updated successfully!",
+      invalidates: [["sales-orders"]],
+      onSuccess: () => {
+        setIsEditOpen(false);
+        setSelectedOrder(null);
+      },
+    }
+  );
+
+  const deleteMutation = useERPMutation(
+    async () => {
+      if (!selectedOrder) throw new Error("No order selected");
+      const res = await fetch(`/api/sales/orders/${selectedOrder.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete order");
+      }
+      return res.json();
+    },
+    {
+      successMessage: "Order deleted successfully!",
+      invalidates: [["sales-orders"]],
+      onSuccess: () => {
+        setIsDeleteOpen(false);
+        setSelectedOrder(null);
+      },
+    }
+  );
+
+  const resetForm = () => {
+    setPartyId("");
+    setOrderDate(new Date().toISOString().split("T")[0]);
+    setExpectedDelivery("");
+    setStatus("pending");
+    setTotalAmount("");
+    setNotes("");
+  };
+
+  const handleOpenAdd = () => {
+    resetForm();
+    setIsAddOpen(true);
   };
 
   const handleOpenEdit = (order: SaleOrder) => {
     setSelectedOrder(order);
-    setPartyId(order.party_id);
-    setOrderDate(order.order_date);
     setExpectedDelivery(order.expected_delivery || "");
     setStatus(order.status);
     setTotalAmount(order.total_amount);
@@ -164,587 +203,652 @@ export default function SalesOrdersPage() {
     setIsEditOpen(true);
   };
 
-  const handleUpdateOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/sales/orders/${selectedOrder.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expected_delivery: expectedDelivery,
-          status,
-          total_amount: Number(totalAmount || 0),
-          notes,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update order");
-      }
-
-      toast.success("Order details updated!");
-      setIsEditOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleOpenDelete = (order: SaleOrder) => {
     setSelectedOrder(order);
     setIsDeleteOpen(true);
   };
 
-  const handleDeleteOrder = async () => {
-    if (!selectedOrder) return;
+  const handleCreateOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate({
+      party_id: partyId,
+      order_date: orderDate,
+      expected_delivery: expectedDelivery || null,
+      status,
+      total_amount: Number(totalAmount) || 0,
+      notes: notes || null,
+    });
+  };
 
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/sales/orders/${selectedOrder.id}`, {
-        method: "DELETE",
-      });
+  const handleUpdateOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateMutation.mutate({
+      expected_delivery: expectedDelivery || null,
+      status,
+      total_amount: Number(totalAmount) || 0,
+      notes: notes || null,
+    });
+  };
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete order");
-      }
-
-      toast.success("Order deleted successfully");
-      setIsDeleteOpen(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
+  const getStatusBadge = (st: SaleOrder["status"]) => {
+    switch (st) {
+      case "dispatched":
+        return <Badge variant="green">Dispatched</Badge>;
+      case "ready":
+        return <Badge variant="purple">Ready</Badge>;
+      case "in_process":
+        return <Badge variant="blue">In Process</Badge>;
+      case "cancelled":
+        return <Badge variant="red">Cancelled</Badge>;
+      case "pending":
+      default:
+        return <Badge variant="orange">Pending</Badge>;
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Sales Order Bookings</h1>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-            Manage incoming bookings, dispatch pipeline, and sales bill conversions
+    <div className="flex flex-col gap-4 sm:gap-6 pb-12">
+      {/* ── Sub-Navigation Pill Bar ── */}
+      <ModuleSubNav items={SALES_NAV} />
+
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Sales Orders</h1>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)]">
+              {orders.length}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-0.5">
+            Track customer booking orders, delivery commitments & lot workflows
           </p>
         </div>
-        <Button onClick={() => router.push("/sales/orders/new")} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2 cursor-pointer shadow-sm">
-          <Plus size={16} />
-          <span>New Order Booking</span>
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/sales/orders/new")}
+            className="flex-1 sm:flex-initial h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Order Booking</span>
+          </button>
+        </div>
       </div>
 
-      {/* ── MOBILE: snap-scroll stat cards ── */}
-      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+      {/* ── Quick Filter Bar ── */}
+      <div className="flex flex-col sm:flex-row gap-2.5">
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search order number or customer..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl pl-9 pr-3 h-10 text-sm transition-colors"
+          />
+        </div>
+
+        {/* Status Filter Chips / Select */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl px-3 h-10 text-sm transition-colors cursor-pointer"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_process">In Process</option>
+          <option value="ready">Ready</option>
+          <option value="dispatched">Dispatched</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+
+        {/* Date Filter */}
+        <div className="hidden lg:flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-[var(--text-faint)] shrink-0" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3 h-10 text-xs transition-colors"
+          />
+          <span className="text-[var(--text-faint)] text-xs">to</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3 h-10 text-xs transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* ── Status Tabs (Mobile Snap Chips) ── */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-none sm:hidden">
         {[
-          { label: "Pending Value",     value: `₹${totalPendingVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: ShoppingCart,  bg: "bg-amber-500/10",  color: "text-amber-600" },
-          { label: "Ready for Dispatch",value: `${readyCount} Orders`,      icon: ShoppingBag,  bg: "bg-purple-500/10", color: "text-purple-600" },
-          { label: "Completed / Billed",value: `${dispatchedCount} Billed`, icon: CheckCircle2, bg: "bg-green-500/10",  color: "text-green-600" },
-        ].map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="snap-start shrink-0 w-[168px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
-              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
-            </div>
-          </div>
+          { label: "All", value: "" },
+          { label: "Pending", value: "pending" },
+          { label: "In Process", value: "in_process" },
+          { label: "Ready", value: "ready" },
+          { label: "Dispatched", value: "dispatched" },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setStatusFilter(tab.value)}
+            className={cn(
+              "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+              statusFilter === tab.value
+                ? "bg-[var(--primary)] border-[var(--primary)] text-white shadow-xs"
+                : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+            )}
+          >
+            {tab.label}
+          </button>
         ))}
       </div>
 
-      {/* ── DESKTOP: existing 3-col stat grid ── */}
-      <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-          <div className="p-3 bg-amber-500/10 text-amber-600 rounded-lg"><ShoppingCart className="h-6 w-6" /></div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Pending Value</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">₹{totalPendingVal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-          </div>
-        </div>
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-          <div className="p-3 bg-purple-500/10 text-purple-600 rounded-lg"><ShoppingBag className="h-6 w-6" /></div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Ready for Dispatch</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{readyCount} Bookings</span>
-          </div>
-        </div>
-        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-          <div className="p-3 bg-green-500/10 text-green-600 rounded-lg"><CheckCircle2 className="h-6 w-6" /></div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Completed / Billed</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{dispatchedCount} Orders</span>
-          </div>
-        </div>
-      </div>
+      {/* ── Main Data View with PageState ── */}
+      <PageState
+        isLoading={loadingOrders}
+        isError={isOrdersError}
+        error={ordersError instanceof Error ? ordersError.message : "Failed to load orders"}
+        onRetry={refetchOrders}
+        isEmpty={orders.length === 0}
+        emptyTitle="No Sales Orders Found"
+        emptyMessage={
+          search || statusFilter
+            ? "No bookings match your selected filter criteria."
+            : "You haven't recorded any customer booking orders yet."
+        }
+        emptyAction={
+          <button
+            type="button"
+            onClick={() => router.push("/sales/orders/new")}
+            className="h-10 px-4 rounded-xl bg-[var(--primary)] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create First Booking</span>
+          </button>
+        }
+        skeletonVariant="table"
+        skeletonRows={6}
+        skeletonColumns={6}
+      >
+        {/* ── MOBILE: Clean Cards List ── */}
+        <div className="md:hidden space-y-3">
+          {orders.map((o) => (
+            <div
+              key={o.id}
+              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3 transition-shadow"
+            >
+              {/* Header: Order# + Status */}
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-black text-[var(--primary)] text-sm tracking-tight">
+                  {o.order_number}
+                </span>
+                {getStatusBadge(o.status)}
+              </div>
 
-      {/* ── MOBILE: chips + search ── */}
-      <div className="md:hidden space-y-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {[
-            { value: "", label: "All" },
-            { value: "pending", label: "Pending" },
-            { value: "in_process", label: "In Process" },
-            { value: "ready", label: "Ready" },
-            { value: "dispatched", label: "Dispatched" },
-            { value: "cancelled", label: "Cancelled" },
-          ].map((opt) => (
-            <button key={opt.value} type="button" onClick={() => setStatusFilter(opt.value)}
-              className={cn("shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
-                statusFilter === opt.value ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
-              )}
-            >{opt.label}</button>
+              {/* Customer + Date */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-[var(--text-primary)] text-sm truncate">
+                    {o.party?.name || "Unknown Customer"}
+                  </p>
+                  {o.party?.company_name && (
+                    <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                      {o.party.company_name}
+                    </p>
+                  )}
+                </div>
+                <span className="text-[11px] text-[var(--text-faint)] shrink-0 font-medium">
+                  {o.order_date}
+                </span>
+              </div>
+
+              {/* Value + Due Date Grid */}
+              <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
+                    Booking Value
+                  </span>
+                  <span className="text-xs font-black text-[var(--text-primary)] mt-0.5 block">
+                    ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
+                    Delivery Due
+                  </span>
+                  <div className="mt-0.5">
+                    <DueDateBadge
+                      dueDate={o.expected_delivery}
+                      isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
+                      type="order"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Action Buttons (Convert, Start Lot, Linked Bill) */}
+              <div className="pt-1">
+                {o.converted_bill_id ? (
+                  <Link
+                    href={`/sales/bills/${o.converted_bill_id}`}
+                    className="inline-flex items-center gap-1.5 text-[var(--primary)] font-bold text-xs hover:underline"
+                  >
+                    <LinkIcon size={12} />
+                    <span>Linked Bill: {o.bill?.bill_number || "View Invoice"}</span>
+                  </Link>
+                ) : o.status !== "cancelled" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
+                      className="h-8 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/20 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <span>Convert</span>
+                      <ChevronRight size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`
+                        )
+                      }
+                      className="h-8 rounded-lg bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Layers size={13} />
+                      <span>Start Lot</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Footer Actions (Edit & Delete) */}
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(o)}
+                  className="h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-[var(--card-bg)] transition-colors"
+                >
+                  <Pencil size={12} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenDelete(o)}
+                  className="h-8 px-3 rounded-lg border border-red-500/20 bg-red-500/10 text-red-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-red-500/20 transition-colors"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
           ))}
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
-          <input type="text" placeholder="Search orders..." value={search} onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-3 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
-          />
-        </div>
-      </div>
 
-      {/* ── DESKTOP: Filters Bar ── */}
-      <div className="hidden md:flex bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 shadow-[var(--shadow-sm)] flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-[var(--text-faint)]" />
-            <input type="text" placeholder="Search booking number, party..." value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-44 h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_process">In Process</option>
-            <option value="ready">Ready</option>
-            <option value="dispatched">Dispatched</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <Calendar className="h-4.5 w-4.5 text-[var(--text-faint)] shrink-0" />
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
-          />
-          <span className="text-[var(--text-faint)] font-semibold text-xs uppercase">to</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-            className="w-full sm:w-36 h-10 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
-          />
-        </div>
-      </div>{/* end desktop filters */}
-
-      {/* ── MOBILE: Order card list ── */}
-      <div className="md:hidden space-y-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 text-[var(--primary)] animate-spin" /></div>
-        ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center py-12 gap-2 text-[var(--text-muted)]">
-            <ShoppingCart className="h-8 w-8" />
-            <p className="text-sm font-semibold">No order bookings yet.</p>
-          </div>
-        ) : orders.map((o) => (
-          <div key={o.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-            {/* Header: Order# + Status */}
-            <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-              <span className="font-mono font-black text-[var(--primary)] text-sm">{o.order_number}</span>
-              <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                o.status === "dispatched" ? "bg-green-500/10 text-green-600" :
-                o.status === "ready" ? "bg-purple-500/10 text-purple-600" :
-                o.status === "in_process" ? "bg-blue-500/10 text-blue-600" :
-                o.status === "cancelled" ? "bg-red-500/10 text-red-500" :
-                "bg-amber-500/10 text-amber-600"
-              )}>{o.status.replace("_", " ")}</span>
-            </div>
-
-            {/* Customer + Date */}
-            <div className="flex items-start justify-between px-4 pb-2">
-              <div className="min-w-0 mr-2">
-                <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{o.party?.name}</p>
-                {o.party?.company_name && <p className="text-[11px] text-[var(--text-muted)] truncate">{o.party.company_name}</p>}
-              </div>
-              <span className="text-xs text-[var(--text-muted)] shrink-0">{o.order_date}</span>
-            </div>
-
-            {/* Value + Delivery grid */}
-            <div className="grid grid-cols-2 border-t border-[var(--border-light)] mx-4 py-2">
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Value</p>
-                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Delivery</p>
-                <div className="mt-0.5">
-                  <DueDateBadge dueDate={o.expected_delivery} isCompleted={o.status === "dispatched" || !!o.converted_bill_id} type="order" />
-                </div>
-              </div>
-            </div>
-
-            {/* Invoice / Convert / Start Lot */}
-            <div className="px-4 pb-2">
-              {o.converted_bill_id ? (
-                <Link href={`/sales/bills/${o.converted_bill_id}`}
-                  className="inline-flex items-center gap-1 text-[var(--primary)] font-bold text-[11px] hover:underline"
-                ><LinkIcon size={10} />{o.bill?.bill_number}</Link>
-              ) : o.status !== "cancelled" ? (
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
-                    className="flex-1 h-7 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
-                  >Convert <ChevronRight size={11} /></button>
-                  <button type="button" onClick={() => router.push(`/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`)}
-                    className="flex-1 h-7 bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 rounded text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
-                  ><Layers size={11} />Start Lot</button>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Action footer */}
-            <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2">
-              <button type="button" onClick={() => handleOpenEdit(o)}
-                className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer"
-              ><Pencil size={13} /></button>
-              <button type="button" onClick={() => handleOpenDelete(o)}
-                className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer"
-              ><Trash2 size={13} /></button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── DESKTOP: Orders Table ── */}
-      <div className="hidden md:block bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 gap-2">
-            <Loader2 className="h-7 w-7 text-[#6366F1] animate-spin" />
-            <span className="text-xs text-slate-500 font-semibold">Loading orders book...</span>
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-2">
-            <ShoppingCart className="h-8 w-8 text-slate-300" />
-            <span className="text-sm font-semibold">No order bookings recorded yet.</span>
-          </div>
-        ) : (
+        {/* ── DESKTOP: Clean Modern Table ── */}
+        <div className="hidden md:block bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#F3F4F6] bg-slate-50 font-bold text-slate-600">
+                <tr className="border-b border-[var(--border)] bg-[var(--table-header-bg)] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   <th className="p-4">Order Date</th>
                   <th className="p-4">Order Code</th>
                   <th className="p-4">Customer</th>
                   <th className="p-4">Expected Delivery</th>
                   <th className="p-4 text-right">Value (₹)</th>
                   <th className="p-4 text-center">Status</th>
-                  <th className="p-4 text-center">Linked Invoice</th>
+                  <th className="p-4 text-center">Workflow</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
-                {orders.map((o) => {
-                  return (
-                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-700">{o.order_date}</td>
-                      <td className="p-4 font-bold text-[#6366F1] font-mono">{o.order_number}</td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-800">{o.party?.name}</span>
-                          {o.party?.company_name && (
-                            <span className="text-[10px] text-slate-400 font-medium">{o.party.company_name}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-slate-700 font-semibold">{o.expected_delivery || "—"}</span>
-                          <DueDateBadge
-                            dueDate={o.expected_delivery}
-                            isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
-                            type="order"
-                          />
-                        </div>
-                      </td>
-                      <td className="p-4 text-right font-bold text-slate-800">
-                        ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-4 text-center">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            o.status === "dispatched"
-                              ? "bg-[#DCFCE7] text-[#15803D]"
-                              : o.status === "ready"
-                              ? "bg-[#F3E8FF] text-[#7E22CE]"
-                              : o.status === "in_process"
-                              ? "bg-[#E0F2FE] text-[#0369A1]"
-                              : o.status === "cancelled"
-                              ? "bg-[#FEE2E2] text-[#DC2626]"
-                              : "bg-[#FEF3C7] text-[#D97706]"
-                          }`}
-                        >
-                          {o.status.replace("_", " ")}
+              <tbody className="divide-y divide-[var(--border)] text-[var(--text-primary)]">
+                {orders.map((o) => (
+                  <tr
+                    key={o.id}
+                    className="hover:bg-[var(--table-row-hover)] transition-colors"
+                  >
+                    <td className="p-4 font-semibold text-[var(--text-secondary)]">
+                      {o.order_date}
+                    </td>
+                    <td className="p-4 font-bold text-[var(--primary)] font-mono">
+                      {o.order_number}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {o.party?.name || "Unknown Customer"}
                         </span>
-                      </td>
-                      <td className="p-4 text-center">
-                        {o.converted_bill_id ? (
-                          <Link
-                            href={`/sales/bills/${o.converted_bill_id}`}
-                            className="text-[#6366F1] hover:underline font-bold inline-flex items-center gap-1 font-mono text-[10px]"
-                          >
-                            <LinkIcon size={10} />
-                            <span>{o.bill?.bill_number}</span>
-                          </Link>
-                        ) : o.status === "cancelled" ? (
-                          <span className="text-slate-400 text-[10px]">Cancelled</span>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
-                              className="px-2.5 py-1 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] border border-[#BFDBFE] rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-                              title="Convert to Sales Bill"
-                            >
-                              <span>Convert</span>
-                              <ChevronRight size={12} />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`)}
-                              className="px-2.5 py-1 bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#6366F1] border border-[#C7D2FE] rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-                              title="Start Production Lot for this Order"
-                            >
-                              <Layers size={12} />
-                              <span>Start Lot</span>
-                            </button>
-                          </div>
+                        {o.party?.company_name && (
+                          <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                            {o.party.company_name}
+                          </span>
                         )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-end gap-1.5">
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[var(--text-secondary)] font-semibold">
+                          {o.expected_delivery || "—"}
+                        </span>
+                        <DueDateBadge
+                          dueDate={o.expected_delivery}
+                          isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
+                          type="order"
+                        />
+                      </div>
+                    </td>
+                    <td className="p-4 text-right font-bold text-[var(--text-primary)]">
+                      ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="p-4 text-center">{getStatusBadge(o.status)}</td>
+                    <td className="p-4 text-center">
+                      {o.converted_bill_id ? (
+                        <Link
+                          href={`/sales/bills/${o.converted_bill_id}`}
+                          className="text-[var(--primary)] hover:underline font-bold inline-flex items-center gap-1 font-mono text-xs"
+                        >
+                          <LinkIcon size={12} />
+                          <span>{o.bill?.bill_number || "View Bill"}</span>
+                        </Link>
+                      ) : o.status === "cancelled" ? (
+                        <span className="text-[var(--text-faint)] text-xs">Cancelled</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleOpenEdit(o)}
-                            className="w-7 h-7 border border-[#E5E7EB] hover:bg-slate-100 text-slate-600 rounded flex items-center justify-center cursor-pointer transition-all"
-                            title="Edit Order"
+                            onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
+                            className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/20 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                            title="Convert to Sales Bill"
                           >
-                            <Pencil size={13} />
+                            <span>Convert</span>
+                            <ChevronRight size={12} />
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => handleOpenDelete(o)}
-                            className="w-7 h-7 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded flex items-center justify-center cursor-pointer transition-all"
-                            title="Delete Order"
+                            onClick={() =>
+                              router.push(
+                                `/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`
+                              )
+                            }
+                            className="px-2.5 py-1 bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                            title="Start Production Lot"
                           >
-                            <Trash2 size={13} />
+                            <Layers size={12} />
+                            <span>Start Lot</span>
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(o)}
+                          className="w-8 h-8 border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-amber-500 rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                          title="Edit Order"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDelete(o)}
+                          className="w-8 h-8 border border-red-500/20 hover:bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center cursor-pointer transition-all"
+                          title="Delete Order"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>{/* end desktop table */}
+        </div>
+      </PageState>
 
-      {/* Add Modal */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Record Sales Order Booking</DialogTitle>
-          </DialogHeader>
+      {/* ── Add Booking Modal ── */}
+      <Modal
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+        title="Record Sales Order Booking"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleCreateOrder} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Customer *
+            </label>
+            <select
+              value={partyId}
+              required
+              onChange={(e) => setPartyId(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
+            >
+              <option value="">Select Customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.company_name ? `(${c.company_name})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <form onSubmit={handleCreateOrder} className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer *</label>
-              <select
-                value={partyId}
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Order Date *
+              </label>
+              <input
+                type="date"
                 required
-                onChange={(e) => setPartyId(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Expected Delivery
+              </label>
+              <input
+                type="date"
+                value={expectedDelivery}
+                onChange={(e) => setExpectedDelivery(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Est. Total Booking Value (₹)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={totalAmount}
+              onChange={(e) =>
+                setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Order Notes & Details
+            </label>
+            <textarea
+              placeholder="List item details, design codes, quantities, sizes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg p-3 text-sm transition-colors resize-none h-20"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-light)]">
+            <button
+              type="button"
+              onClick={() => setIsAddOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={createMutation.isPending}
+              variant="primary"
+            >
+              Record Order
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Edit Order Modal ── */}
+      <Modal
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        title="Edit Order Details"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleUpdateOrder} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Customer
+            </label>
+            <input
+              type="text"
+              disabled
+              value={selectedOrder?.party?.name || ""}
+              className="w-full bg-[var(--page-bg)] border border-[var(--input-border)] rounded-lg px-3 h-10 text-sm text-[var(--text-muted)] cursor-not-allowed"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Expected Delivery
+              </label>
+              <input
+                type="date"
+                value={expectedDelivery}
+                onChange={(e) => setExpectedDelivery(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Status *
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
               >
-                <option value="">Select Customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.company_name ? `(${c.company_name})` : ""}
-                  </option>
-                ))}
+                <option value="pending">Pending</option>
+                <option value="in_process">In Process</option>
+                <option value="ready">Ready</option>
+                <option value="dispatched">Dispatched</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={orderDate}
-                  onChange={(e) => setOrderDate(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Expected Delivery</label>
-                <input
-                  type="date"
-                  value={expectedDelivery}
-                  onChange={(e) => setExpectedDelivery(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Est. Total Booking Value (₹)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order Description & Notes</label>
-              <textarea
-                placeholder="List item details, design codes, quantities, sizes, packaging..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full h-20 p-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none resize-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Record Order</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Modal */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Edit Order Details</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleUpdateOrder} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer</label>
-              <input
-                type="text"
-                disabled
-                value={selectedOrder?.party?.name || ""}
-                className="w-full h-10 px-3 bg-slate-50 border border-[#D1D5DB] rounded-lg text-sm text-slate-500 cursor-not-allowed outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Expected Delivery</label>
-                <input
-                  type="date"
-                  value={expectedDelivery}
-                  onChange={(e) => setExpectedDelivery(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order Status *</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in_process">In Process</option>
-                  <option value="ready">Ready</option>
-                  <option value="dispatched">Dispatched</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Est. Total Booking Value (₹)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order Description & Notes</label>
-              <textarea
-                placeholder="List item details, design codes, quantities, sizes, packaging..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full h-20 p-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none resize-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Save Changes</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB] p-6">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#DC2626]">Cancel & Delete Booking</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 pt-2">
-            <p className="text-xs text-slate-500 leading-normal">
-              Are you sure you want to delete order booking <span className="font-bold text-slate-700">{selectedOrder?.order_number}</span>? This will permanently cancel this order.
-            </p>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsDeleteOpen(false)}>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Est. Total Booking Value (₹)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={totalAmount}
+              onChange={(e) =>
+                setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Order Notes & Details
+            </label>
+            <textarea
+              placeholder="List item details, design codes, quantities, sizes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg p-3 text-sm transition-colors resize-none h-20"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-light)]">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
               Cancel
-            </Button>
-            <Button onClick={handleDeleteOrder} size="sm" disabled={saving} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
-              {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-              <span>Delete Permanently</span>
-            </Button>
+            </button>
+            <AsyncButton
+              type="submit"
+              isLoading={updateMutation.isPending}
+              variant="primary"
+            >
+              Save Changes
+            </AsyncButton>
           </div>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </Modal>
+
+      {/* ── Delete Confirmation Modal ── */}
+      <Modal
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete Order Booking"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-4 pt-2">
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Are you sure you want to delete order booking{" "}
+            <strong className="font-mono font-bold text-[var(--text-primary)]">
+              {selectedOrder?.order_number}
+            </strong>
+            ? This action cannot be undone.
+          </p>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-light)]">
+            <button
+              type="button"
+              onClick={() => setIsDeleteOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              onClick={() => deleteMutation.mutate()}
+              isLoading={deleteMutation.isPending}
+              variant="destructive"
+            >
+              Delete Permanently
+            </AsyncButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

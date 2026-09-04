@@ -122,6 +122,7 @@ export async function POST(request: Request) {
       qty_in,
       qty_out,
       wastage_qty,
+      wastage_size_allocations,
       job_work_type,
       job_work_rate,
       payment_type,
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
         .select("quantity")
         .eq("lot_id", lot_id)
         .eq("business_id", businessId)
-        .eq("status", "in_rework")
+        .in("status", ["sent_for_rework", "in_rework"])
         .is("deleted_at", null);
 
       const activeReworkQty = (activeReworks || []).reduce(
@@ -352,7 +353,10 @@ export async function POST(request: Request) {
         no_of_workers: parseInt(no_of_workers, 10) || 1,
         total_labor_cost: totalLaborCost,
         remarks: remarks || null,
-        custom_field_values: custom_field_values || {},
+        custom_field_values: {
+          ...(custom_field_values || {}),
+          ...(colour_id ? { colour_id } : {}),
+        },
         attachments: attachments || [],
         status: "completed", // once logged, it is completed
         created_by: userId,
@@ -364,18 +368,189 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: entryError.message }, { status: 400 });
     }
 
-    // 2. Update status of the current stage in lot_production_stages
-    const { data: currentStage } = await supabase
+    // 1b. Process wastage size allocations (Approach 2) if wastage_qty > 0
+    if (wQty > 0 && wastage_size_allocations && typeof wastage_size_allocations === "object") {
+      let totalAllocatedWastage = 0;
+      for (const [wColId, sizeMap] of Object.entries(wastage_size_allocations as Record<string, Record<string, number>>)) {
+        if (!sizeMap || typeof sizeMap !== "object") continue;
+        const targetColourId = wColId === "all" || !wColId || wColId === "default" ? (colour_id || null) : wColId;
+
+        for (const [size, sQty] of Object.entries(sizeMap)) {
+          const numSnd = Math.max(0, Number(sQty) || 0);
+          if (numSnd <= 0) continue;
+          totalAllocatedWastage += numSnd;
+
+          // Deduct from lot_size_quantities
+          let query = supabaseAdmin
+            .from("lot_size_quantities")
+            .select("id, quantity")
+            .eq("lot_id", lot_id)
+            .eq("size", size)
+            .eq("business_id", businessId);
+
+          if (targetColourId) {
+            query = query.eq("colour_id", targetColourId);
+          }
+
+          const { data: matchedSizes } = await query;
+          if (matchedSizes && matchedSizes.length > 0) {
+            let remToDeduct = numSnd;
+            for (const sq of matchedSizes) {
+              if (remToDeduct <= 0) break;
+              const cur = Number(sq.quantity || 0);
+              const deduct = Math.min(cur, remToDeduct);
+              await supabaseAdmin
+                .from("lot_size_quantities")
+                .update({ quantity: Math.max(0, cur - deduct) })
+                .eq("id", sq.id);
+              remToDeduct -= deduct;
+            }
+          }
+        }
+
+        // Record defect/scrap audit record for this colour
+        const flatSizes: Record<string, number> = {};
+        let colWastageQty = 0;
+        for (const [sz, q] of Object.entries(sizeMap)) {
+          const n = Math.max(0, Number(q) || 0);
+          if (n > 0) {
+            flatSizes[sz] = n;
+            colWastageQty += n;
+          }
+        }
+
+        if (colWastageQty > 0) {
+          const { data: defectRecord } = await supabaseAdmin
+            .from("lot_defects")
+            .insert({
+              business_id: businessId,
+              lot_id,
+              defect_category: "Stage Wastage / Scrap",
+              quantity: colWastageQty,
+              size_quantities: flatSizes,
+              colour_id: targetColourId,
+              detected_at_stage_id: lot_stage_id,
+              responsible_worker_id: finalWorkerId || null,
+              responsible_stage_id: lot_stage_id,
+              status: "written_off",
+              description: `Stage wastage of ${colWastageQty} pcs logged during stage entry ${entryNumber}`,
+              defect_date: entry_date,
+              created_by: userId,
+            })
+            .select("id")
+            .maybeSingle();
+
+          if (defectRecord?.id) {
+            await supabaseAdmin.from("defect_resolutions").insert({
+              business_id: businessId,
+              defect_id: defectRecord.id,
+              resolution_type: "worker_deduction_and_scrap",
+              qty_scrapped: colWastageQty,
+              qty_recovered: 0,
+              qty_b_grade: 0,
+              notes: `Scrapped at stage entry ${entryNumber}`,
+              resolved_by: userId,
+              resolved_at: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      // Deduct totalAllocatedWastage from production_lots
+      if (totalAllocatedWastage > 0) {
+        const { data: curLot } = await supabaseAdmin
+          .from("production_lots")
+          .select("total_quantity, scrapped_quantity")
+          .eq("id", lot_id)
+          .single();
+
+        if (curLot) {
+          const updatedTot = Math.max(0, Number(curLot.total_quantity || 0) - totalAllocatedWastage);
+          const updatedScrap = Number(curLot.scrapped_quantity || 0) + totalAllocatedWastage;
+          await supabaseAdmin
+            .from("production_lots")
+            .update({
+              total_quantity: updatedTot,
+              scrapped_quantity: updatedScrap,
+            })
+            .eq("id", lot_id);
+        }
+      }
+    }
+
+    // 2. Update status of the current stage in lot_production_stages based on CUMULATIVE stage output
+    const { data: currentStage } = await supabaseAdmin
       .from("lot_production_stages")
       .select("*")
       .eq("id", lot_stage_id)
       .single();
 
     if (currentStage) {
-      const isStageDone = qtyBalance <= 0; // If no balance left to process, mark stage completed
+      // Query ALL stage entries logged for this stage
+      const { data: allStageEntries } = await supabaseAdmin
+        .from("stage_entries")
+        .select("qty_out, wastage_qty")
+        .eq("lot_stage_id", lot_stage_id)
+        .eq("business_id", businessId);
+
+      const totalStageProcessed = (allStageEntries || []).reduce(
+        (sum: number, e: any) => sum + (Number(e.qty_out) || 0) + (Number(e.wastage_qty) || 0),
+        0
+      );
+
+      // Fetch active lot total target quantity
+      const { data: targetLot } = await supabaseAdmin
+        .from("production_lots")
+        .select("total_quantity")
+        .eq("id", lot_id)
+        .single();
+
+      // Check previous stage's total output if not the first stage
+      let targetQty = Number(targetLot?.total_quantity || 0);
+      if (currentStage.sequence_no > 1) {
+        const { data: prevStage } = await supabaseAdmin
+          .from("lot_production_stages")
+          .select("id")
+          .eq("lot_id", lot_id)
+          .eq("sequence_no", currentStage.sequence_no - 1)
+          .maybeSingle();
+
+        if (prevStage?.id) {
+          const { data: prevEntries } = await supabaseAdmin
+            .from("stage_entries")
+            .select("qty_out")
+            .eq("lot_stage_id", prevStage.id)
+            .eq("business_id", businessId);
+
+          const prevOut = (prevEntries || []).reduce(
+            (sum: number, e: any) => sum + (Number(e.qty_out) || 0),
+            0
+          );
+          if (prevOut > 0) {
+            targetQty = Math.min(targetQty, prevOut);
+          }
+        }
+      }
+
+      // Account for defect diversions at this stage
+      const { data: stageDefects } = await supabaseAdmin
+        .from("lot_defects")
+        .select("id, status, defect_resolutions(qty_b_grade, qty_scrapped)")
+        .eq("detected_at_stage_id", lot_stage_id)
+        .eq("business_id", businessId);
+
+      let divertedAtStage = 0;
+      (stageDefects || []).forEach((d: any) => {
+        (d.defect_resolutions || []).forEach((res: any) => {
+          divertedAtStage += (Number(res.qty_b_grade) || 0) + (Number(res.qty_scrapped) || 0);
+        });
+      });
+
+      const effectiveTarget = Math.max(0, targetQty - divertedAtStage);
+      const isStageDone = effectiveTarget > 0 ? totalStageProcessed >= effectiveTarget : qtyBalance <= 0;
       const newStatus = isStageDone ? "completed" : "in_progress";
 
-      await supabase
+      await supabaseAdmin
         .from("lot_production_stages")
         .update({
           status: newStatus,
@@ -384,9 +559,9 @@ export async function POST(request: Request) {
         })
         .eq("id", lot_stage_id);
 
-      // 3. If stage is completed, open the NEXT stage in sequence
+      // 3. Open next stage ONLY if isStageDone is true
       if (isStageDone) {
-        const { data: nextStages } = await supabase
+        const { data: nextStages } = await supabaseAdmin
           .from("lot_production_stages")
           .select("*")
           .eq("lot_id", lot_id)
@@ -395,7 +570,7 @@ export async function POST(request: Request) {
 
         if (nextStages && nextStages.length > 0) {
           const nextStage = nextStages[0];
-          await supabase
+          await supabaseAdmin
             .from("lot_production_stages")
             .update({
               status: "in_progress",
@@ -404,28 +579,18 @@ export async function POST(request: Request) {
             })
             .eq("id", nextStage.id);
 
-          // Update lot current_stage_id to the next stage
-          await supabase
+          await supabaseAdmin
             .from("production_lots")
             .update({
               current_stage_id: nextStage.stage_id,
             })
             .eq("id", lot_id);
         } else if (serverSettings.auto_complete_lot) {
-          // If there is no next stage and auto_complete_lot setting is enabled, mark lot status as completed
-          const { data: targetLot } = await supabase
-            .from("production_lots")
-            .select("total_quantity")
-            .eq("id", lot_id)
-            .single();
-
-          const lotTotalQty = targetLot?.total_quantity || qty_out;
-
-          await supabase
+          await supabaseAdmin
             .from("production_lots")
             .update({
               status: "completed",
-              completed_quantity: lotTotalQty,
+              completed_quantity: totalStageProcessed,
               completed_at: new Date().toISOString(),
             })
             .eq("id", lot_id);

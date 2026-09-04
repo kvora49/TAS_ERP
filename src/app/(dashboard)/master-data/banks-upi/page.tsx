@@ -8,13 +8,9 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DeleteBankAccountDialog } from "./_components/DeleteBankAccountDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
+import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Smartphone, Wallet } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -399,6 +395,8 @@ export default function BanksUpiPage() {
         onSearch={setSearch}
       />
 
+      <ModuleSubNav items={MASTER_DATA_NAV} />
+
       {/* Tabs & Multi Action Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border)] pb-3">
         {/* Filters Group */}
@@ -479,41 +477,135 @@ export default function BanksUpiPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleOpenAdd("bank")}
-            className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--primary)] text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+            className="flex-1 sm:flex-initial h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--primary)] text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
           >
-            <Building2 size={16} /> Add Bank Account
+            <Building2 size={16} /> Add Bank
           </button>
           <button
             onClick={() => handleOpenAdd("upi")}
-            className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-[var(--primary)]/10"
+            className="flex-1 sm:flex-initial h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[var(--primary)]/10"
           >
-            <Smartphone size={16} /> Add UPI ID
+            <Smartphone size={16} /> Add UPI
           </button>
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredAccounts}
-        isLoading={loading}
-        total={filteredAccounts.length}
-        page={1}
-        perPage={10}
-        onPageChange={() => {}}
-        onRowClick={(row) => router.push(`/master-data/banks-upi/${row.id}`)}
-        emptyMessage="No bank or UPI configurations found for the active filter. Create one above."
-      />
+      {/* ── MOBILE: Banks & UPI Card List ── */}
+      <div className="md:hidden space-y-3">
+        {filteredAccounts.length === 0 ? (
+          <div className="text-center py-10 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 text-sm text-[var(--text-muted)]">
+            No bank or UPI accounts match the filter.
+          </div>
+        ) : (
+          filteredAccounts.map((acc) => {
+            const cat = acc.account_category || (acc.type === "cash" ? "kacha" : "pakka");
+            return (
+              <div
+                key={acc.id}
+                onClick={() => router.push(`/master-data/banks-upi/${acc.id}`)}
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {acc.type === "bank" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
+                        <Building2 size={11} /> Bank
+                      </span>
+                    ) : acc.type === "upi" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                        <Smartphone size={11} /> UPI ID
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Wallet size={11} /> Cash
+                      </span>
+                    )}
+
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-secondary)]">
+                      {cat === "pakka" ? "🏷️ Pakka" : cat === "kacha" ? "📝 Kaccha" : "🔄 Both"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {acc.is_default && (
+                      <Badge variant="primary" className="gap-1 flex items-center text-[9px] py-0">
+                        <Star size={8} className="fill-current" /> Default
+                      </Badge>
+                    )}
+                    <StatusBadge active={acc.is_active} />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-sm text-[var(--text-primary)] leading-tight">{acc.name}</h4>
+                  {acc.type === "bank" ? (
+                    <p className="text-xs font-mono text-[var(--text-secondary)] mt-0.5">
+                      {acc.bank_name} · {acc.account_number}
+                    </p>
+                  ) : acc.type === "upi" ? (
+                    <p className="text-xs font-mono text-[var(--text-secondary)] mt-0.5">
+                      {acc.upi_id} ({acc.upi_provider || "UPI"})
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">{acc.sub_label || "Cash Register"}</p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[var(--border-light)] pt-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] font-medium">Balance</span>
+                    <p className="font-bold font-mono text-sm text-[var(--text-primary)]">
+                      ₹{Number(acc.current_balance ?? acc.opening_balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => handleOpenEdit(acc)}
+                      className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                    >
+                      <Pencil size={12} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleOpenDelete(acc)}
+                      className="px-2.5 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ── DESKTOP: DataTable ── */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={filteredAccounts}
+          isLoading={loading}
+          total={filteredAccounts.length}
+          page={1}
+          perPage={10}
+          onPageChange={() => {}}
+          onRowClick={(row) => router.push(`/master-data/banks-upi/${row.id}`)}
+          emptyMessage="No bank or UPI configurations found for the active filter. Create one above."
+        />
+      </div>
 
       {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-xl bg-[var(--card-bg)] rounded-xl shadow-[var(--modal-shadow)] border border-[var(--border)] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[var(--text-primary)]">
-              {editingAccount
-                ? `Edit ${selectedType === "bank" ? "Bank Account" : selectedType === "upi" ? "UPI ID" : "Cash Account"}`
-                : `Add New ${selectedType === "bank" ? "Bank Account" : "UPI ID"}`}
-            </DialogTitle>
-          </DialogHeader>
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={
+          editingAccount
+            ? `Edit ${selectedType === "bank" ? "Bank Account" : selectedType === "upi" ? "UPI ID" : "Cash Account"}`
+            : `Add New ${selectedType === "bank" ? "Bank Account" : "UPI ID"}`
+        }
+        maxWidth="max-w-xl"
+      >
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
             {/* Split Grid */}
@@ -762,7 +854,7 @@ export default function BanksUpiPage() {
               </div>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
+            <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
@@ -785,10 +877,9 @@ export default function BanksUpiPage() {
                   "Save Credentials"
                 )}
               </button>
-            </DialogFooter>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Delete Bank Account Dialog */}
       <DeleteBankAccountDialog

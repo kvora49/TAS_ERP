@@ -50,6 +50,23 @@ const ROUTE_LABELS: Record<string, string> = {
   companies: "Companies",
   "company-profile": "Company Profile",
   "barcode-qr": "Barcode Management",
+  operations: "Stock Operations",
+  transfers: "Transfers",
+  adjustments: "Adjustments",
+  challans: "Delivery Challans",
+  lots: "Production Lots",
+  "stage-entries": "Stage Entries",
+  "job-work": "Job Work",
+  receive: "Receive Payment",
+  make: "Make Payment",
+  supplier: "Supplier Payments",
+  advances: "Advances",
+  "direct-link": "Direct Link",
+  "write-offs": "Write-offs",
+  orders: "Orders",
+  bills: "Sales Bills",
+  returns: "Returns",
+  parties: "Parties",
 };
 
 export default function Header() {

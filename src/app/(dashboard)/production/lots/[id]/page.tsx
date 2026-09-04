@@ -61,6 +61,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const lotAccessories = data?.lotAccessories || [];
   const specifications = data?.specifications || null;
   const specSheet = data?.specSheet || null;
+  const defects = data?.defects || [];
 
   // Fetch godowns list for Move to Stock target selection
   const { data: godownsData } = useQuery<{ godowns: any[] }>({
@@ -153,10 +154,18 @@ export default function LotDetailPage({ params }: LotDetailProps) {
   const totalQty = lot.total_quantity || 0;
   const percentage = Math.min(Math.round((completedQty / (totalQty || 1)) * 100), 100);
 
+  // Colour lookup map for resolving colour UUIDs to names & swatches
+  const colourLookup = new Map<string, any>();
+  if (lot.colour) colourLookup.set(lot.colour.id, lot.colour);
+  (lot.colours || []).forEach((c: any) => colourLookup.set(c.id, c));
+  sizes.forEach((s: any) => {
+    if (s.colour?.id) colourLookup.set(s.colour.id, s.colour);
+  });
+
   // Map database stages into StageProgressTracker nodes
   const trackerStages = stages.map((st: any) => {
     const entries = stageEntries.filter((e: any) => e.lot_stage_id === st.id);
-    const lastEntryDate = entries.length > 0 ? entries[0].entry_date : null;
+    const lastEntryDate = entries.length > 0 ? entries[entries.length - 1].entry_date : null;
     const stageQtyOut = entries.reduce((acc: number, curr: any) => acc + (curr.qty_out || 0), 0);
 
     return {
@@ -165,6 +174,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
       status: st.status,
       date: lastEntryDate,
       qty: stageQtyOut > 0 ? stageQtyOut : null,
+      targetQty: totalQty,
     };
   });
 
@@ -507,7 +517,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                      <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                         <th className="py-2.5 px-3">#</th>
                         <th className="py-2.5 px-3">Stage</th>
                         <th className="py-2.5 px-3">Entry Date</th>
@@ -520,10 +530,10 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                         <th className="py-2.5 px-3 text-center w-16">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5E7EB] text-sm">
+                    <tbody className="divide-y divide-[var(--border)] text-sm">
                       {stageEntries.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-6 text-center text-[#64748B] text-xs">
+                          <td colSpan={10} className="py-6 text-center text-[var(--text-faint)] text-xs">
                             No stage entries logged yet.
                           </td>
                         </tr>
@@ -531,44 +541,64 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                         stageEntries.map((entry: any, idx: number) => {
                           const wastagePercent = entry.qty_in > 0 ? ((entry.wastage_qty || 0) / entry.qty_in * 100).toFixed(1) : "0.0";
                           return (
-                            <tr key={entry.id} className="hover:bg-[#F9FAFB] text-xs">
-                              <td className="py-3 px-3 text-[#64748B] font-medium">{idx + 1}</td>
-                              <td className="py-3 px-3 font-semibold text-[#374151]">
+                            <tr key={entry.id} className="hover:bg-[var(--table-row-hover)] text-xs transition-colors">
+                              <td className="py-3 px-3 text-[var(--text-muted)] font-medium">{idx + 1}</td>
+                              <td className="py-3 px-3 font-semibold text-[var(--text-primary)]">
                                 <div>
                                   <span>{entry.stage?.stage_name || "—"}</span>
                                   {entry.custom_field_values && Object.keys(entry.custom_field_values).length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-1">
-                                      {Object.entries(entry.custom_field_values).map(([k, v]) => (
-                                        <span key={k} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[9px] font-mono font-bold text-indigo-700">
-                                          {k}: {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
-                                        </span>
-                                      ))}
+                                      {Object.entries(entry.custom_field_values).map(([k, v]) => {
+                                        const isColourField = k === "colour_id" || k === "color_id";
+                                        const matchedColour = isColourField ? (colourLookup.get(String(v)) || entry.colour) : null;
+
+                                        if (isColourField) {
+                                          return (
+                                            <span
+                                              key={k}
+                                              className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[var(--page-bg)] border border-[var(--border)] rounded-full text-[9px] font-bold text-[var(--text-primary)]"
+                                            >
+                                              <span
+                                                className="w-2 h-2 rounded-full border border-black/20 shrink-0"
+                                                style={{ backgroundColor: matchedColour?.hex_code || matchedColour?.colour_hex || "#6366F1" }}
+                                              />
+                                              <span>{matchedColour?.colour_name || "Colour"}</span>
+                                            </span>
+                                          );
+                                        }
+
+                                        return (
+                                          <span key={k} className="px-1.5 py-0.5 bg-[var(--primary-light)] border border-[var(--border)] rounded text-[9px] font-mono font-bold text-[var(--primary)]">
+                                            {k}: {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
+                                          </span>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
                               </td>
-                              <td className="py-3 px-3">{entry.entry_date}</td>
-                              <td className="py-3 px-3 text-right font-medium">{entry.qty_in}</td>
-                              <td className="py-3 px-3 text-right font-semibold text-[#374151]">
+                              <td className="py-3 px-3 text-[var(--text-secondary)]">{entry.entry_date}</td>
+                              <td className="py-3 px-3 text-right font-medium text-[var(--text-primary)]">{entry.qty_in}</td>
+                              <td className="py-3 px-3 text-right font-semibold text-[var(--text-primary)]">
                                 {entry.qty_out || "—"}
                               </td>
-                              <td className="py-3 px-3 text-right text-[#D97706] font-medium">
+                              <td className="py-3 px-3 text-right text-amber-600 dark:text-amber-400 font-medium">
                                 {entry.wastage_qty > 0 ? `${entry.wastage_qty} (${wastagePercent}%)` : "0"}
                               </td>
-                              <td className="py-3 px-3 text-right font-mono text-xs">
+                              <td className="py-3 px-3 text-right font-mono text-xs text-[var(--text-primary)]">
                                 ₹{(entry.job_work_rate || 0).toFixed(2)}
                               </td>
-                              <td className="py-3 px-3 font-medium">
+                              <td className="py-3 px-3 font-medium text-[var(--text-secondary)]">
                                 {entry.worker?.name || "—"}
                               </td>
                               <td className="py-3 px-3 text-center">
                                 <span
                                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
                                     entry.status === "completed"
-                                      ? "bg-[#DCFCE7] text-[#15803D]"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                                       : entry.status === "in_progress"
-                                      ? "bg-[#DBEAFE] text-[#1D4ED8]"
-                                      : "bg-[#F1F5F9] text-[#64748B]"
+                                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                                      : "bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)]"
                                   }`}
                                 >
                                   {entry.status}
@@ -577,7 +607,7 @@ export default function LotDetailPage({ params }: LotDetailProps) {
                               <td className="py-3 px-3 text-center">
                                 <Link
                                   href={`/production/stage-entries/${entry.id}`}
-                                  className="w-7 h-7 border border-[#E5E7EB] rounded flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors mx-auto"
+                                  className="w-7 h-7 border border-[var(--border)] rounded flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-colors mx-auto"
                                   title="View Details"
                                 >
                                   <Eye size={12} />
@@ -799,43 +829,82 @@ export default function LotDetailPage({ params }: LotDetailProps) {
 
                 {stages.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {stages.map((st: any, idx: number) => (
-                      <div key={idx} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col justify-between space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">
-                              {st.sequence_no}
-                            </span>
-                            {st.stage_name}
-                          </span>
-                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                            st.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
-                            st.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                            'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}>
-                            {st.status?.replace('_', ' ') || 'pending'}
-                          </span>
-                        </div>
+                    {stages.map((st: any, idx: number) => {
+                      const stageEntriesForThis = stageEntries.filter((e: any) => e.lot_stage_id === st.id);
+                      const stageQty = stageEntriesForThis.reduce((acc: number, curr: any) => acc + (curr.qty_out || 0), 0);
+                      const stageDefects = defects.filter((d: any) => d.detected_at_stage_id === st.id);
+                      const inRework = stageDefects
+                        .filter((d: any) => ["sent_for_rework", "in_rework", "pending"].includes(d.status))
+                        .reduce((s: number, d: any) => s + (d.quantity || 0), 0);
 
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Assigned Worker(s)</span>
-                          {st.workers && st.workers.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {st.workers.map((w: any, wi: number) => (
-                                <span key={wi} className="bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">
-                                  {w.name} ({w.worker_id || "Worker"})
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">No worker assigned</span>
-                          )}
+                      let bGradeQty = 0;
+                      let scrapQty = 0;
+                      stageDefects.forEach((d: any) => {
+                        (d.resolutions || []).forEach((res: any) => {
+                          bGradeQty += Number(res.qty_b_grade || 0);
+                          scrapQty += Number(res.qty_scrapped || 0);
+                        });
+                      });
+
+                      return (
+                        <div key={idx} className="bg-[var(--card-bg)] border border-[var(--border)] p-3 rounded-xl flex flex-col justify-between space-y-2.5 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-[var(--primary-light)] text-[var(--primary)] text-[11px] font-bold flex items-center justify-center">
+                                {st.sequence_no}
+                              </span>
+                              {st.stage_name}
+                            </span>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                              st.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                              st.status === 'in_progress' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
+                              'bg-[var(--page-bg)] text-[var(--text-muted)] border-[var(--border)]'
+                            }`}>
+                              {st.status?.replace('_', ' ') || 'pending'}
+                            </span>
+                          </div>
+
+                          {/* Stage Output & Defect Indicators */}
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-[var(--text-muted)]">Output:</span>
+                            <strong className="text-[var(--text-primary)] font-semibold">{stageQty} Pcs</strong>
+                            {inRework > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                                ⚠️ {inRework} in rework
+                              </span>
+                            )}
+                            {bGradeQty > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 text-[10px] font-bold">
+                                📦 {bGradeQty} B-grade
+                              </span>
+                            )}
+                            {scrapQty > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-[10px] font-bold">
+                                🗑️ {scrapQty} scrap
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] block mb-1">Assigned Worker(s)</span>
+                            {st.workers && st.workers.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {st.workers.map((w: any, wi: number) => (
+                                  <span key={wi} className="bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-secondary)] px-2 py-0.5 rounded text-[11px] font-semibold">
+                                    {w.name} ({w.worker_id || "Worker"})
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-[var(--text-faint)] italic">No worker assigned</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg">No production stages configured.</p>
+                  <p className="text-xs text-[var(--text-faint)] italic bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)]">No production stages configured.</p>
                 )}
               </div>
 
@@ -974,6 +1043,8 @@ export default function LotDetailPage({ params }: LotDetailProps) {
         lotId={id}
         designCode={lot?.design?.code}
         totalQty={totalQty}
+        bGradeQty={lot?.b_grade_quantity || 0}
+        scrappedQty={lot?.scrapped_quantity || 0}
         godowns={godowns}
         lotRolls={lotRolls}
         avgMetersPerPiece={lot?.specifications?.avg_meters_per_piece || lot?.design?.avg_meters}

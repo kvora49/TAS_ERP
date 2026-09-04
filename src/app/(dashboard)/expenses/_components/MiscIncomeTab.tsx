@@ -78,7 +78,8 @@ export default function MiscIncomeTab() {
         emptyMessage="No non-operating income entries recorded matching your criteria."
       >
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -117,6 +118,32 @@ export default function MiscIncomeTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Income Cards */}
+          <div className="md:hidden divide-y divide-[var(--border-light)]">
+            {filteredIncome.map((inc) => (
+              <div key={inc.id} className="p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-xs text-[var(--primary)]">{inc.income_number}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)] capitalize">
+                    {inc.income_type.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-medium text-[var(--text-primary)] truncate max-w-[65%]">{inc.party?.name || "Other Source"}</span>
+                  <span className="font-mono text-[var(--text-muted)] text-[11px]">
+                    {new Date(inc.income_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                  <span className="text-[var(--text-muted)] text-[11px]">{inc.bank_account?.account_name || "Cash"}</span>
+                  <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">{formatCurrency(inc.amount)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </PageState>

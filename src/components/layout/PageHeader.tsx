@@ -31,10 +31,10 @@ export function PageHeader({
   actionIcon = <Plus className="h-4 w-4 text-white" />,
 }: PageHeaderProps) {
   return (
-    <div className="mb-6 select-none">
-      {/* Breadcrumb Navigation */}
+    <div className="mb-3 sm:mb-6 select-none">
+      {/* Breadcrumb Navigation — hidden on mobile (Header already shows page title) */}
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+        <nav className="hidden sm:flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
           {breadcrumbs.map((bc, i) => (
             <React.Fragment key={i}>
               {bc.href ? (
@@ -56,30 +56,30 @@ export function PageHeader({
       )}
 
       {/* Main Title Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+          <h1 className="text-lg sm:text-2xl lg:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-[var(--text-muted)] mt-0.5 font-medium leading-relaxed">
+            <p className="hidden sm:block text-sm text-[var(--text-muted)] mt-0.5 font-medium leading-relaxed">
               {subtitle}
             </p>
           )}
         </div>
 
         {/* Actions panel */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+        <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
           {/* Search bar */}
           {onSearch && (
-            <div className="relative w-full sm:w-[280px]">
+            <div className="relative flex-1 sm:flex-initial sm:w-[280px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
               <input
                 type="text"
                 placeholder={searchPlaceholder}
                 value={searchValue}
                 onChange={(e) => onSearch(e.target.value)}
-                className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+                className="pl-9 pr-4 h-9 sm:h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
               />
             </div>
           )}
@@ -89,10 +89,10 @@ export function PageHeader({
             <button
               type="button"
               onClick={onAction}
-              className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10 shrink-0"
+              className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 h-9 sm:h-10 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10 shrink-0 whitespace-nowrap"
             >
               {actionIcon}
-              {actionLabel}
+              <span className="hidden min-[400px]:inline">{actionLabel}</span>
             </button>
           )}
         </div>

@@ -119,7 +119,43 @@ export class SalesBillService {
         const size = itemAny.size;
         const req = Number(item.quantity || 0);
 
-        if (finishedGoodsId) {
+        const isBGrade = !!(itemAny.is_b_grade || itemAny.item_type === "b_grade" || itemAny.b_grade_stock_id);
+
+        if (isBGrade) {
+          let bQuery = this.repository.supabase
+            .from("b_grade_stock")
+            .select("id, total_quantity, size_quantities, design:designs(name, design_number)")
+            .eq("business_id", businessId)
+            .in("status", ["available", "partially_sold"]);
+
+          if (itemAny.b_grade_stock_id) {
+            bQuery = bQuery.eq("id", itemAny.b_grade_stock_id);
+          } else if (designId) {
+            bQuery = bQuery.eq("design_id", designId);
+            if (colorId) {
+              bQuery = bQuery.eq("colour_id", colorId);
+            }
+          }
+
+          const { data: bRows } = await bQuery;
+          let avail = 0;
+          let designName = "B-Grade Item";
+          if (bRows && bRows.length > 0) {
+            designName = (bRows[0]?.design as any)?.design_number || (bRows[0]?.design as any)?.name || "B-Grade Item";
+            bRows.forEach((row: any) => {
+              if (size && size !== "—" && row.size_quantities && row.size_quantities[size] !== undefined) {
+                avail += Number(row.size_quantities[size] || 0);
+              } else {
+                avail += Number(row.total_quantity || 0);
+              }
+            });
+          }
+
+          if (avail < req) {
+            const itemLabel = size && size !== "—" ? `${designName} (${size}) [B-Grade]` : `${designName} [B-Grade]`;
+            throw new Error(`Insufficient B-Grade stock for "${itemLabel}". Available: ${avail}, Requested: ${req}`);
+          }
+        } else if (finishedGoodsId) {
           const { data: stockRow } = await this.repository.supabase
             .from("raw_material_current_stock")
             .select("current_stock, material:raw_materials(name)")

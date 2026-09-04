@@ -5,13 +5,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
+import { MASTER_DATA_NAV } from "@/lib/moduleNav";
+import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, Tag } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -205,25 +201,25 @@ export default function ExpenseTypesPage() {
     switch (area) {
       case "Purchase":
         return (
-          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EDE9FE] text-[#7C3AED]">
+          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
             Purchase
           </span>
         );
       case "Sales":
         return (
-          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#DCFCE7] text-[#15803D]">
+          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             Sales
           </span>
         );
       case "Production":
         return (
-          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
+          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
             Production
           </span>
         );
       default:
         return (
-          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#F1F5F9] text-[#64748B]">
+          <span key={area} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)]">
             General
           </span>
         );
@@ -247,7 +243,7 @@ export default function ExpenseTypesPage() {
           />
           <button
             onClick={() => setSelectedExpenseTypeDetails(row)}
-            className="font-bold text-[#6366F1] cursor-pointer text-left bg-transparent border-0 p-0"
+            className="font-bold text-[var(--primary)] hover:underline cursor-pointer text-left bg-transparent border-0 p-0"
           >
             {row.name}
           </button>
@@ -258,7 +254,7 @@ export default function ExpenseTypesPage() {
       key: "description",
       header: "Description",
       render: (row) => (
-        <span className="text-[#64748B] text-xs font-semibold max-w-xs block truncate">
+        <span className="text-[var(--text-muted)] text-xs font-semibold max-w-xs block truncate">
           {row.description || "—"}
         </span>
       ),
@@ -285,14 +281,14 @@ export default function ExpenseTypesPage() {
         <div className="flex items-center gap-2 select-none">
           <button
             onClick={() => handleOpenEdit(row)}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
             title="Edit Expense Type"
           >
             <Pencil size={15} />
           </button>
           <button
             onClick={() => handleOpenDelete(row)}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-9 h-9 border border-rose-500/20 rounded-lg hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center cursor-pointer transition-all"
             title="Delete Expense Type"
           >
             <Trash2 size={15} />
@@ -320,38 +316,59 @@ export default function ExpenseTypesPage() {
         actionIcon={<Plus size={16} className="text-white" />}
       />
 
+      <ModuleSubNav items={MASTER_DATA_NAV} />
+
       {/* ── MOBILE: Expense Types Card List ── */}
       <div className="md:hidden space-y-3">
-        {filteredTypes.map((et) => (
-          <div key={et.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-4 h-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: et.color || "#6366F1" }} />
-                <p className="font-bold text-[var(--primary)] text-sm">{et.name}</p>
-              </div>
-              <StatusBadge active={et.is_active} />
-            </div>
-
-            {et.description && <p className="text-xs text-[var(--text-muted)] line-clamp-2">{et.description}</p>}
-
-            <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
-              {(et.applicable_for || []).map((area, i) => (
-                <span key={i} className="text-[10px] font-bold bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded text-[var(--text-secondary)]">
-                  {area}
-                </span>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
-              <button type="button" onClick={() => handleOpenEdit(et)}
-                className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
-              ><Pencil size={12} /> Edit</button>
-              <button type="button" onClick={() => handleOpenDelete(et)}
-                className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-600 flex items-center gap-1 cursor-pointer"
-              ><Trash2 size={12} /> Delete</button>
-            </div>
+        {filteredTypes.length === 0 ? (
+          <div className="text-center py-10 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 text-sm text-[var(--text-muted)]">
+            No expense types found.
           </div>
-        ))}
+        ) : (
+          filteredTypes.map((et) => (
+            <div key={et.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-4 h-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: et.color || "#6366F1" }} />
+                  <p
+                    onClick={() => setSelectedExpenseTypeDetails(et)}
+                    className="font-bold text-[var(--primary)] text-sm cursor-pointer hover:underline"
+                  >
+                    {et.name}
+                  </p>
+                </div>
+                <StatusBadge active={et.is_active} />
+              </div>
+
+              {et.description && <p className="text-xs text-[var(--text-muted)] line-clamp-2">{et.description}</p>}
+
+              <div className="flex flex-wrap gap-1 border-t border-[var(--border-light)] pt-2">
+                {(et.applicable_for || []).map((area, i) => (
+                  <span key={i} className="text-[10px] font-bold bg-[var(--page-bg)] border border-[var(--border)] px-2 py-0.5 rounded text-[var(--text-secondary)]">
+                    {area}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(et)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                >
+                  <Pencil size={12} /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenDelete(et)}
+                  className="px-3 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* ── DESKTOP: DataTable ── */}
@@ -368,211 +385,189 @@ export default function ExpenseTypesPage() {
         />
       </div>
 
-
       {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingType ? "Edit Expense Category" : "Add Expense Category"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            {/* Category Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Category Name *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Thread Consumables, Factory Rent, Freight"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all"
-                {...register("name")}
-              />
-              {errors.name && (
-                <p className="text-xs font-semibold text-[#DC2626]">
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Description
-              </label>
-              <textarea
-                placeholder="Describe expense details"
-                rows={2}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                {...register("description")}
-              />
-            </div>
-
-            {/* Theme color picker */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Cost Visual Color Tag
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  className="w-10 h-10 border border-[#D1D5DB] rounded-lg cursor-pointer p-0 bg-transparent"
-                  {...register("color")}
-                />
-                <span className="text-xs font-mono font-medium text-[#475569]">{selectedColor}</span>
-              </div>
-            </div>
-
-            {/* Multi-select check list for applicable areas */}
-            <div className="space-y-2 border-t border-[#F3F4F6] pt-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Applicable Modules *
-              </label>
-              <p className="text-[10px] text-[#64748B] font-medium leading-none mb-2">
-                Select areas where this expense type can be tagged.
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingType ? "Edit Expense Category" : "Add Expense Category"}
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Category Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Thread Consumables, Factory Rent, Freight"
+              className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+              {...register("name")}
+            />
+            {errors.name && (
+              <p className="text-xs font-semibold text-rose-500">
+                {errors.name.message}
               </p>
+            )}
+          </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                {APPLICABLE_AREAS.map((area) => {
-                  const isChecked = selectedAreas.includes(area.id);
-                  return (
-                    <label
-                      key={area.id}
-                      className={`flex items-center justify-between border rounded-lg p-2.5 cursor-pointer transition-all ${
-                        isChecked
-                          ? "bg-[#EEF2FF] border-[#6366F1] text-[#4F46E5] font-bold"
-                          : "bg-white border-[#E2E8F0] text-[#334155] font-semibold"
-                      }`}
-                    >
-                      <span className="text-xs">{area.label}</span>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => handleAreaChange(area.id, e.target.checked)}
-                        className="h-4 w-4 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer ml-2"
-                      />
-                    </label>
-                  );
-                })}
-              </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Description
+            </label>
+            <textarea
+              placeholder="Describe expense details"
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors resize-none"
+              {...register("description")}
+            />
+          </div>
 
-              {errors.applicable_for && (
-                <p className="text-xs font-semibold text-[#DC2626] mt-1">
-                  {errors.applicable_for.message}
-                </p>
-              )}
-            </div>
-
-            {/* Active Status */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F3F4F6]">
-              <div>
-                <h4 className="text-xs font-bold text-[#0F172A]">Active Expense Category</h4>
-                <p className="text-[10px] text-[#64748B] font-medium leading-none mt-0.5">
-                  Allows tagging on active transactions.
-                </p>
-              </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Cost Visual Color Tag
+            </label>
+            <div className="flex items-center gap-3">
               <input
-                type="checkbox"
-                className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                {...register("is_active")}
+                type="color"
+                className="w-10 h-10 border border-[var(--border)] rounded-lg cursor-pointer p-0 bg-transparent"
+                {...register("color")}
               />
+              <span className="text-xs font-mono font-medium text-[var(--text-muted)]">{selectedColor}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-[var(--border-light)] pt-3">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Applicable Modules *
+            </label>
+            <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mb-2">
+              Select areas where this expense type can be tagged.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {APPLICABLE_AREAS.map((area) => {
+                const isChecked = selectedAreas.includes(area.id);
+                return (
+                  <label
+                    key={area.id}
+                    className={`flex items-center justify-between border rounded-lg p-2.5 cursor-pointer transition-all ${
+                      isChecked
+                        ? "bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)] font-bold"
+                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] font-semibold"
+                    }`}
+                  >
+                    <span className="text-xs">{area.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => handleAreaChange(area.id, e.target.checked)}
+                      className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer ml-2"
+                    />
+                  </label>
+                );
+              })}
             </div>
 
-            <DialogFooter className="pt-4 border-t border-[#F3F4F6] flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[#E5E7EB] hover:bg-[#F1F5F9] text-sm font-semibold text-[#374151] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[#6366F1]/10"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Category"
-                )}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            {errors.applicable_for && (
+              <p className="text-xs font-semibold text-rose-500 mt-1">
+                {errors.applicable_for.message}
+              </p>
+            )}
+          </div>
 
-      {/* Confirm Soft Delete */}
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title="Delete Expense Category?"
-        description={`Are you sure you want to delete expense category "${deletingType?.name}"? Historical ledger records will preserve this tag but no new logs can select it.`}
-        onConfirm={handleConfirmDelete}
-        loading={deleteLoading}
-      />
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border-light)]">
+            <div>
+              <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Expense Category</h4>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                Allows tagging on active transactions.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+              {...register("is_active")}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[var(--primary)]/10"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Category"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* View Expense Category Details Modal */}
-      <Dialog open={selectedExpenseTypeDetails !== null} onOpenChange={(open) => !open && setSelectedExpenseTypeDetails(null)}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-              <Tag className="h-5 w-5 text-[#6366F1]" />
-              Expense Category Details
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedExpenseTypeDetails && (
-            <div className="space-y-4 pt-3 text-sm text-[#374151]">
-              <div className="border-b border-[#F3F4F6] pb-3 flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-bold text-[#0F172A]">{selectedExpenseTypeDetails.name}</h4>
-                  <div className="flex gap-1.5 mt-1 items-center">
-                    <span
-                      className="w-3 h-3 rounded-full border border-black/10 inline-block"
-                      style={{ backgroundColor: selectedExpenseTypeDetails.color || "#6366F1" }}
-                      title="Cost Visual Color Tag"
-                    />
-                    <span className="text-[10px] text-[#64748B] font-mono">
-                      Visual tag: {selectedExpenseTypeDetails.color || "#6366F1"}
-                    </span>
-                    <StatusBadge active={selectedExpenseTypeDetails.is_active} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Applicable Modules</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {selectedExpenseTypeDetails.applicable_for && selectedExpenseTypeDetails.applicable_for.map((area) => renderAreaBadge(area))}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Description</span>
-                  <p className="text-xs text-[#475569] leading-relaxed bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
-                    {selectedExpenseTypeDetails.description || "No description provided."}
-                  </p>
+      <Modal
+        open={selectedExpenseTypeDetails !== null}
+        onOpenChange={(open) => !open && setSelectedExpenseTypeDetails(null)}
+        title="Expense Category Details"
+        maxWidth="max-w-md"
+      >
+        {selectedExpenseTypeDetails && (
+          <div className="space-y-4 pt-2 text-sm text-[var(--text-body)]">
+            <div className="border-b border-[var(--border-light)] pb-3 flex items-center justify-between">
+              <div>
+                <h4 className="text-base font-bold text-[var(--text-primary)]">{selectedExpenseTypeDetails.name}</h4>
+                <div className="flex gap-1.5 mt-1 items-center">
+                  <span
+                    className="w-3 h-3 rounded-full border border-black/10 inline-block"
+                    style={{ backgroundColor: selectedExpenseTypeDetails.color || "#6366F1" }}
+                    title="Cost Visual Color Tag"
+                  />
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                    Visual tag: {selectedExpenseTypeDetails.color || "#6366F1"}
+                  </span>
+                  <StatusBadge active={selectedExpenseTypeDetails.is_active} />
                 </div>
               </div>
             </div>
-          )}
-          <DialogFooter className="pt-2">
-            <button
-              onClick={() => setSelectedExpenseTypeDetails(null)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs font-bold text-[var(--text-muted)] block uppercase tracking-wider">Applicable Modules</span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {selectedExpenseTypeDetails.applicable_for && selectedExpenseTypeDetails.applicable_for.map((area) => renderAreaBadge(area))}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs font-bold text-[var(--text-muted)] block uppercase tracking-wider">Description</span>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed bg-[var(--page-bg)] p-2.5 rounded-lg border border-[var(--border)]">
+                  {selectedExpenseTypeDetails.description || "No description provided."}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-[var(--border)] flex justify-end">
+              <button
+                onClick={() => setSelectedExpenseTypeDetails(null)}
+                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[var(--text-body)] bg-[var(--page-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-lg transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Expense Type Dialog */}
       <DeleteMasterItemDialog
