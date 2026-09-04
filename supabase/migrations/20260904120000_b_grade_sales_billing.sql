@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Migration: 20260904000000_b_grade_sales_billing.sql
+-- Migration: 20260904120000_b_grade_sales_billing.sql
 -- Description: Adds b_grade_stock_id and is_b_grade to sale_bill_items
 -- ─────────────────────────────────────────────────────────────────────────────
 
