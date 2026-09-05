@@ -285,9 +285,9 @@ export function NotificationPopover() {
   return (
     <DropdownMenu open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (isOpen) queryClient.invalidateQueries({ queryKey: ["notifications", "in-app"] }); }}>
       <DropdownMenuTrigger
-        className="relative w-9 h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer outline-none select-none"
+        className="relative w-8 h-8 sm:w-9 sm:h-9 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer outline-none select-none shrink-0"
       >
-        <Bell size={18} />
+        <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#DC2626] text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
             {unreadCount > 99 ? "99+" : unreadCount}

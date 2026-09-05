@@ -41,7 +41,7 @@ export function WorkerFieldsSection({
   }
 
   return (
-    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-xs animate-fadeIn space-y-4">
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-xs animate-fadeIn space-y-4">
       <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-amber-500 pl-2.5">
         Worker Settings
       </h2>

@@ -206,8 +206,8 @@ export default function DashboardPage() {
                 }}
                 className="space-y-4"
               >
-              {/* 1. Horizontal Snap-Scrolling KPI Strip */}
-              <div className="snap-carousel gap-2.5 pb-1 -mx-3 px-3 scrollbar-none">
+              {/* 1. Responsive Multi-Row KPI Grid (No horizontal scrolling) */}
+              <div className="grid grid-cols-2 min-[540px]:grid-cols-3 gap-2.5">
                 <MobileKPICard
                   title="Total Stock"
                   value={formatCurrency(kpis.totalStockValue.value)}
@@ -241,14 +241,16 @@ export default function DashboardPage() {
                   iconBgClass="bg-[var(--badge-red-bg)] text-[var(--badge-red-text)]"
                   inverseColorDirection={true}
                 />
-                <MobileKPICard
-                  title="Cash in Hand"
-                  value={formatCurrency(kpis.cashInHand.value)}
-                  change={kpis.cashInHand.change}
-                  positive={kpis.cashInHand.positive}
-                  icon={Wallet}
-                  iconBgClass="bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)]"
-                />
+                <div className="col-span-2 min-[540px]:col-span-1">
+                  <MobileKPICard
+                    title="Cash in Hand"
+                    value={formatCurrency(kpis.cashInHand.value)}
+                    change={kpis.cashInHand.change}
+                    positive={kpis.cashInHand.positive}
+                    icon={Wallet}
+                    iconBgClass="bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)]"
+                  />
+                </div>
               </div>
 
               {/* 2. Segmented Mobile Tabs */}
@@ -1061,7 +1063,7 @@ function MobileKPICard({
   const isWorse = inverseColorDirection ? positive : !positive;
 
   return (
-    <div className="w-[142px] shrink-0 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3 shadow-xs flex flex-col justify-between select-none">
+    <div className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3 shadow-xs flex flex-col justify-between select-none">
       <div className="flex items-center justify-between gap-1">
         <span className="text-[10px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider truncate">
           {title}

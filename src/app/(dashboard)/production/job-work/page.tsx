@@ -39,10 +39,9 @@ import WorkerAvatar from "@/components/shared/WorkerAvatar";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { cn } from "@/lib/utils";
+import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { PRODUCTION_NAV } from "@/lib/moduleNav";
 import {
   Dialog,
   DialogContent,
@@ -560,40 +559,38 @@ export default function UnifiedJobWorkPage() {
         </div>
 
         {/* Primary Action Buttons */}
-        <div className="flex items-center gap-3">
+        <div className="w-full grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 sm:w-auto">
           <Link
             href="/production/stage-entries/new"
-            className="h-10 px-5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer text-center"
           >
-            <Plus size={16} />
-            <span>+ Add Stage Entry</span>
+            <Plus size={15} />
+            <span>+ Stage Entry</span>
           </Link>
 
           <Link
             href="/production/job-work/record-payment"
-            className="h-10 px-5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer text-center"
           >
-            <CreditCard size={16} />
-            <span>Record Job Work Payment</span>
+            <CreditCard size={15} />
+            <span>Record Payment</span>
           </Link>
         </div>
       </div>
 
-      <ModuleSubNav items={PRODUCTION_NAV} />
-
-      {/* ── MOBILE: snap-scroll KPI cards ── */}
-      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+      {/* ── MOBILE: 2x2 KPI grid ── */}
+      <div className="grid grid-cols-2 gap-2 md:hidden">
         {[
           { label: "Total Billed",    value: formatCurrency(globalStats.totalBilled),       icon: ClipboardList, bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
           { label: "Total Payouts",   value: formatCurrency(globalStats.totalPaid),          icon: CheckCircle,   bg: "bg-emerald-500/10",           color: "text-emerald-600 dark:text-emerald-400" },
           { label: "Outstanding",     value: formatCurrency(globalStats.totalOutstanding),   icon: IndianRupee,   bg: "bg-rose-500/10",              color: "text-rose-600 dark:text-rose-400" },
           { label: "Active Workers",  value: `${workers.length}`,                            icon: User,          bg: "bg-blue-500/10",              color: "text-blue-600 dark:text-blue-400" },
         ].map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+          <div key={label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+            <div className={cn("p-1.5 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
-              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+              <p className={cn("text-xs font-bold mt-0.5 truncate", color)}>{value}</p>
             </div>
           </div>
         ))}
@@ -679,106 +676,190 @@ export default function UnifiedJobWorkPage() {
         {/* ------------------------------------------------------------- */}
         {/* TAB 1: JOB WORK ENTRIES LOG */}
         {/* ------------------------------------------------------------- */}
-        {activeTab === "entries" && (
-          <div className="p-5 space-y-4">
-            {/* Filters Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-[var(--page-bg)] p-3 rounded-xl border border-[var(--border)]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={14} />
-                <input
-                  type="text"
-                  placeholder="Search Entry #, Lot #..."
-                  value={entriesSearch}
-                  onChange={(e) => setEntriesSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg text-xs font-medium outline-none transition-colors"
-                />
+        {activeTab === "entries" && (() => {
+          const activeEntriesFilterCount = [
+            entriesWorkerFilter !== "all",
+            entriesLotFilter !== "all",
+            entriesStatusFilter !== "all",
+            Boolean(entriesStartDate),
+            Boolean(entriesEndDate),
+          ].filter(Boolean).length;
+
+          const handleClearEntriesFilters = () => {
+            setEntriesWorkerFilter("all");
+            setEntriesLotFilter("all");
+            setEntriesStatusFilter("all");
+            setEntriesStartDate("");
+            setEntriesEndDate("");
+            setEntriesSearch("");
+          };
+
+          return (
+            <div className="p-3 sm:p-5 space-y-4">
+              {/* Mobile Search & Filter Sheet Button */}
+              <div className="sm:hidden flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Search Entry #, Lot #..."
+                    value={entriesSearch}
+                    onChange={(e) => setEntriesSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg text-xs font-medium outline-none transition-colors"
+                  />
+                </div>
+
+                <MobileFilterSheet
+                  activeCount={activeEntriesFilterCount}
+                  onClearAll={handleClearEntriesFilters}
+                >
+                  <MobileFilterField label="Worker">
+                    <select
+                      value={entriesWorkerFilter}
+                      onChange={(e) => setEntriesWorkerFilter(e.target.value)}
+                      className="w-full h-10 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none"
+                    >
+                      <option value="all">All Workers</option>
+                      {workers.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.worker_id})
+                        </option>
+                      ))}
+                    </select>
+                  </MobileFilterField>
+
+                  <MobileFilterField label="Lot">
+                    <select
+                      value={entriesLotFilter}
+                      onChange={(e) => setEntriesLotFilter(e.target.value)}
+                      className="w-full h-10 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none"
+                    >
+                      <option value="all">All Lots</option>
+                      {lots.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.lot_number}
+                        </option>
+                      ))}
+                    </select>
+                  </MobileFilterField>
+
+                  <MobileFilterField label="Payment Status">
+                    <select
+                      value={entriesStatusFilter}
+                      onChange={(e) => setEntriesStatusFilter(e.target.value)}
+                      className="w-full h-10 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none"
+                    >
+                      <option value="all">All Payment Statuses</option>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="partial">Partial</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </MobileFilterField>
+
+                  <MobileFilterField label="From Date">
+                    <input
+                      type="date"
+                      value={entriesStartDate}
+                      onChange={(e) => setEntriesStartDate(e.target.value)}
+                      className="w-full h-10 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none"
+                    />
+                  </MobileFilterField>
+
+                  <MobileFilterField label="To Date">
+                    <input
+                      type="date"
+                      value={entriesEndDate}
+                      onChange={(e) => setEntriesEndDate(e.target.value)}
+                      className="w-full h-10 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none"
+                    />
+                  </MobileFilterField>
+                </MobileFilterSheet>
               </div>
 
-              <select
-                value={entriesWorkerFilter}
-                onChange={(e) => setEntriesWorkerFilter(e.target.value)}
-                className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
-              >
-                <option value="all">All Workers</option>
-                {workers.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.worker_id})
-                  </option>
-                ))}
-              </select>
+              {/* Desktop Filters Bar */}
+              <div className="hidden sm:grid grid-cols-5 gap-3 bg-[var(--page-bg)] p-3 rounded-xl border border-[var(--border)]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Search Entry #, Lot #..."
+                    value={entriesSearch}
+                    onChange={(e) => setEntriesSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg text-xs font-medium outline-none transition-colors"
+                  />
+                </div>
 
-              <select
-                value={entriesLotFilter}
-                onChange={(e) => setEntriesLotFilter(e.target.value)}
-                className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
-              >
-                <option value="all">All Lots</option>
-                {lots.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.lot_number}
-                  </option>
-                ))}
-              </select>
+                <select
+                  value={entriesWorkerFilter}
+                  onChange={(e) => setEntriesWorkerFilter(e.target.value)}
+                  className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
+                >
+                  <option value="all">All Workers</option>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.worker_id})
+                    </option>
+                  ))}
+                </select>
 
-              <select
-                value={entriesStatusFilter}
-                onChange={(e) => setEntriesStatusFilter(e.target.value)}
-                className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
-              >
-                <option value="all">All Payment Statuses</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-              </select>
+                <select
+                  value={entriesLotFilter}
+                  onChange={(e) => setEntriesLotFilter(e.target.value)}
+                  className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
+                >
+                  <option value="all">All Lots</option>
+                  {lots.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.lot_number}
+                    </option>
+                  ))}
+                </select>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={entriesStartDate}
-                  onChange={(e) => setEntriesStartDate(e.target.value)}
-                  className="w-1/2 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 text-xs font-medium outline-none transition-colors"
-                />
-                <input
-                  type="date"
-                  value={entriesEndDate}
-                  onChange={(e) => setEntriesEndDate(e.target.value)}
-                  className="w-1/2 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 text-xs font-medium outline-none transition-colors"
-                />
+                <select
+                  value={entriesStatusFilter}
+                  onChange={(e) => setEntriesStatusFilter(e.target.value)}
+                  className="h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-3 text-xs font-medium outline-none transition-colors"
+                >
+                  <option value="all">All Payment Statuses</option>
+                  <option value="unpaid">Unpaid</option>
+                  <option value="partial">Partial</option>
+                  <option value="paid">Paid</option>
+                </select>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    title="From Date"
+                    value={entriesStartDate}
+                    onChange={(e) => setEntriesStartDate(e.target.value)}
+                    className="w-1/2 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 text-xs font-medium outline-none transition-colors"
+                  />
+                  <input
+                    type="date"
+                    title="To Date"
+                    value={entriesEndDate}
+                    onChange={(e) => setEntriesEndDate(e.target.value)}
+                    className="w-1/2 h-9 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 text-xs font-medium outline-none transition-colors"
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Entries Table */}
-            {loadingEntries ? (
-              <div className="py-16 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto" />
-                <p className="text-xs text-[var(--text-muted)] mt-2 font-medium">Loading entries...</p>
-              </div>
-            ) : jobWorkEntries.length === 0 ? (
-              <div className="py-16 text-center bg-[var(--page-bg)] rounded-xl border border-dashed border-[var(--border)]">
-                <ClipboardList className="mx-auto text-[var(--text-faint)] h-10 w-10 mb-2" />
-                <p className="text-sm font-bold text-[var(--text-primary)]">No Job Work Entries Found</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">Log stage entries or adjust filter criteria.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4">Entry #</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Lot No</th>
-                      <th className="py-3 px-4">Stage</th>
-                      <th className="py-3 px-4">Worker</th>
-                      <th className="py-3 px-4 text-right">Processed Qty</th>
-                      <th className="py-3 px-4 text-right">Rate</th>
-                      <th className="py-3 px-4 text-right">Total Amount</th>
-                      <th className="py-3 px-4 text-right">Paid Amount</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Due Counter</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
+              {/* Entries Content */}
+              {loadingEntries ? (
+                <div className="py-16 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto" />
+                  <p className="text-xs text-[var(--text-muted)] mt-2 font-medium">Loading entries...</p>
+                </div>
+              ) : jobWorkEntries.length === 0 ? (
+                <div className="py-16 text-center bg-[var(--page-bg)] rounded-xl border border-dashed border-[var(--border)]">
+                  <ClipboardList className="mx-auto text-[var(--text-faint)] h-10 w-10 mb-2" />
+                  <p className="text-sm font-bold text-[var(--text-primary)]">No Job Work Entries Found</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Log stage entries or adjust filter criteria.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Cards for Tab 1 Entries */}
+                  <div className="md:hidden space-y-2.5">
                     {jobWorkEntries.map((e) => {
                       const tot = Number(e.total_job_work_amount || 0);
                       const pd = Number(e.paid_amount || 0);
@@ -786,115 +867,231 @@ export default function UnifiedJobWorkPage() {
                       const isPartial = e.payment_status === "partial";
 
                       return (
-                        <tr key={e.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                          <td className="py-3 px-4 font-bold text-[var(--primary)]">{e.entry_number}</td>
-                          <td className="py-3 px-4 text-[var(--text-muted)]">{e.entry_date}</td>
-                          <td className="py-3 px-4 font-semibold text-[var(--text-secondary)]">{e.lot?.lot_number || "—"}</td>
-                          <td className="py-3 px-4 text-[var(--text-secondary)]">{e.stage?.stage_name || "—"}</td>
-                          <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
-                            {e.worker?.name || "—"}
-                            {e.worker?.worker_id ? (
-                              <span className="text-[10px] text-[var(--text-faint)] font-mono block">
-                                {e.worker.worker_id}
+                        <div key={e.id} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 space-y-2 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-[var(--primary)] text-xs">{e.entry_number}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase",
+                                isPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" :
+                                isPartial ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" :
+                                "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                              )}>
+                                {e.payment_status}
                               </span>
-                            ) : null}
-                          </td>
-                          <td className="py-3 px-4 text-right font-bold text-[var(--text-primary)]">{e.qty_out?.toLocaleString("en-IN")} Pcs</td>
-                          <td className="py-3 px-4 text-right text-[var(--text-secondary)]">₹{Number(e.job_work_rate || 0).toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right font-extrabold text-[var(--text-primary)]">{formatCurrency(tot)}</td>
-                          <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(pd)}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                                isPaid
-                                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                                  : isPartial
-                                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                                  : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
-                              }`}
-                            >
-                              {e.payment_status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <DueDateBadge
-                              dueDate={e.due_date}
-                              isCompleted={isPaid}
-                              type="job_work"
-                            />
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {/* 1. View Entry Detail (Eye Icon) */}
+                              <DueDateBadge dueDate={e.due_date} isCompleted={isPaid} type="job_work" />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1 text-xs">
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Lot</span>
+                              <span className="font-bold text-[var(--text-primary)] truncate block">{e.lot?.lot_number || "—"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Stage</span>
+                              <span className="font-semibold text-[var(--text-secondary)] truncate block">{e.stage?.stage_name || "—"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Worker</span>
+                              <span className="font-bold text-[var(--text-primary)] truncate block">{e.worker?.name || "—"}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1 py-1.5 border-y border-[var(--border-light)] text-xs">
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block font-bold">Qty</span>
+                              <span className="font-bold text-[var(--text-primary)]">{e.qty_out} pcs</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block font-bold">Rate</span>
+                              <span className="font-mono text-[var(--text-secondary)]">₹{Number(e.job_work_rate || 0).toFixed(0)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block font-bold">Total</span>
+                              <span className="font-extrabold text-[var(--text-primary)]">{formatCurrency(tot)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-[var(--text-muted)] block font-bold">Paid</span>
+                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(pd)}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs pt-0.5">
+                            <span className="text-[11px] text-[var(--text-muted)] font-mono">{e.entry_date}</span>
+                            <div className="flex items-center gap-1">
                               <button
                                 onClick={() => setDetailModalEntry(e)}
-                                title="View Stage Entry Detail"
-                                className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] text-xs font-semibold hover:bg-[var(--table-row-hover)] inline-flex items-center gap-1 cursor-pointer"
                               >
-                                <Eye size={16} />
+                                <Eye size={12} />
+                                <span>Detail</span>
                               </button>
-
-                              {/* 2. View Worker Ledger (User Icon) */}
-                              {e.worker?.id && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedLedgerWorkerId(e.worker!.id);
-                                    setActiveTab("ledger");
-                                  }}
-                                  title="View Worker Ledger"
-                                  className="p-1.5 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 transition-colors"
-                                >
-                                  <User size={16} />
-                                </button>
-                              )}
-
-                              {/* 3. Record Payment (Credit Card Icon) */}
                               {e.worker?.id && !isPaid && (
                                 <Link
                                   href={`/production/job-work/record-payment?worker_id=${e.worker.id}`}
-                                  title="Record Payment for Worker"
-                                  className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                                  className="px-2 py-1 rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 text-xs font-semibold hover:bg-emerald-500/20 inline-flex items-center gap-1 cursor-pointer"
                                 >
-                                  <CreditCard size={16} />
+                                  <CreditCard size={12} />
+                                  <span>Pay</span>
                                 </Link>
                               )}
-
-                              {/* 4. Edit Entry (Pencil Icon) */}
                               <Link
                                 href={`/production/stage-entries/${e.id}/edit`}
-                                title="Edit Stage Entry"
-                                className="p-1.5 rounded-lg text-amber-500 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                className="p-1 rounded border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 hover:bg-[var(--table-row-hover)] cursor-pointer"
                               >
-                                <Edit size={16} />
+                                <Edit size={13} />
                               </Link>
-
-                              {/* 5. Delete Entry (Trash Icon) */}
                               <button
                                 onClick={() => setDeleteConfirmEntry(e)}
-                                title="Delete Stage Entry"
-                                className="p-1.5 rounded-lg text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                className="p-1 rounded border border-[var(--border)] bg-[var(--page-bg)] text-rose-500 hover:bg-rose-500/10 cursor-pointer"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={13} />
                               </button>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--border)]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Entry #</th>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4">Lot No</th>
+                          <th className="py-3 px-4">Stage</th>
+                          <th className="py-3 px-4">Worker</th>
+                          <th className="py-3 px-4 text-right">Processed Qty</th>
+                          <th className="py-3 px-4 text-right">Rate</th>
+                          <th className="py-3 px-4 text-right">Total Amount</th>
+                          <th className="py-3 px-4 text-right">Paid Amount</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Due Counter</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
+                        {jobWorkEntries.map((e) => {
+                          const tot = Number(e.total_job_work_amount || 0);
+                          const pd = Number(e.paid_amount || 0);
+                          const isPaid = e.payment_status === "paid";
+                          const isPartial = e.payment_status === "partial";
+
+                          return (
+                            <tr key={e.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                              <td className="py-3 px-4 font-bold text-[var(--primary)]">{e.entry_number}</td>
+                              <td className="py-3 px-4 text-[var(--text-muted)]">{e.entry_date}</td>
+                              <td className="py-3 px-4 font-semibold text-[var(--text-secondary)]">{e.lot?.lot_number || "—"}</td>
+                              <td className="py-3 px-4 text-[var(--text-secondary)]">{e.stage?.stage_name || "—"}</td>
+                              <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
+                                {e.worker?.name || "—"}
+                                {e.worker?.worker_id ? (
+                                  <span className="text-[10px] text-[var(--text-faint)] font-mono block">
+                                    {e.worker.worker_id}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="py-3 px-4 text-right font-bold text-[var(--text-primary)]">{e.qty_out?.toLocaleString("en-IN")} Pcs</td>
+                              <td className="py-3 px-4 text-right text-[var(--text-secondary)]">₹{Number(e.job_work_rate || 0).toFixed(2)}</td>
+                              <td className="py-3 px-4 text-right font-extrabold text-[var(--text-primary)]">{formatCurrency(tot)}</td>
+                              <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(pd)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                    isPaid
+                                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                      : isPartial
+                                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                      : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                                  }`}
+                                >
+                                  {e.payment_status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <DueDateBadge
+                                  dueDate={e.due_date}
+                                  isCompleted={isPaid}
+                                  type="job_work"
+                                />
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {/* 1. View Entry Detail (Eye Icon) */}
+                                  <button
+                                    onClick={() => setDetailModalEntry(e)}
+                                    title="View Stage Entry Detail"
+                                    className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+
+                                  {/* 2. View Worker Ledger (User Icon) */}
+                                  {e.worker?.id && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedLedgerWorkerId(e.worker!.id);
+                                        setActiveTab("ledger");
+                                      }}
+                                      title="View Worker Ledger"
+                                      className="p-1.5 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 transition-colors"
+                                    >
+                                      <User size={16} />
+                                    </button>
+                                  )}
+
+                                  {/* 3. Record Payment (Credit Card Icon) */}
+                                  {e.worker?.id && !isPaid && (
+                                    <Link
+                                      href={`/production/job-work/record-payment?worker_id=${e.worker.id}`}
+                                      title="Record Payment for Worker"
+                                      className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                                    >
+                                      <CreditCard size={16} />
+                                    </Link>
+                                  )}
+
+                                  {/* 4. Edit Entry (Pencil Icon) */}
+                                  <Link
+                                    href={`/production/stage-entries/${e.id}/edit`}
+                                    title="Edit Stage Entry"
+                                    className="p-1.5 rounded-lg text-amber-500 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                  >
+                                    <Edit size={16} />
+                                  </Link>
+
+                                  {/* 5. Delete Entry (Trash Icon) */}
+                                  <button
+                                    onClick={() => setDeleteConfirmEntry(e)}
+                                    title="Delete Stage Entry"
+                                    className="p-1.5 rounded-lg text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ------------------------------------------------------------- */}
         {/* TAB 2: WORKER LEDGERS STATEMENT VIEW */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "ledger" && (
-          <div className="p-5 grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Left Column: Worker Selector List */}
-            <div className="lg:col-span-1 border-r border-[var(--border)] pr-4 space-y-3">
+            <div className="lg:col-span-1 border-b lg:border-b-0 lg:border-r border-[var(--border)] pb-4 lg:pb-0 lg:pr-4 space-y-3">
               <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Select Worker</h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={14} />
@@ -989,61 +1186,121 @@ export default function UnifiedJobWorkPage() {
                       <p className="text-xs font-semibold text-[var(--text-muted)]">No ledger transactions recorded for this worker.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                          <tr>
-                            <th className="py-3 px-4">Date</th>
-                            <th className="py-3 px-4">Ref / Entry #</th>
-                            <th className="py-3 px-4">Lot / Stage</th>
-                            <th className="py-3 px-4">Type</th>
-                            <th className="py-3 px-4 text-right">Debit (Billed)</th>
-                            <th className="py-3 px-4 text-right">Credit / Payout</th>
-                            <th className="py-3 px-4 text-right">Running Balance</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
-                          {workerLedgerRows.map((row) => {
-                            const isEntry = row.entry_type === "stage_entry";
-                            const isDeduction = row.entry_type === "deduction";
-                            return (
-                              <tr key={row.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                                <td className="py-3 px-4 text-[var(--text-muted)]">{row.date}</td>
-                                <td className="py-3 px-4 font-bold text-[var(--primary)]">{row.ref_no}</td>
-                                <td className="py-3 px-4 text-[var(--text-secondary)]">
-                                  {row.lot_number ? `${row.lot_number} - ${row.stage_name}` : row.stage_name || "—"}
-                                  {row.remarks && (
-                                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5 line-clamp-1">{row.remarks}</p>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span
-                                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                      isEntry
-                                        ? "bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)]"
-                                        : isDeduction
-                                        ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
-                                        : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                                    }`}
-                                  >
-                                    {isEntry ? "Job Work Output" : isDeduction ? "Defect Deduction" : "Payment Released"}
+                    <>
+                      {/* Desktop Table */}
+                      <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--border)]">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                            <tr>
+                              <th className="py-3 px-4">Date</th>
+                              <th className="py-3 px-4">Ref / Entry #</th>
+                              <th className="py-3 px-4">Lot / Stage</th>
+                              <th className="py-3 px-4">Type</th>
+                              <th className="py-3 px-4 text-right">Debit (Billed)</th>
+                              <th className="py-3 px-4 text-right">Credit / Payout</th>
+                              <th className="py-3 px-4 text-right">Running Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
+                            {workerLedgerRows.map((row) => {
+                              const isEntry = row.entry_type === "stage_entry";
+                              const isDeduction = row.entry_type === "deduction";
+                              return (
+                                <tr key={row.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                                  <td className="py-3 px-4 text-[var(--text-muted)]">{row.date}</td>
+                                  <td className="py-3 px-4 font-bold text-[var(--primary)]">{row.ref_no}</td>
+                                  <td className="py-3 px-4 text-[var(--text-secondary)]">
+                                    {row.lot_number ? `${row.lot_number} - ${row.stage_name}` : row.stage_name || "—"}
+                                    {row.remarks && (
+                                      <p className="text-[10px] text-[var(--text-muted)] mt-0.5 line-clamp-1">{row.remarks}</p>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span
+                                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        isEntry
+                                          ? "bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)]"
+                                          : isDeduction
+                                          ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                                          : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                      }`}
+                                    >
+                                      {isEntry ? "Job Work Output" : isDeduction ? "Defect Deduction" : "Payment Released"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-bold text-[var(--text-primary)]">
+                                    {isEntry ? formatCurrency(row.amount) : "—"}
+                                  </td>
+                                  <td className={`py-3 px-4 text-right font-bold ${isDeduction ? "text-rose-600" : "text-emerald-600 dark:text-emerald-400"}`}>
+                                    {!isEntry ? `-${formatCurrency(Math.abs(row.amount))}` : "—"}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-extrabold text-[var(--text-primary)]">
+                                    {formatCurrency(row.balance)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Card List */}
+                      <div className="md:hidden space-y-2.5">
+                        {workerLedgerRows.map((row) => {
+                          const isEntry = row.entry_type === "stage_entry";
+                          const isDeduction = row.entry_type === "deduction";
+                          return (
+                            <div
+                              key={row.id}
+                              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2 shadow-[var(--shadow-sm)]"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-extrabold text-[var(--primary)]">{row.ref_no}</span>
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    isEntry
+                                      ? "bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)]"
+                                      : isDeduction
+                                      ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                                      : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                  }`}
+                                >
+                                  {isEntry ? "Job Work" : isDeduction ? "Deduction" : "Payout"}
+                                </span>
+                              </div>
+
+                              <div className="text-xs text-[var(--text-secondary)] font-medium">
+                                <span>{row.lot_number ? `${row.lot_number} • ${row.stage_name}` : row.stage_name || "—"}</span>
+                                {row.remarks && (
+                                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{row.remarks}</p>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border)] text-[11px]">
+                                <div>
+                                  <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Date</span>
+                                  <span className="text-[var(--text-secondary)]">{row.date}</span>
+                                </div>
+                                <div className="text-center">
+                                  <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">
+                                    {isEntry ? "Debit" : isDeduction ? "Deduction" : "Credit"}
                                   </span>
-                                </td>
-                                <td className="py-3 px-4 text-right font-bold text-[var(--text-primary)]">
-                                  {isEntry ? formatCurrency(row.amount) : "—"}
-                                </td>
-                                <td className={`py-3 px-4 text-right font-bold ${isDeduction ? "text-rose-600" : "text-emerald-600 dark:text-emerald-400"}`}>
-                                  {!isEntry ? `-${formatCurrency(Math.abs(row.amount))}` : "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right font-extrabold text-[var(--text-primary)]">
-                                  {formatCurrency(row.balance)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                                  <span className={`font-bold ${
+                                    isEntry ? "text-[var(--text-primary)]" : isDeduction ? "text-rose-600" : "text-emerald-600 dark:text-emerald-400"
+                                  }`}>
+                                    {isEntry ? formatCurrency(row.amount) : `-${formatCurrency(Math.abs(row.amount))}`}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Balance</span>
+                                  <span className="font-extrabold text-[var(--text-primary)]">{formatCurrency(row.balance)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </>
               ) : (
@@ -1059,7 +1316,7 @@ export default function UnifiedJobWorkPage() {
         {/* TAB 3: PAYMENT HISTORY LOG */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "payments" && (
-          <div className="p-5 space-y-4">
+          <div className="p-4 sm:p-5 space-y-4">
             {loadingPayments ? (
               <div className="py-16 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto" />
@@ -1072,42 +1329,81 @@ export default function UnifiedJobWorkPage() {
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">Click &quot;+ Record Job Work Payment&quot; to record a payment.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4">Payment #</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Worker</th>
-                      <th className="py-3 px-4">Payment Mode</th>
-                      <th className="py-3 px-4">Ref # / Account</th>
-                      <th className="py-3 px-4 text-right">Amount Paid</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
-                    {paymentsList.map((p) => (
-                      <tr key={p.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                        <td className="py-3 px-4 font-bold text-[var(--primary)]">{p.payment_number}</td>
-                        <td className="py-3 px-4 text-[var(--text-muted)]">{p.payment_date}</td>
-                        <td className="py-3 px-4 font-bold text-[var(--text-primary)]">{p.worker?.name || "—"}</td>
-                        <td className="py-3 px-4 capitalize font-semibold text-[var(--text-secondary)]">{p.payment_mode.replace("_", " ")}</td>
-                        <td className="py-3 px-4 text-[var(--text-muted)] font-mono">
-                          {p.reference_no || p.account_name || "—"}
-                        </td>
-                        <td className="py-3 px-4 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(Number(p.paid_amount || 0))}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            {p.status || "success"}
-                          </span>
-                        </td>
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--border)]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
+                      <tr>
+                        <th className="py-3 px-4">Payment #</th>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-4">Worker</th>
+                        <th className="py-3 px-4">Payment Mode</th>
+                        <th className="py-3 px-4">Ref # / Account</th>
+                        <th className="py-3 px-4 text-right">Amount Paid</th>
+                        <th className="py-3 px-4 text-center">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)] font-medium text-[var(--text-primary)]">
+                      {paymentsList.map((p) => (
+                        <tr key={p.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                          <td className="py-3 px-4 font-bold text-[var(--primary)]">{p.payment_number}</td>
+                          <td className="py-3 px-4 text-[var(--text-muted)]">{p.payment_date}</td>
+                          <td className="py-3 px-4 font-bold text-[var(--text-primary)]">{p.worker?.name || "—"}</td>
+                          <td className="py-3 px-4 capitalize font-semibold text-[var(--text-secondary)]">{p.payment_mode.replace("_", " ")}</td>
+                          <td className="py-3 px-4 text-[var(--text-muted)] font-mono">
+                            {p.reference_no || p.account_name || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(Number(p.paid_amount || 0))}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              {p.status || "success"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card List */}
+                <div className="md:hidden space-y-2.5">
+                  {paymentsList.map((p) => (
+                    <div
+                      key={p.id}
+                      className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5 shadow-[var(--shadow-sm)]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold text-[var(--primary)]">{p.payment_number}</span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          {p.status || "success"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[var(--text-primary)] truncate">{p.worker?.name || "—"}</p>
+                          <p className="text-[11px] text-[var(--text-muted)] font-mono">{p.payment_date} • {p.payment_mode.replace("_", " ")}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] text-[var(--text-muted)] block uppercase font-bold">Amount</span>
+                          <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(Number(p.paid_amount || 0))}
+                          </span>
+                        </div>
+                      </div>
+
+                      {(p.reference_no || p.account_name) && (
+                        <div className="pt-2 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] font-mono truncate">
+                          Ref: {p.reference_no || p.account_name}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1118,81 +1414,81 @@ export default function UnifiedJobWorkPage() {
       {/* ------------------------------------------------------------- */}
       {detailModalEntry && (
         <Dialog open={!!detailModalEntry} onOpenChange={() => setDetailModalEntry(null)}>
-          <DialogContent className="max-w-xl bg-white border border-[#E5E7EB] rounded-2xl p-6 space-y-5 shadow-2xl">
-            <DialogHeader className="border-b border-[#E5E7EB] pb-3 flex flex-row items-center justify-between">
-              <DialogTitle className="text-base font-extrabold text-[#0F172A] flex items-center gap-2">
-                <ClipboardList className="text-[#6366F1]" size={20} />
+          <DialogContent className="max-w-xl bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xl">
+            <DialogHeader className="border-b border-[var(--border)] pb-3 flex flex-row items-center justify-between">
+              <DialogTitle className="text-base font-extrabold text-[var(--text-primary)] flex items-center gap-2">
+                <ClipboardList className="text-[var(--primary)]" size={20} />
                 <span>Stage Entry Details: {detailModalEntry.entry_number}</span>
               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 gap-4 bg-[var(--page-bg)] p-4 rounded-xl border border-[var(--border)]">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Entry Date</span>
-                  <span className="font-bold text-slate-900">{detailModalEntry.entry_date}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Entry Date</span>
+                  <span className="font-bold text-[var(--text-primary)]">{detailModalEntry.entry_date}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Payment Status</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Payment Status</span>
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase mt-0.5 ${
                       detailModalEntry.payment_status === "paid"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
                         : detailModalEntry.payment_status === "partial"
-                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                        ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                        : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
                     }`}
                   >
                     {detailModalEntry.payment_status}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Production Lot #</span>
-                  <span className="font-extrabold text-[#6366F1]">{detailModalEntry.lot?.lot_number || "—"}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Production Lot #</span>
+                  <span className="font-extrabold text-[var(--primary)]">{detailModalEntry.lot?.lot_number || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Production Stage</span>
-                  <span className="font-bold text-slate-800">{detailModalEntry.stage?.stage_name || "—"}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Production Stage</span>
+                  <span className="font-bold text-[var(--text-secondary)]">{detailModalEntry.stage?.stage_name || "—"}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border border-slate-200 bg-white">
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)]">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Assigned Worker</span>
-                  <span className="font-bold text-slate-900">{detailModalEntry.worker?.name || "—"}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Assigned Worker</span>
+                  <span className="font-bold text-[var(--text-primary)]">{detailModalEntry.worker?.name || "—"}</span>
                   {detailModalEntry.worker?.worker_id && (
-                    <span className="text-[10px] text-slate-400 font-mono block">{detailModalEntry.worker.worker_id}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono block">{detailModalEntry.worker.worker_id}</span>
                   )}
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Processed Quantity</span>
-                  <span className="font-extrabold text-slate-900 text-sm">{detailModalEntry.qty_out?.toLocaleString("en-IN")} Pcs</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Processed Quantity</span>
+                  <span className="font-extrabold text-[var(--text-primary)] text-sm">{detailModalEntry.qty_out?.toLocaleString("en-IN")} Pcs</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Piece Rate (₹)</span>
-                  <span className="font-bold text-slate-800">₹{Number(detailModalEntry.job_work_rate || 0).toFixed(2)}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Piece Rate (₹)</span>
+                  <span className="font-bold text-[var(--text-secondary)]">₹{Number(detailModalEntry.job_work_rate || 0).toFixed(2)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Total Job Amount</span>
-                  <span className="font-extrabold text-slate-900 text-sm">{formatCurrency(Number(detailModalEntry.total_job_work_amount || 0))}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Total Job Amount</span>
+                  <span className="font-extrabold text-[var(--text-primary)] text-sm">{formatCurrency(Number(detailModalEntry.total_job_work_amount || 0))}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Paid Amount</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(Number(detailModalEntry.paid_amount || 0))}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Paid Amount</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(Number(detailModalEntry.paid_amount || 0))}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Outstanding Balance</span>
-                  <span className="font-bold text-rose-600">
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Outstanding Balance</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400">
                     {formatCurrency(Math.max(0, Number(detailModalEntry.total_job_work_amount || 0) - Number(detailModalEntry.paid_amount || 0)))}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
               <Link
                 href={`/production/stage-entries/${detailModalEntry.id}`}
-                className="text-xs font-bold text-[#6366F1] hover:underline flex items-center gap-1"
+                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
               >
                 <span>Open Full Entry Page & Timeline</span>
                 <ChevronRight size={14} />
@@ -1200,7 +1496,7 @@ export default function UnifiedJobWorkPage() {
 
               <button
                 onClick={() => setDetailModalEntry(null)}
-                className="h-9 px-4 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50"
+                className="h-9 px-4 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--table-row-hover)] font-bold text-xs"
               >
                 Close
               </button>
@@ -1214,7 +1510,7 @@ export default function UnifiedJobWorkPage() {
       {/* ------------------------------------------------------------- */}
       {deleteConfirmEntry && (
         <Dialog open={!!deleteConfirmEntry} onOpenChange={() => setDeleteConfirmEntry(null)}>
-          <DialogContent className="max-w-md bg-white border border-[#E5E7EB] rounded-2xl p-6 space-y-4 shadow-2xl">
+          <DialogContent className="max-w-md bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 space-y-4 shadow-2xl">
             <DialogHeader>
               <DialogTitle className="text-base font-extrabold text-rose-600 flex items-center gap-2">
                 <Trash2 size={20} />
@@ -1222,15 +1518,15 @@ export default function UnifiedJobWorkPage() {
               </DialogTitle>
             </DialogHeader>
 
-            <p className="text-xs text-slate-600 leading-relaxed font-medium">
-              Are you sure you want to delete stage entry <strong className="text-slate-900">{deleteConfirmEntry.entry_number}</strong>?
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed font-medium">
+              Are you sure you want to delete stage entry <strong className="text-[var(--text-primary)]">{deleteConfirmEntry.entry_number}</strong>?
               This action cannot be undone and will update lot balance calculations.
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E5E7EB]">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
               <button
                 onClick={() => setDeleteConfirmEntry(null)}
-                className="h-9 px-4 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50"
+                className="h-9 px-4 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--table-row-hover)] font-bold text-xs"
               >
                 Cancel
               </button>

@@ -248,7 +248,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-3">
           <Link
             href="/parties"
             className="px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] transition-all"
@@ -295,7 +295,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
           />
 
           {/* SECTION 3: Dynamic Bank Accounts */}
-          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)]">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
                 3. Bank Accounts
@@ -400,7 +400,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
         {/* Right Column: Registrations, Payment Terms, Ledger Defaults */}
         <div className="space-y-6">
           {/* SECTION 4: Tax Registrations */}
-          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)]">
             <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
               4. Tax Details
             </h2>
@@ -463,7 +463,7 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
           </div>
 
           {/* SECTION 5: Payment Terms & Balance */}
-          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)]">
             <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
               5. Ledger & Credit Settings
             </h2>

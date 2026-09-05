@@ -34,8 +34,6 @@ import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { SALES_NAV } from "@/lib/moduleNav";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -432,64 +430,77 @@ export default function SalesBillsListPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6">
-      <ModuleSubNav items={SALES_NAV} />
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
+        <div className="flex flex-col gap-0.5 sm:gap-1">
           <span className="text-xs font-semibold text-[var(--primary)] uppercase tracking-wider">Sales & Billing</span>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Sales</h1>
-          <p className="text-sm text-[var(--text-muted)]">Manage all your sales bills (Pakka & Kacha) and sales returns</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Sales</h1>
+          <p className="text-xs sm:text-sm text-[var(--text-muted)]">Manage all your sales bills (Pakka & Kacha) and sales returns</p>
         </div>
 
-        {/* Buttons */}
-        <div className="flex items-center gap-3 self-start md:self-auto relative">
+        {/* Action Buttons — sleek & responsive for mobile */}
+        <div className="flex items-center gap-1.5 sm:gap-3 self-start md:self-auto relative flex-wrap sm:flex-nowrap">
           <button
             type="button"
             onClick={handleOpenImport}
-            className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-semibold text-[var(--text-body)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+            className="h-8 sm:h-9 px-2.5 sm:px-4 border border-[var(--border)] rounded-lg text-xs sm:text-sm font-semibold text-[var(--text-body)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer shrink-0"
           >
-            Import Bills
+            <span className="sm:hidden">Import</span>
+            <span className="hidden sm:inline">Import Bills</span>
           </button>
 
+          {/* If on returns tab, show Record Return prominently */}
           <Link
             href="/sales/returns/new"
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+            className={cn(
+              "h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1 sm:gap-2 cursor-pointer shrink-0",
+              activeTab === "return"
+                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+                : "border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500"
+            )}
           >
-            <Plus className="h-4 w-4" />
-            <span>Record Sales Return</span>
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="sm:hidden">+ Return</span>
+            <span className="hidden sm:inline">Record Sales Return</span>
           </Link>
 
           {/* Create Bill Button */}
           {enableKachaBilling ? (
-            <div className="relative flex">
+            <div className="relative flex shrink-0">
               <Link
                 href={`/sales/bills/new?type=${activeTab === "all" || activeTab === "return" ? "pakka" : activeTab}`}
-                className="px-4 py-2 rounded-l-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2 border-r border-[var(--primary-dark)]"
+                className={cn(
+                  "h-8 sm:h-9 px-2.5 sm:px-4 rounded-l-lg text-xs sm:text-sm font-semibold text-white transition-colors flex items-center gap-1 sm:gap-2 border-r border-[var(--primary-dark)]",
+                  activeTab === "return"
+                    ? "bg-[var(--primary)]/75 hover:bg-[var(--primary)]"
+                    : "bg-[var(--primary)] hover:bg-[var(--primary-dark)]"
+                )}
               >
-                <Plus className="h-4 w-4" />
-                <span>Create Sale Bill</span>
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="sm:hidden">+ Bill</span>
+                <span className="hidden sm:inline">Create Sale Bill</span>
               </Link>
               <button
                 onClick={() => setIsCreateOpen(!isCreateOpen)}
-                className="px-2 py-2 rounded-r-lg text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors cursor-pointer"
+                className="h-8 sm:h-9 px-1.5 sm:px-2 rounded-r-lg text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors cursor-pointer"
               >
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
 
               {isCreateOpen && (
-                <div className="absolute right-0 top-11 w-48 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-md)] z-30 overflow-hidden">
+                <div className="absolute right-0 top-10 w-48 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-md)] z-30 overflow-hidden">
                   <Link
                     href="/sales/bills/new?type=pakka"
                     onClick={() => setIsCreateOpen(false)}
-                    className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
+                    className="block px-4 py-2.5 text-xs sm:text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
                   >
                     Create Pakka Bill
                   </Link>
                   <Link
                     href="/sales/bills/new?type=kacha"
                     onClick={() => setIsCreateOpen(false)}
-                    className="block px-4 py-2.5 text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
+                    className="block px-4 py-2.5 text-xs sm:text-sm text-[var(--text-body)] hover:bg-[var(--table-row-hover)] text-left"
                   >
                     Create Kacha Bill
                   </Link>
@@ -499,10 +510,11 @@ export default function SalesBillsListPage() {
           ) : (
             <Link
               href="/sales/bills/new?type=pakka"
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-2"
+              className="h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-1 sm:gap-2 shrink-0"
             >
-              <Plus className="h-4 w-4" />
-              <span>Create Sale Bill</span>
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="sm:hidden">+ Bill</span>
+              <span className="hidden sm:inline">Create Sale Bill</span>
             </Link>
           )}
         </div>
@@ -565,33 +577,52 @@ export default function SalesBillsListPage() {
         error={error ? (error instanceof Error ? error.message : "Failed to load sales bills") : undefined}
         onRetry={refetch}
         isEmpty={bills.length === 0}
-        emptyTitle="No Sales Bills Found"
-        emptyMessage="No sales bills match your current active tab or search filter."
+        emptyTitle={activeTab === "return" ? "No Sales Returns Found" : "No Sales Bills Found"}
+        emptyMessage={
+          activeTab === "return"
+            ? "No sales return records match your search filter."
+            : "No sales bills match your current active tab or search filter."
+        }
         emptyAction={
-          <AsyncButton onClick={() => router.push(`/sales/bills/new?type=${activeTab}`)} variant="primary">
-            + Create First Sale Bill
+          <AsyncButton
+            onClick={() => {
+              if (activeTab === "return") {
+                router.push("/sales/returns/new");
+              } else {
+                router.push(`/sales/bills/new?type=${activeTab === "all" ? "pakka" : activeTab}`);
+              }
+            }}
+            variant="primary"
+          >
+            {activeTab === "return" ? "+ Record First Sales Return" : "+ Create First Sale Bill"}
           </AsyncButton>
         }
         skeletonVariant="table"
         skeletonRows={8}
         skeletonColumns={9}
       >
-        {/* Mobile: Snap-scroll stat card row */}
-        <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-4 px-4 scrollbar-none">
+        {/* Mobile: Responsive Multi-Row KPI Grid (No horizontal scrolling) */}
+        <div className="md:hidden grid grid-cols-2 min-[440px]:grid-cols-3 gap-2.5">
           {[
             { title: "Total",       value: total.toString(),                                                                                                icon: FileText,     bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
             { title: "Amount",      value: formatCurrency(bills.reduce((s,b)=>s+(b.grand_total||0),0)),                                                    icon: IndianRupee,  bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
             { title: "Paid",        value: formatCurrency(bills.reduce((s,b)=>s+(b.paid_amount||0),0)),                                                    icon: CheckCircle2, bg: "bg-green-500/10",             color: "text-green-500" },
             { title: "Outstanding", value: formatCurrency(bills.reduce((s,b)=>s+Math.max(0,(b.grand_total||0)-(b.paid_amount||0)),0)),                      icon: Clock,        bg: "bg-amber-500/10",             color: "text-amber-500" },
             { title: "Overdue",     value: bills.filter(b=>b.payment_status==="overdue").length.toString(),                                                 icon: AlertCircle,  bg: "bg-red-500/10",              color: "text-red-500" },
-          ].map(({ title, value, icon: Icon, bg, color }) => (
-            <div key={title} className="snap-start shrink-0 w-[148px] min-[430px]:w-[160px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-              <div className={cn("p-2 rounded-lg", bg)}>
+          ].map(({ title, value, icon: Icon, bg, color }, idx) => (
+            <div
+              key={title}
+              className={cn(
+                "w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2",
+                idx === 4 ? "col-span-2 min-[440px]:col-span-1" : ""
+              )}
+            >
+              <div className={cn("p-1.5 rounded-lg shrink-0", bg)}>
                 <Icon className={cn("h-4 w-4", color)} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{title}</p>
-                <p className={cn("text-sm font-bold mt-0.5 truncate", color)}>{value}</p>
+                <p className={cn("text-xs sm:text-sm font-bold mt-0.5 truncate", color)}>{value}</p>
               </div>
             </div>
           ))}
@@ -723,48 +754,87 @@ export default function SalesBillsListPage() {
             const isReturn = bill.is_sales_return;
             const outstanding = isReturn ? 0 : bill.grand_total - bill.paid_amount;
             const detailHref = isReturn ? `/sales/returns/${bill.id}` : `/sales/bills/${bill.id}`;
+            const editHref = isReturn ? `/sales/returns/${bill.id}/edit` : `/sales/bills/${bill.id}/edit`;
             const printHref = isReturn ? `/sales/returns/${bill.id}/print` : `/sales/bills/${bill.id}/print`;
 
             return (
-              <MobileCompactRow
-                key={bill.id}
-                title={bill.bill_number}
-                subtitle={`${bill.party?.name || "Unknown"} • ${new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`}
-                value={
-                  <span className={cn(isReturn ? "text-[var(--badge-red-text)]" : "text-[var(--text-primary)]")}>
-                    {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
-                  </span>
-                }
-                subValue={outstanding > 0 ? `Due ${formatCurrency(outstanding)}` : undefined}
-                badge={
-                  isReturn ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">
-                      RETURN
+              <div key={bill.id} className="divide-y divide-[var(--border-light)]">
+                <MobileCompactRow
+                  title={bill.bill_number}
+                  subtitle={`${bill.party?.name || "Unknown"} • ${new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`}
+                  value={
+                    <span className={cn(isReturn ? "text-[var(--badge-red-text)]" : "text-[var(--text-primary)]")}>
+                      {isReturn ? `- ${formatCurrency(bill.grand_total)}` : formatCurrency(bill.grand_total)}
                     </span>
-                  ) : bill.is_temporary ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30">
-                      TEMP
-                    </span>
-                  ) : (
-                    <Badge variant={getStatusVariant(bill.payment_status)}>{bill.payment_status}</Badge>
-                  )
-                }
-                onClick={() => router.push(detailHref)}
-                leftAction={{
-                  label: "Print",
-                  icon: <Printer size={14} />,
-                  bgClass: "bg-indigo-600 text-white",
-                  onAction: () => router.push(printHref),
-                }}
-                rightAction={{
-                  label: "Delete",
-                  icon: <Trash2 size={14} />,
-                  bgClass: "bg-rose-600 text-white",
-                  onAction: (e?: any) => {
-                    handleDeleteClick(e || { stopPropagation: () => {} } as any, bill);
-                  },
-                }}
-              />
+                  }
+                  subValue={outstanding > 0 ? `Due ${formatCurrency(outstanding)}` : undefined}
+                  badge={
+                    isReturn ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-500">
+                        RETURN
+                      </span>
+                    ) : bill.is_temporary ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30">
+                        TEMP
+                      </span>
+                    ) : (
+                      <Badge variant={getStatusVariant(bill.payment_status)}>{bill.payment_status}</Badge>
+                    )
+                  }
+                  onClick={() => router.push(detailHref)}
+                  leftAction={{
+                    label: "Print",
+                    icon: <Printer size={14} />,
+                    bgClass: "bg-indigo-600 text-white",
+                    onAction: () => router.push(printHref),
+                  }}
+                  rightAction={{
+                    label: "Delete",
+                    icon: <Trash2 size={14} />,
+                    bgClass: "bg-rose-600 text-white",
+                    onAction: (e?: any) => {
+                      handleDeleteClick(e || { stopPropagation: () => {} } as any, bill);
+                    },
+                  }}
+                />
+                {/* Direct Action Bar on Mobile */}
+                <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--page-bg)]/40" onClick={(e) => e.stopPropagation()}>
+                  {bill.is_temporary && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleConvertClick(e, bill)}
+                      className="flex-1 h-8 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-600 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+                    >
+                      <CheckCircle2 size={13} />
+                      <span>Convert</span>
+                    </button>
+                  )}
+                  <Link
+                    href={editHref}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-amber-500 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+                  >
+                    <Edit2 size={13} />
+                    <span>Edit</span>
+                  </Link>
+                  <Link
+                    href={printHref}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--primary)] font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+                  >
+                    <Printer size={13} />
+                    <span>Print</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteClick(e, bill)}
+                    className="h-8 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-red-500 flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>

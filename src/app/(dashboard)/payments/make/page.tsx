@@ -3,8 +3,6 @@
 import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MakePaymentView from "@/components/payments/MakePaymentView";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 function MakePaymentContent() {
   const router = useRouter();
@@ -17,7 +15,6 @@ function MakePaymentContent() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 max-w-7xl mx-auto">
-      <ModuleSubNav items={PAYMENTS_NAV} />
       <MakePaymentView
         initialPartyId={initialPartyId}
         onSuccess={() => router.push("/payments")}

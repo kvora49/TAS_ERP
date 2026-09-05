@@ -5,8 +5,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, Tag } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -315,8 +313,6 @@ export default function ExpenseTypesPage() {
         onAction={handleOpenAdd}
         actionIcon={<Plus size={16} className="text-white" />}
       />
-
-      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       {/* ── MOBILE: Expense Types Card List ── */}
       <div className="md:hidden space-y-3">

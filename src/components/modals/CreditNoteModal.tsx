@@ -317,22 +317,23 @@ export function CreditNoteModal({
   const taxRatePercent = taxableVal > 0 ? Math.round((rawTaxDiff / taxableVal) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print-modal-overlay">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200 print-modal-content">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print-modal-overlay">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-4 sm:my-8 animate-in fade-in zoom-in-95 duration-200 print-modal-content">
 
         {/* Header Bar (non-print) */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 print:hidden">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-base font-bold text-slate-800">Credit Note</h2>
+        <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-4 border-b border-slate-100 bg-slate-50/80 print:hidden gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 shrink-0" />
+            <h2 className="text-sm sm:text-base font-bold text-slate-800 truncate">Credit Note Voucher</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              className="h-8 px-2.5 sm:px-3.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
-              <span>Print / Save PDF</span>
+              <span className="hidden sm:inline">Print / Save PDF</span>
+              <span className="sm:hidden">Print</span>
             </button>
             <button
               onClick={onClose}
@@ -343,8 +344,9 @@ export function CreditNoteModal({
           </div>
         </div>
 
-        {/* ═══ PRINTABLE VOUCHER ═══ */}
-        <div id="credit-note-voucher" className="bg-white text-black font-sans w-full" style={{ fontSize: "10px", lineHeight: 1.3 }}>
+        {/* ═══ PRINTABLE VOUCHER WITH HORIZONTAL PAN ON MOBILE ═══ */}
+        <div className="w-full overflow-x-auto print:overflow-visible touch-pan-x p-1 sm:p-2 bg-slate-50 print:bg-white print:p-0">
+          <div id="credit-note-voucher" className="min-w-[720px] max-w-4xl mx-auto bg-white text-black font-sans print:min-w-0 print:mx-0 shadow-xs print:shadow-none" style={{ fontSize: "10px", lineHeight: 1.3 }}>
           <table className="w-full border-collapse border-2 border-black">
             <tbody>
               {/* ═══ HEADER ═══ */}
@@ -785,6 +787,7 @@ export function CreditNoteModal({
           </div>
         </div>
       </div>
+    </div>
 
       {/* Print CSS */}
       <style>{`

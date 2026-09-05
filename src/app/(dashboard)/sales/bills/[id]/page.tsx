@@ -22,6 +22,7 @@ import {
   Check,
   CheckCircle2,
   MessageSquare,
+  Edit2,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
@@ -35,8 +36,6 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PakkaBillTemplate } from "@/components/sales/PakkaBillTemplate";
 import { KachaBillTemplate } from "@/components/sales/KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { SALES_NAV } from "@/lib/moduleNav";
 
 interface BillItem {
   id: string;
@@ -324,46 +323,50 @@ export default function SaleBillDetailPage() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 md:pb-0">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={SALES_NAV} />
-
       {/* ── MOBILE APP HEADER ── */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--border)] pb-4 gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <Link href="/sales/bills"
-            className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--card-bg)] transition-colors"
+            className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--card-bg)] transition-colors shrink-0"
           ><ArrowLeft className="h-4 w-4" /></Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black text-[var(--text-primary)] font-mono">{bill.bill_number}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base sm:text-lg font-black text-[var(--text-primary)] font-mono">{bill.bill_number}</h1>
               <Badge variant={getStatusColor(bill.status)} className="uppercase tracking-wider text-[10px]">{bill.status}</Badge>
             </div>
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Date: {new Date(bill.bill_date).toLocaleDateString("en-IN")}</p>
           </div>
         </div>
 
-        {/* Desktop Action Header */}
-        <div className="hidden md:flex items-center gap-2 select-none">
+        {/* Action Header — accessible on both mobile and desktop */}
+        <div className="flex items-center gap-1.5 sm:gap-2 select-none flex-wrap">
           {bill.is_temporary && (
             <button onClick={() => setConvertModalOpen(true)}
-              className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-            ><CheckCircle2 className="h-4 w-4" /><span>Convert to Official Invoice</span></button>
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+            ><CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span>Convert</span></button>
           )}
-          <button onClick={handleWhatsAppShare}
-            className="px-3.5 py-2 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-          ><MessageSquare className="h-4 w-4" /><span>Share on WhatsApp</span></button>
-          <button onClick={() => window.open(`/sales/bills/${bill.id}/print`, "_blank")}
-            className="px-3.5 py-2 border border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-primary)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center gap-1.5 cursor-pointer"
-          ><Printer className="h-4 w-4" /><span>Print Invoice</span></button>
-          {bill.status === "draft" && (
+
+          {bill.status !== "cancelled" && (
             <Link href={`/sales/bills/${bill.id}/edit`}
-              className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors"
-            >Resume Draft</Link>
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Edit2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Edit</span>
+            </Link>
           )}
+
+          <button onClick={handleWhatsAppShare}
+            className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+          ><MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">WhatsApp</span></button>
+
+          <button onClick={() => window.open(`/sales/bills/${bill.id}/print`, "_blank")}
+            className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-primary)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center gap-1.5 cursor-pointer"
+          ><Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">Print</span></button>
+
           {bill.status !== "cancelled" && (
             <button disabled={cancelling} onClick={handleCancelBill}
-              className="px-3.5 py-2 border border-red-200 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-            ><Trash2 className="h-4 w-4" /><span>Cancel Bill</span></button>
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-red-200 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            ><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">Cancel</span></button>
           )}
         </div>
       </div>
@@ -956,23 +959,23 @@ export default function SaleBillDetailPage() {
         </div>
       </Modal>
       {/* ── MOBILE: STICKY BOTTOM ACTION BAR ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 flex items-center justify-around gap-2 shadow-lg">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-2.5 flex items-center justify-around gap-2 shadow-lg">
         <button onClick={handleWhatsAppShare}
-          className="flex-1 h-10 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+          className="flex-1 h-10 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer active:scale-98"
         ><MessageSquare className="h-4 w-4" /><span>WhatsApp</span></button>
 
         <button onClick={() => window.open(`/sales/bills/${bill.id}/print`, "_blank")}
-          className="h-10 px-3 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
-        ><Printer className="h-4 w-4" /></button>
+          className="h-10 px-3.5 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-98"
+        ><Printer className="h-4 w-4" /><span className="text-[11px]">Print</span></button>
 
         {bill.is_temporary ? (
           <button onClick={() => setConvertModalOpen(true)}
-            className="flex-1 h-10 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
+            className="flex-1 h-10 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-98"
           ><CheckCircle2 className="h-4 w-4" /><span>Convert</span></button>
-        ) : bill.status === "draft" ? (
+        ) : bill.status !== "cancelled" ? (
           <Link href={`/sales/bills/${bill.id}/edit`}
-            className="flex-1 h-10 rounded-xl bg-[var(--primary)] text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-          >Edit</Link>
+            className="flex-1 h-10 rounded-xl bg-[var(--primary)] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 shadow-sm"
+          ><Edit2 className="h-4 w-4" /><span>Edit Bill</span></Link>
         ) : null}
       </div>
     </div>

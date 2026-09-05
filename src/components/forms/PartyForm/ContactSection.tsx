@@ -30,34 +30,35 @@ export function ContactSection({
   const selectedType = watchTypes[0] || "supplier";
 
   return (
-    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)]">
       <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
         1. Basic Profile
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Party Type *</label>
-          <div className="flex flex-wrap items-center gap-4 mt-2">
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl">
             {[
               { id: "supplier", label: "Supplier" },
               { id: "customer", label: "Customer" },
               { id: "worker", label: "Worker" },
             ].map((t) => {
-              const isChecked = selectedType === t.id;
+              const isSelected = selectedType === t.id;
               return (
-                <label key={t.id} className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="party_type_radio"
-                    value={t.id}
-                    checked={isChecked}
-                    onChange={() => {
-                      setValue("type", [t.id]);
-                    }}
-                    className="h-4 w-4 text-[var(--primary)] border-[var(--input-border)] focus:ring-[var(--input-focus)] cursor-pointer"
-                  />
-                  <span>{t.label}</span>
-                </label>
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setValue("type", [t.id]);
+                  }}
+                  className={`py-2 text-xs font-bold rounded-lg transition-all text-center select-none cursor-pointer ${
+                    isSelected
+                      ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {t.label}
+                </button>
               );
             })}
           </div>

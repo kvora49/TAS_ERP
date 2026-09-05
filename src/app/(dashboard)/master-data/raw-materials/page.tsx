@@ -8,8 +8,6 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, AlertTriangle, Package } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -337,8 +335,6 @@ export default function RawMaterialsPage() {
         onAction={handleOpenAdd}
         actionIcon={<Plus size={16} className="text-white" />}
       />
-
-      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       {/* ── MOBILE: Raw Materials Card List ── */}
       <div className="md:hidden space-y-3">

@@ -127,9 +127,9 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-[calc(3rem+env(safe-area-inset-top,0px))] sm:h-16 pt-[env(safe-area-inset-top,0px)] bg-[var(--card-bg)]/95 backdrop-blur-md border-b border-[var(--border)] z-30 flex items-center justify-between px-3 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden">
+    <header className="fixed top-0 right-0 left-0 h-[calc(3rem+env(safe-area-inset-top,0px))] sm:h-16 pt-[env(safe-area-inset-top,0px)] bg-[var(--card-bg)]/95 backdrop-blur-md border-b border-[var(--border)] z-30 flex items-center justify-between px-2.5 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden">
       {/* Left: Logo block + Hamburger + Breadcrumb / Mobile Title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
 
         {/* Branding & Company Switcher block */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
@@ -148,8 +148,8 @@ export default function Header() {
         </div>
 
         {/* Mobile Page Title (< sm) */}
-        <div className="sm:hidden flex items-center min-w-0 pl-1">
-          <span className="text-xs font-black text-[var(--text-primary)] truncate max-w-[130px]">
+        <div className="sm:hidden flex items-center min-w-0 flex-1 pl-1">
+          <span className="text-xs font-bold text-[var(--text-primary)] truncate">
             {getBreadcrumbs().slice(-1)[0] || "Dashboard"}
           </span>
         </div>
@@ -173,10 +173,11 @@ export default function Header() {
       </div>
 
       {/* Right: Filters & Quick Actions */}
-      <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0 ml-1">
         {/* Mobile Filter Sheet Trigger (< sm) */}
         <div className="sm:hidden">
           <MobileFilterSheet
+            compact={true}
             activeCount={
               (filters?.brandId && filters.brandId !== "all" ? 1 : 0) +
               (filters?.dateRange && filters.dateRange !== "today" ? 1 : 0)

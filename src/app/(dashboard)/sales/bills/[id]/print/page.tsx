@@ -95,46 +95,46 @@ export default function SaleBillPrintPage() {
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
       {/* ── Screen-only toolbar (hidden when printing) ── */}
-      <div className="print:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3 shadow-sm sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      <div className="print:hidden bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 shadow-sm sticky top-0 z-10">
+        <div className="flex items-center gap-2 min-w-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => router.back()}
-            className="text-gray-600 border-gray-300 hover:bg-gray-50"
+            className="text-gray-600 border-gray-300 hover:bg-gray-50 h-8 px-2.5 shrink-0"
           >
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Back
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            <span>Back</span>
           </Button>
-          <div>
-            <span className="text-sm font-bold text-gray-900">{bill.bill_number}</span>
-            <span className="ml-2 text-xs text-gray-500">{isPakka ? "Tax Invoice" : "Estimate"}</span>
+          <div className="min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-gray-900 block truncate">{bill.bill_number}</span>
+            <span className="text-[10px] sm:text-xs text-gray-500 block truncate">{isPakka ? "Tax Invoice" : "Estimate"}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={handlePrint}
-            className="text-gray-700 border-gray-300 font-semibold"
+            className="text-gray-700 border-gray-300 font-semibold h-8 px-2.5"
           >
-            <Printer className="h-4 w-4 mr-1.5" />
-            Print
+            <Printer className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Print</span>
           </Button>
           <Button
             size="sm"
             onClick={handlePrint}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold h-8 px-2.5"
           >
-            <Download className="h-4 w-4 mr-1.5" />
-            Download PDF
+            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="text-xs">Download PDF</span>
           </Button>
         </div>
       </div>
 
-      {/* ── Invoice Canvas ── */}
-      <div className="max-w-[210mm] mx-auto print:max-w-none print:mx-0">
-        <div className="bg-white shadow-xl print:shadow-none m-4 print:m-0 p-0 print:p-0">
+      {/* ── Invoice Canvas with Responsive Horizontal Pan on Mobile ── */}
+      <div className="w-full overflow-x-auto print:overflow-visible touch-pan-x p-2 sm:p-4">
+        <div className="min-w-[760px] max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none print:min-w-0 print:m-0 print:p-0">
           {(() => {
             const rawItems = bill.items || (bill as any).sale_bill_items || (bill as any).items_data || [];
             const normalizedItems = rawItems.map((it: any, idx: number) => {

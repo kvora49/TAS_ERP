@@ -30,8 +30,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
 import { cn } from "@/lib/utils";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PARTIES_NAV } from "@/lib/moduleNav";
 
 interface ContactNumber {
   label: string;
@@ -234,45 +232,42 @@ export default function PartyDetailPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 bg-[var(--page-bg)] min-h-screen text-[var(--text-body)]">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={PARTIES_NAV} />
-
       {/* Top Breadcrumb and Edit Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">
-          <Link href="/" className="hover:text-[var(--text-primary)] transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-muted)] select-none min-w-0 overflow-hidden">
+          <Link href="/" className="hover:text-[var(--text-primary)] transition-colors shrink-0">
             Dashboard
           </Link>
-          <span>/</span>
-          <Link href="/parties" className="hover:text-[var(--text-primary)] transition-colors">
+          <span className="shrink-0">/</span>
+          <Link href="/parties" className="hover:text-[var(--text-primary)] transition-colors shrink-0">
             Parties
           </Link>
-          <span>/</span>
-          <span className="text-[var(--text-primary)]">{party.name}</span>
+          <span className="shrink-0">/</span>
+          <span className="text-[var(--text-primary)] truncate font-semibold">{party.name}</span>
         </div>
 
-        <div className="flex items-center gap-3 select-none">
+        <div className="flex items-center gap-2 select-none self-end sm:self-auto shrink-0">
           <button
             onClick={() => router.push(`/parties`)}
-            className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-secondary)] transition-all cursor-pointer flex items-center gap-2"
+            className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-all cursor-pointer flex items-center gap-1.5"
           >
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={14} /> Back
           </button>
           <button
             onClick={() => router.push(`/master-data/parties/${party.id}/edit`)}
-            className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            className="h-8 sm:h-9 px-3 sm:px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-[0.98]"
           >
-            <Pencil size={15} /> Edit Party
+            <Pencil size={13} /> Edit Party
           </button>
         </div>
       </div>
 
       {/* Main Party Profile Header Card */}
       <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
-        <div className="p-6 md:p-8 bg-[var(--card-bg)] border-b border-[var(--border)] flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="p-4 sm:p-6 md:p-8 bg-[var(--card-bg)] border-b border-[var(--border)] flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-bold font-mono px-2.5 py-1 bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-primary)] rounded-md">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="text-xs font-bold font-mono px-2 py-0.5 sm:px-2.5 sm:py-1 bg-[var(--page-bg)] border border-[var(--border)] text-[var(--text-primary)] rounded-md">
                 {party.code}
               </span>
               {party.type?.map((t) => (
@@ -286,9 +281,9 @@ export default function PartyDetailPage() {
             </div>
             
             <div>
-              <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{party.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] tracking-tight">{party.name}</h1>
               {party.company_name && (
-                <p className="text-sm font-semibold text-[var(--text-muted)] flex items-center gap-1.5 mt-0.5">
+                <p className="text-xs sm:text-sm font-semibold text-[var(--text-muted)] flex items-center gap-1.5 mt-0.5">
                   <User size={14} /> Owner / Company: {party.company_name}
                 </p>
               )}
@@ -296,21 +291,21 @@ export default function PartyDetailPage() {
           </div>
 
           {/* Contact and Registrations Brief Panel */}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 shrink-0">
+          <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 shrink-0">
             <div>
-              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">GSTIN Treatment</p>
+              <p className="text-[9px] sm:text-[10px] font-bold text-[var(--text-faint)] uppercase">GSTIN Treatment</p>
               <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.gstin || "URP"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">PAN Number</p>
+              <p className="text-[9px] sm:text-[10px] font-bold text-[var(--text-faint)] uppercase">PAN Number</p>
               <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.pan || "N/A"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">Aadhar Number</p>
+              <p className="text-[9px] sm:text-[10px] font-bold text-[var(--text-faint)] uppercase">Aadhar Number</p>
               <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.aadhar || "N/A"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase">MSME Number</p>
+              <p className="text-[9px] sm:text-[10px] font-bold text-[var(--text-faint)] uppercase">MSME Number</p>
               <p className="text-xs font-bold text-[var(--text-secondary)] font-mono mt-0.5">{party.msme_number || "N/A"}</p>
             </div>
           </div>
@@ -319,7 +314,7 @@ export default function PartyDetailPage() {
         {/* Extended Profile Details (Remarks, Address, and Contacts) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[var(--border)]">
           {/* Address Details */}
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
             <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Registered Address</h2>
             <div className="space-y-3 text-xs text-[var(--text-body)] font-medium">
               <div>
@@ -338,7 +333,7 @@ export default function PartyDetailPage() {
           </div>
 
           {/* Contact Channels List */}
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
             <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Contact Channels</h2>
             <div className="space-y-3">
               {party.email && (
@@ -394,7 +389,7 @@ export default function PartyDetailPage() {
           </div>
 
           {/* Remarks and General notes */}
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
             <h2 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Internal Remarks & Comments</h2>
             <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3 text-xs font-medium text-[var(--text-body)] min-h-[80px] leading-relaxed">
               {party.remarks || "No remarks or special comments logged for this party."}
@@ -406,11 +401,11 @@ export default function PartyDetailPage() {
       {/* Type-Conditional Detail Tabs Section */}
       <div className="space-y-4">
         {/* Tab Headers */}
-        <div className="flex border-b border-[var(--border)] gap-4">
+        <div className="flex border-b border-[var(--border)] gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
           {[
-            ...(isSupplier ? [{ id: "supplier", label: "Supplier (Purchase Records)" }] : []),
-            ...(isCustomer ? [{ id: "customer", label: "Customer (Sales History)" }] : []),
-            ...(isWorker ? [{ id: "worker", label: "Worker (Stage Assignments)" }] : []),
+            ...(isSupplier ? [{ id: "supplier", short: "Supplier", label: "Supplier (Purchase Records)" }] : []),
+            ...(isCustomer ? [{ id: "customer", short: "Customer", label: "Customer (Sales History)" }] : []),
+            ...(isWorker ? [{ id: "worker", short: "Worker", label: "Worker (Stage Assignments)" }] : []),
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -418,13 +413,14 @@ export default function PartyDetailPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={cn(
-                  "relative pb-2.5 text-sm font-bold cursor-pointer transition-colors px-1",
+                  "relative pb-2.5 text-xs sm:text-sm font-bold cursor-pointer transition-colors px-2 py-1 whitespace-nowrap shrink-0",
                   isActive
                     ? "text-[var(--primary)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 )}
               >
-                {tab.label}
+                <span className="sm:hidden">{tab.short}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
                 {isActive && (
                   <motion.div
                     layoutId="party-360-tab"
@@ -438,7 +434,7 @@ export default function PartyDetailPage() {
         </div>
 
         {/* Tab Content Panels */}
-        <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-6">
+        <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-3.5 sm:p-6">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
@@ -494,8 +490,8 @@ export default function PartyDetailPage() {
                         No purchase invoices logged for this supplier yet.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                        <table className="w-full text-left border-collapse">
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)] touch-pan-x">
+                        <table className="w-full min-w-[580px] text-left border-collapse">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
                               <th className="p-3">Purchase No.</th>
@@ -541,8 +537,8 @@ export default function PartyDetailPage() {
                         No material returns logged for this supplier yet.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                        <table className="w-full text-left border-collapse">
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)] touch-pan-x">
+                        <table className="w-full min-w-[540px] text-left border-collapse">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
                               <th className="p-3">Return No.</th>
@@ -628,8 +624,8 @@ export default function PartyDetailPage() {
                         No sales invoices logged for this customer yet.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                        <table className="w-full text-left border-collapse">
+                      <div className="overflow-x-auto rounded-xl border border-[var(--border)] touch-pan-x">
+                        <table className="w-full min-w-[620px] text-left border-collapse">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
                               <th className="p-3">Invoice No.</th>
@@ -684,8 +680,8 @@ export default function PartyDetailPage() {
                       No stage entries or lot assignments logged for this worker.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-                      <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto rounded-xl border border-[var(--border)] touch-pan-x">
+                      <table className="w-full min-w-[700px] text-left border-collapse">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] select-none">
                             <th className="p-3">Lot Number</th>
@@ -729,7 +725,7 @@ export default function PartyDetailPage() {
       </div>
 
       {/* Bank Accounts Section Card */}
-      <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-6 space-y-4">
+      <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] p-4 sm:p-6 space-y-4">
         <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
           <Banknote size={16} className="text-[var(--primary)]" />
           Wired Bank & UPI Accounts

@@ -9,6 +9,10 @@ interface MobileFilterSheetProps {
   activeCount?: number;
   /** Label for the trigger button */
   triggerLabel?: string;
+  /** Whether to render as a compact icon-only button (ideal for headers) */
+  compact?: boolean;
+  /** Custom trigger class name */
+  triggerClassName?: string;
   /** Called when user taps "Clear All" — pass undefined to hide the button */
   onClearAll?: () => void;
   /** Filter controls to render inside the sheet */
@@ -36,6 +40,8 @@ interface MobileFilterSheetProps {
 export function MobileFilterSheet({
   activeCount = 0,
   triggerLabel = "Filters",
+  compact = false,
+  triggerClassName = "",
   onClearAll,
   children,
 }: MobileFilterSheetProps) {
@@ -49,18 +55,25 @@ export function MobileFilterSheet({
         type="button"
         onClick={() => setOpen(true)}
         className={`
-          relative flex items-center gap-1.5 h-10 px-3 rounded-lg border text-sm font-semibold
-          transition-all shrink-0 cursor-pointer select-none
+          relative flex items-center justify-center rounded-lg border transition-all shrink-0 cursor-pointer select-none
+          ${compact ? "w-8 h-8" : "h-10 px-3 gap-1.5 text-sm font-semibold"}
           ${hasActive
             ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]"
-            : "border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            : "border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
           }
+          ${triggerClassName}
         `}
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0" />
-        <span className="hidden min-[360px]:inline">{triggerLabel}</span>
+        {!compact && <span className="hidden min-[360px]:inline">{triggerLabel}</span>}
         {hasActive && (
-          <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[var(--primary)] text-white text-[9px] font-black ml-0.5">
+          <span
+            className={
+              compact
+                ? "absolute -top-1 -right-1 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[var(--primary)] text-white text-[9px] font-black shadow-xs"
+                : "flex items-center justify-center w-4 h-4 rounded-full bg-[var(--primary)] text-white text-[9px] font-black ml-0.5"
+            }
+          >
             {activeCount}
           </span>
         )}

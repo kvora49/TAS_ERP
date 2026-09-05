@@ -74,11 +74,46 @@ export function NavigationExperienceProvider({ children }: { children: React.Rea
   }, [profile]);
 
   useEffect(() => {
+    const handlePopState = () => {
+      setIsNavigating(true);
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('a');
+      if (!target) return;
+      const href = target.getAttribute('href');
+      if (!href) return;
+      if (
+        href.startsWith('/') &&
+        !href.startsWith('//') &&
+        target.getAttribute('target') !== '_blank' &&
+        !target.getAttribute('download') &&
+        href !== pathname
+      ) {
+        setIsNavigating(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('click', handleClick, { capture: true });
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleClick, { capture: true });
+    };
+  }, [pathname]);
+
+  useEffect(() => {
     setIsNavigating(false);
   }, [pathname]);
 
   return (
     <ExperienceContext.Provider value={{ profile, setMotionProfile }}>
+      {isNavigating && (
+        <div className="fixed top-0 left-0 right-0 h-1 z-[99999] pointer-events-none overflow-hidden bg-transparent">
+          <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 animate-pulse w-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+        </div>
+      )}
       <div className={isNavigating ? 'route-navigating' : ''}>
         {children}
       </div>

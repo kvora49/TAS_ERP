@@ -1254,29 +1254,29 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
             </div>
 
             {fields.length === 0 ? (
-              <div className="text-center py-8 border border-dashed border-[#CBD5E1] rounded-xl text-xs text-[#64748B]">
+              <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-xl text-xs text-[var(--text-muted)]">
                 No items added yet. Click &quot;Add Material Row&quot; to configure.
               </div>
             ) : (
               <div className="space-y-4">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="p-4 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] space-y-4 relative shadow-[var(--shadow-sm)]">
+                  <div key={field.id} className="p-3.5 sm:p-4 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] space-y-3.5 sm:space-y-4 relative shadow-[var(--shadow-sm)]">
                     {/* Item header with count and delete action */}
                     <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                       <span className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-1 rounded-md">Item #{index + 1}</span>
                       <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent flex items-center gap-1 text-xs font-semibold cursor-pointer active:scale-95"
                       >
-                        <Trash2 className="h-4 w-4" /> Remove Item
+                        <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Remove Item</span>
                       </button>
                     </div>
 
                     <div className="space-y-3">
-                      {/* Item Type Toggle - 4 Tabs */}
+                      {/* Item Type Toggle - Responsive 2x2 / 4-Col Segmented Tabs */}
                       <input type="hidden" {...register(`items.${index}.item_type` as const)} />
-                      <div className="flex items-center gap-1.5 mb-3 bg-[var(--page-bg)] p-1.5 rounded-lg border border-[var(--border)] w-fit flex-wrap">
+                      <div className="grid grid-cols-2 min-[540px]:grid-cols-4 gap-1.5 mb-3 bg-[var(--page-bg)] p-1.5 rounded-xl border border-[var(--border)] w-full">
                         <button
                           type="button"
                           onClick={() => {
@@ -1285,13 +1285,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             setValue(`items.${index}.quantity`, 0);
                             recalcItem(index);
                           }}
-                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                          className={`px-2 py-2 rounded-lg text-xs font-bold uppercase transition-all select-none cursor-pointer text-center truncate ${
                             (watchItems[index]?.item_type || "fabric") === "fabric"
                               ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
                               : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
-                          Fabric (Roll-wise)
+                          Fabric (Rolls)
                         </button>
                         <button
                           type="button"
@@ -1302,7 +1302,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             setValue(`items.${index}.rolls`, []);
                             recalcItem(index);
                           }}
-                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                          className={`px-2 py-2 rounded-lg text-xs font-bold uppercase transition-all select-none cursor-pointer text-center truncate ${
                             watchItems[index]?.item_type === "accessory"
                               ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
                               : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -1319,7 +1319,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             setValue(`items.${index}.rolls`, []);
                             recalcItem(index);
                           }}
-                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                          className={`px-2 py-2 rounded-lg text-xs font-bold uppercase transition-all select-none cursor-pointer text-center truncate ${
                             watchItems[index]?.item_type === "finished_goods"
                               ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
                               : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -1336,13 +1336,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                             setValue(`items.${index}.rolls`, []);
                             recalcItem(index);
                           }}
-                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all select-none cursor-pointer ${
+                          className={`px-2 py-2 rounded-lg text-xs font-bold uppercase transition-all select-none cursor-pointer text-center truncate ${
                             watchItems[index]?.item_type === "others"
                               ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
                               : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                           }`}
                         >
-                          Others (Assets/Expenses)
+                          Others (Expense)
                         </button>
                       </div>
 

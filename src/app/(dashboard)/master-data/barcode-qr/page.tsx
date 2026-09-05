@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import { isValidBarcodePayload, generate1DBarcode } from "@/lib/utils/barcode";
 import { toast } from "sonner";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 
 export default function MasterDataBarcodePage() {
   const [activeTab, setActiveTab] = useState<"scan" | "generator">("scan");
@@ -213,8 +211,6 @@ export default function MasterDataBarcodePage() {
           </Link>
         </div>
       </div>
-
-      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       {/* Main Content View */}
       {activeTab === "generator" ? (

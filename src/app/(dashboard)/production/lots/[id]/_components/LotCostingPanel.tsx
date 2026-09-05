@@ -128,8 +128,8 @@ export function LotCostingPanel({
               No fabric rolls allocated to this production lot.
             </div>
           ) : (
-            <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="border border-[var(--border)] rounded-lg overflow-x-auto touch-pan-x">
+              <table className="w-full text-left text-xs border-collapse min-w-[460px]">
                 <thead>
                   <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] font-bold text-[var(--text-muted)] uppercase text-[9px]">
                     <th className="p-2.5">Roll identifier</th>
@@ -191,8 +191,8 @@ export function LotCostingPanel({
               No stage entries logged with labor costs.
             </div>
           ) : (
-            <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="border border-[var(--border)] rounded-lg overflow-x-auto touch-pan-x">
+              <table className="w-full text-left text-xs border-collapse min-w-[480px]">
                 <thead>
                   <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] font-bold text-[var(--text-muted)] uppercase text-[9px]">
                     <th className="p-2.5">Stage</th>
@@ -255,8 +255,8 @@ export function LotCostingPanel({
               <Package className="h-4 w-4 text-emerald-600" />
               3. Allocated Accessories Cost
             </h3>
-            <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="border border-[var(--border)] rounded-lg overflow-x-auto touch-pan-x">
+              <table className="w-full text-left text-xs border-collapse min-w-[480px]">
                 <thead>
                   <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] font-bold text-[var(--text-muted)] uppercase text-[9px]">
                     <th className="p-2.5">Item Name</th>

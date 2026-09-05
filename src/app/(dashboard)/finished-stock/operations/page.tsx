@@ -26,8 +26,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { FINISHED_STOCK_NAV } from "@/lib/moduleNav";
 
 interface StockAdjustment {
   id: string;
@@ -194,8 +192,6 @@ export default function StockOperationsUnifiedPage() {
           )}
         </div>
       </div>
-
-      <ModuleSubNav items={FINISHED_STOCK_NAV} />
 
       {/* Main Header Banner */}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] p-4 sm:p-6 rounded-2xl shadow-[var(--shadow-sm)] space-y-4">

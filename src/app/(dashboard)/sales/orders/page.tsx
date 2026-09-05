@@ -13,6 +13,9 @@ import {
   Link as LinkIcon,
   Layers,
   Filter,
+  DollarSign,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { toast } from "sonner";
@@ -22,9 +25,8 @@ import { Badge } from "@/components/shared/Badge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { SALES_NAV } from "@/lib/moduleNav";
-import { cn } from "@/lib/utils";
+import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface Party {
   id: string;
@@ -246,11 +248,14 @@ export default function SalesOrdersPage() {
     }
   };
 
+  const totalBookings = orders.length;
+  const totalValue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+  const pendingCount = orders.filter((o) => o.status === "pending" || o.status === "in_process").length;
+  const readyOrDispatchedCount = orders.filter((o) => o.status === "ready" || o.status === "dispatched").length;
+  const activeFilterCount = (statusFilter ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0);
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-12">
-      {/* ── Sub-Navigation Pill Bar ── */}
-      <ModuleSubNav items={SALES_NAV} />
-
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -277,8 +282,88 @@ export default function SalesOrdersPage() {
         </div>
       </div>
 
+      {/* ── MOBILE: KPI summary cards ── */}
+      <div className="md:hidden grid grid-cols-2 gap-2">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
+            <ShoppingCart className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Bookings</p>
+            <p className="text-xs font-black text-[var(--text-primary)] mt-0.5">{totalBookings}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+            <DollarSign className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Value</p>
+            <p className="text-xs font-black text-emerald-600 mt-0.5 truncate">{formatCurrency(totalValue)}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+            <Clock className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">In Process</p>
+            <p className="text-xs font-black text-amber-500 mt-0.5">{pendingCount}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
+            <CheckCircle2 className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Ready / Sent</p>
+            <p className="text-xs font-black text-purple-500 mt-0.5">{readyOrDispatchedCount}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── DESKTOP: 4-col KPI Stat Grid ── */}
+      <div className="hidden md:grid grid-cols-4 gap-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+          <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
+            <ShoppingCart className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Bookings</span>
+            <p className="text-lg font-black text-[var(--text-primary)] mt-0.5">{totalBookings}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+          <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-600 shrink-0">
+            <DollarSign className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Booking Value</span>
+            <p className="text-lg font-black text-emerald-600 mt-0.5">{formatCurrency(totalValue)}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+          <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
+            <Clock className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">In Process / Pending</span>
+            <p className="text-lg font-black text-amber-500 mt-0.5">{pendingCount}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
+          <div className="p-3 bg-purple-500/10 rounded-lg text-purple-500 shrink-0">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Ready / Dispatched</span>
+            <p className="text-lg font-black text-purple-500 mt-0.5">{readyOrDispatchedCount}</p>
+          </div>
+        </div>
+      </div>
+
       {/* ── Quick Filter Bar ── */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="flex gap-2.5">
         {/* Search Input */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
@@ -291,11 +376,50 @@ export default function SalesOrdersPage() {
           />
         </div>
 
-        {/* Status Filter Chips / Select */}
+        {/* Mobile Filter Sheet */}
+        <div className="sm:hidden shrink-0">
+          <MobileFilterSheet
+            activeCount={activeFilterCount}
+            onClearAll={() => { setStatusFilter(""); setStartDate(""); setEndDate(""); }}
+          >
+            <MobileFilterField label="Status">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="in_process">In Process</option>
+                <option value="ready">Ready</option>
+                <option value="dispatched">Dispatched</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </MobileFilterField>
+            <MobileFilterField label="Date From">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+            <MobileFilterField label="Date To">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+          </MobileFilterSheet>
+        </div>
+
+        {/* Status Filter Select (Desktop) */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl px-3 h-10 text-sm transition-colors cursor-pointer"
+          className="hidden sm:block bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl px-3 h-10 text-sm transition-colors cursor-pointer"
         >
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -305,7 +429,7 @@ export default function SalesOrdersPage() {
           <option value="cancelled">Cancelled</option>
         </select>
 
-        {/* Date Filter */}
+        {/* Date Filter (Desktop) */}
         <div className="hidden lg:flex items-center gap-2">
           <Calendar className="h-4 w-4 text-[var(--text-faint)] shrink-0" />
           <input

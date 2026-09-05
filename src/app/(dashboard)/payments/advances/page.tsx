@@ -2,14 +2,10 @@
 
 import React, { Suspense } from "react";
 import AdvancesCreditNotesTab from "@/components/payments/AdvancesCreditNotesTab";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 function AdvancesContent() {
   return (
     <div className="p-2.5 sm:p-6 max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={PAYMENTS_NAV} />
 
       <div>
         <h1 className="text-xl font-bold text-[var(--text-primary)]">

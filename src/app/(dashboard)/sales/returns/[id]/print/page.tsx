@@ -155,25 +155,26 @@ export default function SalesReturnPrintPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 print:p-0 print:bg-white text-black">
+    <div className="min-h-screen bg-slate-100 p-2 sm:p-6 print:p-0 print:bg-white text-black">
       {/* Top Action Bar (Hidden when printing) */}
-      <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden">
-        <Button variant="outline" onClick={() => router.push("/sales/bills")} className="gap-2">
-          <ArrowLeft size={16} /> Back to Sales
+      <div className="max-w-4xl mx-auto mb-4 sm:mb-6 flex items-center justify-between print:hidden gap-2">
+        <Button variant="outline" size="sm" onClick={() => router.push("/sales/returns")} className="gap-1 sm:gap-2 h-8 px-2.5">
+          <ArrowLeft size={14} /> <span>Back</span>
         </Button>
 
-        <div className="flex items-center gap-3">
-          <Button onClick={handlePrint} variant="outline" className="gap-2">
-            <Printer size={16} /> Print Memo
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <Button onClick={handlePrint} variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 px-2.5">
+            <Printer size={14} /> <span className="hidden sm:inline">Print Memo</span><span className="sm:hidden">Print</span>
           </Button>
-          <Button onClick={handleDownloadPDF} className="gap-2 bg-rose-600 hover:bg-rose-700 text-white">
-            <Download size={16} /> Download PDF
+          <Button onClick={handleDownloadPDF} size="sm" className="gap-1 sm:gap-2 bg-rose-600 hover:bg-rose-700 text-white h-8 px-2.5">
+            <Download size={14} /> <span className="hidden sm:inline">Download PDF</span><span className="sm:hidden">PDF</span>
           </Button>
         </div>
       </div>
 
-      {/* Printable Sheet */}
-      <div className="max-w-4xl mx-auto bg-white p-8 border border-slate-200 rounded-xl shadow-lg print:shadow-none print:border-none print:p-0">
+      {/* Printable Sheet Container with Horizontal Pan on Mobile */}
+      <div className="w-full overflow-x-auto print:overflow-visible touch-pan-x">
+        <div className="min-w-[680px] max-w-4xl mx-auto bg-white p-4 sm:p-8 border border-slate-200 rounded-xl shadow-lg print:shadow-none print:border-none print:p-0 print:min-w-0">
         <div className="border-b-2 border-rose-600 pb-4 mb-6 flex justify-between items-start">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-rose-600">Credit Note</span>
@@ -262,5 +263,6 @@ export default function SalesReturnPrintPage() {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

@@ -9,8 +9,6 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 interface Payment {
   id: string;
@@ -125,9 +123,6 @@ export default function SupplierPaymentsPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={PAYMENTS_NAV} />
-
       <PageHeader
         title="Supplier Payments"
         subtitle="Comprehensive ledger log of all cash, UPI, and bank transfer outlays to suppliers."

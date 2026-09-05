@@ -29,8 +29,6 @@ import ColourDot from "@/components/shared/ColourDot";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useBGradeStock, BGradeStockItem } from "@/hooks/queries/useDefects";
 import { usePartiesList } from "@/hooks/queries/useParties";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { FINISHED_STOCK_NAV } from "@/lib/moduleNav";
 
 export default function BGradeStockPage() {
   const queryClient = useQueryClient();
@@ -193,9 +191,6 @@ export default function BGradeStockPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={FINISHED_STOCK_NAV} />
-
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

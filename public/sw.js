@@ -1,4 +1,4 @@
-const CACHE_NAME = "tas-erp-pwa-v4";
+const CACHE_NAME = "tas-erp-pwa-v5";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/favicon.ico",
@@ -32,17 +32,36 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// 2. Fetch Handler (Network First for API & Navigation)
+// 2. Fetch Handler
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   if (event.request.method !== "GET") return;
 
+  // Next.js static immutable chunks & assets (Cache First for ultra-fast instant transitions)
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
   const isApi = url.pathname.startsWith("/api/");
-  const isNextInternal = url.pathname.startsWith("/_next/");
+  const isNextData = url.pathname.startsWith("/_next/data/");
   const isNavigation = event.request.mode === "navigate";
 
-  if (isApi || isNextInternal || isNavigation) {
+  if (isApi || isNextData || isNavigation) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => networkResponse)

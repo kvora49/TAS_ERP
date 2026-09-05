@@ -15,8 +15,7 @@ import {
 import { DATE_PRESETS, DatePreset, getPresetDates, printReport, fmtDate } from "@/lib/report-export";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { REPORTS_NAV, NavItem } from "@/lib/moduleNav";
+import { NavItem } from "@/lib/moduleNav";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +64,7 @@ export default function ReportShell({
   title,
   infoTooltip,
   breadcrumbs,
-  subNavItems = REPORTS_NAV,
+  subNavItems = [],
   onApply,
   onExportPDF,
   onExportExcel,
@@ -117,11 +116,6 @@ export default function ReportShell({
     <div className="flex flex-col min-h-full bg-[var(--page-bg)]">
       {/* ── Top Header Bar ── */}
       <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-3 sm:px-6 pt-3 sm:pt-4 pb-0 print:hidden space-y-3 md:space-y-0">
-        {/* Module Sub Nav for instant switching on mobile */}
-        {subNavItems && subNavItems.length > 0 && (
-          <ModuleSubNav items={subNavItems} />
-        )}
-
         {/* Title row + actions */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 md:pb-4">
           <div className="flex items-center gap-2">

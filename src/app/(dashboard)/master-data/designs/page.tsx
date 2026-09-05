@@ -10,8 +10,6 @@ import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown, Calculator, Calendar } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -593,7 +591,6 @@ export default function DesignsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <ModuleSubNav items={MASTER_DATA_NAV} />
       {!isEditing ? (
         <>
           <PageHeader

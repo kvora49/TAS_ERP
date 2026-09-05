@@ -71,7 +71,7 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#6366F1]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
       </div>
     );
   }
@@ -85,7 +85,7 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto">
       <PurchaseForm initialData={initialData} id={id} />
     </div>
   );

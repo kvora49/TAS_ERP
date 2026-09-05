@@ -62,8 +62,6 @@ interface StockEntry {
 
 import { useGeneralSettings } from "@/hooks/useGeneralSettings";
 import { useChartTheme } from "@/hooks/useChartTheme";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { RAW_MATERIALS_NAV } from "@/lib/moduleNav";
 
 export default function RawMaterialStockPage() {
   const router = useRouter();
@@ -405,9 +403,6 @@ export default function RawMaterialStockPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={RAW_MATERIALS_NAV} />
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Raw Material Inventory Stock</h1>

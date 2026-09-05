@@ -20,8 +20,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { PRODUCTION_NAV } from "@/lib/moduleNav";
 
 interface StageEntry {
   id: string;
@@ -121,16 +119,16 @@ export default function StageEntriesListPage() {
   return (
     <div className="space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Breadcrumb and Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-1 font-semibold uppercase tracking-wider">
             <Link href="/production" className="hover:text-[var(--primary)] transition-colors">
               Production
             </Link>
             <ChevronRight size={12} className="text-[var(--text-faint)]" />
             <span className="text-[var(--text-secondary)]">Stage Entries</span>
           </nav>
-          <h1 className="text-2xl sm:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+          <h1 className="text-xl sm:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Stage Entries
           </h1>
         </div>
@@ -138,28 +136,26 @@ export default function StageEntriesListPage() {
         <button
           type="button"
           onClick={() => router.push("/production/stage-entries/new")}
-          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/10 self-start sm:self-center"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 h-9 sm:h-10 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
         >
-          <Plus className="h-4 w-4 text-white" />
-          Log Stage Entry
+          <Plus size={15} />
+          <span>Log Stage Entry</span>
         </button>
       </div>
 
-      <ModuleSubNav items={PRODUCTION_NAV} />
-
-      {/* ── MOBILE: snap-scroll KPI cards ── */}
-      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+      {/* ── MOBILE: 2x2 KPI grid ── */}
+      <div className="grid grid-cols-2 gap-2 md:hidden">
         {[
           { label: "Total Logs",    value: `${entries.length}`, icon: ClipboardList, bg: "bg-[var(--primary-light)]", color: "text-[var(--primary)]" },
           { label: "Processed",     value: `${totalProcessed.toLocaleString()} pcs`, icon: TrendingUp, bg: "bg-emerald-500/10", color: "text-emerald-600" },
           { label: "Wastage",       value: `${totalWastage.toLocaleString()} pcs`, icon: Clock, bg: "bg-red-500/10", color: "text-red-500" },
-          { label: "Labor Cost",    value: `₹${totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: Calendar, bg: "bg-amber-500/10", color: "text-amber-600" },
+          { label: "Labor Cost",    value: `₹${totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 0 })}`, icon: Calendar, bg: "bg-amber-500/10", color: "text-amber-600" },
         ].map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-            <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+          <div key={label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+            <div className={cn("p-1.5 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
-              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+              <p className={cn("text-xs font-bold mt-0.5 truncate", color)}>{value}</p>
             </div>
           </div>
         ))}
@@ -198,7 +194,7 @@ export default function StageEntriesListPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-xs">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
           <input
@@ -206,13 +202,13 @@ export default function StageEntriesListPage() {
             placeholder="Search by Entry #, Lot #, Stage, or Worker..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
+            className="pl-9 pr-4 h-9 sm:h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all"
           />
         </div>
       </div>
 
       {/* ── MOBILE: Entry card list ── */}
-      <div className="md:hidden space-y-3">
+      <div className="md:hidden space-y-2.5">
         {isLoading ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)] font-medium">Loading stage entries...</div>
         ) : error ? (
@@ -221,74 +217,85 @@ export default function StageEntriesListPage() {
           <div className="p-8 text-center text-sm text-[var(--text-muted)] font-medium">No stage entries found.</div>
         ) : paginatedEntries.map((entry) => (
           <div key={entry.id}
-            className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+            className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xs overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
             onClick={() => router.push(`/production/stage-entries/${entry.id}`)}
           >
-            <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-              <span className="font-mono font-black text-[var(--primary)] text-sm">{entry.entry_number}</span>
-              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <Link href={`/production/stage-entries/${entry.id}`}
-                  className="w-7 h-7 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
-                  title="View Detail"
-                ><Eye size={13} /></Link>
-                <Link href={`/production/stage-entries/${entry.id}/edit`}
-                  className="w-7 h-7 border border-[var(--border)] rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
-                  title="Edit Entry"
-                ><Pencil size={13} /></Link>
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(entry)}
-                  className="w-7 h-7 border border-[var(--border)] rounded-lg flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors"
-                  title="Delete Entry"
-                ><Trash2 size={13} /></button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-1 px-4 pb-2">
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Lot</p>
-                <Link href={`/production/lots/${entry.lot?.id}`} onClick={(e) => e.stopPropagation()}
-                  className="text-xs font-bold text-[var(--primary)] hover:underline"
-                >{entry.lot?.lot_number || "—"}</Link>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Stage</p>
-                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.stage?.stage_name || "—"}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Worker</p>
-                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.worker?.name || "Unassigned"}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 border-t border-[var(--border-light)] mx-4 py-2">
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">In</p>
-                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">{entry.qty_in.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Out</p>
-                <p className="text-xs font-bold mt-0.5 text-emerald-600">{entry.qty_out.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Wastage</p>
-                <p className="text-xs font-bold mt-0.5 text-red-500">{entry.wastage_qty.toLocaleString()}{entry.wastage_qty > 0 && <span className="text-[10px] font-normal"> ({(entry.wastage_percent * 100).toFixed(1)}%)</span>}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Labor</p>
-                <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)]">₹{entry.total_job_work_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-light)] pt-2">
-              <span className="text-[11px] text-[var(--text-muted)]">
-                {new Date(entry.entry_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-              </span>
-              <span className={cn("ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+            {/* Header: Entry# + Payment Status */}
+            <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5">
+              <span className="font-mono font-bold text-[var(--primary)] text-xs sm:text-sm">{entry.entry_number}</span>
+              <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
                 entry.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-500" :
                 entry.payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
                 "bg-rose-500/10 text-rose-500"
               )}>{entry.payment_status}</span>
+            </div>
+
+            {/* Info grid */}
+            <div className="grid grid-cols-3 gap-1 px-3.5 pb-1.5">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Lot</p>
+                <Link href={`/production/lots/${entry.lot?.id}`} onClick={(e) => e.stopPropagation()}
+                  className="text-xs font-bold text-[var(--primary)] hover:underline truncate block"
+                >{entry.lot?.lot_number || "—"}</Link>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Stage</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.stage?.stage_name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Worker</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{entry.worker?.name || "Unassigned"}</p>
+              </div>
+            </div>
+
+            {/* Metrics grid */}
+            <div className="grid grid-cols-4 border-t border-[var(--border-light)] mx-3.5 py-1.5 text-xs">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">In</p>
+                <p className="font-bold mt-0.5 text-[var(--text-primary)]">{entry.qty_in.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Out</p>
+                <p className="font-bold mt-0.5 text-emerald-600">{entry.qty_out.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Wastage</p>
+                <p className="font-bold mt-0.5 text-red-500">{entry.wastage_qty.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Labor</p>
+                <p className="font-bold mt-0.5 text-[var(--text-primary)]">₹{entry.total_job_work_amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
+              </div>
+            </div>
+
+            {/* Date + Action footer */}
+            <div className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border-light)] bg-[var(--page-bg)]/40" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                {new Date(entry.entry_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Link href={`/production/stage-entries/${entry.id}`} onClick={(e) => e.stopPropagation()}
+                  className="h-7 px-2.5 rounded-md border border-[var(--border)] bg-[var(--card-bg)] text-[var(--primary)] flex items-center justify-center gap-1 text-xs font-semibold transition-colors"
+                  title="View Detail"
+                >
+                  <Eye size={12} />
+                  <span>View</span>
+                </Link>
+                <Link href={`/production/stage-entries/${entry.id}/edit`} onClick={(e) => e.stopPropagation()}
+                  className="h-7 w-7 rounded-md border border-[var(--border)] bg-[var(--card-bg)] text-amber-500 flex items-center justify-center transition-colors"
+                  title="Edit Entry"
+                >
+                  <Pencil size={12} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(entry); }}
+                  className="h-7 w-7 rounded-md border border-[var(--border)] bg-[var(--card-bg)] text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Delete Entry"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -419,40 +426,40 @@ export default function StageEntriesListPage() {
             </table>
           </div>
         )}
-
-        {/* Pagination Footer */}
-        {filteredEntries.length > 0 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--border)] bg-[var(--card-bg)] text-xs text-[var(--text-muted)]">
-            <span>
-              Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-              {Math.min(currentPage * itemsPerPage, filteredEntries.length)} of{" "}
-              {filteredEntries.length} entries
-            </span>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <span className="px-3 py-1.5 rounded-md bg-[var(--primary)] text-white font-bold">
-                {currentPage}
-              </span>
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination Controls (Visible on both Mobile & Desktop) */}
+      {filteredEntries.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border border-[var(--border)] rounded-xl bg-[var(--card-bg)] text-xs text-[var(--text-muted)] shadow-xs">
+          <span>
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, filteredEntries.length)} of{" "}
+            {filteredEntries.length} entries
+          </span>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium cursor-pointer"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 rounded-md bg-[var(--primary)] text-white font-bold">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-3 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (

@@ -17,8 +17,6 @@ import { usePartiesList } from "@/hooks/queries/useParties";
 import { formatCurrency, cn } from "@/lib/utils";
 import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PARTIES_NAV } from "@/lib/moduleNav";
 
 interface Party {
   id: string;
@@ -220,33 +218,33 @@ export default function PartiesPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={PARTIES_NAV} />
-
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Parties Directory</h1>
           <p className="text-xs text-[var(--text-muted)]">Manage suppliers, customers, and workers in one unified system.</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center">
           <button
             onClick={() => { setNoteModalType("credit_note"); setNoteModalOpen(true); }}
-            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="flex items-center justify-center gap-1 px-2 sm:px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            <Plus size={14} /> Issue Credit Note
+            <Plus size={14} className="shrink-0" />
+            <span><span className="sm:hidden">Credit</span><span className="hidden sm:inline">Issue Credit Note</span></span>
           </button>
           <button
             onClick={() => { setNoteModalType("debit_note"); setNoteModalOpen(true); }}
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="flex items-center justify-center gap-1 px-2 sm:px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            <Plus size={14} /> Issue Debit Note
+            <Plus size={14} className="shrink-0" />
+            <span><span className="sm:hidden">Debit</span><span className="hidden sm:inline">Issue Debit Note</span></span>
           </button>
           <AsyncButton
             onClick={() => router.push("/parties/new")}
             variant="primary"
-            className="px-4 py-2 text-xs font-bold flex items-center gap-1"
+            className="px-2 sm:px-4 py-2 text-xs font-bold flex items-center justify-center gap-1"
           >
-            <Plus size={14} /> Add Party
+            <Plus size={14} className="shrink-0" />
+            <span><span className="sm:hidden">Party</span><span className="hidden sm:inline">Add Party</span></span>
           </AsyncButton>
         </div>
       </div>
@@ -268,8 +266,8 @@ export default function PartiesPage() {
         skeletonRows={8}
         skeletonColumns={7}
       >
-        {/* STAT CARDS ROW */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* STAT CARDS ROW - Desktop Only */}
+        <div className="hidden md:grid md:grid-cols-3 gap-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
             <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)]">
               <Users className="h-6 w-6" />
@@ -301,26 +299,25 @@ export default function PartiesPage() {
           </div>
         </div>
 
-        {/* ── MOBILE: snap-scroll stat cards ── */}
-        <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 scrollbar-none">
+        {/* ── MOBILE: 3-column micro KPI grid ── */}
+        <div className="md:hidden grid grid-cols-3 gap-2">
           {[
             { label: "Suppliers", count: supplierCount, icon: Users,     bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
             { label: "Customers", count: customerCount, icon: Briefcase, bg: "bg-green-500/10",              color: "text-green-500" },
             { label: "Workers",   count: workerCount,   icon: UserCheck, bg: "bg-amber-500/10",             color: "text-amber-500" },
-            { label: "All",       count: parties.length, icon: Users,    bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
           ].map(({ label, count, icon: Icon, bg, color }) => (
-            <div key={label} className="snap-start shrink-0 w-[140px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-              <div className={cn("p-2 rounded-lg", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
-              <div>
-                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</p>
-                <p className={cn("text-sm font-black mt-0.5", color)}>{count}</p>
+            <div key={label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 shadow-[var(--shadow-sm)] flex items-center gap-2">
+              <div className={cn("p-1.5 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
+                <p className={cn("text-sm font-black", color)}>{count}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* ── DESKTOP: existing 3-col stat grid ── */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
+        {/* ── DESKTOP: filter bar (hidden on mobile to prevent duplicates) ── */}
+        <div className="hidden md:flex flex-col md:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
           {/* Desktop Tabs */}
           <div className="flex bg-[var(--page-bg)] p-1 rounded-lg w-full md:w-auto">
             {[
@@ -377,7 +374,7 @@ export default function PartiesPage() {
             </div>
 
             {/* Mobile Tab Chips */}
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+            <div className="grid grid-cols-4 gap-1 p-1 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-xs">
               {[
                 { id: "all", label: "All" },
                 { id: "supplier", label: "Suppliers" },
@@ -388,10 +385,10 @@ export default function PartiesPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={cn(
-                    "shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap",
+                    "py-1.5 text-xs font-bold rounded-lg transition-all text-center cursor-pointer",
                     activeTab === tab.id
-                      ? "bg-[var(--primary)] border-[var(--primary)] text-white"
-                      : "bg-[var(--card-bg)] border-[var(--border)] text-[var(--text-muted)]"
+                      ? "bg-[var(--primary)] text-white shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   )}
                 >
                   {tab.label}

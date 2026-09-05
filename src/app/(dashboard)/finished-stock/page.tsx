@@ -33,8 +33,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { FINISHED_STOCK_NAV } from "@/lib/moduleNav";
 
 interface GodownBreakdown {
   godown_name: string;
@@ -141,70 +139,69 @@ export default function FinishedStockOverviewPage() {
           </p>
         </div>
 
-        {/* Quick Actions Panel */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Quick Actions Panel - single line responsive 3-column grid on mobile */}
+        <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center">
           <Link
             href="/finished-stock/adjustments/new"
-            className="flex items-center gap-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3.5 py-2 rounded-xl hover:bg-rose-500/20 active:bg-rose-500/20 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2.5 sm:px-3.5 py-2 rounded-xl hover:bg-rose-500/20 active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            <Plus className="h-4 w-4" />
-            <span>Adjust Stock</span>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span><span className="sm:hidden">Adjust</span><span className="hidden sm:inline">Adjust Stock</span></span>
           </Link>
           <Link
             href="/finished-stock/transfers/new"
-            className="flex items-center gap-2 text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--border)] px-3.5 py-2 rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--primary)]/25 px-2.5 sm:px-3.5 py-2 rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            <Plus className="h-4 w-4" />
-            <span>Transfer Stock</span>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span><span className="sm:hidden">Transfer</span><span className="hidden sm:inline">Transfer Stock</span></span>
           </Link>
           <Link
             href="/finished-stock/challans/new"
-            className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 active:bg-emerald-500/20 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 sm:px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer shadow-xs"
           >
-            <Plus className="h-4 w-4" />
-            <span>Create Challan</span>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span><span className="sm:hidden">Challan</span><span className="hidden sm:inline">Create Challan</span></span>
           </Link>
         </div>
       </div>
 
-      <ModuleSubNav items={FINISHED_STOCK_NAV} />
-
       {/* Stock Grade Filter Tabs */}
-      <div className="flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--border)] p-1.5 rounded-xl w-fit shadow-[var(--shadow-sm)]">
+      <div className="grid grid-cols-3 gap-1.5 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl w-full sm:w-auto sm:inline-flex shadow-[var(--shadow-sm)]">
         <button
           type="button"
           onClick={() => setGradeFilter("all")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+          className={`px-2.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
             gradeFilter === "all"
-              ? "bg-[var(--primary)] text-white shadow-sm"
+              ? "bg-[var(--primary)] text-white shadow-xs"
               : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
           }`}
         >
-          All Finished Stock
+          <span className="sm:hidden">All Stock</span>
+          <span className="hidden sm:inline">All Finished Stock</span>
         </button>
         <button
           type="button"
           onClick={() => setGradeFilter("A")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-2.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
             gradeFilter === "A"
-              ? "bg-emerald-600 text-white shadow-sm"
+              ? "bg-emerald-600 text-white shadow-xs"
               : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
           }`}
         >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Grade A (Fresh Quality)</span>
+          <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <span>Grade A<span className="hidden sm:inline"> (Fresh Quality)</span></span>
         </button>
         <button
           type="button"
           onClick={() => setGradeFilter("B")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-2.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
             gradeFilter === "B"
-              ? "bg-orange-600 text-white shadow-sm"
+              ? "bg-orange-600 text-white shadow-xs"
               : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
           }`}
         >
-          <Package className="h-3.5 w-3.5" />
-          <span>Grade B (Aatri / Second Quality)</span>
+          <Package className="h-3.5 w-3.5 shrink-0" />
+          <span>Grade B<span className="hidden sm:inline"> (Aatri / Second Quality)</span></span>
         </button>
       </div>
 
@@ -405,10 +402,10 @@ export default function FinishedStockOverviewPage() {
 
       {/* Stock by Design Table */}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden">
-        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-[var(--text-primary)]">Stock by Design (Top 10)</h3>
-            <p className="text-xs text-[var(--text-muted)]">
+        <div className="p-3.5 sm:p-5 border-b border-[var(--border)] flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate">Stock by Design (Top 10)</h3>
+            <p className="text-xs text-[var(--text-muted)] truncate">
               {gradeFilter === "all"
                 ? "Top 10 garment designs ranked by stock levels"
                 : gradeFilter === "A"
@@ -418,10 +415,10 @@ export default function FinishedStockOverviewPage() {
           </div>
           <Link
             href="/finished-stock/designs"
-            className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:text-[var(--primary-dark)] hover:underline"
+            className="shrink-0 flex items-center gap-1 text-xs font-bold text-[var(--primary)] hover:text-[var(--primary-dark)] px-2.5 py-1.5 rounded-lg bg-[var(--primary-light)] hover:bg-[var(--table-row-hover)] transition-colors"
           >
-            <span>View All Designs</span>
-            <ChevronRight className="h-4 w-4" />
+            <span>View All</span>
+            <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
@@ -436,15 +433,17 @@ export default function FinishedStockOverviewPage() {
             ))
           ) : stats?.top_designs && stats.top_designs.length > 0 ? (
             stats.top_designs.map((design, idx) => (
-              <div key={design.design_id} className="p-4">
+              <div key={design.design_id} className="p-3.5 sm:p-4 hover:bg-[var(--table-row-hover)]/40 transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] font-black text-[var(--text-faint)] w-5 shrink-0">#{idx + 1}</span>
+                    <span className="w-5 h-5 rounded-full bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-center text-[10px] font-black text-[var(--text-faint)] shrink-0">
+                      {idx + 1}
+                    </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="font-bold text-[var(--primary)] text-sm truncate">{design.design_code}</p>
                         {design.grade_b_quantity && design.grade_b_quantity > 0 ? (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-orange-500/10 text-orange-600 border border-orange-500/20">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-500/10 text-orange-600 border border-orange-500/20">
                             B-Grade: {design.grade_b_quantity}
                           </span>
                         ) : null}
@@ -454,33 +453,35 @@ export default function FinishedStockOverviewPage() {
                   </div>
                   <Link
                     href={`/master-data/designs/${design.design_id}`}
-                    className="ml-2 shrink-0 inline-flex items-center justify-center w-7 h-7 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--primary)] rounded-lg transition-all"
+                    className="ml-2 shrink-0 inline-flex items-center justify-center w-7 h-7 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--primary)] rounded-lg transition-all active:scale-95"
                   >
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
-                <div className="grid grid-cols-3 gap-1 mb-2">
+
+                <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-[var(--page-bg)]/60 border border-[var(--border-light)] mb-2.5">
                   <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Qty</p>
+                    <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Qty</p>
                     <p className="text-xs font-black text-[var(--text-primary)] mt-0.5">
                       {(design.total_quantity || 0).toLocaleString()} pcs
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Value</p>
+                    <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Value</p>
                     <p className="text-xs font-black text-[var(--primary)] mt-0.5">
                       {formatRupee(design.total_value || 0)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Godown</p>
+                    <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Godown</p>
                     <p className="text-xs font-semibold text-[var(--text-body)] mt-0.5 truncate">
                       {design.godown_count > 1 ? `All (${design.godown_count})` : design.godown_name || "N/A"}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
+
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <div className="flex items-center gap-1 min-w-0">
                     {design.colours &&
                       design.colours.slice(0, 5).map((hex, index) => (
                         <ColourDot key={index} colourHex={hex} size="sm" />
@@ -491,12 +492,12 @@ export default function FinishedStockOverviewPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1 ml-2">
+                  <div className="flex flex-wrap gap-1 justify-end">
                     {design.sizes &&
                       design.sizes.slice(0, 4).map((sz, i) => (
                         <span
                           key={i}
-                          className="text-[10px] font-bold bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded"
+                          className="text-[10px] font-semibold bg-[var(--page-bg)] text-[var(--text-secondary)] border border-[var(--border)] px-1.5 py-0.5 rounded"
                         >
                           {sz}
                         </span>

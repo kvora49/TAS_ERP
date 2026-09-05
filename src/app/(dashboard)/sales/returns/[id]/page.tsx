@@ -155,56 +155,56 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto pb-12">
-      <div className="space-y-6 print:hidden">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-6xl mx-auto pb-12">
+      <div className="space-y-4 sm:space-y-6 print:hidden">
         {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-        <div className="flex items-center gap-3">
-          <Link href="/sales/returns" className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors text-[var(--text-muted)]">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-[var(--text-primary)]">
-                Sales Return: {sReturn.return_number}
-              </h1>
-              <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                {sReturn.status}
-              </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--border)] pb-4 gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <Link href="/sales/returns" className="p-2 hover:bg-[var(--table-row-hover)] rounded-lg transition-colors text-[var(--text-muted)] border border-[var(--border)] bg-[var(--card-bg)] shrink-0">
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-xl font-bold text-[var(--text-primary)]">
+                  Sales Return: {sReturn.return_number}
+                </h1>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                  {sReturn.status}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
+                Processed on {sReturn.return_date} · Customer:{" "}
+                <span className="font-semibold text-[var(--text-primary)]">{sReturn.party?.name}</span>
+              </p>
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Processed on {sReturn.return_date} · Customer:{" "}
-              <span className="font-semibold text-[var(--text-primary)]">{sReturn.party?.name}</span>
-            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            {creditNote && (
+              <button
+                onClick={() => setCnModalOpen(true)}
+                className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>Credit Note Voucher</span>
+              </button>
+            )}
+            <Link
+              href={`/sales/returns/${id}/edit`}
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-[var(--text-primary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] flex items-center gap-1.5 transition-all shrink-0"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              <span>Edit</span>
+            </Link>
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-red-600 bg-[var(--card-bg)] border border-red-200 rounded-lg hover:bg-red-500/10 flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete</span>
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {creditNote && (
-            <button
-              onClick={() => setCnModalOpen(true)}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Credit Note Voucher
-            </button>
-          )}
-          <Link
-            href={`/sales/returns/${id}/edit`}
-            className="px-3.5 py-1.5 text-xs font-bold text-[var(--text-primary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] flex items-center gap-1.5 transition-all"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-            Edit Return
-          </Link>
-          <button
-            onClick={() => setDeleteOpen(true)}
-            className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-[var(--card-bg)] border border-red-200 rounded-lg hover:bg-red-500/10 flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete Return
-          </button>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column */}

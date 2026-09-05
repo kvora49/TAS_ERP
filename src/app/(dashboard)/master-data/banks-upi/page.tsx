@@ -8,8 +8,6 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DeleteBankAccountDialog } from "./_components/DeleteBankAccountDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Modal } from "@/components/shared/Modal";
 import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Smartphone, Wallet } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -394,8 +392,6 @@ export default function BanksUpiPage() {
         searchValue={search}
         onSearch={setSearch}
       />
-
-      <ModuleSubNav items={MASTER_DATA_NAV} />
 
       {/* Tabs & Multi Action Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border)] pb-3">

@@ -8,8 +8,6 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Badge } from "@/components/shared/Badge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Pencil, Trash2, Plus, Star, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -147,9 +145,6 @@ export default function ProductionTemplatesPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* ── Sub-Navigation ── */}
-      <ModuleSubNav items={MASTER_DATA_NAV} />
-
       <PageHeader
         title="Production Stages &amp; Templates"
         subtitle="Manage workflow templates and stages for different manufacturing lines"

@@ -8,8 +8,6 @@ import { toast } from "sonner";
 import { ArrowLeft, Link as LinkIcon, Info, CheckCircle, RefreshCw } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { PAYMENTS_NAV } from "@/lib/moduleNav";
 
 function DirectLinkContent() {
   const router = useRouter();
@@ -138,9 +136,6 @@ function DirectLinkContent() {
       skeletonVariant="form"
     >
       <div className="p-2.5 sm:p-6 max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
-        {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-        <ModuleSubNav items={PAYMENTS_NAV} />
-
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

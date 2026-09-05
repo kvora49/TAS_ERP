@@ -303,11 +303,11 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
   };
 
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto animate-fadeIn">
+    <div className="p-4 sm:p-6 space-y-6 select-none max-w-[1400px] mx-auto animate-fadeIn">
       {/* Breadcrumbs and Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-1 font-semibold uppercase tracking-wider">
             <Link href="/" className="hover:text-[var(--primary)] transition-colors">
               Production
             </Link>
@@ -318,18 +318,18 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
             <ChevronRight size={12} className="text-[var(--text-faint)]" />
             <span className="text-[var(--text-secondary)]">Stage Entry Detail</span>
           </nav>
-          <h1 className="text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+          <h1 className="text-xl sm:text-[28px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Stage Entry Detail
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
           <Link
             href={`/production/lots/${entry.lot_id}`}
-            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-2xs"
+            className="flex-1 sm:flex-initial border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3 h-8 sm:h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-xs"
           >
-            <ArrowLeft size={14} />
-            Back to Lot
+            <ArrowLeft size={13} />
+            <span>Back</span>
           </Link>
 
           {/* Edit Button */}
@@ -343,15 +343,15 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               router.push(`/production/stage-entries/${id}/edit`);
             }}
             className={cn(
-              "border text-xs font-semibold px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer",
+              "flex-1 sm:flex-initial border text-xs font-semibold px-3 h-8 sm:h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer",
               isEditable
                 ? "border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
                 : "border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-faint)] opacity-60"
             )}
             title={editableBlockReason || "Edit stage entry"}
           >
-            <Edit size={14} />
-            Edit Entry
+            <Edit size={13} />
+            <span>Edit</span>
           </button>
 
           {/* Delete Button */}
@@ -365,33 +365,33 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
               setDeleteModalOpen(true);
             }}
             className={cn(
-              "border text-xs font-semibold px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer",
+              "flex-1 sm:flex-initial border text-xs font-semibold px-3 h-8 sm:h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer",
               isEditable
                 ? "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20"
                 : "border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-faint)] opacity-60"
             )}
             title={editableBlockReason || "Delete stage entry"}
           >
-            <Trash2 size={14} />
-            Delete Entry
+            <Trash2 size={13} />
+            <span>Delete</span>
           </button>
 
           {entry.lot?.status !== "completed" && (
             <button
               onClick={() => setMoveModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 h-8 sm:h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
             >
-              <Boxes size={14} />
-              Move Lot to Stock
+              <Boxes size={13} />
+              <span>Stock</span>
             </button>
           )}
 
           <button
             onClick={() => window.print()}
-            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-2xs"
+            className="flex-1 sm:flex-initial border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] font-semibold text-xs px-3 h-8 sm:h-9 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-[var(--card-bg)] shadow-xs"
           >
-            <Printer size={14} />
-            Print
+            <Printer size={13} />
+            <span>Print</span>
           </button>
         </div>
       </div>
@@ -407,28 +407,28 @@ export default function StageEntryDetailPage({ params }: StageEntryDetailProps) 
       )}
 
       {/* ENTRY HEADER CARD */}
-      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-5 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-[var(--border)] pb-4 lg:pb-0 pr-6 shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shadow-xs shrink-0">
-              <FileText className="h-6 w-6" />
+      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-center gap-3.5 border-b lg:border-b-0 lg:border-r border-[var(--border)] pb-3 lg:pb-0 pr-0 lg:pr-6 shrink-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shadow-xs shrink-0">
+              <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <span className="text-xl font-black text-[var(--text-primary)] font-mono leading-none">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg sm:text-xl font-black text-[var(--text-primary)] font-mono leading-none">
                   {entry.entry_number}
                 </span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   Completed
                 </span>
               </div>
-              <p className="text-[10px] text-[var(--text-faint)] font-bold mt-1.5 uppercase tracking-wide">
-                Reference ID: {entry.id}
+              <p className="text-[10px] text-[var(--text-faint)] font-mono font-medium mt-1 truncate max-w-[220px]" title={entry.id}>
+                Ref: {entry.id?.slice(0, 8)}...
               </p>
             </div>
           </div>
 
-          <div className="flex-1 grid grid-cols-2 sm:grid-cols-6 gap-6 text-sm">
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 text-sm">
             <div>
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Lot No.</span>
               <span className="text-sm font-semibold text-[var(--primary)] mt-0.5 block font-mono">

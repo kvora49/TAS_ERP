@@ -15,8 +15,6 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import ModuleSubNav from "@/components/shared/ModuleSubNav";
-import { RAW_MATERIALS_NAV } from "@/lib/moduleNav";
 
 interface PurchaseLog {
   id: string;
@@ -402,9 +400,6 @@ export default function PurchasesPage() {
 
   return (
     <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
-      {/* ── MODULE SUB NAVIGATION ────────────────────────────────────────── */}
-      <ModuleSubNav items={RAW_MATERIALS_NAV} />
-
       {/* Header & Dual Action Buttons */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -414,19 +409,21 @@ export default function PurchasesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <AsyncButton
             onClick={() => router.push("/purchases/new")}
             variant="primary"
-            className="flex-1 sm:flex-initial text-xs font-bold flex items-center gap-1.5"
+            className="flex-1 sm:flex-initial text-xs font-bold flex items-center justify-center gap-1.5 h-9 sm:h-10 px-3 sm:px-4"
           >
-            <Plus className="h-4 w-4" /> Record Purchase
+            <Plus className="h-4 w-4 shrink-0" />
+            <span><span className="hidden sm:inline">Record </span>Purchase</span>
           </AsyncButton>
           <button
             onClick={() => router.push("/purchases/returns/new")}
-            className="flex-1 sm:flex-initial text-xs font-bold flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow-md shadow-purple-500/20 cursor-pointer"
+            className="flex-1 sm:flex-initial text-xs font-bold flex items-center justify-center gap-1.5 h-9 sm:h-10 px-3 sm:px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow-sm shadow-purple-500/20 cursor-pointer shrink-0"
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Record Purchase Return
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+            <span><span className="hidden sm:inline">Record </span>Return</span>
           </button>
         </div>
       </div>
@@ -450,7 +447,7 @@ export default function PurchasesPage() {
       </div>
 
       {/* ── DESKTOP: existing 4-col stat grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="hidden md:grid grid-cols-4 gap-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-3.5">
             <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
               <ShoppingBag className="h-6 w-6" />
@@ -552,140 +549,161 @@ export default function PurchasesPage() {
         </div>{/* end desktop filter bar */}
 
         {/* ── MOBILE: Purchase card list ── */}
-        <div className="md:hidden space-y-3">
-          {filteredLogs.map((log) => {
-            const isPurchase = log.record_type === "purchase";
-            const detailHref = isPurchase ? `/purchases/${log.id}` : `/purchases/returns/${log.id}`;
-            const editHref = isPurchase ? `/purchases/${log.id}/edit` : `/purchases/returns/${log.id}/edit`;
-            const isPaid = log.payment_status === "paid";
-            const dueDate = isPurchase ? (log.raw_purchase?.due_date || log.due_date) : undefined;
+        <div className="md:hidden">
+          <PageState
+            isLoading={loading}
+            isError={isError}
+            error={purchasesError ? (purchasesError instanceof Error ? purchasesError.message : "Failed to load purchases") : undefined}
+            onRetry={refetchPurchases}
+            isEmpty={filteredLogs.length === 0}
+            emptyTitle="No Purchases Found"
+            emptyDescription="No inward bills or return logs match your search filter."
+            emptyAction={
+              <AsyncButton onClick={() => router.push("/purchases/new")} variant="primary">
+                + Record First Purchase
+              </AsyncButton>
+            }
+            skeletonVariant="card"
+            skeletonCount={4}
+          >
+            <div className="space-y-3">
+              {filteredLogs.map((log) => {
+                const isPurchase = log.record_type === "purchase";
+                const detailHref = isPurchase ? `/purchases/${log.id}` : `/purchases/returns/${log.id}`;
+                const editHref = isPurchase ? `/purchases/${log.id}/edit` : `/purchases/returns/${log.id}/edit`;
+                const isPaid = log.payment_status === "paid";
+                const dueDate = isPurchase ? (log.raw_purchase?.due_date || log.due_date) : undefined;
 
-            let statusVariant: BadgeVariant = "gray";
-            if (log.payment_status === "paid") statusVariant = "green";
-            else if (log.payment_status === "partial") statusVariant = "orange";
-            else if (log.payment_status === "unpaid") statusVariant = "red";
+                let statusVariant: BadgeVariant = "gray";
+                if (log.payment_status === "paid") statusVariant = "green";
+                else if (log.payment_status === "partial") statusVariant = "orange";
+                else if (log.payment_status === "unpaid") statusVariant = "red";
 
-            return (
-              <div key={log.id}
-                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                onClick={() => router.push(detailHref)}
-              >
-                {/* Header: Doc# + Type badge */}
-                <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
-                    className={cn("font-mono font-black text-sm hover:underline", isPurchase ? "text-[var(--primary)]" : "text-purple-500")}
-                  >{log.doc_number}</Link>
-                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                    isPurchase ? "bg-[var(--primary-light)] text-[var(--primary)]" : "bg-purple-500/10 text-purple-500"
-                  )}>
-                    {isPurchase ? "Purchase" : "Return"}
-                  </span>
-                </div>
+                return (
+                  <div key={log.id}
+                    className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                    onClick={() => router.push(detailHref)}
+                  >
+                    {/* Header: Doc# + Type badge */}
+                    <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+                      <Link href={detailHref} onClick={(e) => e.stopPropagation()}
+                        className={cn("font-mono font-black text-sm hover:underline", isPurchase ? "text-[var(--primary)]" : "text-purple-500")}
+                      >{log.doc_number}</Link>
+                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                        isPurchase ? "bg-[var(--primary-light)] text-[var(--primary)]" : "bg-purple-500/10 text-purple-500"
+                      )}>
+                        {isPurchase ? "Purchase" : "Return"}
+                      </span>
+                    </div>
 
-                {/* Supplier + Date */}
-                <div className="flex items-center justify-between px-4 pb-2">
-                  <span className="font-semibold text-[var(--text-primary)] text-sm truncate max-w-[60%]">{log.supplier?.name || "—"}</span>
-                  <span className="text-xs text-[var(--text-muted)] shrink-0">{formatDate(log.date)}</span>
-                </div>
+                    {/* Supplier + Date */}
+                    <div className="flex items-center justify-between px-4 pb-2">
+                      <span className="font-semibold text-[var(--text-primary)] text-sm truncate max-w-[60%]">{log.supplier?.name || "—"}</span>
+                      <span className="text-xs text-[var(--text-muted)] shrink-0">{formatDate(log.date)}</span>
+                    </div>
 
-                {/* Amounts + Status grid */}
-                <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Total</p>
-                    <p className={cn("text-xs font-bold mt-0.5", isPurchase ? "text-[var(--text-primary)]" : "text-purple-500")}>
-                      {isPurchase ? formatCurrency(log.grand_total) : `- ${formatCurrency(log.grand_total)}`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Paid</p>
-                    <p className="text-xs font-bold mt-0.5 text-green-500">{isPurchase ? formatCurrency(log.paid_amount) : "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Status</p>
-                    <div className="mt-0.5">
-                      {isPurchase ? <Badge variant={statusVariant} className="capitalize text-[10px]">{log.payment_status}</Badge>
-                        : <span className="text-[10px] font-bold text-[var(--text-muted)]">—</span>
-                      }
+                    {/* Amounts + Status grid */}
+                    <div className="grid grid-cols-3 border-t border-[var(--border-light)] mx-4 py-2">
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Total</p>
+                        <p className={cn("text-xs font-bold mt-0.5", isPurchase ? "text-[var(--text-primary)]" : "text-purple-500")}>
+                          {isPurchase ? formatCurrency(log.grand_total) : `- ${formatCurrency(log.grand_total)}`}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Paid</p>
+                        <p className="text-xs font-bold mt-0.5 text-green-500">{isPurchase ? formatCurrency(log.paid_amount) : "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">Status</p>
+                        <div className="mt-0.5">
+                          {isPurchase ? <Badge variant={statusVariant} className="capitalize text-[10px]">{log.payment_status}</Badge>
+                            : <span className="text-[10px] font-bold text-[var(--text-muted)]">—</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Invoice ref + Due counter */}
+                    <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
+                      {log.invoice_no && log.invoice_no !== "—" && (
+                        <span className="text-[10px] font-mono font-bold text-[var(--text-muted)]">Inv: {log.invoice_no}</span>
+                      )}
+                      {log.purchase_ref && (
+                        <span className="text-[10px] font-mono text-purple-400">Ref: {log.purchase_ref}</span>
+                      )}
+                      {isPurchase && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <DueDateBadge dueDate={dueDate} isCompleted={isPaid} type="purchase" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action footer */}
+                    <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                      <Link href={detailHref} onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-9 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer active:scale-95 transition-transform" title="View"
+                      ><Eye size={14} /></Link>
+                      <Link href={editHref} onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-9 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer active:scale-95 transition-transform" title="Edit"
+                      ><Edit2 size={14} /></Link>
+                      {isPurchase && !isPaid && (
+                        <button type="button"
+                          onClick={(e) => { e.stopPropagation(); setPaymentPurchase(log.raw_purchase); setPaymentModalOpen(true); }}
+                          className="flex-1 h-9 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer active:scale-95 transition-transform" title="Record Payment"
+                        ><CreditCard size={14} /></button>
+                      )}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenDelete(log); }}
+                        className="flex-1 h-9 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer active:scale-95 transition-transform" title="Cancel"
+                      ><Trash2 size={14} /></button>
                     </div>
                   </div>
-                </div>
-
-                {/* Invoice ref + Due counter */}
-                <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
-                  {log.invoice_no && log.invoice_no !== "—" && (
-                    <span className="text-[10px] font-mono font-bold text-[var(--text-muted)]">Inv: {log.invoice_no}</span>
-                  )}
-                  {log.purchase_ref && (
-                    <span className="text-[10px] font-mono text-purple-400">Ref: {log.purchase_ref}</span>
-                  )}
-                  {isPurchase && (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <DueDateBadge dueDate={dueDate} isCompleted={isPaid} type="purchase" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Action footer */}
-                <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
-                  <Link href={detailHref} onClick={(e) => e.stopPropagation()}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="View"
-                  ><Eye size={13} /></Link>
-                  <Link href={editHref} onClick={(e) => e.stopPropagation()}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
-                  ><Edit2 size={13} /></Link>
-                  {isPurchase && !isPaid && (
-                    <button type="button"
-                      onClick={(e) => { e.stopPropagation(); setPaymentPurchase(log.raw_purchase); setPaymentModalOpen(true); }}
-                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="Record Payment"
-                    ><CreditCard size={13} /></button>
-                  )}
-                  <button type="button" onClick={(e) => { e.stopPropagation(); handleOpenDelete(log); }}
-                    className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-red-500 flex items-center justify-center cursor-pointer" title="Cancel"
-                  ><Trash2 size={13} /></button>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </PageState>
         </div>
 
         {/* ── DESKTOP: DataTable ── */}
-        <PageState
-          isLoading={loading}
-          isError={isError}
-          error={purchasesError ? (purchasesError instanceof Error ? purchasesError.message : "Failed to load purchases") : undefined}
-          onRetry={refetchPurchases}
-          isEmpty={filteredLogs.length === 0}
-          emptyTitle="No Purchases Found"
-          emptyDescription="No inward bills or return logs match your search filter."
-          emptyAction={
-            <AsyncButton onClick={() => router.push("/purchases/new")} variant="primary">
-              + Record First Purchase
-            </AsyncButton>
-          }
-          skeletonVariant="table"
-          skeletonRows={8}
-          skeletonColumns={8}
-        >
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-            <DataTable
-              columns={columns}
-              data={filteredLogs}
-              isLoading={false}
-              total={filteredLogs.length}
-              page={1}
-              perPage={10000}
-              onPageChange={() => {}}
-              onRowClick={(row) => {
-                const href =
-                  row.record_type === "purchase"
-                    ? `/purchases/${row.id}`
-                    : `/purchases/returns/${row.id}`;
-                router.push(href);
-              }}
-              emptyMessage="No purchases or returns found matching filters."
-            />
-          </div>{/* end desktop DataTable */}
-        </PageState>
+        <div className="hidden md:block">
+          <PageState
+            isLoading={loading}
+            isError={isError}
+            error={purchasesError ? (purchasesError instanceof Error ? purchasesError.message : "Failed to load purchases") : undefined}
+            onRetry={refetchPurchases}
+            isEmpty={filteredLogs.length === 0}
+            emptyTitle="No Purchases Found"
+            emptyDescription="No inward bills or return logs match your search filter."
+            emptyAction={
+              <AsyncButton onClick={() => router.push("/purchases/new")} variant="primary">
+                + Record First Purchase
+              </AsyncButton>
+            }
+            skeletonVariant="table"
+            skeletonRows={8}
+            skeletonColumns={8}
+          >
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+              <DataTable
+                columns={columns}
+                data={filteredLogs}
+                isLoading={false}
+                total={filteredLogs.length}
+                page={1}
+                perPage={10000}
+                onPageChange={() => {}}
+                onRowClick={(row) => {
+                  const href =
+                    row.record_type === "purchase"
+                      ? `/purchases/${row.id}`
+                      : `/purchases/returns/${row.id}`;
+                  router.push(href);
+                }}
+                emptyMessage="No purchases or returns found matching filters."
+              />
+            </div>{/* end desktop DataTable */}
+          </PageState>
+        </div>
 
       {/* RECORD PAYMENT MODAL */}
       {paymentPurchase && (

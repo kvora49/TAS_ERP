@@ -32,14 +32,13 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { PRODUCTION_NAV } from "@/lib/moduleNav";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 
 interface Lot {
   id: string;
@@ -234,14 +233,6 @@ export default function ProductionLotsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-[var(--card-bg)]"
-            onClick={() => toast.info("Tutorial is coming soon!")}
-          >
-            <Play size={14} className="fill-[var(--text-body)]" />
-            Tutorial
-          </button>
           <AsyncButton
             onClick={() => router.push("/production/lots/new")}
             variant="primary"
@@ -253,81 +244,220 @@ export default function ProductionLotsPage() {
         </div>
       </div>
 
-      <ModuleSubNav items={PRODUCTION_NAV} />
-
         {/* 5 Stat Cards */}
         <motion.div
           variants={staggerContainer}
           initial="initial"
           animate="animate"
-          className="grid grid-cols-1 md:grid-cols-5 gap-4"
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4"
         >
-          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
-            <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
-              <ClipboardList className="h-6 w-6" />
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex items-center gap-2.5 sm:gap-4 transition-shadow">
+            <div className="p-2 sm:p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
+              <ClipboardList className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Lots</span>
-              <p className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">{stats.total}</p>
-              <span className="text-[10px] text-[var(--text-muted)] font-medium block mt-0.5">All time</span>
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate block">Total Lots</span>
+              <p className="text-base sm:text-2xl font-bold text-[var(--text-primary)] mt-0.5">{stats.total}</p>
+              <span className="text-[9px] sm:text-[10px] text-[var(--text-muted)] font-medium block mt-0.5">All time</span>
             </div>
           </motion.div>
 
-          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
-            <div className="p-3 bg-blue-500/10 rounded-lg text-blue-500 shrink-0">
-              <Clock className="h-6 w-6" />
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex items-center gap-2.5 sm:gap-4 transition-shadow">
+            <div className="p-2 sm:p-3 bg-blue-500/10 rounded-lg text-blue-500 shrink-0">
+              <Clock className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">In Progress</span>
-              <p className="text-2xl font-bold text-blue-500 mt-0.5">{stats.in_progress}</p>
-              <span className="text-[10px] text-blue-500 font-semibold block mt-0.5">
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate block">In Progress</span>
+              <p className="text-base sm:text-2xl font-bold text-blue-500 mt-0.5">{stats.in_progress}</p>
+              <span className="text-[9px] sm:text-[10px] text-blue-500 font-semibold block mt-0.5">
                 {percentages.in_progress}%
               </span>
             </div>
           </motion.div>
 
-          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
-            <div className="p-3 bg-green-500/10 rounded-lg text-green-500 shrink-0">
-              <CheckCircle2 className="h-6 w-6" />
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex items-center gap-2.5 sm:gap-4 transition-shadow">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg text-green-500 shrink-0">
+              <CheckCircle2 className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Completed</span>
-              <p className="text-2xl font-bold text-green-500 mt-0.5">{stats.completed}</p>
-              <span className="text-[10px] text-green-500 font-semibold block mt-0.5">
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate block">Completed</span>
+              <p className="text-base sm:text-2xl font-bold text-green-500 mt-0.5">{stats.completed}</p>
+              <span className="text-[9px] sm:text-[10px] text-green-500 font-semibold block mt-0.5">
                 {percentages.completed}%
               </span>
             </div>
           </motion.div>
 
-          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
-            <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
-              <PauseCircle className="h-6 w-6" />
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex items-center gap-2.5 sm:gap-4 transition-shadow">
+            <div className="p-2 sm:p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
+              <PauseCircle className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">On Hold</span>
-              <p className="text-2xl font-bold text-amber-500 mt-0.5">{stats.on_hold}</p>
-              <span className="text-[10px] text-amber-500 font-semibold block mt-0.5">
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate block">On Hold</span>
+              <p className="text-base sm:text-2xl font-bold text-amber-500 mt-0.5">{stats.on_hold}</p>
+              <span className="text-[9px] sm:text-[10px] text-amber-500 font-semibold block mt-0.5">
                 {percentages.on_hold}%
               </span>
             </div>
           </motion.div>
 
-          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4 transition-shadow">
-            <div className="p-3 bg-red-500/10 rounded-lg text-red-500 shrink-0">
-              <XCircle className="h-6 w-6" />
+          <motion.div variants={cardVariants} whileHover={hoverLift.hover} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex items-center gap-2.5 sm:gap-4 transition-shadow col-span-2 sm:col-span-1">
+            <div className="p-2 sm:p-3 bg-red-500/10 rounded-lg text-red-500 shrink-0">
+              <XCircle className="h-4 w-4 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Cancelled</span>
-              <p className="text-2xl font-bold text-red-500 mt-0.5">{stats.cancelled}</p>
-              <span className="text-[10px] text-red-500 font-semibold block mt-0.5">
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate block">Cancelled</span>
+              <p className="text-base sm:text-2xl font-bold text-red-500 mt-0.5">{stats.cancelled}</p>
+              <span className="text-[9px] sm:text-[10px] text-red-500 font-semibold block mt-0.5">
                 {percentages.cancelled}%
               </span>
             </div>
           </motion.div>
         </motion.div>
 
-        {/* Filter Bar */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex flex-col gap-4">
+        {/* Mobile: compact search bar + filter sheet trigger */}
+        <div className="md:hidden flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-faint)] pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search Lot No., Design..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-9 pr-3 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+            />
+          </div>
+          <MobileFilterSheet
+            activeCount={[
+              brandFilter !== "all",
+              designFilter !== "all",
+              statusFilter !== "all",
+              workerFilter !== "all",
+              workerLotStatusFilter !== "all",
+              paymentStatusFilter !== "all",
+              startDate,
+              endDate,
+            ].filter(Boolean).length}
+            onClearAll={handleClearFilters}
+          >
+            <MobileFilterField label="Brand">
+              <select
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Brands</option>
+                {brandsData?.brands?.map((b: Brand) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterField>
+
+            <MobileFilterField label="Design">
+              <select
+                value={designFilter}
+                onChange={(e) => {
+                  setDesignFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Designs</option>
+                {designsData?.designs?.map((d: Design) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} - {d.name}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterField>
+
+            <MobileFilterField label="Lot Status">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="on_hold">On Hold</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </MobileFilterField>
+
+            <MobileFilterField label="Worker">
+              <select
+                value={workerFilter}
+                onChange={(e) => {
+                  setWorkerFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Workers</option>
+                {workersData?.workers?.map((w: Worker) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.worker_id})
+                  </option>
+                ))}
+              </select>
+            </MobileFilterField>
+
+            <MobileFilterField label="Payment Status">
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => {
+                  setPaymentStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              >
+                <option value="all">All Payments</option>
+                <option value="paid">Paid Lots</option>
+                <option value="unpaid">Unpaid Lots</option>
+              </select>
+            </MobileFilterField>
+
+            <MobileFilterField label="Date From">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+
+            <MobileFilterField label="Date To">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm px-3 focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+              />
+            </MobileFilterField>
+          </MobileFilterSheet>
+        </div>
+
+        {/* Desktop Filter Bar — unchanged */}
+        <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[240px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4 pointer-events-none" />
@@ -510,7 +640,7 @@ export default function ProductionLotsPage() {
           skeletonColumns={13}
         >
           {/* ── MOBILE: Lot card list ── */}
-          <div className="md:hidden space-y-3">
+          <div className="md:hidden space-y-2.5">
             {lots.map((lot: Lot) => {
               const effectiveSizeSet = lot.size_set || lot.design?.size_set || null;
               const sizesStr = effectiveSizeSet?.name
@@ -524,9 +654,9 @@ export default function ProductionLotsPage() {
                   onClick={() => router.push(`/production/lots/${lot.id}`)}
                 >
                   {/* Header: Lot# + Status badge */}
-                  <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+                  <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5">
                     <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
-                      className="font-mono font-black text-[var(--primary)] text-sm hover:underline"
+                      className="font-mono font-bold text-[var(--primary)] text-sm hover:underline"
                     >{lot.lot_number}</Link>
                     <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
                       lot.status === "in_progress" ? "bg-blue-500/10 text-blue-500" :
@@ -538,14 +668,14 @@ export default function ProductionLotsPage() {
                   </div>
 
                   {/* Brand & Design */}
-                  <div className="px-4 pb-2">
+                  <div className="px-3.5 pb-1.5">
                     <p className="text-xs font-semibold text-[var(--text-primary)] truncate">
                       {lot.brand?.name || "—"} &bull; {lot.design?.code ? `${lot.design.code} – ${lot.design.name}` : "—"}
                     </p>
                   </div>
 
                   {/* Colours + Sizes */}
-                  <div className="flex items-center flex-wrap gap-1.5 px-4 pb-2">
+                  <div className="flex items-center flex-wrap gap-1.5 px-3.5 pb-1.5">
                     {activeColours.map((c, i) => (
                       <span key={i} className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded-full border border-[var(--border)]">
                         {c.hex_code && <span className="w-2 h-2 rounded-full border border-[var(--border)]" style={{ backgroundColor: c.hex_code }} />}
@@ -556,14 +686,14 @@ export default function ProductionLotsPage() {
                   </div>
 
                   {/* Progress bar */}
-                  <div className="px-4 pb-2">
+                  <div className="px-3.5 pb-1.5">
                     <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mb-1">
                       <span>{lot.completed_quantity}/{lot.total_quantity} pcs</span>
                       <span>{pct}%</span>
                     </div>
                     <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
                     {(Number(lot.b_grade_quantity || 0) > 0 || Number(lot.scrapped_quantity || 0) > 0 || Number(lot.reworked_quantity || 0) > 0) && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[10px]">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
                         {Number(lot.b_grade_quantity || 0) > 0 && (
                           <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
                             📦 {lot.b_grade_quantity} B-Grade
@@ -584,7 +714,7 @@ export default function ProductionLotsPage() {
                   </div>
 
                   {/* Meta strip: payment status + dates */}
-                  <div className="flex items-center flex-wrap gap-2 px-4 pb-2 border-t border-[var(--border-light)] pt-2">
+                  <div className="flex items-center flex-wrap gap-2 px-3.5 pb-1.5 border-t border-[var(--border-light)] pt-1.5">
                     <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
                       lot.lot_payment_status === "paid" ? "bg-emerald-500/10 text-emerald-500" :
                       lot.lot_payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
@@ -602,7 +732,7 @@ export default function ProductionLotsPage() {
                   </div>
 
                   {/* Action footer */}
-                  <div className="flex items-center gap-1.5 px-4 pb-3.5 border-t border-[var(--border-light)] pt-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1.5 px-3.5 pb-2.5 border-t border-[var(--border-light)] pt-1.5" onClick={(e) => e.stopPropagation()}>
                     <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
                       className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] flex items-center justify-center cursor-pointer" title="View"
                     ><Eye size={13} /></Link>

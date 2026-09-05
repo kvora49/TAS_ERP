@@ -11,8 +11,6 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Modal } from "@/components/shared/Modal";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { ModuleSubNav } from "@/components/shared/ModuleSubNav";
-import { MASTER_DATA_NAV } from "@/lib/moduleNav";
 import { Pencil, Trash2, Plus, Warehouse } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -241,7 +239,6 @@ export default function GodownsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <ModuleSubNav items={MASTER_DATA_NAV} />
       <PageHeader
         title="Godowns"
         subtitle="Manage your warehouse locations, stock storage godowns, and defaults"

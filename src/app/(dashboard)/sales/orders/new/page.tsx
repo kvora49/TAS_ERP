@@ -9,24 +9,14 @@ import {
   CheckCircle2,
   Loader2,
   ShoppingBag,
-  Layers,
-  Calendar,
   DollarSign,
   Package,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 import CreateDesignModal from "@/app/(dashboard)/production/lots/new/_components/CreateDesignModal";
 import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
-
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(val || 0);
-};
+import { formatCurrency } from "@/lib/utils";
 
 interface Party {
   id: string;
@@ -131,7 +121,7 @@ export default function NewSalesOrderPage() {
     const defaultDesign = designs.length > 0 ? designs[0] : null;
     const defaultColour = defaultDesign?.design_colours?.[0]?.id || "";
     const sizes = defaultDesign?.size_set?.sizes || ["S", "M", "L", "XL"];
-    
+
     const initialSizes: Record<string, number> = {};
     sizes.forEach((sz) => (initialSizes[sz] = 0));
 
@@ -287,56 +277,58 @@ export default function NewSalesOrderPage() {
   if (loadingInitial) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <Loader2 className="h-8 w-8 text-[#6366F1] animate-spin" />
-        <span className="text-xs font-semibold text-slate-500">Loading Order Booking masters...</span>
+        <Loader2 className="h-8 w-8 text-[var(--primary)] animate-spin" />
+        <span className="text-xs font-semibold text-[var(--text-muted)]">Loading Order Booking masters...</span>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmitOrder} className="space-y-6 pb-12 max-w-5xl mx-auto">
+    <form onSubmit={handleSubmitOrder} className="space-y-4 sm:space-y-6 pb-24 md:pb-12 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-b border-[var(--border)] pb-3 sm:pb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={() => router.push("/sales/orders")}
             className="p-2 border border-[var(--border)] hover:bg-[var(--table-row-hover)] rounded-xl text-[var(--text-body)] cursor-pointer transition-all active:scale-95"
+            title="Back to Orders"
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Record Sales Order Booking</h1>
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+              Record Sales Order Booking
+            </h1>
             <p className="text-xs text-[var(--text-muted)] font-medium">
               Create an itemized customer booking with design, color, size set quantities, and locked rates
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
+        <div className="hidden sm:flex items-center gap-2">
+          <button
             type="button"
-            variant="outline"
             onClick={() => router.push("/sales/orders")}
-            className="border-[var(--border)] text-[var(--text-body)] text-xs font-semibold cursor-pointer"
+            className="h-9 px-3.5 border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] text-xs font-semibold rounded-lg cursor-pointer transition-colors"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="submit"
             disabled={saving}
-            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center gap-2 text-xs font-semibold cursor-pointer shadow-sm"
+            className="h-9 px-4 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center gap-2 text-xs font-semibold rounded-lg cursor-pointer shadow-sm active:scale-95 transition-all"
           >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
             <span>Save Order Booking</span>
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left 2 Cols: Form & Line Items */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Card 1: Order Header */}
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
@@ -344,14 +336,14 @@ export default function NewSalesOrderPage() {
               <span>Customer & Booking Header</span>
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
               {/* Customer */}
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-bold text-[var(--text-primary)]">Customer *</label>
                 <select
                   value={selectedPartyId}
                   onChange={(e) => setSelectedPartyId(e.target.value)}
-                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none cursor-pointer"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
                   required
                 >
                   <option value="">Choose Customer...</option>
@@ -370,7 +362,7 @@ export default function NewSalesOrderPage() {
                   type="date"
                   value={orderDate}
                   onChange={(e) => setOrderDate(e.target.value)}
-                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   required
                 />
               </div>
@@ -382,7 +374,7 @@ export default function NewSalesOrderPage() {
                   type="date"
                   value={expectedDelivery}
                   onChange={(e) => setExpectedDelivery(e.target.value)}
-                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
 
@@ -394,7 +386,7 @@ export default function NewSalesOrderPage() {
                   placeholder="e.g. Packing specifications, dispatch terms, tag instructions..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg px-3 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
+                  className="w-full h-10 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
             </div>
@@ -407,23 +399,23 @@ export default function NewSalesOrderPage() {
                 <Package className="h-5 w-5 text-[var(--primary)]" />
                 <h2 className="text-sm font-bold text-[var(--text-primary)]">Order Line Items ({items.length})</h2>
               </div>
-              <Button
+              <button
                 type="button"
                 onClick={handleAddItem}
-                className="bg-[var(--primary-light)] hover:bg-[var(--primary-light)]/80 text-[var(--primary)] border border-[var(--primary)]/20 flex items-center gap-1.5 text-xs font-bold cursor-pointer active:scale-95"
+                className="h-8 px-3 rounded-lg bg-[var(--primary-light)] hover:bg-[var(--primary-light)]/80 text-[var(--primary)] border border-[var(--primary)]/20 flex items-center gap-1.5 text-xs font-bold cursor-pointer active:scale-95 transition-all"
               >
-                <Plus size={15} />
-                <span>Add Design Line</span>
-              </Button>
+                <Plus size={14} />
+                <span>Add Line</span>
+              </button>
             </div>
 
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-[var(--text-muted)] gap-2 border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--page-bg)]">
                 <Package className="h-8 w-8 text-[var(--text-faint)]" />
-                <span className="text-xs font-semibold">No line items added yet. Click &quot;+ Add Design Line&quot; above.</span>
+                <span className="text-xs font-semibold">No line items added yet. Tap &quot;+ Add Line&quot; above.</span>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3.5 sm:space-y-4">
                 {items.map((it, idx) => {
                   const currentDesign = designs.find((d) => d.id === it.design_id);
                   const availableColours = currentDesign?.design_colours || [];
@@ -432,7 +424,7 @@ export default function NewSalesOrderPage() {
                   return (
                     <div
                       key={it.key}
-                      className="p-3.5 sm:p-4 border border-[var(--border)] rounded-xl bg-[var(--page-bg)] space-y-3 relative hover:border-[var(--primary)]/30 transition-all"
+                      className="p-3 sm:p-4 border border-[var(--border)] rounded-xl bg-[var(--page-bg)] space-y-3 relative hover:border-[var(--primary)]/30 transition-all"
                     >
                       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-light)] pb-2">
                         <span className="text-xs font-bold text-[var(--primary)] font-mono uppercase tracking-wider">
@@ -459,7 +451,7 @@ export default function NewSalesOrderPage() {
                                 setTargetItemKeyForNewDesign(it.key);
                                 setCreateDesignModalOpen(true);
                               }}
-                              className="text-[10px] font-bold text-[#6366F1] hover:underline cursor-pointer flex items-center gap-0.5"
+                              className="text-[10px] font-bold text-[var(--primary)] hover:underline cursor-pointer flex items-center gap-0.5"
                             >
                               <Plus size={10} />
                               <span>Create Design</span>
@@ -468,7 +460,7 @@ export default function NewSalesOrderPage() {
                           <select
                             value={it.design_id}
                             onChange={(e) => handleDesignChange(it.key, e.target.value)}
-                            className="w-full h-9 border border-[#D1D5DB] rounded-lg px-2.5 text-xs bg-white focus:ring-1 focus:ring-[#6366F1] outline-none cursor-pointer"
+                            className="w-full h-10 border border-[var(--input-border)] rounded-xl px-3 text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
                           >
                             <option value="">Select Design</option>
                             {designs.map((d) => (
@@ -480,11 +472,11 @@ export default function NewSalesOrderPage() {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Colour *</label>
+                          <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Colour *</label>
                           <select
                             value={it.colour_id}
                             onChange={(e) => handleColourChange(it.key, e.target.value)}
-                            className="w-full h-9 border border-[#D1D5DB] rounded-lg px-2.5 text-xs bg-white focus:ring-1 focus:ring-[#6366F1] outline-none cursor-pointer"
+                            className="w-full h-10 border border-[var(--input-border)] rounded-xl px-3 text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
                           >
                             <option value="">Select Colour</option>
                             {availableColours.map((c) => (
@@ -497,7 +489,7 @@ export default function NewSalesOrderPage() {
                       </div>
 
                       {/* Size Matrix with Autofill */}
-                      <div className="pt-1">
+                      <div className="pt-1 overflow-x-auto">
                         <SizeQuantityMatrix
                           sizes={sizes}
                           sizeQuantities={it.size_quantities}
@@ -549,8 +541,8 @@ export default function NewSalesOrderPage() {
                       </div>
 
                       {/* Line Summary (Rate & Amount) */}
-                      <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[var(--border-light)]">
-                        <div className="flex items-center gap-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[var(--border-light)]">
+                        <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-semibold text-[var(--text-muted)]">Unit Rate (₹):</span>
                             <input
@@ -560,12 +552,12 @@ export default function NewSalesOrderPage() {
                               placeholder="0.00"
                               value={it.unit_rate || ""}
                               onChange={(e) => handleUnitRateChange(it.key, e.target.value)}
-                              className="w-24 h-8 px-2 border border-[var(--input-border)] rounded text-xs bg-[var(--input-bg)] focus:ring-1 focus:ring-[var(--input-focus)] outline-none font-bold text-[var(--text-primary)]"
+                              className="w-24 h-8 px-2 border border-[var(--input-border)] rounded-lg text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] font-bold transition-colors"
                             />
                           </div>
 
                           <div className="text-xs font-semibold text-[var(--text-secondary)]">
-                            Total Pcs: <span className="font-bold text-[var(--primary)] font-mono">{it.total_qty}</span>
+                            Total: <span className="font-bold text-[var(--primary)] font-mono">{it.total_qty} pcs</span>
                           </div>
                         </div>
 
@@ -581,7 +573,7 @@ export default function NewSalesOrderPage() {
           </div>
         </div>
 
-        {/* Right 1 Col: Summary Card */}
+        {/* Right 1 Col: Desktop Summary Card */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4 sticky top-6">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
@@ -606,16 +598,38 @@ export default function NewSalesOrderPage() {
               </div>
             </div>
 
-            <Button
+            <button
               type="submit"
               disabled={saving}
-              className="w-full h-11 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center gap-2 font-bold cursor-pointer shadow-sm rounded-lg active:scale-95 transition-all"
+              className="w-full h-11 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center gap-2 font-bold cursor-pointer shadow-sm rounded-xl active:scale-95 transition-all"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
               <span>Save Order Booking</span>
-            </Button>
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* ── MOBILE: Floating Sticky Bottom Bar ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-3 shadow-[var(--shadow-md)] flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+            <span>{items.length} lines</span>
+            <span>•</span>
+            <span className="font-bold text-[var(--primary)] font-mono">{totalOrderQty} pcs</span>
+          </div>
+          <div className="text-base font-black text-emerald-600 font-mono truncate">
+            {formatCurrency(totalOrderValue)}
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="h-10 px-5 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+          <span>Save Booking</span>
+        </button>
       </div>
 
       {/* On-the-fly Create Design Modal */}
