@@ -141,10 +141,16 @@ export function WeekView({ currentDate, selectedDate, onSelectDate, summary = {}
                 <div className="flex flex-col items-center gap-0.5">
                   <DayDots summary={daySummary} />
                   <span className={cn(
-                    "text-[9px] font-medium",
+                    "text-[9px] font-medium hidden sm:inline",
                     isSelected ? "text-white/70" : "text-[var(--text-faint)]"
                   )}>
                     {daySummary.total} item{daySummary.total !== 1 ? "s" : ""}
+                  </span>
+                  <span className={cn(
+                    "text-[9px] font-black sm:hidden px-1 rounded-full leading-tight",
+                    isSelected ? "bg-black/20 text-white" : "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                  )}>
+                    {daySummary.total}
                   </span>
                 </div>
               )}
@@ -304,31 +310,30 @@ export function CalendarViewHeader({
   return (
     <div className="space-y-3">
       {/* Title + Nav */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-1">
         <button
           onClick={onToday}
-          className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--primary)] transition-colors"
+          className="text-xs font-bold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--primary)] transition-colors shrink-0"
         >
           Today
         </button>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1 justify-center min-w-0">
           <button
             onClick={() => onNavigate("prev")}
-            className="p-1 rounded-md hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            className="p-1 rounded-md hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-semibold text-[var(--text-primary)] min-w-[130px] text-center">
+          <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] text-center truncate">
             {getTitle()}
           </span>
           <button
             onClick={() => onNavigate("next")}
-            className="p-1 rounded-md hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            className="p-1 rounded-md hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="w-[52px]" /> {/* spacer */}
       </div>
 
       {/* View tabs */}

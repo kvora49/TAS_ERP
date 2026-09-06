@@ -1,14 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BookOpen, Plus, Trash2, X, Tag } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { BookOpen, Plus, Trash2, Tag } from "lucide-react";
+import { Modal } from "@/components/shared/Modal";
 import { ImageUpload } from "@/components/forms/ImageUpload";
 import { toast } from "sonner";
 
@@ -150,226 +144,226 @@ export function QuickAddDesignModal({
     setColours((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const inputClasses =
+    "w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors";
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-            <BookOpen className="text-[#6366F1]" size={20} />
-            <span>Create & Select Design Code</span>
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 pt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Brand Dropdown */}
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1">
-                <Tag size={12} className="text-[#6366F1]" />
-                <span>Brand <span className="text-red-500">*</span></span>
-              </label>
-              <select
-                value={selectedBrandId}
-                onChange={(e) => setSelectedBrandId(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#6366F1] cursor-pointer"
-              >
-                {brands.length === 0 ? (
-                  <option value="">Default Brand</option>
-                ) : (
-                  brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {/* Design Name */}
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Design Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Slim Fit Denim Jeans"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Design Code / Model No.
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. DSN-009 (Leave empty for auto-gen)"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                Size Set <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={sizeSetId}
-                onChange={(e) => setSizeSetId(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] cursor-pointer"
-              >
-                {sizeSets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.sizes.join(", ")})
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create & Select Design Code"
+      description="Quickly define a new garment design for this order or bill."
+      maxWidth="max-w-xl"
+    >
+      <div className="space-y-4 pt-1 max-h-[75vh] overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Brand Dropdown */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
+              <Tag size={12} className="text-[var(--primary)]" />
+              <span>Brand <span className="text-red-500">*</span></span>
+            </label>
+            <select
+              value={selectedBrandId}
+              onChange={(e) => setSelectedBrandId(e.target.value)}
+              className={`${inputClasses} cursor-pointer font-semibold`}
+            >
+              {brands.length === 0 ? (
+                <option value="">Default Brand</option>
+              ) : (
+                brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
                   </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] cursor-pointer"
-              >
-                {["Shirts", "Pants", "Jackets", "Suits", "T-shirts", "Polo", "Undergarments", "Other"].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Sub-Category</label>
-              <input
-                type="text"
-                placeholder="e.g. Slim-fit, Crewneck"
-                value={subCategory}
-                onChange={(e) => setSubCategory(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Collection / Season</label>
-              <input
-                type="text"
-                placeholder="e.g. Summer 2026, Festive"
-                value={season}
-                onChange={(e) => setSeason(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">HSN Code</label>
-              <input
-                type="text"
-                placeholder="e.g. 6203"
-                value={hsnCode}
-                onChange={(e) => setHsnCode(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] font-mono"
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Sale Price (₹ / Piece)</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 899.00"
-                value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Style Notes & Description</label>
-              <textarea
-                rows={2}
-                placeholder="Describe fits, stitching detailing, target fabric..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-              />
-            </div>
+                ))
+              )}
+            </select>
           </div>
 
-          {/* Design Image Gallery */}
-          <div className="space-y-1.5 pt-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Design Image</label>
-            <ImageUpload
-              value={images[0] || ""}
-              onChange={(url) => setImages([url])}
-              onRemove={() => setImages([])}
-              folder="design_catalogs"
-              label="Upload Design Image"
+          {/* Design Name */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Design Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Slim Fit Denim Jeans"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClasses}
             />
           </div>
 
-          {/* Colours Config */}
-          <div className="space-y-3 border-t border-[#F1F5F9] pt-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Design Colours</label>
-              <button
-                type="button"
-                onClick={handleAddColour}
-                className="text-xs text-[#6366F1] hover:underline font-bold flex items-center gap-1"
-              >
-                <Plus size={14} /> Add Colour
-              </button>
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Design Code / Model No.
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. DSN-009 (Auto if empty)"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={inputClasses}
+            />
+          </div>
 
-            <div className="space-y-2">
-              {colours.map((col, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Colour name (e.g. Navy Blue)"
-                    value={col.name}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setColours((prev) =>
-                        prev.map((c, i) => (i === idx ? { ...c, name: val } : c))
-                      );
-                    }}
-                    className="flex-1 h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs font-medium focus:ring-2 focus:ring-[#6366F1] outline-none"
-                  />
-                  <input
-                    type="color"
-                    value={col.hex}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setColours((prev) =>
-                        prev.map((c, i) => (i === idx ? { ...c, hex: val } : c))
-                      );
-                    }}
-                    className="w-9 h-9 p-0.5 border border-[#CBD5E1] rounded-lg cursor-pointer bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveColour(idx)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Size Set <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={sizeSetId}
+              onChange={(e) => setSizeSetId(e.target.value)}
+              className={`${inputClasses} cursor-pointer`}
+            >
+              {sizeSets.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.sizes.join(", ")})
+                </option>
               ))}
-            </div>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={`${inputClasses} cursor-pointer`}
+            >
+              {["Shirts", "Pants", "Jackets", "Suits", "T-shirts", "Polo", "Undergarments", "Other"].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Sub-Category</label>
+            <input
+              type="text"
+              placeholder="e.g. Slim-fit, Crewneck"
+              value={subCategory}
+              onChange={(e) => setSubCategory(e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Collection / Season</label>
+            <input
+              type="text"
+              placeholder="e.g. Summer 2026, Festive"
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">HSN Code</label>
+            <input
+              type="text"
+              placeholder="e.g. 6203"
+              value={hsnCode}
+              onChange={(e) => setHsnCode(e.target.value)}
+              className={`${inputClasses} font-mono`}
+            />
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Sale Price (₹ / Piece)</label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="e.g. 899.00"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Style Notes & Description</label>
+            <textarea
+              rows={2}
+              placeholder="Describe fits, stitching detailing, target fabric..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+            />
           </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t border-[#E5E7EB] gap-2">
+        {/* Design Image Gallery */}
+        <div className="space-y-1.5 pt-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Design Image</label>
+          <ImageUpload
+            value={images[0] || ""}
+            onChange={(url) => setImages([url])}
+            onRemove={() => setImages([])}
+            folder="design_catalogs"
+            label="Upload Design Image"
+          />
+        </div>
+
+        {/* Colours Config */}
+        <div className="space-y-3 border-t border-[var(--border-light)] pt-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Design Colours</label>
+            <button
+              type="button"
+              onClick={handleAddColour}
+              className="text-xs text-[var(--primary)] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Plus size={14} /> Add Colour
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {colours.map((col, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Colour name (e.g. Navy Blue)"
+                  value={col.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setColours((prev) =>
+                      prev.map((c, i) => (i === idx ? { ...c, name: val } : c))
+                    );
+                  }}
+                  className="flex-1 h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-medium focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
+                />
+                <input
+                  type="color"
+                  value={col.hex}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setColours((prev) =>
+                      prev.map((c, i) => (i === idx ? { ...c, hex: val } : c))
+                    );
+                  }}
+                  className="w-9 h-9 p-0.5 border border-[var(--input-border)] rounded-lg cursor-pointer bg-[var(--card-bg)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveColour(idx)}
+                  className="p-1.5 text-[var(--text-muted)] hover:text-red-500 rounded-lg hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-[var(--border)] flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="px-4 py-2 text-xs font-semibold text-[#64748B] hover:text-[#0F172A] border border-[#CBD5E1] rounded-lg"
+            className="px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-lg transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -377,12 +371,12 @@ export function QuickAddDesignModal({
             type="button"
             disabled={loading}
             onClick={handleSave}
-            className="px-4 py-2 text-xs font-bold text-white bg-[#5B63D3] hover:bg-[#4F55C3] rounded-lg disabled:opacity-50"
+            className="px-4 py-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
           >
             {loading ? "Creating..." : "Create & Select Design"}
           </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -6,13 +6,16 @@ import { toast } from "sonner";
 import {
   Bell, MessageSquare, AlertTriangle, CheckCircle2,
   Send, Settings, ExternalLink, X, IndianRupee, Clock, FileText, Plus, Download, Trash2,
-  Calendar, Repeat, Smartphone, ShieldCheck
+  Calendar, Repeat, Smartphone, ShieldCheck, CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { Modal } from "@/components/shared/Modal";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
+import { SwipeableRow } from "@/components/shared/SwipeableRow";
+import ReportTabs from "@/components/reports/ReportTabs";
 import { usePWAWebPush } from "@/hooks/usePWAWebPush";
 import { getPartyPhone, openWhatsApp } from "@/lib/utils/whatsapp";
 import { cn } from "@/lib/utils";
@@ -105,7 +108,7 @@ export default function RemindersPage() {
   // Load reminder items for activeTab (receivables / payables / cheques)
   const apiType = activeTab === "receivables" ? "bills" : activeTab;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["reminders", activeTab],
     queryFn: async () => {
       const res = await fetch(`/api/reminders?type=${apiType}`);
@@ -390,7 +393,8 @@ export default function RemindersPage() {
 
   return (
     <PageState isLoading={isLoading && activeTab !== "templates" && activeTab !== "calendar"} error={error?.message}>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <PullToRefresh onRefresh={async () => { await refetch(); }}>
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
           <div>
@@ -415,11 +419,11 @@ export default function RemindersPage() {
             )}
 
             {activeTab !== "templates" && activeTab !== "calendar" && (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
                 <select
                   value={selectedTemplateType}
                   onChange={(e) => setSelectedTemplateType(e.target.value)}
-                  className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-9 text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 sm:flex-initial bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-9 text-xs font-bold transition-colors cursor-pointer"
                 >
                   {allTemplateTypes.map((t) => (
                     <option key={t.key} value={t.key}>
@@ -431,7 +435,7 @@ export default function RemindersPage() {
                 <AsyncButton
                   onClick={() => handleSendReminders()}
                   disabled={selectedBills.size === 0}
-                  className="flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg disabled:opacity-50 cursor-pointer shadow-sm"
                 >
                   <MessageSquare className="h-4 w-4" />
                   {activeTab === "payables" ? "Send Advice" : "Send WhatsApp"} ({selectedBills.size})
@@ -441,100 +445,80 @@ export default function RemindersPage() {
           </div>
         </div>
 
-        {/* Primary Tabs Navigation */}
-        <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2 overflow-x-auto scrollbar-none">
-          {/* Calendar & Planner tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("calendar")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
-              activeTab === "calendar"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-            )}
-          >
-            <span>📅 Calendar & Planner</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab("receivables"); setSelectedBills(new Set()); }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
-              activeTab === "receivables"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-            )}
-          >
-            <span>📥 Receivables (Customer Dues)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab("payables"); setSelectedBills(new Set()); }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
-              activeTab === "payables"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-            )}
-          >
-            <span>📤 Payables (Supplier Dues)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab("cheques"); setSelectedBills(new Set()); }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
-              activeTab === "cheques"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-            )}
-          >
-            <span>💳 PDC / Cheques</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("templates")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
-              activeTab === "templates"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-indigo-500/20"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-            )}
-          >
-            <span>⚙️ WhatsApp Templates</span>
-          </button>
-        </div>
+        {/* Primary Tabs Navigation with ReportTabs */}
+        <ReportTabs<"calendar" | "receivables" | "payables" | "cheques" | "templates">
+          tabs={[
+            { id: "calendar", label: "Calendar & Planner", icon: <Calendar size={14} /> },
+            {
+              id: "receivables",
+              label: "Receivables",
+              icon: <FileText size={14} />,
+              badge: (activeTab === "receivables" && stats.total_overdue > 0) ? stats.total_overdue : undefined,
+              badgeColor: "bg-rose-500 text-white",
+            },
+            {
+              id: "payables",
+              label: "Payables",
+              icon: <Send size={14} />,
+              badge: (activeTab === "payables" && stats.total_overdue > 0) ? stats.total_overdue : undefined,
+              badgeColor: "bg-amber-500 text-white",
+            },
+            { id: "cheques", label: "PDC / Cheques", icon: <CreditCard size={14} /> },
+            { id: "templates", label: "WhatsApp Templates", icon: <MessageSquare size={14} /> },
+          ]}
+          activeTab={activeTab}
+          onChange={(tabId) => {
+            setActiveTab(tabId);
+            setSelectedBills(new Set());
+          }}
+          layoutIdPrefix="reminders-tab"
+        />
 
         {/* CALENDAR & PLANNER TAB */}
         {activeTab === "calendar" && <CalendarPlannerTab />}
 
-        {/* Stats Cards (For Bills/Payables/Cheques) */}
+        {/* Stats Cards (For Bills/Payables/Cheques) - Responsive 3-Col Grid */}
         {activeTab !== "templates" && activeTab !== "calendar" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 rounded-lg"><AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" /></div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Overdue Count</span>
-                <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{stats.total_overdue}</p>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-lg w-fit shrink-0">
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Overdue Count
+                </span>
+                <p className="text-base sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5 truncate leading-tight">
+                  {stats.total_overdue}
+                </p>
               </div>
             </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-lg"><IndianRupee className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Total Pending Amount</span>
-                <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{fmt(stats.total_outstanding)}</p>
+
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-lg w-fit shrink-0">
+                <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Pending Dues
+                </span>
+                <p className="text-xs sm:text-lg md:text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5 truncate font-mono leading-tight">
+                  {fmt(stats.total_outstanding)}
+                </p>
               </div>
             </div>
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex items-center gap-4">
-              <div className="p-3 bg-red-50 dark:bg-red-950/50 rounded-lg"><Clock className="h-5 w-5 text-red-600 dark:text-red-400" /></div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide block">Critical (&gt;30 Days)</span>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">{stats.critical}</p>
+
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-red-50 dark:bg-red-950/50 rounded-lg w-fit shrink-0">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Critical (&gt;30d)
+                </span>
+                <p className="text-base sm:text-2xl font-black text-red-600 dark:text-red-400 mt-0.5 truncate leading-tight">
+                  {stats.critical}
+                </p>
               </div>
             </div>
           </div>
@@ -542,10 +526,10 @@ export default function RemindersPage() {
 
         {/* TAB 4: WHATSAPP TEMPLATES MANAGER */}
         {activeTab === "templates" ? (
-          <div className="bg-gradient-to-br from-[#128C7E]/5 to-[#25D366]/5 border border-[#25D366]/20 rounded-xl p-5 space-y-4">
+          <div className="bg-gradient-to-br from-[#128C7E]/5 to-[#25D366]/5 border border-[#25D366]/20 rounded-xl p-4 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#25D366]/20 pb-3">
               <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-[#25D366]" />
+                <MessageSquare className="h-5 w-5 text-[#25D366] shrink-0" />
                 <div>
                   <h3 className="text-sm font-bold text-[var(--text-primary)]">WhatsApp Message Templates</h3>
                   <p className="text-[11px] text-[var(--text-muted)] font-medium">Configure customized message templates for customer & vendor reminders</p>
@@ -594,19 +578,19 @@ export default function RemindersPage() {
         ) : (
           /* TAB 1, 2 & 3: RECEIVABLES, PAYABLES & PDC CHEQUES LIST */
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)]">
-            <div className="p-4 bg-[var(--table-header-bg)] border-b border-[var(--border)] flex items-center justify-between">
+            <div className="p-3 sm:p-4 bg-[var(--table-header-bg)] border-b border-[var(--border)] flex items-center justify-between gap-2 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={bills.length > 0 && selectedBills.size === bills.length}
                   onChange={handleSelectAll}
-                  className="h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)]"
+                  className="h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)] cursor-pointer"
                 />
                 <span className="text-xs font-bold text-[var(--text-primary)]">
                   Select All ({bills.length} Items)
                 </span>
               </label>
-              <span className="text-xs font-semibold text-[var(--text-muted)]">
+              <span className="text-[11px] sm:text-xs font-semibold text-[var(--text-muted)]">
                 {selectedBills.size} selected for bulk action
               </span>
             </div>
@@ -622,100 +606,121 @@ export default function RemindersPage() {
                 {bills.map((bill) => {
                   const isSelected = selectedBills.has(bill.id);
                   const isSnoozed = bill.snoozed_until && bill.snoozed_until > new Date().toISOString().split("T")[0];
+                  const phone = getPartyPhone(bill.party);
 
                   return (
-                    <div
+                    <SwipeableRow
                       key={bill.id}
-                      className={cn(
-                        "p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors",
-                        isSelected ? "bg-[var(--primary-light)]/40" : "hover:bg-[var(--table-row-hover)]"
-                      )}
+                      leftAction={{
+                        label: "Snooze",
+                        icon: <Clock size={16} />,
+                        bgClass: "bg-amber-500 text-white",
+                        onAction: () => setSnoozeTargetBill(bill),
+                      }}
+                      rightAction={phone ? {
+                        label: activeTab === "payables" ? "Advice" : "WhatsApp",
+                        icon: <MessageSquare size={16} />,
+                        bgClass: "bg-[#25D366] text-white",
+                        onAction: () => openWhatsApp(phone, formatSingleBillMessage(bill, selectedTemplateType)),
+                      } : undefined}
                     >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleBill(bill.id)}
-                          className="mt-1 h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)] cursor-pointer"
-                        />
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono font-bold text-xs text-[var(--primary)]">
-                              {bill.bill_number}
-                            </span>
-                            <DueDateBadge
-                              dueDate={bill.due_date}
-                              isCompleted={bill.payment_status === "paid"}
-                              type={activeTab === "payables" ? "purchase" : activeTab === "cheques" ? "job_work" : "bill"}
+                      <div
+                        className={cn(
+                          "p-3.5 sm:p-4 transition-colors bg-[var(--card-bg)]",
+                          isSelected ? "bg-[var(--primary-light)]/40" : "hover:bg-[var(--table-row-hover)]"
+                        )}
+                      >
+                        {/* Top Header & Amount Row */}
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleBill(bill.id)}
+                              className="mt-0.5 h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--input-focus)] cursor-pointer shrink-0"
                             />
-                            {isSnoozed && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded border border-purple-200">
-                                💤 Snoozed till {bill.snoozed_until}
-                              </span>
-                            )}
-                            {activeTab !== "payables" && (
-                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200">
-                                Every {bill.recurring_interval_days || 2}d
-                              </span>
-                            )}
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono font-black text-xs sm:text-sm text-[var(--primary)]">
+                                  {bill.bill_number}
+                                </span>
+                                <DueDateBadge
+                                  dueDate={bill.due_date}
+                                  isCompleted={bill.payment_status === "paid"}
+                                  type={activeTab === "payables" ? "purchase" : activeTab === "cheques" ? "job_work" : "bill"}
+                                />
+                                {isSnoozed && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                                    💤 Snoozed till {bill.snoozed_until}
+                                  </span>
+                                )}
+                                {activeTab !== "payables" && (
+                                  <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--page-bg)] px-2 py-0.5 rounded border border-[var(--border)]">
+                                    Every {bill.recurring_interval_days || 2}d
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-xs sm:text-sm text-[var(--text-primary)] font-bold truncate">
+                                {bill.party?.company_name || bill.party?.name || (activeTab === "payables" ? "Supplier" : "Customer")}
+                              </div>
+                              {phone && (
+                                <a
+                                  href={`tel:${phone}`}
+                                  className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--primary)] font-medium transition-colors"
+                                >
+                                  📞 <span>{phone}</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="text-xs text-[var(--text-body)] font-semibold">
-                            {bill.party?.company_name || bill.party?.name || "Party"}
-                            {getPartyPhone(bill.party) && (
-                              <span className="text-[var(--text-muted)] font-normal ml-2">
-                                📞 {getPartyPhone(bill.party)}
-                              </span>
-                            )}
+                          {/* Prominent Amount Block (Top-Right, NEVER clipped or squeezed) */}
+                          <div className="text-right shrink-0 pl-2">
+                            <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400 font-mono block leading-tight">
+                              {fmt(bill.outstanding_amount)}
+                            </span>
+                            <span className="text-[10px] sm:text-xs text-[var(--text-muted)] block mt-0.5">
+                              Total: {fmt(bill.grand_total)}
+                            </span>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-4 self-end md:self-auto">
-                        <div className="text-right">
-                          <span className="text-xs font-extrabold text-[var(--text-primary)] font-mono block">
-                            {fmt(bill.outstanding_amount)}
-                          </span>
-                          <span className="text-[10px] text-[var(--text-muted)] block">
-                            Total: {fmt(bill.grand_total)}
-                          </span>
-                        </div>
-
-                        {/* Action buttons per bill */}
-                        <div className="flex items-center gap-1.5">
+                        {/* Action buttons on full-width mobile row / desktop right row */}
+                        <div className="mt-3 pt-2.5 border-t border-[var(--border-light)] flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap">
                           <button
                             onClick={() => setSnoozeTargetBill(bill)}
-                            className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            className="flex-1 sm:flex-initial h-8 px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                             title="Snooze reminder for N days"
                           >
-                            <Clock size={12} className="text-amber-500" />
+                            <Clock size={12} className="text-amber-500 shrink-0" />
                             <span>Snooze</span>
                           </button>
 
                           {activeTab !== "payables" && (
                             <button
                               onClick={() => setRecurringTargetBill(bill)}
-                              className="h-8 px-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              className="flex-1 sm:flex-initial h-8 px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-primary)] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               title="Change recurring reminder interval"
                             >
-                              <Repeat size={12} className="text-[var(--primary)]" />
+                              <Repeat size={12} className="text-[var(--primary)] shrink-0" />
                               <span>Interval</span>
                             </button>
                           )}
 
-                          {getPartyPhone(bill.party) && (
+                          {phone && (
                             <button
-                              onClick={() => openWhatsApp(getPartyPhone(bill.party), formatSingleBillMessage(bill, selectedTemplateType))}
-                              className="h-8 px-2.5 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                              onClick={() => openWhatsApp(phone, formatSingleBillMessage(bill, selectedTemplateType))}
+                              className="flex-1 sm:flex-initial h-8 px-3.5 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                               title="Direct WhatsApp chat with active template"
                             >
-                              <MessageSquare size={14} />
-                              <span>{activeTab === "payables" ? "Advice" : "Chat"}</span>
+                              <MessageSquare size={13} className="shrink-0" />
+                              <span>{activeTab === "payables" ? "Send Advice" : "WhatsApp Chat"}</span>
                             </button>
                           )}
                         </div>
                       </div>
-                    </div>
+                    </SwipeableRow>
                   );
                 })}
               </div>
@@ -894,6 +899,7 @@ export default function RemindersPage() {
           ))}
         </div>
       </Modal>
+      </PullToRefresh>
     </PageState>
   );
 }

@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 import InlineDrillDownPanel, { DrillDownItem } from "@/components/reports/InlineDrillDownPanel";
+import ReportTabs from "@/components/reports/ReportTabs";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
@@ -143,74 +145,61 @@ export default function FinancialReportsPage() {
     }
   }, [activeTab, plQuery.data, balanceQuery.data, gstQuery.data, cashFlowQuery.data, from, to]);
 
-  return (
-    <ReportShell
-      title="Financial Reports"
-      infoTooltip="Comprehensive financial reporting — Profit & Loss, Balance Sheet, GST Summary, and Cash Flow with full inline drill-down auditability and formal exports."
-      breadcrumbs={["Reports", "Financial Reports"]}
-      onApply={handleApply}
-      onExportPDF={handleTopExportPDF}
-      onExportExcel={handleTopExportExcel}
-      extraFilters={
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
-          <BillTypeFilter value={billType} onChange={setBillType} />
-        </div>
-      }
-    >
-      {/* Top Tab Bar */}
-      <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden overflow-x-auto">
-        {TABS.map((t) => {
-          const isActive = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={cn(
-                "relative flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap",
-                isActive
-                  ? "text-[var(--primary)] font-bold"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-body)]"
-              )}
-            >
-              {t.icon}
-              {t.label}
-              {isActive && (
-                <motion.div
-                  layoutId="financial-reports-tab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
-                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+  const handleRefresh = async () => {
+    if (activeTab === "pl") await plQuery.refetch();
+    else if (activeTab === "balance") await balanceQuery.refetch();
+    else if (activeTab === "gst") await gstQuery.refetch();
+    else if (activeTab === "cashflow") await cashFlowQuery.refetch();
+  };
 
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
-        >
-          {activeTab === "pl" && (
-            <PLTab from={from} to={to} billType={billType} />
-          )}
-          {activeTab === "balance" && (
-            <BalanceTab to={to} />
-          )}
-          {activeTab === "gst" && (
-            <GSTTab from={from} to={to} subTab={gstSubTab} setSubTab={setGstSubTab} />
-          )}
-          {activeTab === "cashflow" && (
-            <CashFlowTab from={from} to={to} />
-          )}
-        </motion.div>
-      </AnimatePresence>
-    </ReportShell>
+  return (
+    <PullToRefresh onRefresh={handleRefresh}>
+      <ReportShell
+        title="Financial Reports"
+        infoTooltip="Comprehensive financial reporting — Profit & Loss, Balance Sheet, GST Summary, and Cash Flow with full inline drill-down auditability and formal exports."
+        breadcrumbs={["Reports", "Financial Reports"]}
+        onApply={handleApply}
+        onExportPDF={handleTopExportPDF}
+        onExportExcel={handleTopExportExcel}
+        extraFilters={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Bill Type</span>
+            <BillTypeFilter value={billType} onChange={setBillType} />
+          </div>
+        }
+      >
+        {/* Top Tab Bar */}
+        <ReportTabs
+          tabs={TABS}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          layoutIdPrefix="financial-main-tabs"
+        />
+
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          >
+            {activeTab === "pl" && (
+              <PLTab from={from} to={to} billType={billType} />
+            )}
+            {activeTab === "balance" && (
+              <BalanceTab to={to} />
+            )}
+            {activeTab === "gst" && (
+              <GSTTab from={from} to={to} subTab={gstSubTab} setSubTab={setGstSubTab} />
+            )}
+            {activeTab === "cashflow" && (
+              <CashFlowTab from={from} to={to} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </ReportShell>
+    </PullToRefresh>
   );
 }
 
@@ -1448,7 +1437,7 @@ function GSTTab({
           </div>
 
           {/* 5 Top KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
             <ReportKPICard
               label="Taxable Supplies (Outward)"
               value={data.output_gst.totals.taxable_value}
@@ -1474,44 +1463,27 @@ function GSTTab({
               color="amber"
               onClick={() => toggleDrill("gst_rcm")}
             />
-            <ReportKPICard
-              label={data.summary.net_payable.direction === "payable" ? "Net GST Payable" : "ITC Credit Available"}
-              value={Math.abs(data.summary.net_payable.total)}
-              color={data.summary.net_payable.direction === "payable" ? "violet" : "emerald"}
-              onClick={() => toggleDrill("gst_output")}
-            />
+            <div className="col-span-2 md:col-span-1">
+              <ReportKPICard
+                label={data.summary.net_payable.direction === "payable" ? "Net GST Payable" : "ITC Credit Available"}
+                value={Math.abs(data.summary.net_payable.total)}
+                color={data.summary.net_payable.direction === "payable" ? "violet" : "emerald"}
+                onClick={() => toggleDrill("gst_output")}
+              />
+            </div>
           </div>
 
           {/* Sub Tab Navigation */}
-          <div className="flex border-b border-[var(--border)] gap-0 overflow-x-auto">
-            {GST_SUBTABS.map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() => setSubTab(st.id)}
-                className={cn(
-                  "relative px-5 py-2.5 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap",
-                  subTab === st.id
-                    ? "text-[var(--primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-body)]"
-                )}
-              >
-                {st.label}
-                {st.id === "rcm" && data.rcm.rows.length > 0 && (
-                  <span className="ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                    {data.rcm.rows.length}
-                  </span>
-                )}
-                {subTab === st.id && (
-                  <motion.div
-                    layoutId="gst-subtab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]"
-                    transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
+          <ReportTabs
+            tabs={GST_SUBTABS.map(st => ({
+              ...st,
+              badge: st.id === "rcm" && data.rcm.rows.length > 0 ? data.rcm.rows.length : undefined,
+              badgeColor: "bg-amber-500 text-white",
+            }))}
+            activeTab={subTab}
+            onChange={setSubTab}
+            layoutIdPrefix="gst-subtabs"
+          />
 
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -1760,7 +1732,8 @@ function GSTTable({ rows, totals, type, note }: { rows: any[]; totals: any; type
         </div>
       )}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1797,6 +1770,49 @@ function GSTTable({ rows, totals, type, note }: { rows: any[]; totals: any; type
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        {/* Mobile Cards View */}
+        <div className="md:hidden divide-y divide-[var(--border-light)]">
+          {rows.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found for this period.</div>
+          ) : (
+            rows.map((row: any) => (
+              <div key={row.id} className="p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-xs text-[var(--primary)]">{row.doc_number}</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">{fmtDate(row.date)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{row.party_name}</span>
+                  {row.gstin && <span className="font-mono text-[10px] text-[var(--text-faint)] truncate max-w-[32%]">{row.gstin}</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-[var(--border-light)] text-xs">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Taxable Value</span>
+                    <p className="font-mono font-semibold text-[var(--text-body)]">{fmtINR(row.taxable_value)}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Total GST</span>
+                    <p className="font-mono font-bold text-[var(--primary)]">{fmtINR(row.total_gst)}</p>
+                  </div>
+                </div>
+                {(row.cgst > 0 || row.sgst > 0 || row.igst > 0) && (
+                  <div className="flex items-center gap-2 text-[10px] text-[var(--text-faint)] font-mono bg-[var(--table-header-bg)] px-2 py-1 rounded">
+                    {row.cgst > 0 && <span>CGST: {fmtINR(row.cgst)}</span>}
+                    {row.sgst > 0 && <span>SGST: {fmtINR(row.sgst)}</span>}
+                    {row.igst > 0 && <span>IGST: {fmtINR(row.igst)}</span>}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+          {rows.length > 0 && (
+            <div className="p-3.5 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
+              <span className="uppercase text-[var(--text-muted)] text-[10px]">Total ({rows.length} records)</span>
+              <span className="font-mono text-[var(--primary)]">{fmtINR(totals.total)}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1891,23 +1907,15 @@ function CashFlowTab({
           </div>
 
           {/* Sub Navigation */}
-          <div className="flex border-b border-[var(--border)] gap-6">
-            {(["overview", "transactions"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setCfTab(t)}
-                className={cn(
-                  "relative pb-2.5 text-xs font-bold transition-all cursor-pointer capitalize",
-                  cfTab === t ? "text-[var(--primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-body)]"
-                )}
-              >
-                {t === "overview" ? "Overview & Activities" : "Recent Cash Transactions"}
-                {cfTab === t && (
-                  <motion.div layoutId="cf-subtab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
-                )}
-              </button>
-            ))}
-          </div>
+          <ReportTabs
+            tabs={[
+              { id: "overview", label: "Overview & Activities" },
+              { id: "transactions", label: "Recent Cash Transactions" },
+            ]}
+            activeTab={cfTab}
+            onChange={setCfTab}
+            layoutIdPrefix="cashflow-subtabs"
+          />
 
           {cfTab === "overview" && (
             <div className="space-y-6">

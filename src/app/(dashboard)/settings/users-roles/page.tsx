@@ -21,8 +21,10 @@ import {
   Eye,
   EyeOff,
   Check,
+  Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface User {
   id: string;
@@ -59,6 +61,7 @@ export default function UsersRolesSettingsPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Modal states
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -326,43 +329,81 @@ export default function UsersRolesSettingsPage() {
         title="Users"
         subtitle="View and manage system users"
       >
-        {/* Search & Filter row */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 mb-4 select-none">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search by name, email or role..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
-            />
+        {/* Search & Filter row with Mobile Collapsible Filter Toggle */}
+        <div className="flex flex-col gap-3 mb-4 select-none">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Search by name, email or role..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 h-10 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+              />
+            </div>
+            {/* Mobile Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              className={cn(
+                "sm:hidden h-10 px-3 rounded-lg border flex items-center gap-1.5 text-xs font-semibold shrink-0 transition-colors cursor-pointer",
+                roleFilter !== "all" || statusFilter !== "all"
+                  ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]"
+                  : "border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-body)]"
+              )}
+            >
+              <Sliders size={14} />
+              <span>Filters</span>
+              {(roleFilter !== "all" || statusFilter !== "all") && (
+                <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse" />
+              )}
+            </button>
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
-          >
-            <option value="all">All Roles</option>
-            <option value="owner">Owner</option>
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="accountant">Accountant</option>
-            <option value="staff">Store Incharge</option>
-            <option value="intern">Production User</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-[150px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="deactivated">Deactivated</option>
-          </select>
+
+          {/* Filter Dropdowns — Collapsible on mobile, inline on desktop */}
+          <div className={cn(
+            "grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:flex sm:items-center sm:w-auto",
+            mobileFiltersOpen ? "grid" : "hidden sm:flex"
+          )}>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="w-full sm:w-[180px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+            >
+              <option value="all">All Roles</option>
+              <option value="owner">Owner</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="accountant">Accountant</option>
+              <option value="staff">Store Incharge</option>
+              <option value="intern">Production User</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full sm:w-[150px] h-10 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="deactivated">Deactivated</option>
+            </select>
+            {(roleFilter !== "all" || statusFilter !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRoleFilter("all");
+                  setStatusFilter("all");
+                }}
+                className="text-xs font-semibold text-[var(--primary)] hover:underline py-1 px-2 cursor-pointer self-start sm:self-auto"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Users Table */}
+        {/* Users Content: Mobile Cards (< md) + Desktop Table (md+) */}
         <PageState
           isLoading={loadingUsers}
           isError={!!userError}
@@ -375,7 +416,84 @@ export default function UsersRolesSettingsPage() {
           emptyTitle="No users found"
           emptyDescription="No system users match the current search or status/role filters."
         >
-          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+          {/* Mobile User Cards (< md) */}
+          <div className="md:hidden divide-y divide-[var(--border)] border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--card-bg)]">
+            {users.map((u) => (
+              <div key={u.id} className="p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${getAvatarBg(
+                        u.full_name
+                      )}`}
+                    >
+                      {getInitials(u.full_name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-sm text-[var(--text-primary)] truncate block">
+                        {u.full_name}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)] truncate block">
+                        {u.email}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <StatusBadge active={u.is_active} />
+                    {canEdit("Settings") && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveMenuId(activeMenuId === u.id ? null : u.id)}
+                        className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] inline-flex items-center justify-center cursor-pointer transition-colors"
+                      >
+                        <MoreVertical className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-[var(--border-light)]">
+                  <RoleBadge role={u.role} />
+                  <span className="text-[11px] text-[var(--text-faint)]">
+                    {u.last_login_at
+                      ? `Active ${new Date(u.last_login_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
+                      : "Never logged in"}
+                  </span>
+                </div>
+
+                {/* Mobile inline action tray */}
+                {activeMenuId === u.id && (
+                  <div className="mt-1 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg p-1.5 flex gap-2 animate-in fade-in-50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveMenuId(null);
+                        handleOpenEditModal(u);
+                      }}
+                      className="flex-1 py-1.5 text-xs font-semibold text-center rounded bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] cursor-pointer hover:bg-[var(--table-row-hover)]"
+                    >
+                      Edit User
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveMenuId(null);
+                        handleToggleStatus(u);
+                      }}
+                      className={`flex-1 py-1.5 text-xs font-semibold text-center rounded border border-[var(--border)] cursor-pointer ${
+                        u.is_active ? "text-red-500 bg-red-500/10" : "text-green-600 bg-green-500/10"
+                      }`}
+                    >
+                      {u.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table (md+) */}
+          <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg">
             <table className="w-full text-sm text-[var(--text-body)]">
               <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                 <tr>
@@ -495,7 +613,58 @@ export default function UsersRolesSettingsPage() {
           skeletonRows={7}
           skeletonColumns={7}
         >
-          <div className="overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
+          {/* Mobile Module Permission Cards (< md) */}
+          <div className="md:hidden space-y-3 mb-4">
+            {MODULES.map((module) => {
+              const permFields: Array<{ key: keyof Permission; label: string }> = [
+                { key: "can_view", label: "View" },
+                { key: "can_add", label: "Add" },
+                { key: "can_edit", label: "Edit" },
+                { key: "can_delete", label: "Delete" },
+                { key: "can_approve", label: "Approve" },
+                { key: "can_export", label: "Export" },
+              ];
+              const enabledCount = permFields.filter((f) => getPermVal(module, f.key)).length;
+
+              return (
+                <div
+                  key={module}
+                  className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] space-y-2.5 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm text-[var(--text-primary)]">{module}</span>
+                    <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                      {enabledCount} of 6 enabled
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {permFields.map(({ key, label }) => {
+                      const isChecked = getPermVal(module, key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handlePermissionChange(module, key, !isChecked)}
+                          className={cn(
+                            "py-1.5 px-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95",
+                            isChecked
+                              ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-2xs"
+                              : "bg-[var(--page-bg)] text-[var(--text-muted)] border-[var(--border)] hover:text-[var(--text-primary)]"
+                          )}
+                        >
+                          {isChecked && <Check className="size-3 stroke-[3]" />}
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Permissions Table (hidden on mobile) */}
+          <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
             <table className="w-full text-sm text-[var(--text-body)]">
               <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
                 <tr>

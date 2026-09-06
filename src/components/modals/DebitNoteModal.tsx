@@ -251,25 +251,25 @@ export function DebitNoteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print-modal-overlay">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200 print-modal-content">
+      <div className="bg-[var(--card-bg)] rounded-2xl shadow-[var(--modal-shadow)] border border-[var(--border)] w-full max-w-4xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200 print-modal-content">
 
         {/* Header Bar (non-print) */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 print:hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--table-header-bg)] print:hidden">
           <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-base font-bold text-slate-800">Debit Note</h2>
+            <FileText className="h-5 w-5 text-[var(--primary)]" />
+            <h2 className="text-base font-bold text-[var(--text-primary)]">Debit Note</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print / Save PDF</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition-all cursor-pointer"
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)] rounded-lg transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>

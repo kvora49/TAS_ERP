@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface Lot {
   id: string;
@@ -84,6 +85,9 @@ export default function NewStageEntryPage() {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
   const [submitting, setSubmitting] = useState(false);
+
+  const isFormDirty = !submitting && Boolean(selectedLotId || stageId || qtyIn > 0 || qtyOut > 0 || workerId || remarks);
+  useUnsavedChangesGuard(isFormDirty);
 
   // Section 5: Accessory Assignment (Optional)
   const [accessoriesExpanded, setAccessoriesExpanded] = useState(false);
@@ -990,7 +994,7 @@ export default function NewStageEntryPage() {
                                 )}
                                 {c.colour_name}
                                 {colourAllocCount > 0 && (
-                                  <span className={`text-[10px] px-1 rounded font-bold ${isSelected ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-600"}`}>
+                                  <span className={`text-[10px] px-1 rounded font-bold ${isSelected ? "bg-black/20 text-white" : "bg-amber-500/10 text-amber-600"}`}>
                                     {colourAllocCount} pcs
                                   </span>
                                 )}

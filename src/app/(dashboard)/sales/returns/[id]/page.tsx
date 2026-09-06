@@ -179,11 +179,11 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <div className="flex items-center justify-end self-end sm:self-auto w-full sm:w-auto ml-auto gap-1.5 sm:gap-2 flex-wrap">
             {creditNote && (
               <button
                 onClick={() => setCnModalOpen(true)}
-                className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+                className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0"
               >
                 <FileText className="h-3.5 w-3.5" />
                 <span>Credit Note Voucher</span>
@@ -198,7 +198,7 @@ export default function SalesReturnDetailPage({ params }: { params: { id: string
             </Link>
             <button
               onClick={() => setDeleteOpen(true)}
-              className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-red-600 bg-[var(--card-bg)] border border-red-200 rounded-lg hover:bg-red-500/10 flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-bold text-rose-500 bg-rose-500/10 border border-rose-500/30 rounded-lg hover:bg-rose-500/20 flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Delete</span>

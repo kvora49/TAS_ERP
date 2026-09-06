@@ -8,7 +8,8 @@ import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { Search, Plus, Boxes, Layers, TrendingDown, AlertTriangle, ArrowLeftRight, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -65,6 +66,7 @@ import { useChartTheme } from "@/hooks/useChartTheme";
 
 export default function RawMaterialStockPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { lowStockAlerts, itemsPerPage, formatAppDate, formatAppCurrency } = useGeneralSettings();
   const chartTheme = useChartTheme();
 
@@ -402,43 +404,46 @@ export default function RawMaterialStockPage() {
   ];
 
   return (
-    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
+    <PullToRefresh onRefresh={async () => { await queryClient.invalidateQueries({ queryKey: ["raw-material-stock-summary"] }); }}>
+      <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Raw Material Inventory Stock</h1>
           <p className="text-xs text-[var(--text-muted)]">Real-time raw material balances, fabric inventory roll logs, and stock movements.</p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-end self-end sm:self-auto w-full sm:w-auto ml-auto gap-2 flex-wrap">
           <Link
             href="/stock/raw-materials/transfers/new"
-            className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+            className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
           >
-            <ArrowLeftRight className="h-4 w-4" />
-            <span>Godown Transfer</span>
+            <ArrowLeftRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="sm:hidden">Transfer</span>
+            <span className="hidden sm:inline">Godown Transfer</span>
           </Link>
           <button
             onClick={() => router.push("/stock/raw-materials/new")}
-            className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+            className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
           >
-            <Plus className="h-4 w-4" />
-            <span>Direct Stock Entry / Adjustment</span>
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="sm:hidden">+ Entry / Adjust</span>
+            <span className="hidden sm:inline">Direct Stock Entry / Adjustment</span>
           </button>
         </div>
       </div>
 
-      {/* ── MOBILE: snap-scroll KPI cards ── */}
-      <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
+      {/* ── MOBILE: 2x2 responsive KPI grid (eliminates horizontal scrolling) ── */}
+      <div className="md:hidden grid grid-cols-2 gap-2.5">
         {[
           { label: "Stock Value",  value: formatCurrency(totalStockValue), icon: Boxes,         bg: "bg-[var(--primary-light)]", color: "text-[var(--primary)]" },
-          { label: "Mat. Types",   value: `${totalItemsCount} Types`,       icon: Layers,        bg: "bg-emerald-500/10",          color: "text-emerald-600" },
-          { label: "Low Stock",    value: `${lowStockCount} Items`,          icon: AlertTriangle, bg: "bg-amber-500/10",            color: "text-amber-600" },
-          { label: "Out of Stock", value: `${outOfStockCount} Items`,        icon: TrendingDown,  bg: "bg-rose-500/10",             color: "text-rose-600" },
+          { label: "Mat. Types",   value: `${totalItemsCount} Types`,       icon: Layers,        bg: "bg-emerald-500/10",          color: "text-emerald-600 dark:text-emerald-400" },
+          { label: "Low Stock",    value: `${lowStockCount} Items`,          icon: AlertTriangle, bg: "bg-amber-500/10",            color: "text-amber-600 dark:text-amber-400" },
+          { label: "Out of Stock", value: `${outOfStockCount} Items`,        icon: TrendingDown,  bg: "bg-rose-500/10",             color: "text-rose-600 dark:text-rose-400" },
         ].map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
+          <div key={label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
             <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
-              <p className={cn("text-xs font-black mt-0.5 truncate", color)}>{value}</p>
+              <p className={cn("text-xs font-black font-mono mt-0.5 truncate", color)}>{value}</p>
             </div>
           </div>
         ))}
@@ -450,7 +455,7 @@ export default function RawMaterialStockPage() {
           <div className="p-3 bg-[var(--primary-light)] text-[var(--primary)] rounded-lg"><Boxes className="h-6 w-6" /></div>
           <div>
             <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Raw Stock Value</span>
-            <p className="text-xl font-extrabold text-[var(--text-primary)] mt-0.5">{formatCurrency(totalStockValue)}</p>
+            <p className="text-xl font-extrabold font-mono text-[var(--text-primary)] mt-0.5">{formatCurrency(totalStockValue)}</p>
           </div>
         </div>
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] flex items-center gap-4">
@@ -493,7 +498,7 @@ export default function RawMaterialStockPage() {
                     color: chartTheme.text,
                   }}
                 />
-                <Bar dataKey="value" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="value" fill="var(--primary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -524,23 +529,32 @@ export default function RawMaterialStockPage() {
       </div>
 
       {/* FILTER & TAB CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-4 rounded-xl shadow-[var(--shadow-sm)]">
-        <div className="flex items-center gap-2 bg-[var(--page-bg)] p-1 rounded-lg w-full sm:w-auto overflow-x-auto">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--border)] p-3 sm:p-4 rounded-xl shadow-[var(--shadow-sm)]">
+        <div className="grid grid-cols-3 sm:flex items-center gap-1 sm:gap-2 bg-[var(--page-bg)] p-1 rounded-xl border border-[var(--border)] w-full sm:w-auto">
           <button onClick={() => setActiveTab("summary")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
-              activeTab === "summary" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            className={`px-2 sm:px-4 py-2 text-xs font-bold rounded-lg text-center transition-all ${
+              activeTab === "summary" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-xs" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
-          >Summary Balances</button>
+          >
+            <span className="sm:hidden">Summary</span>
+            <span className="hidden sm:inline">Summary Balances</span>
+          </button>
           <button onClick={() => setActiveTab("rolls")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
-              activeTab === "rolls" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            className={`px-2 sm:px-4 py-2 text-xs font-bold rounded-lg text-center transition-all ${
+              activeTab === "rolls" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-xs" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
-          >Fabric Rolls Tracking</button>
+          >
+            <span className="sm:hidden">Rolls</span>
+            <span className="hidden sm:inline">Fabric Rolls Tracking</span>
+          </button>
           <button onClick={() => setActiveTab("entries")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all shrink-0 ${
-              activeTab === "entries" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            className={`px-2 sm:px-4 py-2 text-xs font-bold rounded-lg text-center transition-all ${
+              activeTab === "entries" ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-xs" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
-          >Stock Movements</button>
+          >
+            <span className="sm:hidden">Movements</span>
+            <span className="hidden sm:inline">Stock Movements</span>
+          </button>
         </div>
 
         {activeTab === "summary" && (
@@ -742,6 +756,7 @@ export default function RawMaterialStockPage() {
           />
         )}
       </div>{/* end desktop table */}
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

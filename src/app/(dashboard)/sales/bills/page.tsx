@@ -32,8 +32,10 @@ import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -170,7 +172,7 @@ export default function SalesBillsListPage() {
         const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rawData = safeSheetToJson(ws);
+        const rawData = safeSheetToJson(ws, undefined, XLSX);
 
         const rows = rawData.map((row: any, idx: number) => {
           const billType = String(row["Bill Type"] || "pakka").toLowerCase() === "kacha" ? "kacha" : "pakka";
@@ -401,6 +403,14 @@ export default function SalesBillsListPage() {
   const total: number = billsData?.meta?.total || 0;
   const parties: Party[] = partiesData || [];
 
+  const hasMoreMobile = bills.length < total;
+  const { sentinelRef } = useInfiniteScroll<HTMLDivElement>({
+    enabled: hasMoreMobile && !loading,
+    onIntersect: () => {
+      setLimit((prev) => Math.min(prev + 10, 100));
+    },
+  });
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
@@ -430,7 +440,8 @@ export default function SalesBillsListPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <div className="flex flex-col gap-4 sm:gap-6">
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
         <div className="flex flex-col gap-0.5 sm:gap-1">
@@ -439,8 +450,8 @@ export default function SalesBillsListPage() {
           <p className="text-xs sm:text-sm text-[var(--text-muted)]">Manage all your sales bills (Pakka & Kacha) and sales returns</p>
         </div>
 
-        {/* Action Buttons — sleek & responsive for mobile */}
-        <div className="flex items-center gap-1.5 sm:gap-3 self-start md:self-auto relative flex-wrap sm:flex-nowrap">
+        {/* Action Buttons — sleek & responsive for mobile, aligned right */}
+        <div className="flex items-center justify-end self-end sm:self-auto w-full sm:w-auto ml-auto gap-1.5 sm:gap-3 relative flex-wrap sm:flex-nowrap">
           <button
             type="button"
             onClick={handleOpenImport}
@@ -748,8 +759,8 @@ export default function SalesBillsListPage() {
             </div>
           </form>
         </div>{/* end desktop filter bar */}
-        {/* ── MOBILE: High-Density Compact Bill List (md:hidden) ── */}
-        <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
+        {/* ── MOBILE: High-Density Spaced Bill Cards (md:hidden) ── */}
+        <div className="md:hidden space-y-3">
           {bills.map((bill) => {
             const isReturn = bill.is_sales_return;
             const outstanding = isReturn ? 0 : bill.grand_total - bill.paid_amount;
@@ -758,7 +769,10 @@ export default function SalesBillsListPage() {
             const printHref = isReturn ? `/sales/returns/${bill.id}/print` : `/sales/bills/${bill.id}/print`;
 
             return (
-              <div key={bill.id} className="divide-y divide-[var(--border-light)]">
+              <div
+                key={bill.id}
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs hover:border-[var(--border)] transition-all"
+              >
                 <MobileCompactRow
                   title={bill.bill_number}
                   subtitle={`${bill.party?.name || "Unknown"} • ${new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`}
@@ -798,7 +812,7 @@ export default function SalesBillsListPage() {
                   }}
                 />
                 {/* Direct Action Bar on Mobile */}
-                <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--page-bg)]/40" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--page-bg)]/40 border-t border-[var(--border-light)]" onClick={(e) => e.stopPropagation()}>
                   {bill.is_temporary && (
                     <button
                       type="button"
@@ -837,6 +851,25 @@ export default function SalesBillsListPage() {
               </div>
             );
           })}
+
+          {/* Mobile Infinite Scroll Sentinel & Status */}
+          <div ref={sentinelRef} className="py-4 text-center">
+            {loading && (
+              <div className="flex items-center justify-center gap-2 text-xs text-[var(--text-muted)] font-medium">
+                <Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" />
+                <span>Loading more bills...</span>
+              </div>
+            )}
+            {!loading && hasMoreMobile && (
+              <button
+                type="button"
+                onClick={() => setLimit((prev) => Math.min(prev + 10, 100))}
+                className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer"
+              >
+                Load more ({total - bills.length} remaining)
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Desktop table wrapper — hidden on mobile */}
@@ -1325,5 +1358,6 @@ export default function SalesBillsListPage() {
         </div>
       </Modal>
     </div>
+    </PullToRefresh>
   );
 }

@@ -345,7 +345,7 @@ export default function NewTransferPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-3.5 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
         <Link href="/finished-stock" className="hover:text-[var(--primary)] transition-colors">
@@ -356,36 +356,36 @@ export default function NewTransferPage() {
           Transfers
         </Link>
         <span>/</span>
-        <span className="text-[var(--text-primary)]">New</span>
+        <span className="text-[var(--text-primary)] font-bold">New</span>
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <Link
             href="/finished-stock/transfers"
-            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer shrink-0"
           >
-            <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 text-[var(--text-secondary)]" />
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">New Stock Transfer</h1>
-            <p className="text-sm text-[var(--text-muted)]">Transfer finished garments between warehouse godowns with size matrix distribution</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">New Stock Transfer</h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] truncate">Transfer finished garments between godowns with size distribution</p>
           </div>
         </div>
 
         {/* Exclusion Banner Badge */}
-        <div className="hidden md:flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3.5 py-2 text-xs text-indigo-800 dark:text-indigo-300 font-semibold">
-          <ShieldAlert className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-          <span>Finished Stock Only (Raw Materials & Accessories Excluded)</span>
+        <div className="flex items-center gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs text-indigo-800 dark:text-indigo-300 font-semibold self-start sm:self-auto">
+          <ShieldAlert className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span>Finished Stock Only</span>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Left Side: Form Header & Size Matrix Rows */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4 sm:space-y-6">
           {/* Header Panel */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--shadow-sm)] space-y-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
             <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2 flex items-center gap-2">
               <Building2 className="h-4.5 w-4.5 text-[var(--primary)]" />
               <span>Transfer Header Details</span>
@@ -653,12 +653,12 @@ export default function NewTransferPage() {
                   )}
 
                   {/* Row Total Summary Footer */}
-                  <div className="flex items-center justify-end gap-6 pt-2 text-xs border-t border-[var(--border)]">
+                  <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-6 pt-2 text-xs border-t border-[var(--border)]">
                     <span className="text-[var(--text-muted)]">
-                      Total Quantity: <strong className="text-[var(--text-primary)]">{rowTotalQty} Pcs</strong>
+                      Total Quantity: <strong className="text-[var(--text-primary)] font-mono">{rowTotalQty} Pcs</strong>
                     </span>
                     <span className="text-[var(--text-muted)]">
-                      Row Total Value: <strong className="text-[var(--primary)]">{formatRupee(rowTotalValue)}</strong>
+                      Row Total Value: <strong className="text-[var(--primary)] font-mono">{formatRupee(rowTotalValue)}</strong>
                     </span>
                   </div>
                 </div>

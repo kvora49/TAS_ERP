@@ -14,9 +14,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import dynamic from "next/dynamic";
 import CreateDesignModal from "@/app/(dashboard)/production/lots/new/_components/CreateDesignModal";
-import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
+const SizeQuantityMatrix = dynamic(
+  () => import("@/components/shared/SizeQuantityMatrix").then((m) => m.SizeQuantityMatrix),
+  { ssr: false }
+);
 import { formatCurrency } from "@/lib/utils";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface Party {
   id: string;
@@ -78,6 +83,9 @@ export default function NewSalesOrderPage() {
 
   // Line items
   const [items, setItems] = useState<OrderLineItem[]>([]);
+
+  const isFormDirty = !saving && Boolean(selectedPartyId || items.length > 0 || notes);
+  useUnsavedChangesGuard(isFormDirty);
 
   // 1. Fetch Masters
   useEffect(() => {

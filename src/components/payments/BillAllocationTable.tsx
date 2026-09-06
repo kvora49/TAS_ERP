@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 export interface OutstandingBill {
   id: string;
@@ -177,11 +178,145 @@ export default function BillAllocationTable({
   const unallocatedAmount = Math.max(0, paymentAmount - totalAllocated);
 
   return (
-    <div className="flex flex-col gap-4 border border-[var(--border-light)] rounded-xl bg-white overflow-hidden shadow-[var(--shadow-sm)]">
-      <div className="overflow-x-auto">
+    <div className="flex flex-col border border-[var(--border)] rounded-2xl bg-[var(--card-bg)] overflow-hidden shadow-[var(--shadow-sm)]">
+      {/* Mobile Card View (md:hidden) */}
+      <div className="md:hidden divide-y divide-[var(--border-light)]">
+        {bills.length === 0 ? (
+          <div className="p-8 text-center text-[var(--text-muted)] text-sm font-semibold">
+            No outstanding bills found for this party.
+          </div>
+        ) : (
+          bills.map((bill) => {
+            const allocated = allocations[bill.id] || 0;
+            const isChecked = !!checkedBills[bill.id];
+            const balanceAfter = Math.max(0, bill.outstanding - allocated);
+
+            return (
+              <div
+                key={bill.id}
+                className={cn(
+                  "p-3.5 transition-colors space-y-3",
+                  isChecked ? "bg-[var(--primary-light)]/20" : "hover:bg-[var(--table-row-hover)]"
+                )}
+              >
+                {/* Header row: Checkbox, Bill No, Badge */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={(checked) => handleCheckChange(bill.id, !!checked)}
+                      className="h-4.5 w-4.5 rounded border-[var(--input-border)] text-[var(--primary)] focus:ring-[var(--primary)]"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-mono text-sm font-bold text-[var(--text-primary)] block truncate">
+                        {bill.invoice_number}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-[var(--border-light)] text-[var(--text-secondary)]">
+                    {bill.bill_type.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                {/* Dates row */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-muted)]">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-[var(--text-faint)] block">Date</span>
+                    {new Date(bill.invoice_date).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-[var(--text-faint)] block">Due Date</span>
+                    {new Date(bill.due_date).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </div>
+                </div>
+
+                {/* Amounts row */}
+                <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-[var(--page-bg)]/80 border border-[var(--border-light)]">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-[var(--text-faint)] block">Total</span>
+                    <span className="font-mono font-semibold text-[var(--text-secondary)]">
+                      ₹{bill.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                    {!!bill.returned_amount && bill.returned_amount > 0 && (
+                      <span className="block text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                        -₹{bill.returned_amount.toLocaleString("en-IN")} ret.
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-semibold text-[var(--text-faint)] block">Outstanding</span>
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                      ₹{bill.outstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Allocation input & quick actions */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[var(--text-secondary)]">Allocate Amount:</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAmountChange(bill.id, bill.outstanding.toString())}
+                        className="px-2 py-0.5 text-[11px] font-bold rounded bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-80 transition-opacity"
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCheckChange(bill.id, false)}
+                        className="px-2 py-0.5 text-[11px] font-medium rounded bg-[var(--border-light)] text-[var(--text-muted)] hover:opacity-80 transition-opacity"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[var(--text-muted)]">₹</span>
+                      <input
+                        type="number"
+                        value={allocated || ""}
+                        placeholder="0.00"
+                        disabled={!isChecked}
+                        onChange={(e) => handleAmountChange(bill.id, e.target.value)}
+                        className="w-full h-9 pl-6 pr-3 text-right text-xs font-bold bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg disabled:opacity-40 transition-colors"
+                      />
+                    </div>
+                    <div className="text-right min-w-[80px]">
+                      <span className="text-[10px] uppercase font-semibold text-[var(--text-faint)] block">Rem. Bal</span>
+                      <span
+                        className={cn(
+                          "font-mono text-xs font-bold",
+                          balanceAfter === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                        )}
+                      >
+                        ₹{balanceAfter.toLocaleString("en-IN", { minimumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table (hidden md:block) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[var(--border-light)] border-b border-gray-200 text-[var(--text-muted)] font-bold uppercase tracking-wider">
+            <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
               <th className="py-3 px-4 w-12 text-center">Select</th>
               <th className="py-3 px-4">Invoice / Bill No.</th>
               <th className="py-3 px-4">Type</th>
@@ -193,7 +328,7 @@ export default function BillAllocationTable({
               <th className="py-3 px-4 text-right">Balance After</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 font-medium">
+          <tbody className="divide-y divide-[var(--border-light)] font-medium">
             {bills.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-8 text-center text-[var(--text-muted)] font-semibold">
@@ -207,7 +342,7 @@ export default function BillAllocationTable({
                 const balanceAfter = Math.max(0, bill.outstanding - allocated);
 
                 return (
-                  <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={bill.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
                     <td className="py-3 px-4 text-center">
                       <Checkbox
                         checked={isChecked}
@@ -219,7 +354,7 @@ export default function BillAllocationTable({
                       {bill.invoice_number}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-[var(--border-light)] text-[var(--text-secondary)]">
                         {bill.bill_type.replace(/_/g, " ")}
                       </span>
                     </td>
@@ -240,12 +375,12 @@ export default function BillAllocationTable({
                     <td className="py-3 px-4 text-right text-[var(--text-primary)]">
                       <div>₹{bill.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
                       {!!bill.returned_amount && bill.returned_amount > 0 && (
-                        <span className="inline-block text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded mt-0.5">
+                        <span className="inline-block text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded mt-0.5">
                           -₹{bill.returned_amount.toLocaleString("en-IN")} returned
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right text-amber-600 font-bold">
+                    <td className="py-3 px-4 text-right text-amber-600 dark:text-amber-400 font-bold">
                       ₹{bill.outstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -256,7 +391,7 @@ export default function BillAllocationTable({
                           placeholder="0.00"
                           disabled={!isChecked}
                           onChange={(e) => handleAmountChange(bill.id, e.target.value)}
-                          className="h-8 w-32 text-right text-xs font-bold border border-[var(--input-border)] bg-transparent px-3 py-1 focus:ring-1 focus:ring-[var(--primary)] rounded-lg disabled:opacity-50 outline-none"
+                          className="h-8 w-32 text-right text-xs font-bold border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 py-1 focus:ring-1 focus:ring-[var(--input-focus)] rounded-lg disabled:opacity-50 outline-none"
                         />
                       </div>
                     </td>
@@ -264,8 +399,8 @@ export default function BillAllocationTable({
                       <span
                         className={
                           balanceAfter === 0
-                            ? "text-[var(--alloc-fulfilled-color)] font-bold"
-                            : "text-[var(--alloc-partial-color)] font-bold"
+                            ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                            : "text-amber-600 dark:text-amber-400 font-bold"
                         }
                       >
                         ₹{balanceAfter.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -280,7 +415,7 @@ export default function BillAllocationTable({
       </div>
 
       {/* Allocation Summary Footer */}
-      <div className="bg-slate-50 border-t border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-bold text-[var(--text-primary)]">
+      <div className="bg-[var(--table-header-bg)] border-t border-[var(--border)] p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-[var(--text-primary)]">
         <div>
           {isManualOverride && (
             <button
@@ -291,21 +426,20 @@ export default function BillAllocationTable({
             </button>
           )}
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6 justify-between sm:justify-end">
           <div className="flex items-center gap-2">
-            <span className="text-[var(--text-muted)] uppercase tracking-wide">Total Allocated:</span>
-            <span className="text-sm font-extrabold text-[var(--primary)]">
+            <span className="text-[var(--text-muted)] uppercase tracking-wide text-[10px] sm:text-xs">Total Allocated:</span>
+            <span className="text-sm font-mono font-extrabold text-[var(--primary)]">
               ₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[var(--text-muted)] uppercase tracking-wide">Unallocated Amount:</span>
+            <span className="text-[var(--text-muted)] uppercase tracking-wide text-[10px] sm:text-xs">Unallocated:</span>
             <span
-              className={
-                unallocatedAmount > 0
-                  ? "text-blue-600 text-sm font-extrabold"
-                  : "text-green-600 text-sm font-extrabold"
-              }
+              className={cn(
+                "text-sm font-mono font-extrabold",
+                unallocatedAmount > 0 ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
+              )}
             >
               ₹{unallocatedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </span>

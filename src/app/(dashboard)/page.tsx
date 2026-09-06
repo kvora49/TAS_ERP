@@ -24,18 +24,19 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const ResponsiveContainer = dynamic(() => import("recharts").then((m) => m.ResponsiveContainer), { ssr: false });
+const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), { ssr: false });
+const Line = dynamic(() => import("recharts").then((m) => m.Line), { ssr: false });
+const XAxis = dynamic(() => import("recharts").then((m) => m.XAxis), { ssr: false });
+const YAxis = dynamic(() => import("recharts").then((m) => m.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import("recharts").then((m) => m.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import("recharts").then((m) => m.Tooltip), { ssr: false });
+const PieChart = dynamic(() => import("recharts").then((m) => m.PieChart), { ssr: false });
+const Pie = dynamic(() => import("recharts").then((m) => m.Pie), { ssr: false });
+const Cell = dynamic(() => import("recharts").then((m) => m.Cell), { ssr: false });
+
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -340,12 +341,12 @@ export default function DashboardPage() {
                             <YAxis
                               tickLine={false}
                               axisLine={false}
-                              tickFormatter={(val) => `₹${val / 1000}k`}
+                              tickFormatter={(val: any) => `₹${val / 1000}k`}
                               tick={{ fill: chartTheme.axisText, fontSize: 9, fontWeight: 600 }}
                               dx={-6}
                             />
                             <Tooltip
-                              formatter={(value) => [formatCurrency(Number(value)), "Sales"]}
+                              formatter={(value: any) => [formatCurrency(Number(value)), "Sales"]}
                               contentStyle={{
                                 background: chartTheme.tooltipBg,
                                 color: chartTheme.text,
@@ -699,7 +700,7 @@ export default function DashboardPage() {
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value) => [`${value} Lots`, "Count"]}
+                            formatter={(value: any) => [`${value} Lots`, "Count"]}
                             contentStyle={{
                               background: chartTheme.tooltipBg,
                               color: chartTheme.text,
@@ -883,12 +884,12 @@ export default function DashboardPage() {
                         <YAxis
                           tickLine={false}
                           axisLine={false}
-                          tickFormatter={(val) => `₹${val / 1000}k`}
+                          tickFormatter={(val: any) => `₹${val / 1000}k`}
                           tick={{ fill: chartTheme.axisText, fontSize: 10, fontWeight: 600 }}
                           dx={-10}
                         />
                         <Tooltip
-                          formatter={(value) => [formatCurrency(Number(value)), "Sales"]}
+                          formatter={(value: any) => [formatCurrency(Number(value)), "Sales"]}
                           contentStyle={{
                             background: chartTheme.tooltipBg,
                             color: chartTheme.text,

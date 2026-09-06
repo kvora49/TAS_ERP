@@ -69,7 +69,7 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--card-bg)]/90 backdrop-blur-xl border-t border-[var(--border)] flex items-center justify-around z-40 select-none print:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--card-bg)] border-t border-[var(--border)] flex items-center justify-around z-40 select-none print:hidden shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         {/* 1. Home Tab */}
         <Link
           href="/"

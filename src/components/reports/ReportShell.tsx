@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
   FileSpreadsheet,
@@ -76,7 +77,8 @@ export default function ReportShell({
 }: ReportShellProps) {
   const user = useAppStore((s) => s.user);
   const [showInfo, setShowInfo] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+  // Default to OFF / collapsed per user requirement
+  const [showFilters, setShowFilters] = useState(false);
   const [preset, setPreset] = useState<DatePreset | "custom">("this_fy");
   const [from, setFrom] = useState(defaultFrom ?? fyStart());
   const [to, setTo] = useState(defaultTo ?? today());
@@ -103,6 +105,8 @@ export default function ReportShell({
     setTo(dates.to);
     onApply({ from: dates.from, to: dates.to, preset: p });
   }, [onApply]);
+
+  const isFilterActive = preset !== "this_fy";
 
   const generatedAt = new Date().toLocaleString("en-IN", {
     day: "numeric",
@@ -131,7 +135,7 @@ export default function ReportShell({
                   <Info size={15} />
                 </button>
                 {showInfo && (
-                  <div className="absolute left-6 top-0 z-50 w-64 p-3 bg-[#0F1629] text-white text-xs rounded-lg shadow-xl border border-[#1E293B] leading-relaxed">
+                  <div className="absolute left-6 top-0 z-50 w-64 p-3 bg-[var(--card-bg)] text-[var(--text-primary)] text-xs rounded-lg shadow-xl border border-[var(--border)] leading-relaxed">
                     {infoTooltip}
                   </div>
                 )}
@@ -169,14 +173,17 @@ export default function ReportShell({
               type="button"
               onClick={() => setShowFilters((p) => !p)}
               className={cn(
-                "flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                "relative flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer",
                 showFilters
                   ? "bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)]"
-                  : "bg-[var(--primary-light)] text-[var(--primary)] hover:bg-[var(--primary-light)]"
+                  : "bg-[var(--primary-light)] text-[var(--primary)] hover:bg-[var(--primary-light)]/80"
               )}
             >
               <SlidersHorizontal size={13} />
-              Filters
+              <span>Filters</span>
+              {isFilterActive && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-[var(--card-bg)]" />
+              )}
             </button>
           </div>
         </div>
@@ -200,83 +207,119 @@ export default function ReportShell({
         </div>
       </div>
 
-      {/* ── Filter Bar ── */}
-      {showFilters && (
-        <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-6 py-3 flex flex-wrap items-center gap-3 print:hidden">
-          {/* Preset chips */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mr-1">Period</span>
-            {DATE_PRESETS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => handlePreset(p.value)}
-                className={cn(
-                  "h-7 px-2.5 rounded-md text-xs font-semibold border transition-all cursor-pointer",
-                  preset === p.value
-                    ? "bg-[var(--primary)] text-white border-[var(--primary)]"
-                    : "bg-transparent text-[var(--text-body)] border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+      {/* ── Structured Collapsible Filter Drawer ── */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="overflow-hidden bg-[var(--card-bg)] border-b border-[var(--border)] shadow-[var(--shadow-sm)] print:hidden"
+          >
+            <div className="px-3.5 sm:px-6 py-4 space-y-3.5">
+              {/* Row 1: Period presets */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                    Date Period Preset
+                  </span>
+                  <span className="text-[11px] font-mono text-[var(--text-faint)]">
+                    {fmtDate(from)} – {fmtDate(to)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {DATE_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => handlePreset(p.value)}
+                      className={cn(
+                        "h-7 px-3 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all cursor-pointer",
+                        preset === p.value
+                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-xs"
+                          : "bg-[var(--card-bg)] text-[var(--text-body)] border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Date range */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">From</span>
-            <div className="relative">
-              <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => { setFrom(e.target.value); setPreset("custom"); }}
-                className="h-8 pl-7 pr-2.5 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent"
-              />
+              {/* Row 2: Custom Date Inputs */}
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-4 max-w-lg">
+                <div>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">
+                    From Date
+                  </label>
+                  <div className="relative">
+                    <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)] pointer-events-none" />
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => { setFrom(e.target.value); setPreset("custom"); }}
+                      className="w-full h-9 pl-8 pr-2.5 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">
+                    To Date
+                  </label>
+                  <div className="relative">
+                    <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)] pointer-events-none" />
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => { setTo(e.target.value); setPreset("custom"); }}
+                      className="w-full h-9 pl-8 pr-2.5 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Extra Filters Slot */}
+              {extraFilters && (
+                <div className="pt-2 border-t border-[var(--border-light)]">
+                  <span className="block text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] mb-2">
+                    Filter Options
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {extraFilters}
+                  </div>
+                </div>
+              )}
+
+              {/* Row 4: Action buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-light)]">
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="flex items-center justify-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-body)] border border-[var(--border)] hover:border-[var(--input-border)] bg-transparent transition-all cursor-pointer"
+                >
+                  <X size={13} /> Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  className="flex items-center justify-center gap-1.5 h-8 px-5 rounded-lg text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white shadow-xs transition-all cursor-pointer"
+                >
+                  Apply Filters
+                </button>
+              </div>
             </div>
-            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">To</span>
-            <div className="relative">
-              <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => { setTo(e.target.value); setPreset("custom"); }}
-                className="h-8 pl-7 pr-2.5 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Extra filters slot */}
-          {extraFilters}
-
-          {/* Apply + Clear */}
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-body)] border border-[var(--border)] hover:border-[var(--input-border)] bg-transparent transition-all cursor-pointer"
-            >
-              <X size={12} /> Clear
-            </button>
-            <button
-              type="button"
-              onClick={handleApply}
-              className="h-8 px-4 rounded-lg text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white transition-all cursor-pointer"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Page Content ── */}
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-3 sm:p-6 space-y-4 sm:space-y-6">
         {children}
       </div>
 
       {/* ── Footer ── */}
-      <div className="border-t border-[var(--border)] px-6 py-3 flex items-center justify-between text-[10px] text-[var(--text-faint)] font-medium print:block">
+      <div className="border-t border-[var(--border)] px-4 sm:px-6 py-3 flex items-center justify-between text-[10px] text-[var(--text-faint)] font-medium print:block">
         <span>Report generated on: {generatedAt}</span>
         <span>Generated by: {user?.fullName ?? "—"}</span>
       </div>

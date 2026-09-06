@@ -21,6 +21,7 @@ import {
   PhoneCall,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 export default function CompanyProfileSettingsPage() {
   const queryClient = useQueryClient();
@@ -56,6 +57,17 @@ export default function CompanyProfileSettingsPage() {
       setLogoUrl(data.business.logo_url || "");
     }
   }, [data]);
+
+  const isDirty = Boolean(
+    data?.business && (
+      name !== (data.business.name || "") ||
+      gstin !== (data.business.gstin || "") ||
+      address !== (data.business.address || "") ||
+      phone !== (data.business.phone || "") ||
+      email !== (data.business.email || "")
+    )
+  );
+  useUnsavedChangesGuard(isDirty);
 
   // Save mutation
   const saveMutation = useMutation({

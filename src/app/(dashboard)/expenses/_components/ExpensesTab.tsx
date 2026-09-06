@@ -2,8 +2,10 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, Eye, Copy } from "lucide-react";
 import PageState from "@/components/shared/PageState";
+import { SwipeableRow } from "@/components/shared/SwipeableRow";
+import { toast } from "sonner";
 
 interface Expense {
   id: string;
@@ -147,35 +149,56 @@ export default function ExpensesTab() {
               const total = Number(exp.amount) + Number(exp.gst_amount || 0);
 
               return (
-                <div key={exp.id} className="p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs text-[var(--primary)]">{exp.expense_number}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{exp.expense_type?.name || "General"}</span>
+                <SwipeableRow
+                  key={exp.id}
+                  leftAction={{
+                    label: "Copy No",
+                    bgClass: "bg-indigo-600 text-white",
+                    icon: <Copy size={16} />,
+                    onAction: () => {
+                      navigator.clipboard.writeText(exp.expense_number);
+                      toast.info(`Copied ${exp.expense_number}`);
+                    },
+                  }}
+                  rightAction={{
+                    label: "Summary",
+                    bgClass: "bg-slate-700 text-white",
+                    icon: <Eye size={16} />,
+                    onAction: () => {
+                      toast.info(`Expense ${exp.expense_number}: ${exp.vendor_name || "Direct"} — ${formatCurrency(total)}`);
+                    },
+                  }}
+                >
+                  <div className="p-3.5 space-y-2 bg-[var(--card-bg)]">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-[var(--primary)]">{exp.expense_number}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{exp.expense_type?.name || "General"}</span>
+                      </div>
+                      {isPaid ? (
+                        <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-emerald-500/20">
+                          Paid
+                        </span>
+                      ) : (
+                        <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-rose-500/20">
+                          Pending
+                        </span>
+                      )}
                     </div>
-                    {isPaid ? (
-                      <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-emerald-500/20">
-                        Paid
-                      </span>
-                    ) : (
-                      <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border border-rose-500/20">
-                        Pending
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-[var(--text-primary)] truncate max-w-[65%]">{exp.vendor_name || "Direct Expense"}</span>
-                    <span className="font-mono text-[var(--text-muted)] text-[11px]">
-                      {new Date(exp.expense_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
-                    </span>
-                  </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-[var(--text-primary)] truncate max-w-[65%]">{exp.vendor_name || "Direct Expense"}</span>
+                      <span className="font-mono text-[var(--text-muted)] text-[11px]">
+                        {new Date(exp.expense_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
-                    <span className="text-[var(--text-muted)] text-[11px]">{exp.bank_account?.account_name || "Cash / Pending"}</span>
-                    <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{formatCurrency(total)}</span>
+                    <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                      <span className="text-[var(--text-muted)] text-[11px]">{exp.bank_account?.account_name || "Cash / Pending"}</span>
+                      <span className="font-mono font-bold text-sm text-[var(--text-primary)]">{formatCurrency(total)}</span>
+                    </div>
                   </div>
-                </div>
+                </SwipeableRow>
               );
             })}
           </div>

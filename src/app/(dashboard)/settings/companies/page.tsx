@@ -131,36 +131,37 @@ export default function CompaniesSettingsPage() {
                     : "bg-[var(--card-bg)] border-[var(--border)] hover:border-[var(--text-faint)] shadow-xs"
                 )}
               >
-                {/* Active Indicator Ribbon */}
-                {isCurrent && (
-                  <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400 text-xs font-bold">
-                    <CheckCircle2 size={13} />
-                    <span>Active Workspace</span>
-                  </div>
-                )}
-
                 <div>
-                  {/* Top: Logo & Title */}
-                  <div className="flex items-start gap-3.5 pr-28">
-                    <div className="w-12 h-12 rounded-xl bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
-                      {company.logo_url ? (
-                        <img
-                          src={company.logo_url}
-                          alt={company.name}
-                          className="w-full h-full object-contain p-1"
-                        />
-                      ) : (
-                        <Building2 size={22} className="text-[var(--text-muted)]" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-base font-bold text-[var(--text-primary)] truncate">
-                        {company.name}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <RoleBadge role={company.role} />
+                  {/* Top: Logo, Title & Active Badge */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                        {company.logo_url ? (
+                          <img
+                            src={company.logo_url}
+                            alt={company.name}
+                            className="w-full h-full object-contain p-1"
+                          />
+                        ) : (
+                          <Building2 size={20} className="text-[var(--text-muted)]" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] break-words leading-snug" title={company.name}>
+                          {company.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <RoleBadge role={company.role} />
+                        </div>
                       </div>
                     </div>
+
+                    {isCurrent && (
+                      <div className="self-start sm:self-auto flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400 text-[11px] font-bold shrink-0">
+                        <CheckCircle2 size={12} />
+                        <span>Active Workspace</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Metadata Grid */}

@@ -2,7 +2,8 @@
 
 import React, { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import {
   Wallet,
   Users,
@@ -38,6 +39,7 @@ import {
 function ExpensesHubContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Active Tab State (URL Synced)
   const currentTab = searchParams.get("tab") || "expenses";
@@ -122,8 +124,18 @@ function ExpensesHubContent() {
     }).format(val);
   };
 
+  const handleRefresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["expenses-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["salary-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["misc-income-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["write-offs"] }),
+    ]);
+  };
+
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       {/* Header & Main Quick Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
@@ -313,12 +325,13 @@ function ExpensesHubContent() {
         }}
       />
     </div>
+    </PullToRefresh>
   );
 }
 
 export default function ExpensesHubPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-semibold">Loading Expenses...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-[var(--text-muted)] font-semibold">Loading Expenses...</div>}>
       <ExpensesHubContent />
     </Suspense>
   );

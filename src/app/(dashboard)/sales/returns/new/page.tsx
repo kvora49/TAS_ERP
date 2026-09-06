@@ -554,70 +554,142 @@ export default function RecordSalesReturnPage() {
               No sold items found in this sales bill.
             </div>
           ) : (
-            <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                    <th className="py-3 px-4 min-w-[220px]">Design / Product</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Colour</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Size</th>
-                    <th className="py-3 px-4 text-right whitespace-nowrap">Sold Qty</th>
-                    <th className="py-3 px-4 text-right whitespace-nowrap">Unit Rate</th>
-                    <th className="py-3 px-4 text-center min-w-[130px] whitespace-nowrap">Return Qty *</th>
-                    <th className="py-3 px-4 text-right whitespace-nowrap">Credit Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-light)]">
-                  {lineItems.map((line, idx) => (
-                    <tr key={line.key} className="hover:bg-[var(--table-row-hover)] transition-colors">
-                      <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
-                        {line.design_name}
-                      </td>
-                      <td className="py-3 px-4 text-[var(--text-body)] whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 bg-[var(--page-bg)] px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-secondary)] border border-[var(--border)]">
-                          <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
-                          {line.colour_name}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-[var(--text-primary)] font-mono font-bold whitespace-nowrap">
-                        {line.size}
-                      </td>
-                      <td className="py-3 px-4 text-right font-medium text-[var(--text-muted)] whitespace-nowrap">
-                        {line.sold_qty} pcs
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-[var(--text-body)] whitespace-nowrap">
-                        {formatCurrency(line.unit_rate)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex justify-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max={line.sold_qty}
-                            value={line.return_qty}
-                            onChange={(e) => handleReturnQtyChange(idx, e.target.value)}
-                            placeholder="0"
-                            className="
-                              w-24 h-9
-                              bg-[var(--input-bg)]
-                              border border-[var(--input-border)]
-                              text-[var(--text-primary)]
-                              placeholder:text-[var(--text-faint)]
-                              focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
-                              rounded-md px-2.5 text-center font-mono font-bold text-sm
-                              transition-colors
-                            "
-                          />
+            <>
+              {/* ── MOBILE: Return Line Items Cards (md:hidden) ── */}
+              <div className="md:hidden space-y-3">
+                {lineItems.map((line, idx) => (
+                  <div
+                    key={line.key}
+                    className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-3 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-[var(--text-primary)] truncate">
+                          {line.design_name}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="inline-flex items-center gap-1.5 bg-[var(--card-bg)] px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-secondary)] border border-[var(--border)]">
+                            <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
+                            {line.colour_name}
+                          </span>
+                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)]">
+                            Size: {line.size}
+                          </span>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                        {formatCurrency(line.amount)}
-                      </td>
+                      </div>
+                      <span className="text-[11px] font-bold text-[var(--text-muted)] bg-[var(--card-bg)] px-2 py-0.5 rounded-md border border-[var(--border)] shrink-0">
+                        Sold: {line.sold_qty} pcs
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border-light)]">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Unit Rate</span>
+                        <p className="font-mono font-bold text-[var(--text-primary)] mt-0.5">
+                          {formatCurrency(line.unit_rate)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Credit Value</span>
+                        <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {formatCurrency(line.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-[var(--border-light)]">
+                      <label className="text-xs font-bold text-[var(--text-secondary)]">
+                        Return Qty (Max {line.sold_qty}):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={line.sold_qty}
+                        value={line.return_qty}
+                        onChange={(e) => handleReturnQtyChange(idx, e.target.value)}
+                        placeholder="0"
+                        className="
+                          w-24 h-9
+                          bg-[var(--input-bg)]
+                          border border-[var(--input-border)]
+                          text-[var(--text-primary)]
+                          placeholder:text-[var(--text-faint)]
+                          focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                          rounded-lg px-2.5 text-center font-mono font-bold text-sm
+                          transition-colors
+                        "
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── DESKTOP: Return Items Table (hidden md:block) ── */}
+              <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                      <th className="py-3 px-4 min-w-[220px]">Design / Product</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Colour</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Size</th>
+                      <th className="py-3 px-4 text-right whitespace-nowrap">Sold Qty</th>
+                      <th className="py-3 px-4 text-right whitespace-nowrap">Unit Rate</th>
+                      <th className="py-3 px-4 text-center min-w-[130px] whitespace-nowrap">Return Qty *</th>
+                      <th className="py-3 px-4 text-right whitespace-nowrap">Credit Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-light)]">
+                    {lineItems.map((line, idx) => (
+                      <tr key={line.key} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
+                          {line.design_name}
+                        </td>
+                        <td className="py-3 px-4 text-[var(--text-body)] whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 bg-[var(--page-bg)] px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-secondary)] border border-[var(--border)]">
+                            <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
+                            {line.colour_name}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-[var(--text-primary)] font-mono font-bold whitespace-nowrap">
+                          {line.size}
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium text-[var(--text-muted)] whitespace-nowrap">
+                          {line.sold_qty} pcs
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-semibold text-[var(--text-body)] whitespace-nowrap">
+                          {formatCurrency(line.unit_rate)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex justify-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max={line.sold_qty}
+                              value={line.return_qty}
+                              onChange={(e) => handleReturnQtyChange(idx, e.target.value)}
+                              placeholder="0"
+                              className="
+                                w-24 h-9
+                                bg-[var(--input-bg)]
+                                border border-[var(--input-border)]
+                                text-[var(--text-primary)]
+                                placeholder:text-[var(--text-faint)]
+                                focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
+                                rounded-md px-2.5 text-center font-mono font-bold text-sm
+                                transition-colors
+                              "
+                            />
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                          {formatCurrency(line.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -672,44 +744,36 @@ export default function RecordSalesReturnPage() {
           </div>
         </div>
 
-        {/* Floating Sticky Action Footer (Bounded inside main content area) */}
-        <div className="sticky bottom-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[0_10px_35px_rgba(0,0,0,0.3)] z-30 flex flex-wrap items-center justify-between px-6 transition-all mt-6">
-          <div className="flex items-center gap-6">
+        {/* Action Summary Footer (In-flow on mobile to prevent obscuring form fields, sticky on desktop) */}
+        <div className="relative md:sticky md:bottom-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-sm md:shadow-[0_10px_35px_rgba(0,0,0,0.2)] z-20 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 w-full md:w-auto">
             <div>
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Return Qty</span>
-              <span className="text-xl font-bold text-[var(--text-primary)]">{totalReturnedPieces} Pcs</span>
+              <span className="text-lg sm:text-xl font-bold text-[var(--text-primary)] font-mono">{totalReturnedPieces} Pcs</span>
             </div>
 
-            <div className="h-8 w-[1px] bg-[var(--border)]" />
-
             <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Taxable Amount</span>
-              <span className="text-sm font-semibold text-[var(--text-body)]">{formatCurrency(totalTaxableAmount)}</span>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Taxable</span>
+              <span className="text-sm font-semibold text-[var(--text-body)] font-mono">{formatCurrency(totalTaxableAmount)}</span>
             </div>
 
             {billType === "pakka" && (
-              <>
-                <div className="h-8 w-[1px] bg-[var(--border)]" />
-
-                <div>
-                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">CGST + SGST</span>
-                  <span className="text-sm font-semibold text-[var(--text-body)]">{formatCurrency(cgst + sgst)}</span>
-                </div>
-              </>
+              <div>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">CGST + SGST</span>
+                <span className="text-sm font-semibold text-[var(--text-body)] font-mono">{formatCurrency(cgst + sgst)}</span>
+              </div>
             )}
 
-            <div className="h-8 w-[1px] bg-[var(--border)]" />
-
             <div>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Credit Note Grand Total</span>
-              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(grandTotal)}</span>
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">Credit Total</span>
+              <span className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(grandTotal)}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-[var(--border-light)]">
             <Link
               href="/sales/returns"
-              className="px-4 h-10 border border-[var(--border)] rounded-lg text-sm font-semibold text-[var(--text-body)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center justify-center cursor-pointer"
+              className="flex-1 md:flex-none px-4 h-10 border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--text-body)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center justify-center cursor-pointer"
             >
               Cancel
             </Link>
@@ -717,7 +781,7 @@ export default function RecordSalesReturnPage() {
             <button
               type="submit"
               disabled={submitting || totalReturnedPieces <= 0}
-              className="px-6 h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm rounded-lg shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 md:flex-none px-6 h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>

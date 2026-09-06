@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useExperienceController } from "@/components/experience";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 export default function GeneralSettingsPage() {
   const queryClient = useQueryClient();
@@ -71,6 +72,13 @@ export default function GeneralSettingsPage() {
       }
     }
   }, [data]);
+
+  const isDirty = Boolean(
+    data?.business && (
+      businessName !== (data.business.name || "")
+    )
+  );
+  useUnsavedChangesGuard(isDirty);
 
   // Save mutation
   const saveMutation = useMutation({

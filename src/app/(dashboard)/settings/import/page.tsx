@@ -93,7 +93,7 @@ export default function BulkImportPage() {
         }
 
         const headers = data[0].map((h: any) => String(h || "").trim()).filter((h: string) => h !== "__proto__" && h !== "constructor" && h !== "prototype");
-        const rows = safeSheetToJson<any>(ws);
+        const rows = safeSheetToJson<any>(ws, undefined, XLSX);
 
         setRawHeaders(headers);
         setParsedRows(rows);

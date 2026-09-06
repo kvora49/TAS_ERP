@@ -294,17 +294,94 @@ export default function GstRatesPage() {
         skeletonRows={6}
         skeletonColumns={5}
       >
-        <DataTable
-          columns={columns}
-          data={filteredRates}
-          isLoading={false}
-          total={filteredRates.length}
-          page={1}
-          perPage={10}
-          onPageChange={() => {}}
-          onRowClick={(row) => router.push(`/master-data/gst-rates/${row.id}`)}
-          emptyMessage="No matching GST rate configurations found."
-        />
+        {/* Mobile View: High-End Card List */}
+        <div className="block md:hidden space-y-3 select-none">
+          {filteredRates.map((rate) => (
+            <div
+              key={rate.id}
+              onClick={() => router.push(`/master-data/gst-rates/${rate.id}`)}
+              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm active:scale-[0.99] transition-all cursor-pointer space-y-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-md border border-[var(--primary)]/20">
+                      HSN {rate.hsn_code}
+                    </span>
+                    <StatusBadge active={rate.is_active} />
+                  </div>
+                  {rate.description && (
+                    <p className="text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">
+                      {rate.description}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(rate)}
+                    className="w-8 h-8 rounded-lg border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
+                    title="Edit Rate"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(rate)}
+                    className="w-8 h-8 rounded-lg border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    title="Delete Rate"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
+                <div>
+                  {rate.auto_tier ? (
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="purple" className="text-[10px] px-1.5 py-0.5">
+                        Tiered
+                      </Badge>
+                      <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                        &le;₹{rate.tier_threshold}: <span className="text-emerald-500 font-bold">{rate.tier_low_gst}%</span> · &gt;₹{rate.tier_threshold}: <span className="text-indigo-500 font-bold">{rate.tier_high_gst}%</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="gray" className="text-[10px] px-1.5 py-0.5">
+                        Flat
+                      </Badge>
+                      <span className="text-sm font-black text-[var(--text-primary)]">
+                        {rate.gst_percent}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <span className="text-[11px] font-bold text-[var(--primary)] flex items-center gap-0.5">
+                  View Details &rarr;
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View: Full DataTable */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredRates}
+            isLoading={false}
+            total={filteredRates.length}
+            page={1}
+            perPage={10}
+            onPageChange={() => {}}
+            onRowClick={(row) => router.push(`/master-data/gst-rates/${row.id}`)}
+            emptyMessage="No matching GST rate configurations found."
+          />
+        </div>
       </PageState>
 
       {/* Add/Edit Shared Modal */}

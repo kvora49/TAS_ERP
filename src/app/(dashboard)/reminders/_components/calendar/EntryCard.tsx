@@ -72,7 +72,7 @@ export const STATUS_CONFIG = {
   pending: { label: "Pending", bgClass: "bg-slate-100 dark:bg-slate-800", textClass: "text-slate-600 dark:text-slate-400" },
   in_progress: { label: "In Progress", bgClass: "bg-blue-100 dark:bg-blue-900/30", textClass: "text-blue-600 dark:text-blue-400" },
   completed: { label: "Completed", bgClass: "bg-green-100 dark:bg-green-900/30", textClass: "text-green-600 dark:text-green-400" },
-  cancelled: { label: "Cancelled", bgClass: "bg-gray-100 dark:bg-gray-800", textClass: "text-gray-500" },
+  cancelled: { label: "Cancelled", bgClass: "bg-slate-100 dark:bg-slate-800", textClass: "text-slate-500 dark:text-slate-400" },
   overdue: { label: "Overdue", bgClass: "bg-red-100 dark:bg-red-900/30", textClass: "text-red-600 dark:text-red-400" },
 };
 

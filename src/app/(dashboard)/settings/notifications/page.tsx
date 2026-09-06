@@ -5,13 +5,9 @@ import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { InfoBanner } from "@/components/shared/InfoBanner";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import { useNotificationSettings, NotificationRule } from "@/hooks/useNotificationSettings";
 import {
   Bell,
   Settings2,
@@ -31,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePWAWebPush } from "@/hooks/usePWAWebPush";
+import { cn } from "@/lib/utils";
 
 interface Rule {
   id: string;
@@ -45,8 +42,7 @@ interface Rule {
 
 export default function NotificationsSettingsPage() {
   const { permission, requestNotificationPermission, sendTestLockScreenPush } = usePWAWebPush();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data, isLoading, error, refetch, updateSettings, isSaving } = useNotificationSettings();
 
   // General Notification Preferences states
   const [notifEmailSenderName, setNotifEmailSenderName] = useState("ABC Garments Pvt. Ltd.");
@@ -55,7 +51,7 @@ export default function NotificationsSettingsPage() {
   const [notifHoliday, setNotifHoliday] = useState(false);
 
   // Rules list
-  const [rules, setRules] = useState<Rule[]>([]);
+  const [rules, setRules] = useState<NotificationRule[]>([]);
 
   const [editingRuleIdx, setEditingRuleIdx] = useState<number | null>(null);
   const [roleSelectorOpen, setRoleSelectorOpen] = useState(false);
@@ -85,57 +81,26 @@ export default function NotificationsSettingsPage() {
     );
   };
 
-  const fetchNotificationSettings = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/settings/notifications");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load notification settings`);
-
-      if (data.settings) {
-        setNotifEmailSenderName(data.settings.notif_email_sender_name || "ABC Garments Pvt. Ltd.");
-        setNotifEmailReplyTo(data.settings.notif_email_reply_to || "noreply@abcgarments.com");
-        setNotifWeekend(data.settings.notif_weekend ?? true);
-        setNotifHoliday(data.settings.notif_holiday ?? false);
-      }
-
-      setRules(data.rules || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading notification preferences");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchNotificationSettings();
-  }, []);
+    if (data?.settings) {
+      setNotifEmailSenderName(data.settings.notif_email_sender_name || "ABC Garments Pvt. Ltd.");
+      setNotifEmailReplyTo(data.settings.notif_email_reply_to || "noreply@abcgarments.com");
+      setNotifWeekend(data.settings.notif_weekend ?? true);
+      setNotifHoliday(data.settings.notif_holiday ?? false);
+    }
+    if (data?.rules) {
+      setRules(data.rules);
+    }
+  }, [data]);
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings/notifications", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          notif_email_sender_name: notifEmailSenderName,
-          notif_email_reply_to: notifEmailReplyTo,
-          notif_weekend: notifWeekend,
-          notif_holiday: notifHoliday,
-          rules,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update notification settings");
-
-      toast.success("Notification preferences saved successfully");
-      fetchNotificationSettings();
-    } catch (err: any) {
-      toast.error(err.message || "Error saving notification settings");
-    } finally {
-      setSaving(false);
-    }
+    await updateSettings({
+      notif_email_sender_name: notifEmailSenderName,
+      notif_email_reply_to: notifEmailReplyTo,
+      notif_weekend: notifWeekend,
+      notif_holiday: notifHoliday,
+      rules,
+    });
   };
 
   const handleRuleToggle = (idx: number, checked: boolean) => {
@@ -236,27 +201,24 @@ export default function NotificationsSettingsPage() {
     return "bg-[#FEF3C7] text-[#D97706]"; // Accountant or manager
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <span className="text-sm font-semibold text-slate-500 animate-pulse">
-          Loading notifications configurations...
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6 text-left">
-      <SettingsPageHeader
-        section="Notifications"
-        title="Settings > Notifications"
-        subtitle="Configure and manage notification preferences"
-        actionLabel="Save Changes"
-        onAction={handleSave}
-        actionIcon={<Save className="size-4 text-white" />}
-        actionLoading={saving}
-      />
+    <PageState
+      isLoading={isLoading}
+      isError={!!error}
+      error={error?.message}
+      onRetry={refetch}
+      skeletonVariant="form"
+    >
+      <div className="flex flex-col gap-6 text-left">
+        <SettingsPageHeader
+          section="Notifications"
+          title="Settings > Notifications"
+          subtitle="Configure and manage notification preferences"
+          actionLabel="Save Changes"
+          onAction={handleSave}
+          actionIcon={<Save className="size-4 text-white" />}
+          actionLoading={isSaving}
+        />
 
       {/* CARD 1 — Notification Rules */}
       <SettingsCard
@@ -264,9 +226,141 @@ export default function NotificationsSettingsPage() {
         title="Notification Rules"
         subtitle="Manage notification rules, timing and recipients"
       >
-        <div className="overflow-x-auto border border-[#E5E7EB] rounded-lg mb-4">
-          <table className="w-full text-sm text-[#374151]">
-            <thead className="bg-[#F9FAFB] text-xs font-semibold text-[#64748B] uppercase tracking-wider h-11">
+        {/* Mobile Notification Rule Cards (< md) */}
+        <div className="md:hidden space-y-3.5 mb-4">
+          {rules.map((r, idx) => {
+            const info = getRuleDetails(r.type);
+            const IconComp = info.icon;
+            const hasDays = r.type !== "cheque_bounce" && r.type !== "lot_complete" && r.type !== "write_off_alert";
+
+            return (
+              <div
+                key={r.id || r.type}
+                className={cn(
+                  "p-4 rounded-xl border transition-all bg-[var(--card-bg)] space-y-3 shadow-2xs",
+                  r.is_enabled
+                    ? "border-[var(--border)]"
+                    : "border-[var(--border-light)] opacity-75"
+                )}
+              >
+                {/* Header: Icon + Title + Master Switch */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${info.iconBg}`}>
+                      <IconComp className={`size-4 ${info.iconColor}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-sm text-[var(--text-primary)] block truncate">
+                        {info.label}
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                        {r.is_enabled ? "Active Rule" : "Rule Disabled"}
+                      </span>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={r.is_enabled}
+                    onCheckedChange={(checked) => handleRuleToggle(idx, checked)}
+                    size="sm"
+                    className="data-[state=checked]:bg-[var(--primary)] shrink-0"
+                  />
+                </div>
+
+                {/* Description */}
+                <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                  {info.description}
+                </p>
+
+                {/* Timing (Days Before) if applicable */}
+                {hasDays && (
+                  <div className="flex items-center justify-between bg-[var(--page-bg)] px-3 py-2 rounded-lg border border-[var(--border-light)] text-xs">
+                    <span className="font-medium text-[var(--text-body)]">Trigger Timing</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        disabled={!r.is_enabled}
+                        value={r.days_before}
+                        onChange={(e) => handleRuleDaysChange(idx, Number(e.target.value))}
+                        className="w-12 h-7 text-center border border-[var(--input-border)] rounded-md text-xs font-bold bg-[var(--input-bg)] text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--input-focus)] disabled:opacity-50"
+                      />
+                      <span className="text-[11px] text-[var(--text-muted)]">days before</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Roles */}
+                <div
+                  className="bg-[var(--page-bg)] p-2.5 rounded-lg border border-[var(--border-light)] cursor-pointer hover:border-[var(--primary)] transition-colors"
+                  onClick={() => {
+                    setEditingRuleIdx(idx);
+                    setRoleSelectorOpen(true);
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Target Recipients
+                    </span>
+                    <span className="text-[10px] text-[var(--primary)] font-semibold">Change</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {r.target_roles.length === 0 ? (
+                      <span className="text-xs text-red-500 font-semibold">No Roles Set</span>
+                    ) : (
+                      r.target_roles.map((role) => (
+                        <span
+                          key={role}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${getRoleChipColor(role)}`}
+                        >
+                          {ROLE_LABELS[role] || role}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Notification Channels */}
+                <div className="pt-2 border-t border-[var(--border-light)] grid grid-cols-3 gap-2">
+                  <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border-light)] gap-1">
+                    <span className="text-[11px] font-semibold text-[var(--text-body)]">Email</span>
+                    <Switch
+                      disabled={!r.is_enabled}
+                      checked={r.enable_email}
+                      onCheckedChange={(checked) => handleRuleChannelToggle(idx, "enable_email", checked)}
+                      size="sm"
+                      className="data-[state=checked]:bg-[var(--primary)]"
+                    />
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border-light)] gap-1">
+                    <span className="text-[11px] font-semibold text-[var(--text-body)]">SMS</span>
+                    <Switch
+                      disabled={!r.is_enabled}
+                      checked={r.enable_sms}
+                      onCheckedChange={(checked) => handleRuleChannelToggle(idx, "enable_sms", checked)}
+                      size="sm"
+                      className="data-[state=checked]:bg-[var(--primary)]"
+                    />
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border-light)] gap-1">
+                    <span className="text-[11px] font-semibold text-[var(--text-body)]">In-App</span>
+                    <Switch
+                      disabled={!r.is_enabled}
+                      checked={r.enable_in_app}
+                      onCheckedChange={(checked) => handleRuleChannelToggle(idx, "enable_in_app", checked)}
+                      size="sm"
+                      className="data-[state=checked]:bg-[var(--primary)]"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop Table (hidden on mobile) */}
+        <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
+          <table className="w-full text-sm text-[var(--text-body)]">
+            <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
               <tr>
                 <th className="px-4 py-2 text-left w-[200px]">Notification</th>
                 <th className="px-4 py-2 text-left w-[220px]">Description</th>
@@ -279,15 +373,15 @@ export default function NotificationsSettingsPage() {
                 <th className="px-4 py-2 text-center w-[60px]">Enabled</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E7EB]">
+            <tbody className="divide-y divide-[var(--border)]">
               {rules.map((r, idx) => {
                 const info = getRuleDetails(r.type);
                 const IconComp = info.icon;
                 const hasDays = r.type !== "cheque_bounce" && r.type !== "lot_complete" && r.type !== "write_off_alert";
 
                 return (
-                  <tr key={r.id || r.type} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3.5 font-semibold text-[#0F172A]">
+                  <tr key={r.id || r.type} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                    <td className="px-4 py-3.5 font-semibold text-[var(--text-primary)]">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${info.iconBg}`}>
                           <IconComp className={`size-4 ${info.iconColor}`} />
@@ -321,7 +415,7 @@ export default function NotificationsSettingsPage() {
                     >
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {r.target_roles.length === 0 ? (
-                          <span className="text-xs text-[#DC2626] font-semibold">No Roles Set</span>
+                          <span className="text-xs text-red-500 font-semibold">No Roles Set</span>
                         ) : (
                           r.target_roles.map((role) => (
                             <span
@@ -344,7 +438,7 @@ export default function NotificationsSettingsPage() {
                           handleRuleChannelToggle(idx, "enable_email", checked)
                         }
                         size="sm"
-                        className="data-[state=checked]:bg-[#6366F1] data-[state=unchecked]:bg-[#D1D5DB]"
+                        className="data-[state=checked]:bg-[var(--primary)]"
                       />
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -355,7 +449,7 @@ export default function NotificationsSettingsPage() {
                           handleRuleChannelToggle(idx, "enable_sms", checked)
                         }
                         size="sm"
-                        className="data-[state=checked]:bg-[#6366F1] data-[state=unchecked]:bg-[#D1D5DB]"
+                        className="data-[state=checked]:bg-[var(--primary)]"
                       />
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -366,15 +460,15 @@ export default function NotificationsSettingsPage() {
                           handleRuleChannelToggle(idx, "enable_in_app", checked)
                         }
                         size="sm"
-                        className="data-[state=checked]:bg-[#6366F1] data-[state=unchecked]:bg-[#D1D5DB]"
+                        className="data-[state=checked]:bg-[var(--primary)]"
                       />
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <span
                         className={`text-[10px] font-semibold px-2 py-0.5 rounded select-none ${
                           r.is_enabled
-                            ? "bg-[#DCFCE7] text-[#15803D]"
-                            : "bg-[#FEE2E2] text-[#DC2626]"
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : "bg-red-500/10 text-red-500"
                         }`}
                       >
                         {r.is_enabled ? "Active" : "Inactive"}
@@ -385,7 +479,7 @@ export default function NotificationsSettingsPage() {
                         checked={r.is_enabled}
                         onCheckedChange={(checked) => handleRuleToggle(idx, checked)}
                         size="sm"
-                        className="data-[state=checked]:bg-[#6366F1] data-[state=unchecked]:bg-[#D1D5DB]"
+                        className="data-[state=checked]:bg-[var(--primary)]"
                       />
                     </td>
                   </tr>
@@ -521,46 +615,44 @@ export default function NotificationsSettingsPage() {
         </div>
       </SettingsCard>
 
-      {/* TARGET ROLES SELECTOR DIALOG */}
-      <Dialog open={roleSelectorOpen} onOpenChange={setRoleSelectorOpen}>
-        <DialogContent className="max-w-xs w-full bg-white rounded-2xl p-6 text-left shadow-xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0F172A]">
-              Target Roles: {editingRuleIdx !== null && getRuleDetails(rules[editingRuleIdx]?.type).label}
-            </DialogTitle>
-          </DialogHeader>
+      {/* TARGET ROLES SELECTOR MODAL */}
+      <Modal
+        open={roleSelectorOpen}
+        onOpenChange={setRoleSelectorOpen}
+        title={`Target Roles: ${editingRuleIdx !== null ? getRuleDetails(rules[editingRuleIdx]?.type).label : ""}`}
+        maxWidth="max-w-sm"
+      >
+        <div className="flex flex-col gap-2 mt-3">
+          {ALL_ROLES.map((role) => {
+            const isChecked = editingRuleIdx !== null && rules[editingRuleIdx]?.target_roles.includes(role);
+            return (
+              <label key={role} className="flex items-center gap-3 cursor-pointer select-none py-2 hover:bg-[var(--table-row-hover)] rounded-lg px-2.5 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={(e) => handleRoleCheckboxChange(role, e.target.checked)}
+                  className="rounded border-[var(--input-border)] text-[var(--primary)] focus:ring-[var(--input-focus)] h-4 w-4 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-[var(--text-body)]">
+                  {ROLE_LABELS[role]}
+                </span>
+              </label>
+            );
+          })}
+        </div>
 
-          <div className="flex flex-col gap-3 mt-4">
-            {ALL_ROLES.map((role) => {
-              const isChecked = editingRuleIdx !== null && rules[editingRuleIdx]?.target_roles.includes(role);
-              return (
-                <label key={role} className="flex items-center gap-3 cursor-pointer select-none py-1 hover:bg-slate-50 rounded-lg px-2">
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={(e) => handleRoleCheckboxChange(role, e.target.checked)}
-                    className="rounded border-[#D1D5DB] text-[#6366F1] focus:ring-[#6366F1] h-4 w-4 cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-[#374151]">
-                    {ROLE_LABELS[role]}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+        <div className="mt-5 pt-3 border-t border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => setRoleSelectorOpen(false)}
+            className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg text-sm font-semibold cursor-pointer shadow-[var(--shadow-sm)] transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
 
-          <DialogFooter className="mt-5">
-            <button
-              onClick={() => setRoleSelectorOpen(false)}
-              className="w-full h-10 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg text-sm font-semibold cursor-pointer shadow-sm"
-            >
-              Done
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* BOTTOM — About Notifications Banner (Variant 4 — purple about) */}
+      {/* BOTTOM — About Notifications Banner */}
       <InfoBanner
         variant="about"
         title="About Notifications"
@@ -568,5 +660,6 @@ export default function NotificationsSettingsPage() {
         className="mt-0"
       />
     </div>
+    </PageState>
   );
 }

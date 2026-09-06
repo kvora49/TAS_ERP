@@ -16,6 +16,7 @@ import { fmtINR, fmtDate, fmtNum, exportToExcel, exportMultiSheetExcel, getPrese
 import { cn } from "@/lib/utils";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+import ReportTabs from "@/components/reports/ReportTabs";
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
 
@@ -239,21 +240,13 @@ export default function PaymentCollectionsPage() {
       }
     >
       {/* ── Tab Bar ── */}
-      <div className="flex border-b border-[var(--border)] gap-0 -mt-2 overflow-x-auto print:hidden">
-        {TABS.map(t => (
-          <button key={t.id} type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap",
-              activeTab === t.id
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+      <div className="-mt-2 mb-4 print:hidden">
+        <ReportTabs
+          tabs={TABS}
+          activeTab={activeTab}
+          onChange={(id) => setActiveTab(id as PayTab)}
+          layoutIdPrefix="payments-main-tabs"
+        />
       </div>
 
       <PageState
@@ -271,7 +264,7 @@ export default function PaymentCollectionsPage() {
             {/* ── RECEIVABLES ─────────────────────────────────────────── */}
             {activeTab === "receivables" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Receivable" value={s.totalOutstanding ?? 0} color="rose" icon={<IndianRupee size={15} />} />
                   <ReportKPICard label="Overdue Receivable" value={s.overdueAmount ?? 0} color="rose" icon={<AlertCircle size={15} />} />
                   <ReportKPICard label="Received (Period)" value={s.totalReceived ?? 0} color="emerald" icon={<ArrowDownLeft size={15} />} />
@@ -424,7 +417,7 @@ export default function PaymentCollectionsPage() {
             {/* ── PAYABLES ─────────────────────────────────────────────── */}
             {activeTab === "payables" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Payable" value={s.totalOutstanding ?? 0} color="rose" icon={<IndianRupee size={15} />} />
                   <ReportKPICard label="Overdue Payable" value={s.overdueAmount ?? 0} color="rose" icon={<AlertCircle size={15} />} />
                   <ReportKPICard label="Paid (Period)" value={s.totalPaid ?? 0} color="emerald" icon={<ArrowUpRight size={15} />} />
@@ -567,7 +560,7 @@ export default function PaymentCollectionsPage() {
             {/* ── RECEIPTS ─────────────────────────────────────────────── */}
             {activeTab === "receipts" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Received" value={s.totalReceived ?? 0} color="emerald" icon={<ArrowDownLeft size={15} />} />
                   <ReportKPICard label="Customer Receipts" value={s.invoiceReceived ?? 0} color="blue" />
                   <ReportKPICard label="Advances Received" value={s.advanceReceived ?? 0} color="violet" />
@@ -645,7 +638,7 @@ export default function PaymentCollectionsPage() {
             {/* ── PAYMENTS ──────────────────────────────────────────────── */}
             {activeTab === "payments" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Paid" value={s.totalPaid ?? 0} color="rose" icon={<ArrowUpRight size={15} />} />
                   <ReportKPICard label="Supplier Payments" value={s.supplierPayments ?? 0} color="blue" />
                   <ReportKPICard label="Worker / Job Work" value={s.workerPayments ?? 0} color="violet" />
@@ -717,7 +710,7 @@ export default function PaymentCollectionsPage() {
             {/* ── ACCOUNTS ──────────────────────────────────────────────── */}
             {activeTab === "accounts" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Cash in Hand" value={(data.accounts ?? []).filter((a: any) => a.type === "cash").reduce((s: number, a: any) => s + a.current_balance, 0)} color="emerald" icon={<Banknote size={15} />} />
                   <ReportKPICard label="Total Bank Balance" value={(data.accounts ?? []).filter((a: any) => a.type === "bank").reduce((s: number, a: any) => s + a.current_balance, 0)} color="blue" icon={<Building2 size={15} />} />
                   <ReportKPICard label="Total UPI Balance" value={(data.accounts ?? []).filter((a: any) => a.type === "upi").reduce((s: number, a: any) => s + a.current_balance, 0)} color="violet" icon={<QrCode size={15} />} />
@@ -731,7 +724,7 @@ export default function PaymentCollectionsPage() {
                       <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ACCOUNT SUMMARY</h3>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -767,6 +760,37 @@ export default function PaymentCollectionsPage() {
                           </tfoot>
                         </table>
                       </div>
+                      {/* Mobile Cards for Account Summary */}
+                      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                        {(data.accounts ?? []).map((a: any) => (
+                          <div key={a.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-semibold text-[var(--text-primary)]">{a.name}</div>
+                                <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{a.type}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[9px] text-[var(--text-muted)] uppercase font-semibold">Closing Bal.</div>
+                                <div className="font-mono font-bold text-xs text-[var(--text-primary)]">{fmtINR(a.closing_balance)}</div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 pt-2 border-t border-[var(--border-light)] text-center bg-[var(--table-row-hover)] p-2 rounded-lg">
+                              <div>
+                                <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Opening</div>
+                                <div className="font-mono text-xs font-medium text-[var(--text-body)] mt-0.5">{fmtINR(a.opening_balance)}</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Received</div>
+                                <div className="font-mono text-xs font-medium text-emerald-500 mt-0.5">{fmtINR(a.received)}</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Paid</div>
+                                <div className="font-mono text-xs font-medium text-rose-500 mt-0.5">{fmtINR(a.paid)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     {(data.txRows ?? []).length > 0 && (
@@ -774,7 +798,7 @@ export default function PaymentCollectionsPage() {
                         <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                           <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ACCOUNT TRANSACTIONS</h3>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -805,6 +829,33 @@ export default function PaymentCollectionsPage() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                        {/* Mobile Cards for Account Transactions */}
+                        <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                          {(data.txRows ?? []).slice(0, 25).map((r: any, idx: number) => (
+                            <div key={idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-mono font-bold text-[var(--primary)] text-xs">{r.number}</span>
+                                  <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{r.party || "—"}</h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className={cn("font-mono font-bold text-xs", r.credit > 0 ? "text-emerald-500" : "text-rose-500")}>
+                                    {r.credit > 0 ? `+${fmtINR(r.credit)}` : r.debit > 0 ? `-${fmtINR(r.debit)}` : "—"}
+                                  </span>
+                                  <div className="mt-1">
+                                    <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border", r.type === "Receipt" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20")}>
+                                      {r.type}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
+                                <span>{fmtDate(r.date)}</span>
+                                <span className="capitalize">{MODE_LABEL[r.mode] ?? r.mode}</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -849,7 +900,7 @@ export default function PaymentCollectionsPage() {
             {/* ── CHEQUES ───────────────────────────────────────────────── */}
             {activeTab === "cheques" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
                   <ReportKPICard label="Cheques Received" value={s.totalReceived ?? 0} color="emerald" icon={<ArrowDownLeft size={14} />} />
                   <ReportKPICard label="Cheques Issued" value={s.totalIssued ?? 0} color="rose" icon={<ArrowUpRight size={14} />} />
                   <ReportKPICard label="PDC (Received)" value={s.pdcReceived ?? 0} color="blue" />
@@ -859,15 +910,13 @@ export default function PaymentCollectionsPage() {
                 </div>
 
                 {/* Sub tabs */}
-                <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl w-fit">
-                  {CHEQUE_SUB.map(t => (
-                    <button key={t.id} type="button"
-                      onClick={() => setChequeSubTab(t.id)}
-                      className={cn("px-4 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all",
-                        chequeSubTab === t.id ? "bg-[var(--primary)] text-white shadow-xs" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                      )}
-                    >{t.label}</button>
-                  ))}
+                <div className="w-full sm:w-auto">
+                  <ReportTabs
+                    tabs={CHEQUE_SUB}
+                    activeTab={chequeSubTab}
+                    onChange={setChequeSubTab}
+                    layoutIdPrefix="cheques-subtabs"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -941,7 +990,7 @@ export default function PaymentCollectionsPage() {
             {/* ── ADVANCES ──────────────────────────────────────────────── */}
             {activeTab === "advances" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Customer Advances" value={s.customerAdvances ?? 0} color="blue" icon={<ArrowDownLeft size={15} />} />
                   <ReportKPICard label="Supplier Advances" value={s.supplierAdvances ?? 0} color="rose" icon={<ArrowUpRight size={15} />} />
                   <ReportKPICard label="Total Advances" value={s.totalAdvances ?? 0} color="violet" icon={<Package size={15} />} />
@@ -950,15 +999,13 @@ export default function PaymentCollectionsPage() {
                 </div>
 
                 {/* Sub tabs */}
-                <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl w-fit">
-                  {ADV_SUB.map(t => (
-                    <button key={t.id} type="button"
-                      onClick={() => setAdvSubTab(t.id)}
-                      className={cn("px-4 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all",
-                        advSubTab === t.id ? "bg-[var(--primary)] text-white shadow-xs" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                      )}
-                    >{t.label}</button>
-                  ))}
+                <div className="w-full sm:w-auto">
+                  <ReportTabs
+                    tabs={ADV_SUB}
+                    activeTab={advSubTab}
+                    onChange={setAdvSubTab}
+                    layoutIdPrefix="advances-subtabs"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1005,7 +1052,7 @@ export default function PaymentCollectionsPage() {
             {/* ── TRANSFERS ─────────────────────────────────────────────── */}
             {activeTab === "transfers" && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
                   <ReportKPICard label="Total Transfers" value={s.totalTransfers ?? 0} color="blue" icon={<ArrowLeftRight size={15} />} />
                   <ReportKPICard label="Total Transactions" value={s.totalRows ?? 0} format="number" color="violet" />
                   <ReportKPICard label="Net Amount" value={s.totalTransfers ?? 0} color="indigo" />
@@ -1054,7 +1101,7 @@ export default function PaymentCollectionsPage() {
             {/* ── ALL TRANSACTIONS ──────────────────────────────────────── */}
             {activeTab === "all_transactions" && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
                   <ReportKPICard label="Total Transactions" value={s.totalTransactions ?? 0} format="number" color="indigo" icon={<Layers size={14} />} />
                   <ReportKPICard label="Total Receipts" value={s.totalReceipts ?? 0} color="emerald" icon={<ArrowDownLeft size={14} />} />
                   <ReportKPICard label="Total Payments" value={s.totalPayments ?? 0} color="rose" icon={<ArrowUpRight size={14} />} />
@@ -1070,7 +1117,7 @@ export default function PaymentCollectionsPage() {
                         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ALL TRANSACTIONS (MASTER REGISTER)</h3>
                         <span className="text-[10px] text-[var(--text-muted)]">Showing {Math.min(50, (data.rows ?? []).length)} of {(data.rows ?? []).length}</span>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1103,6 +1150,36 @@ export default function PaymentCollectionsPage() {
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                      {/* Mobile Cards for Master Transactions */}
+                      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                        {(data.rows ?? []).slice(0, 50).map((r: any, idx: number) => (
+                          <div key={idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-mono font-bold text-[var(--primary)] text-xs">{r.voucher_no}</span>
+                                <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{r.party || r.from_account || "—"}</h4>
+                              </div>
+                              <div className="text-right">
+                                <span className={cn("font-mono font-bold text-xs", r.credit > 0 ? "text-emerald-500" : "text-rose-500")}>
+                                  {r.credit > 0 ? `+${fmtINR(r.credit)}` : r.debit > 0 ? `-${fmtINR(r.debit)}` : fmtINR(r.amount)}
+                                </span>
+                                <div className="mt-1">
+                                  <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", r.credit > 0 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20")}>
+                                    {r.type}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
+                              <span>{fmtDate(r.date)}</span>
+                              <span className="capitalize">{MODE_LABEL[r.mode] ?? r.mode}</span>
+                              {r.from_account && r.to_account && (
+                                <span className="truncate max-w-[140px]">{r.from_account} → {r.to_account}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1167,21 +1244,23 @@ export default function PaymentCollectionsPage() {
 // ─── Shared Sub-Components ────────────────────────────────────────────────────
 
 function OutstandingTable({
-  rows, columns, renderRow, footer, title = "OUTSTANDING RECEIVABLES",
+  rows, columns, renderRow, footer, title = "OUTSTANDING RECEIVABLES", renderMobileCard
 }: {
   rows: any[];
   columns: string[];
   renderRow: (r: any) => React.ReactNode;
   footer?: React.ReactNode;
   title?: string;
+  renderMobileCard?: (r: any) => React.ReactNode;
 }) {
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+      <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">{title}</h3>
-        <span className="text-[10px] text-[var(--text-muted)]">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1199,30 +1278,85 @@ function OutstandingTable({
           {footer && <tfoot>{footer}</tfoot>}
         </table>
       </div>
+
+      {/* Mobile Cards List */}
+      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+        {rows.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found.</div>
+        ) : (
+          rows.slice(0, 30).map((r: any, idx: number) => {
+            if (renderMobileCard) return renderMobileCard(r);
+            return (
+              <div key={r.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono font-bold text-[var(--primary)] text-xs">{r.number}</span>
+                    <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{r.party}</h4>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_BADGE[r.status ?? "unpaid"])}>
+                      {r.status}
+                    </span>
+                    {(r.bill_type || r.type) && (
+                      <span className="text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                        {r.bill_type || r.type}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] p-2 rounded-lg text-center">
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Total</div>
+                    <div className="font-mono text-xs font-semibold text-[var(--text-body)] mt-0.5">{fmtINR(r.total)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Paid</div>
+                    <div className="font-mono text-xs font-semibold text-emerald-500 mt-0.5">{fmtINR(r.paid)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Due</div>
+                    <div className="font-mono text-xs font-bold text-rose-500 mt-0.5">{fmtINR(r.outstanding)}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] pt-0.5">
+                  <span>Due: {fmtDate(r.due_date)}</span>
+                  <span className={cn("font-bold", r.age_days > 90 ? "text-rose-500" : r.age_days > 60 ? "text-orange-500" : r.age_days > 30 ? "text-amber-500" : "text-emerald-500")}>
+                    Age: {r.age_days}d
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
 
 function TransactionTable({
-  rows, columns, renderRow, title,
+  rows, columns, renderRow, title, renderMobileCard
 }: {
   rows: any[];
   columns: string[];
   renderRow: (r: any) => React.ReactNode;
   title: string;
+  renderMobileCard?: (r: any) => React.ReactNode;
 }) {
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
+      <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">{title}</h3>
-        <span className="text-[10px] text-[var(--text-muted)]">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
               {columns.map(c => (
-                <th key={c} className={cn("py-2.5 px-4", c === "Amount" ? "text-right" : "")}>{c}</th>
+                <th key={c} className={cn("py-2.5 px-4", c === "Amount" || c.includes("(₹)") ? "text-right" : "")}>{c}</th>
               ))}
             </tr>
           </thead>
@@ -1241,6 +1375,50 @@ function TransactionTable({
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      {/* Mobile Card List */}
+      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+        {rows.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found.</div>
+        ) : (
+          rows.slice(0, 30).map((r: any, idx: number) => {
+            if (renderMobileCard) return renderMobileCard(r);
+            const partyOrAccount = r.party || r.payee || r.account || r.from_account || "—";
+            const num = r.number || r.advance_number || r.voucher_no || `#${idx + 1}`;
+            return (
+              <div key={r.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono font-bold text-[var(--primary)] text-xs">{num}</span>
+                    <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{partyOrAccount}</h4>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-xs text-[var(--text-primary)]">{fmtINR(r.amount ?? 0)}</span>
+                    {r.status && (
+                      <div className="mt-1">
+                        <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", STATUS_BADGE[r.status] ?? "bg-slate-500/10 text-slate-500 border-slate-500/20")}>
+                          {r.status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
+                  <span>{fmtDate(r.date)}</span>
+                  {r.mode && <span className="capitalize font-medium text-[var(--text-body)]">{MODE_LABEL[r.mode] ?? r.mode}</span>}
+                  {r.type && (
+                    <span className="px-1.5 py-0.5 bg-[var(--table-row-hover)] rounded border border-[var(--border)] font-medium">
+                      {r.type}
+                    </span>
+                  )}
+                  {r.account && !r.party && <span className="truncate max-w-[100px]">{r.account}</span>}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

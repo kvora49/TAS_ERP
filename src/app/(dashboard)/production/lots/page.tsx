@@ -27,6 +27,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import ProgressBar from "@/components/shared/ProgressBar";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
+import { SwipeableRow } from "@/components/shared/SwipeableRow";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -175,6 +178,14 @@ export default function ProductionLotsPage() {
   const lots = lotsResult?.data || [];
   const meta = lotsResult?.meta || { page: 1, limit: 10, total: 0 };
   const startIndex = (meta.page - 1) * meta.limit;
+
+  const hasMoreMobile = lots.length < (meta.total || 0);
+  const { sentinelRef } = useInfiniteScroll<HTMLDivElement>({
+    enabled: hasMoreMobile && !isLoading,
+    onIntersect: () => {
+      setPageSize((prev) => Math.min(prev + 10, 100));
+    },
+  });
   const stats = statsData?.stats || { total: 0, draft: 0, in_progress: 0, completed: 0, on_hold: 0, cancelled: 0 };
   const percentages = statsData?.percentages || { in_progress: "0", completed: "0", on_hold: "0", cancelled: "0" };
   const topDesigns = statsData?.topDesigns || [];
@@ -220,7 +231,8 @@ export default function ProductionLotsPage() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="space-y-6 select-none max-w-[1400px] mx-auto">
+    <PullToRefresh onRefresh={async () => { await lotsQuery.refetch(); }}>
+      <div className="space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Header and Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -649,113 +661,137 @@ export default function ProductionLotsPage() {
               const activeColours = lot.colours && lot.colours.length > 0 ? lot.colours : lot.colour ? [lot.colour] : [];
               const pct = Math.min(Math.round((lot.completed_quantity / (lot.total_quantity || 1)) * 100), 100);
               return (
-                <div key={lot.id}
-                  className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                  onClick={() => router.push(`/production/lots/${lot.id}`)}
+                <SwipeableRow
+                  key={lot.id}
+                  className="rounded-xl shadow-[var(--shadow-sm)] border border-[var(--border)] overflow-hidden"
+                  leftAction={{
+                    label: "Edit",
+                    icon: <Edit size={14} />,
+                    bgClass: "bg-amber-500 text-white",
+                    onAction: () => router.push(`/production/lots/${lot.id}/edit`),
+                  }}
+                  rightAction={{
+                    label: lot.status === "on_hold" ? "Resume" : "Hold",
+                    icon: lot.status === "on_hold" ? <Play size={14} /> : <PauseCircle size={14} />,
+                    bgClass: lot.status === "on_hold" ? "bg-emerald-600 text-white" : "bg-indigo-600 text-white",
+                    onAction: () => updateStatusMutation.mutate({ id: lot.id, status: lot.status === "on_hold" ? "in_progress" : "on_hold" }),
+                  }}
                 >
-                  {/* Header: Lot# + Status badge */}
-                  <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5">
-                    <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
-                      className="font-mono font-bold text-[var(--primary)] text-sm hover:underline"
-                    >{lot.lot_number}</Link>
-                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      lot.status === "in_progress" ? "bg-blue-500/10 text-blue-500" :
-                      lot.status === "completed" ? "bg-green-500/10 text-green-500" :
-                      lot.status === "on_hold" ? "bg-amber-500/10 text-amber-500" :
-                      lot.status === "cancelled" ? "bg-red-500/10 text-red-500" :
-                      "bg-[var(--page-bg)] text-[var(--text-muted)]"
-                    )}>{lot.status.replace("_", " ")}</span>
-                  </div>
-
-                  {/* Brand & Design */}
-                  <div className="px-3.5 pb-1.5">
-                    <p className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                      {lot.brand?.name || "—"} &bull; {lot.design?.code ? `${lot.design.code} – ${lot.design.name}` : "—"}
-                    </p>
-                  </div>
-
-                  {/* Colours + Sizes */}
-                  <div className="flex items-center flex-wrap gap-1.5 px-3.5 pb-1.5">
-                    {activeColours.map((c, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded-full border border-[var(--border)]">
-                        {c.hex_code && <span className="w-2 h-2 rounded-full border border-[var(--border)]" style={{ backgroundColor: c.hex_code }} />}
-                        {c.colour_name}
-                      </span>
-                    ))}
-                    {sizesStr && <span className="text-[11px] text-[var(--text-muted)] font-medium">{sizesStr}</span>}
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="px-3.5 pb-1.5">
-                    <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mb-1">
-                      <span>{lot.completed_quantity}/{lot.total_quantity} pcs</span>
-                      <span>{pct}%</span>
+                  <div
+                    className="bg-[var(--card-bg)] active:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                    onClick={() => router.push(`/production/lots/${lot.id}`)}
+                  >
+                    {/* Header: Lot# + Status badge */}
+                    <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5">
+                      <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
+                        className="font-mono font-bold text-[var(--primary)] text-sm hover:underline"
+                      >{lot.lot_number}</Link>
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                        lot.status === "in_progress" ? "bg-blue-500/10 text-blue-500" :
+                        lot.status === "completed" ? "bg-green-500/10 text-green-500" :
+                        lot.status === "on_hold" ? "bg-amber-500/10 text-amber-500" :
+                        lot.status === "cancelled" ? "bg-red-500/10 text-red-500" :
+                        "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                      )}>{lot.status.replace("_", " ")}</span>
                     </div>
-                    <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
-                    {(Number(lot.b_grade_quantity || 0) > 0 || Number(lot.scrapped_quantity || 0) > 0 || Number(lot.reworked_quantity || 0) > 0) && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
-                        {Number(lot.b_grade_quantity || 0) > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
-                            📦 {lot.b_grade_quantity} B-Grade
-                          </span>
-                        )}
-                        {Number(lot.scrapped_quantity || 0) > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
-                            🗑️ {lot.scrapped_quantity} Scrap
-                          </span>
-                        )}
-                        {Number(lot.reworked_quantity || 0) > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-                            ⚠️ {lot.reworked_quantity} Reworked
-                          </span>
-                        )}
+
+                    {/* Brand & Design */}
+                    <div className="px-3.5 pb-1.5">
+                      <p className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                        {lot.brand?.name || "—"} &bull; {lot.design?.code ? `${lot.design.code} – ${lot.design.name}` : "—"}
+                      </p>
+                    </div>
+
+                    {/* Colours + Sizes */}
+                    <div className="flex items-center flex-wrap gap-1.5 px-3.5 pb-1.5">
+                      {activeColours.map((c, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded-full border border-[var(--border)]">
+                          {c.hex_code && <span className="w-2 h-2 rounded-full border border-[var(--border)]" style={{ backgroundColor: c.hex_code }} />}
+                          {c.colour_name}
+                        </span>
+                      ))}
+                      {sizesStr && <span className="text-[11px] text-[var(--text-muted)] font-medium">{sizesStr}</span>}
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="px-3.5 pb-1.5">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mb-1">
+                        <span>{lot.completed_quantity}/{lot.total_quantity} pcs</span>
+                        <span>{pct}%</span>
                       </div>
-                    )}
-                  </div>
+                      <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
+                      {(Number(lot.b_grade_quantity || 0) > 0 || Number(lot.scrapped_quantity || 0) > 0 || Number(lot.reworked_quantity || 0) > 0) && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
+                          {Number(lot.b_grade_quantity || 0) > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
+                              📦 {lot.b_grade_quantity} B-Grade
+                            </span>
+                          )}
+                          {Number(lot.scrapped_quantity || 0) > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
+                              🗑️ {lot.scrapped_quantity} Scrap
+                            </span>
+                          )}
+                          {Number(lot.reworked_quantity || 0) > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                              ⚠️ {lot.reworked_quantity} Reworked
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Meta strip: payment status + dates */}
-                  <div className="flex items-center flex-wrap gap-2 px-3.5 pb-1.5 border-t border-[var(--border-light)] pt-1.5">
-                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      lot.lot_payment_status === "paid" ? "bg-emerald-500/10 text-emerald-500" :
-                      lot.lot_payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
-                      lot.lot_payment_status === "unpaid" ? "bg-rose-500/10 text-rose-500" :
-                      "bg-[var(--page-bg)] text-[var(--text-muted)]"
-                    )}>{lot.lot_payment_status || "none"}</span>
-                    {lot.target_due_date && (
-                      <span className="text-[10px] font-mono text-[var(--text-muted)]">Due: {formatDate(lot.target_due_date)}</span>
-                    )}
-                    {lot.status === "completed" ? (
-                      <span className="text-[10px] font-semibold text-emerald-500">🏁 {lot.days_taken_to_complete || lot.days_in_working_stage || 1}d</span>
-                    ) : lot.status === "in_progress" ? (
-                      <span className="text-[10px] font-semibold text-blue-500">⏱️ {lot.days_in_working_stage || 1}d in stage</span>
-                    ) : null}
-                  </div>
+                    {/* Meta strip: payment status + dates */}
+                    <div className="flex items-center flex-wrap gap-2 px-3.5 pb-1.5 border-t border-[var(--border-light)] pt-1.5">
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                        lot.lot_payment_status === "paid" ? "bg-emerald-500/10 text-emerald-500" :
+                        lot.lot_payment_status === "partial" ? "bg-amber-500/10 text-amber-500" :
+                        lot.lot_payment_status === "unpaid" ? "bg-rose-500/10 text-rose-500" :
+                        "bg-[var(--page-bg)] text-[var(--text-muted)]"
+                      )}>{lot.lot_payment_status || "none"}</span>
+                      {lot.target_due_date && (
+                        <span className="text-[10px] font-mono text-[var(--text-muted)]">Due: {formatDate(lot.target_due_date)}</span>
+                      )}
+                      {lot.status === "completed" ? (
+                        <span className="text-[10px] font-semibold text-emerald-500">🏁 {lot.days_taken_to_complete || lot.days_in_working_stage || 1}d</span>
+                      ) : lot.status === "in_progress" ? (
+                        <span className="text-[10px] font-semibold text-blue-500">⏱️ {lot.days_in_working_stage || 1}d in stage</span>
+                      ) : null}
+                    </div>
 
-                  {/* Action footer */}
-                  <div className="flex items-center gap-1.5 px-3.5 pb-2.5 border-t border-[var(--border-light)] pt-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
-                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] flex items-center justify-center cursor-pointer" title="View"
-                    ><Eye size={13} /></Link>
-                    <Link href={`/production/lots/${lot.id}/edit`} onClick={(e) => e.stopPropagation()}
-                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
-                    ><Edit size={13} /></Link>
-                    <Link href={`/production/stage-entries/new?lot_id=${lot.id}`} onClick={(e) => e.stopPropagation()}
-                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="Add Stage Entry"
-                    ><PlusCircle size={13} /></Link>
-                    {!lot.is_moved_to_stock && (
+                    {/* Action footer */}
+                    <div className="flex items-center gap-1.5 px-3.5 pb-2.5 border-t border-[var(--border-light)] pt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/production/lots/${lot.id}`} onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--primary)] flex items-center justify-center cursor-pointer" title="View"
+                      ><Eye size={13} /></Link>
+                      <Link href={`/production/lots/${lot.id}/edit`} onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title="Edit"
+                      ><Edit size={13} /></Link>
+                      <Link href={`/production/stage-entries/new?lot_id=${lot.id}`} onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-blue-500 flex items-center justify-center cursor-pointer" title="Add Stage Entry"
+                      ><PlusCircle size={13} /></Link>
+                      {!lot.is_moved_to_stock && (
+                        <button type="button"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/production/lots/${lot.id}`); }}
+                          className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="Move to Stock"
+                        ><Boxes size={13} /></button>
+                      )}
                       <button type="button"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/production/lots/${lot.id}`); }}
-                        className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-emerald-500 flex items-center justify-center cursor-pointer" title="Move to Stock"
-                      ><Boxes size={13} /></button>
-                    )}
-                    <button type="button"
-                      onClick={(e) => { e.stopPropagation(); updateStatusMutation.mutate({ id: lot.id, status: lot.status === "on_hold" ? "in_progress" : "on_hold" }); }}
-                      className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title={lot.status === "on_hold" ? "Resume" : "Hold"}
-                    >{lot.status === "on_hold" ? <Play size={13} /> : <PauseCircle size={13} />}</button>
+                        onClick={(e) => { e.stopPropagation(); updateStatusMutation.mutate({ id: lot.id, status: lot.status === "on_hold" ? "in_progress" : "on_hold" }); }}
+                        className="flex-1 h-8 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 flex items-center justify-center cursor-pointer" title={lot.status === "on_hold" ? "Resume" : "Hold"}
+                      >{lot.status === "on_hold" ? <Play size={13} /> : <PauseCircle size={13} />}</button>
+                    </div>
                   </div>
-                </div>
+                </SwipeableRow>
               );
             })}
+
+            {hasMoreMobile && (
+              <div ref={sentinelRef} className="py-3 flex justify-center items-center text-xs text-[var(--text-muted)] font-medium">
+                <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse mr-2" />
+                Loading more production lots...
+              </div>
+            )}
           </div>
 
           {/* ── DESKTOP: existing table ── */}
@@ -1202,5 +1238,6 @@ export default function ProductionLotsPage() {
           </div>
         </div>
     </div>
+    </PullToRefresh>
   );
 }

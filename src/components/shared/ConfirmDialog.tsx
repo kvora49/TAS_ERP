@@ -3,6 +3,7 @@
 import React from "react";
 import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -36,7 +37,10 @@ export function ConfirmDialog({
       <div className="flex flex-col sm:flex-row justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
         <button
           type="button"
-          onClick={() => onOpenChange(false)}
+          onClick={() => {
+            triggerHaptic("selection");
+            onOpenChange(false);
+          }}
           disabled={loading}
           className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-medium text-[var(--text-body)] transition-colors cursor-pointer disabled:opacity-50"
         >
@@ -46,6 +50,7 @@ export function ConfirmDialog({
         <AsyncButton
           variant="destructive"
           onClick={async () => {
+            triggerHaptic("impactHeavy");
             await onConfirm();
             onOpenChange(false);
           }}

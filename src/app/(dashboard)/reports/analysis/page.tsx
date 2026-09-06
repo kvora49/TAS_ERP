@@ -9,6 +9,7 @@ import {
   ArrowRight, ChevronRight, BarChart3, Activity,
 } from "lucide-react";
 import PageState from "@/components/shared/PageState";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
 import ReportKPICard from "@/components/reports/ReportKPICard";
 import {
@@ -138,7 +139,7 @@ export default function AnalysisPage() {
           </div>
 
           {/* Refresh + Last Updated */}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3 sm:ml-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-[var(--border-light)]">
             <span className="text-[10px] text-[var(--text-faint)]">
               Last updated: {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </span>
@@ -153,8 +154,9 @@ export default function AnalysisPage() {
         </div>
       }
     >
-      <PageState
-        isLoading={isLoading}
+      <PullToRefresh onRefresh={async () => { await refetch(); }}>
+        <PageState
+          isLoading={isLoading}
         isError={!!error}
         error={(error as any)?.message}
         onRetry={refetch}
@@ -163,12 +165,12 @@ export default function AnalysisPage() {
         isEmpty={false}
       >
         {data && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
 
             {/* ── Section: Executive Overview ──────────────────────────── */}
             <div>
-              <h2 className="text-sm font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Executive Overview</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <h2 className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-2.5 sm:mb-3">Executive Overview</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
                 <ExecKPICard
                   label="Net Sales"
                   value={data.sales?.netSales ?? 0}
@@ -217,7 +219,7 @@ export default function AnalysisPage() {
             </div>
 
             {/* ── Section: Mini Trend Strip ─────────────────────────────── */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
               {[
                 { label: "Sales", value: data.sales?.growth, suffix: "vs prev." },
                 { label: "Purchases", value: data.purchases?.growth, suffix: "vs prev." },
@@ -571,7 +573,8 @@ export default function AnalysisPage() {
 
           </div>
         )}
-      </PageState>
+        </PageState>
+      </PullToRefresh>
     </ReportShell>
   );
 }

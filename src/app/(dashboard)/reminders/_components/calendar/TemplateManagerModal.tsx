@@ -3,9 +3,19 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Edit2, FileText, CheckSquare, Bell, Calendar, Star, Sparkles } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { RichTextEditor } from "@/components/shared/RichTextEditor";
+
+const RichTextEditor = dynamic(
+  () => import("@/components/shared/RichTextEditor").then((m) => m.RichTextEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-32 border border-[var(--input-border)] bg-[var(--input-bg)] rounded-xl animate-pulse" />
+    ),
+  }
+);
 import { useCalendarTemplates, type CalendarTemplate } from "@/hooks/queries/useCalendarEntries";
 import { ENTRY_TYPE_CONFIG } from "./EntryCard";
 import { cn } from "@/lib/utils";

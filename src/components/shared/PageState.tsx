@@ -165,6 +165,7 @@ export default function PageState({
             <button
               type="button"
               onClick={onRetry}
+              aria-label="Retry loading data"
               className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg transition-colors cursor-pointer"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -177,7 +178,11 @@ export default function PageState({
   } else if (isEmpty) {
     stateKey = "empty";
     content = (
-      <div className="flex w-full items-center justify-center bg-[var(--card-bg)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow-sm)]">
+      <div
+        role="region"
+        aria-label={emptyTitle}
+        className="flex w-full items-center justify-center bg-[var(--card-bg)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow-sm)]"
+      >
         <EmptyState
           icon={<Inbox className="h-8 w-8 text-[var(--text-muted)]" />}
           title={emptyTitle}
@@ -193,7 +198,14 @@ export default function PageState({
   }
 
   if (isUltraFast) {
-    return <>{content}</>;
+    return (
+      <div
+        role={hasError ? "alert" : isLoading ? "status" : undefined}
+        aria-live={hasError ? "assertive" : isLoading ? "polite" : undefined}
+      >
+        {content}
+      </div>
+    );
   }
 
   return (
@@ -204,6 +216,8 @@ export default function PageState({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
+        role={hasError ? "alert" : isLoading ? "status" : undefined}
+        aria-live={hasError ? "assertive" : isLoading ? "polite" : undefined}
         className="w-full"
       >
         {content}

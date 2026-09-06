@@ -13,6 +13,7 @@ import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
 import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const returnItemSchema = z.object({
   purchase_item_id: z.string().optional(),
@@ -132,11 +133,13 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
     setValue,
     watch,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<ReturnFormValues>({
     resolver: zodResolver(returnSchema) as any,
     defaultValues: initialData ? { ...defaultValues, ...initialData } : defaultValues,
   });
+
+  useUnsavedChangesGuard(isDirty);
 
   const { fields, replace } = useFieldArray({
     control,
@@ -501,14 +504,14 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         <div className="flex items-center gap-3">
           <Link
             href="/purchases?tab=returns"
-            className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
+            className="px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] transition-colors"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg transition-all shadow-md shadow-[var(--primary)]/20 flex items-center gap-2 cursor-pointer"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEditMode ? "Save Changes" : "Submit Return"}
@@ -520,19 +523,19 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         {/* Main section: Info & Items table */}
         <div className="lg:col-span-2 space-y-6">
           {/* Form Header Info */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
               1. Return Header Information
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Purchase Invoice *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Purchase Invoice *</label>
                 {isEditMode ? (
                   // In edit mode: read-only display (invoice & items are already committed)
-                  <div className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-xs bg-slate-50 font-bold text-slate-700">
+                  <div className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-xs bg-[var(--table-row-hover)] font-bold text-[var(--text-secondary)]">
                     {purchases.find((p) => p.id === watch("purchase_id"))?.purchase_number || initialData?.purchase_id || "—"}
-                    <span className="text-[10px] text-slate-400 font-normal block mt-0.5">Cannot change original invoice in edit mode</span>
+                    <span className="text-[10px] text-[var(--text-faint)] font-normal block mt-0.5">Cannot change original invoice in edit mode</span>
                   </div>
                 ) : (
                   <div className="relative" ref={dropdownRef}>
@@ -658,20 +661,20 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Return Date *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Return Date *</label>
                 <input
                   type="date"
                   {...register("return_date")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 />
                 {errors.return_date && <p className="text-[10px] text-red-500 mt-1">{errors.return_date.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Return Type *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Return Type *</label>
                 <select
                   {...register("return_type")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="material_return">Material Return</option>
                   <option value="quality_issue">Quality Issue</option>
@@ -681,10 +684,10 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Return From Godown *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Return From Godown *</label>
                 <select
                   {...register("godown_id")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Select Godown</option>
                   {godowns.map((g) => (
@@ -697,29 +700,29 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Supplier Challan No.</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Supplier Challan No.</label>
                 <input
                   type="text"
                   placeholder="e.g. CH-987"
                   {...register("challan_no")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 />
               </div>
             </div>
           </div>
 
           {/* Return items grid */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-4 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-4 border-l-4 border-[var(--primary)] pl-2.5">
               2. Return Quantities
             </h2>
 
             {loadingInvoiceDetail ? (
               <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-[#6366F1]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[var(--primary)]" />
               </div>
             ) : fields.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs italic">
+              <div className="text-center py-8 text-[var(--text-muted)] text-xs italic">
                 Select a purchase invoice to load materials list.
               </div>
             ) : (
@@ -729,13 +732,13 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                   const isFabric = item?.item_type === "fabric" && (item?.rolls || []).length > 0;
 
                   return (
-                    <div key={field.id} className="p-4 bg-white rounded-xl border border-[#E2E8F0] space-y-4 shadow-sm">
-                      <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+                    <div key={field.id} className="p-4 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-3">
                         <div>
-                          <span className="text-xs font-bold text-[#6366F1] bg-[#EEF2FF] px-2.5 py-1 rounded-md">
+                          <span className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-1 rounded-md">
                             {item?.material_name}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-semibold ml-2">
+                          <span className="text-[10px] text-[var(--text-muted)] font-semibold ml-2">
                             Unit: {item?.unit} | Rate: ₹{Number(item?.rate).toFixed(2)} | Disc: {item?.discount_percent}%
                           </span>
                         </div>
@@ -798,9 +801,9 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                                           onChange={(e) =>
                                             handleRollMetersChange(index, rollIndex, Number(e.target.value || 0))
                                           }
-                                          className="w-24 px-2 py-1 border border-rose-300 rounded text-right text-xs font-bold bg-white focus:ring-1 focus:ring-rose-500"
+                                          className="w-24 px-2 py-1 border border-rose-300 dark:border-rose-800 rounded text-right text-xs font-bold bg-[var(--input-bg)] text-[var(--text-primary)] focus:ring-1 focus:ring-rose-500"
                                         />
-                                        <span className="text-[10px] text-slate-500 font-semibold">m</span>
+                                        <span className="text-[10px] text-[var(--text-muted)] font-semibold">m</span>
                                       </div>
                                     </div>
                                   )}
@@ -853,7 +856,7 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                           return (
                             <div className="flex items-center gap-4">
                               <div className="w-1/3">
-                                <label className="block text-xs font-semibold text-[#64748B] mb-1.5 uppercase tracking-wider">Returned Qty</label>
+                                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Returned Qty</label>
                                 <NumericInput
                                   step="0.01"
                                   placeholder="0"
@@ -861,17 +864,46 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                                   onChange={(e) => {
                                     handleQtyChange(index, e.target.value);
                                   }}
-                                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-[#6366F1]"
+                                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                                 />
                               </div>
                             </div>
                           );
-                        })()}
-
-                      {/* Display taxable value for return */}
-                      <div className="flex justify-end pt-2 border-t border-[#F1F5F9] text-xs font-semibold text-slate-700">
-                        <span>Return Value: ₹{Number(item?.taxable_value || 0).toFixed(2)}</span>
-                      </div>
+                        return (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[var(--table-row-hover)] p-3 rounded-xl border border-[var(--border)]">
+                              <div>
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Invoice Total Qty:</span>
+                                <span className="text-xs font-bold text-[var(--text-primary)]">{item.invoice_qty} {item.unit}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Available Stock:</span>
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{item.available_stock ?? "—"} {item.unit}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Return Quantity:</span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    max={item.invoice_qty}
+                                    {...register(`items.${index}.return_qty` as any, { valueAsNumber: true })}
+                                    className="w-20 px-2 py-1 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded text-xs font-bold focus:ring-1 focus:ring-[var(--input-focus)]"
+                                  />
+                                  <span className="text-[10px] text-[var(--text-muted)] font-semibold">{item.unit}</span>
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Return Taxable (₹):</span>
+                                <span className="text-xs font-black text-[var(--text-primary)] block mt-1">
+                                  ₹{((Number(watch(`items.${index}.return_qty` as any)) || 0) * (item.rate || 0) * (1 - (item.discount_percent || 0) / 100)).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -880,12 +912,12 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
           </div>
 
           {/* Reasons / Remarks */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reason for Return *</label>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Reason for Return *</label>
               <select
                 {...register("reason")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-semibold text-[#0F172A]"
+                className="w-full px-3 py-2 border border-[var(--input-border)] rounded-lg text-sm bg-[var(--input-bg)] font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               >
                 <option value="">Select Reason</option>
                 <option value="Damaged Material">Damaged/Defective Material</option>
@@ -898,12 +930,12 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
               {errors.reason && <p className="text-[10px] text-red-500 mt-1">{errors.reason.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">General Remarks</label>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">General Remarks</label>
               <textarea
                 rows={3}
                 placeholder="Enter return notes..."
                 {...register("remarks")}
-                className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs font-medium"
+                className="w-full p-2.5 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
               ></textarea>
             </div>
           </div>
@@ -912,8 +944,8 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
         {/* Right Section: Return Summary, Debit Note, Attachments */}
         <div className="space-y-6">
           {/* Summary Box */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
               3. Summary Details
             </h2>
 
@@ -952,25 +984,25 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
                 </span>
               </div>
 
-              <div className="border-t border-[#E2E8F0] my-2" />
+              <div className="border-t border-[var(--border)] my-2" />
 
               {/* Debit Note toggle */}
-              <label className="flex items-start gap-2.5 p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg cursor-pointer select-none">
+              <label className="flex items-start gap-2.5 p-3 bg-[var(--primary-light)]/50 border border-[var(--primary)]/20 rounded-lg cursor-pointer select-none">
                 <input
                   type="checkbox"
                   {...register("generate_debit_note")}
-                  className="rounded border-[#CBD5E1] text-[#6366F1] h-4 w-4 mt-0.5"
+                  className="rounded border-[var(--input-border)] text-[var(--primary)] h-4 w-4 mt-0.5"
                 />
                 <div>
-                  <span className="block text-xs font-bold text-[#4F46E5]">Generate Debit Note</span>
-                  <span className="block text-[10px] text-slate-500 mt-0.5">
+                  <span className="block text-xs font-bold text-[var(--primary)]">Generate Debit Note</span>
+                  <span className="block text-[10px] text-[var(--text-muted)] mt-0.5">
                     Create a ledger debit adjustment to supplier profile immediately.
                   </span>
                 </div>
               </label>
 
               {watchDebitNote && (
-                <div className="bg-slate-50 p-2.5 rounded border border-[#E2E8F0] text-[10px] text-slate-500 font-semibold flex items-center gap-1.5">
+                <div className="bg-[var(--table-row-hover)] p-2.5 rounded border border-[var(--border)] text-[10px] text-[var(--text-muted)] font-semibold flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                   Debit Note ID: Auto-allocated on submission.
                 </div>
@@ -979,8 +1011,8 @@ export function ReturnForm({ initialData, id }: ReturnFormProps = {}) {
           </div>
 
           {/* Attachments */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-3 border-l-4 border-[var(--primary)] pl-2.5">
               4. Return Documents
             </h2>
             <AttachmentDropzone

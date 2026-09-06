@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
 import { AlertTriangle, ArrowRightLeft, Trash2, CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -116,45 +110,35 @@ export function DeleteBankAccountDialog({
   if (!account) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-6 text-left">
-        <DialogHeader className="text-left space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center shrink-0">
-              <CreditCard size={20} />
-            </div>
-            <div>
-              <DialogTitle className="text-lg font-bold text-[#0F172A]">
-                Delete {account.type === "upi" ? "UPI Account" : "Bank Account"}
-              </DialogTitle>
-              <p className="text-xs font-medium text-[#64748B]">
-                {account.name} {account.bank_name ? `(${account.bank_name})` : ""}
-              </p>
-            </div>
-          </div>
-        </DialogHeader>
-
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Delete ${account.type === "upi" ? "UPI Account" : "Bank Account"}`}
+      description={`${account.name} ${account.bank_name ? `(${account.bank_name})` : ""}`}
+      maxWidth="max-w-md"
+    >
+      <div className="space-y-4 pt-1">
         {checking ? (
           <div className="py-8 flex flex-col items-center justify-center gap-2">
-            <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
-            <p className="text-xs text-[#64748B]">Checking transaction references...</p>
+            <Loader2 className="w-6 h-6 text-[var(--primary)] animate-spin" />
+            <p className="text-xs text-[var(--text-muted)]">Checking transaction references...</p>
           </div>
         ) : (
-          <div className="space-y-4 py-2">
+          <div className="space-y-4">
             {refInfo?.hasReferences ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 text-left">
-                <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-2 text-left">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs">
                   <AlertTriangle size={16} className="shrink-0" />
                   <span>Linked Transactions Detected ({refInfo.totalTransactions} transactions)</span>
                 </div>
-                <p className="text-xs text-amber-700 leading-relaxed">
+                <p className="text-xs text-[var(--text-body)] leading-relaxed">
                   This account has <strong>{refInfo.purchaseCount} supplier payments</strong> and{" "}
                   <strong>{refInfo.jobWorkCount} worker payments</strong> linked. Please choose how to handle references.
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-[#64748B] leading-relaxed">
-                Are you sure you want to delete <strong>{account.name}</strong>? This account contains no transaction history and will be safely soft-deleted.
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                Are you sure you want to delete <strong className="text-[var(--text-primary)]">{account.name}</strong>? This account contains no transaction history and will be safely soft-deleted.
               </p>
             )}
 
@@ -163,14 +147,14 @@ export function DeleteBankAccountDialog({
                 <button
                   type="button"
                   onClick={() => setMode("transfer")}
-                  className="p-3.5 border-2 border-indigo-100 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50 rounded-xl flex items-start gap-3 transition-all text-left group cursor-pointer"
+                  className="p-3.5 border-2 border-[var(--primary)]/20 hover:border-[var(--primary)] bg-[var(--primary-light)]/40 hover:bg-[var(--primary-light)] rounded-xl flex items-start gap-3 transition-all text-left group cursor-pointer"
                 >
-                  <ArrowRightLeft className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+                  <ArrowRightLeft className="w-5 h-5 text-[var(--primary)] mt-0.5 shrink-0" />
                   <div>
-                    <h4 className="text-xs font-bold text-[#0F172A] group-hover:text-indigo-600 transition-colors">
+                    <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">
                       Option 1: Transfer Payment Links to Another Bank Account (Recommended)
                     </h4>
-                    <p className="text-[11px] text-[#64748B] mt-0.5">
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                       Re-assigns all historical payment vouchers and billing defaults to a selected active account.
                     </p>
                   </div>
@@ -179,14 +163,14 @@ export function DeleteBankAccountDialog({
                 <button
                   type="button"
                   onClick={() => setMode("force")}
-                  className="p-3.5 border border-red-100 hover:border-red-400 bg-red-50/30 hover:bg-red-50 rounded-xl flex items-start gap-3 transition-all text-left group cursor-pointer"
+                  className="p-3.5 border border-rose-500/20 hover:border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/15 rounded-xl flex items-start gap-3 transition-all text-left group cursor-pointer"
                 >
-                  <Trash2 className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+                  <Trash2 className="w-5 h-5 text-rose-500 mt-0.5 shrink-0" />
                   <div>
-                    <h4 className="text-xs font-bold text-red-900">
+                    <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400">
                       Option 2: Force Delete (Soft-Delete Account)
                     </h4>
-                    <p className="text-[11px] text-red-700/80 mt-0.5">
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                       Soft-deletes the bank account while keeping all past payments, supplier invoices, and audit logs 100% intact.
                     </p>
                   </div>
@@ -195,14 +179,14 @@ export function DeleteBankAccountDialog({
             )}
 
             {refInfo?.hasReferences && mode === "transfer" && (
-              <div className="space-y-3 pt-2 bg-indigo-50/50 p-4 border border-indigo-100 rounded-xl">
-                <label className="text-xs font-bold text-[#374151] block">
-                  Select Target Bank Account <span className="text-red-500">*</span>
+              <div className="space-y-3 pt-2 bg-[var(--page-bg)] p-4 border border-[var(--border)] rounded-xl">
+                <label className="text-xs font-bold text-[var(--text-primary)] block">
+                  Select Target Bank Account <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={targetAccountId}
                   onChange={(e) => setTargetAccountId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full h-10 px-3 rounded-lg border border-[var(--input-border)] text-xs bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
                 >
                   <option value="">Select Target Account...</option>
                   {otherAccounts.map((a) => (
@@ -214,7 +198,7 @@ export function DeleteBankAccountDialog({
                 <button
                   type="button"
                   onClick={() => setMode("choose")}
-                  className="text-xs text-indigo-600 font-bold hover:underline"
+                  className="text-xs text-[var(--primary)] font-bold hover:underline cursor-pointer"
                 >
                   &larr; Back to choices
                 </button>
@@ -222,14 +206,14 @@ export function DeleteBankAccountDialog({
             )}
 
             {refInfo?.hasReferences && mode === "force" && (
-              <div className="bg-red-50/60 border border-red-200 p-4 rounded-xl space-y-2">
-                <p className="text-xs text-red-800 font-medium leading-relaxed">
+              <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl space-y-2">
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium leading-relaxed">
                   <strong>Note:</strong> Soft-deleting will remove this account from payment selection dropdowns while keeping past ledger and accounting entries accurate.
                 </p>
                 <button
                   type="button"
                   onClick={() => setMode("choose")}
-                  className="text-xs text-indigo-600 font-bold hover:underline"
+                  className="text-xs text-[var(--primary)] font-bold hover:underline cursor-pointer"
                 >
                   &larr; Back to choices
                 </button>
@@ -238,12 +222,12 @@ export function DeleteBankAccountDialog({
           </div>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-0 mt-4">
+        <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-4 border-t border-[var(--border)]">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="h-9 px-4 rounded-lg border border-slate-200 text-xs font-semibold text-[#64748B] hover:bg-slate-50 transition-all cursor-pointer"
+            className="w-full sm:w-auto h-10 px-4 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -253,10 +237,10 @@ export function DeleteBankAccountDialog({
               type="button"
               onClick={() => handleDelete("force")}
               disabled={loading || checking}
-              className="h-9 px-4 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-all cursor-pointer flex items-center gap-2"
+              className="w-full sm:w-auto h-10 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {refInfo?.hasReferences ? "Confirm Force Delete" : "Delete Account"}
+              <span>{refInfo?.hasReferences ? "Confirm Force Delete" : "Delete Account"}</span>
             </button>
           )}
 
@@ -265,14 +249,14 @@ export function DeleteBankAccountDialog({
               type="button"
               onClick={() => handleDelete("transfer")}
               disabled={loading || !targetAccountId}
-              className="h-9 px-4 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              className="w-full sm:w-auto h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Transfer & Delete Account
+              <span>Transfer & Delete Account</span>
             </button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

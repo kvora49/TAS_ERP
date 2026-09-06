@@ -6,6 +6,7 @@ import {
   startOfWeek, endOfWeek, addDays, subDays,
 } from "date-fns";
 import { toast } from "sonner";
+import { Calendar, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CalendarViewHeader,
@@ -34,6 +35,7 @@ export function CalendarPlannerTab() {
   const [currentDate, setCurrentDate] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
   const [view, setView] = useState<CalendarView>("week");
+  const [mobileSection, setMobileSection] = useState<"calendar" | "activities">("activities");
   const [formOpen, setFormOpen] = useState(false);
   const [formType, setFormType] = useState<CalendarEntry["entry_type"]>("note");
   const [editingEntry, setEditingEntry] = useState<CalendarEntry | null>(null);
@@ -75,6 +77,8 @@ export function CalendarPlannerTab() {
     // For week/year views, also update currentDate to keep calendar synced
     if (view === "week" || view === "year") setCurrentDate(date);
     if (view === "day") setCurrentDate(date);
+    // On mobile, auto-switch to activities for instant visibility
+    setMobileSection("activities");
   }, [view]);
 
   const handleSelectMonth = useCallback((date: Date) => {
@@ -115,8 +119,43 @@ export function CalendarPlannerTab() {
 
   return (
     <div className="flex flex-col lg:flex-row h-auto lg:h-full min-h-[calc(100vh-180px)] bg-[var(--page-bg)] rounded-2xl overflow-hidden border border-[var(--border)] shadow-[var(--shadow-md)]">
+      {/* ── Mobile Segmented Control (Calendar vs Activities) ──────────────── */}
+      <div className="lg:hidden p-2.5 bg-[var(--card-bg)] border-b border-[var(--border)] flex items-center justify-center">
+        <div className="grid grid-cols-2 p-1 bg-[var(--page-bg)] rounded-xl w-full max-w-sm gap-1 border border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => setMobileSection("calendar")}
+            className={cn(
+              "py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer",
+              mobileSection === "calendar"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            )}
+          >
+            <Calendar size={14} />
+            <span>Calendar</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileSection("activities")}
+            className={cn(
+              "py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer",
+              mobileSection === "activities"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm border border-[var(--border)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            )}
+          >
+            <CheckSquare size={14} />
+            <span>Activities ({entries.length})</span>
+          </button>
+        </div>
+      </div>
+
       {/* ── Left Panel — Calendar ──────────────────────────────────────────── */}
-      <div className="w-full lg:w-[320px] shrink-0 flex flex-col bg-[var(--card-bg)] border-b lg:border-b-0 lg:border-r border-[var(--border)]">
+      <div className={cn(
+        "w-full lg:w-[320px] shrink-0 flex flex-col bg-[var(--card-bg)] border-b lg:border-b-0 lg:border-r border-[var(--border)]",
+        mobileSection === "calendar" ? "flex" : "hidden lg:flex"
+      )}>
         {/* Calendar header */}
         <div className="px-4 pt-4 pb-3 space-y-3">
           <CalendarViewHeader
@@ -185,7 +224,10 @@ export function CalendarPlannerTab() {
       </div>
 
       {/* ── Right Panel — Daily Activity ───────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={cn(
+        "flex-1 flex flex-col min-w-0",
+        mobileSection === "activities" ? "flex" : "hidden lg:flex"
+      )}>
         <DailyActivityPanel
           selectedDate={selectedDate}
           entries={entries}

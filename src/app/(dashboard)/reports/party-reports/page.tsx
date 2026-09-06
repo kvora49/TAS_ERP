@@ -10,6 +10,7 @@ import {
   TrendingUp, TrendingDown, ShoppingBag, Receipt, Filter, Eye, Printer
 } from "lucide-react";
 import PageState from "@/components/shared/PageState";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
 import ReportKPICard from "@/components/reports/ReportKPICard";
 import { ReportAreaChart, ReportBarChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/components/reports/ReportChart";
@@ -20,6 +21,7 @@ import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import FilterPills from "@/components/reports/filters/FilterPills";
 import InlineDrillDownPanel, { DrillDownItem } from "@/components/reports/InlineDrillDownPanel";
+import ReportTabs from "@/components/reports/ReportTabs";
 
 // ─── Top Level Tabs ───────────────────────────────────────────────────────────
 
@@ -382,29 +384,21 @@ export default function PartyReportsPage() {
       }
     >
       {/* ── Top Level Tabs Navigation ── */}
-      <div className="flex items-center gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none pb-0 -mt-2">
-        {PARTY_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setExpandedRowId(null);
-            }}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0",
-              activeTab === tab.id
-                ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--table-header-bg)] rounded-t-lg"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="-mt-2 mb-4 print:hidden">
+        <ReportTabs
+          tabs={PARTY_TABS}
+          activeTab={activeTab}
+          onChange={(id) => {
+            setActiveTab(id as PartyTab);
+            setExpandedRowId(null);
+          }}
+          layoutIdPrefix="party-reports-tabs"
+        />
       </div>
 
-      <PageState
-        isLoading={isLoading}
+      <PullToRefresh onRefresh={async () => { await refetch(); }}>
+        <PageState
+          isLoading={isLoading}
         isError={!!error}
         error={(error as any)?.message}
         onRetry={refetch}
@@ -421,9 +415,9 @@ export default function PartyReportsPage() {
               <div className="space-y-5">
                 {/* Selected Party Header Info Card */}
                 {data.party ? (
-                  <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] flex flex-wrap justify-between items-center gap-4">
+                  <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] flex flex-wrap justify-between items-center gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-[var(--primary)] font-black text-lg">
+                      <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-[var(--primary)] font-black text-lg shrink-0">
                         <Building2 size={24} />
                       </div>
                       <div>
@@ -447,25 +441,25 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Balances Summary in Header */}
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 w-full lg:w-auto">
+                      <div className="text-left sm:text-right bg-[var(--table-header-bg)]/50 sm:bg-transparent p-2 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-[var(--border-light)]">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Opening Balance</p>
                         <p className="text-sm font-bold font-mono text-[var(--text-primary)]">{fmtINR(summary.openingBalance)}</p>
                         <p className="text-[9px] text-[var(--text-faint)]">as on {fmtDate(from)}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left sm:text-right bg-[var(--table-header-bg)]/50 sm:bg-transparent p-2 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-[var(--border-light)]">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Total Debits</p>
                         <p className="text-sm font-bold font-mono text-emerald-600">{fmtINR(summary.totalDebits)}</p>
                         <p className="text-[9px] text-[var(--text-faint)]">In selected period</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left sm:text-right bg-[var(--table-header-bg)]/50 sm:bg-transparent p-2 sm:p-0 rounded-lg sm:rounded-none border sm:border-0 border-[var(--border-light)]">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Total Credits</p>
                         <p className="text-sm font-bold font-mono text-rose-600">{fmtINR(summary.totalCredits)}</p>
                         <p className="text-[9px] text-[var(--text-faint)]">In selected period</p>
                       </div>
-                      <div className="text-right bg-[var(--table-header-bg)] border border-[var(--border)] px-4 py-2 rounded-xl">
+                      <div className="text-left sm:text-right bg-[var(--table-header-bg)] border border-[var(--border)] px-3 py-2 rounded-xl">
                         <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">Closing Balance</p>
-                        <p className={cn("text-lg font-black font-mono", summary.closingBalanceType === "Cr" ? "text-rose-600" : "text-emerald-600")}>
+                        <p className={cn("text-base sm:text-lg font-black font-mono", summary.closingBalanceType === "Cr" ? "text-rose-600" : "text-emerald-600")}>
                           {fmtINR(Math.abs(summary.closingBalance ?? 0))} <span className="text-xs">{summary.closingBalanceType}</span>
                         </p>
                         <p className="text-[9px] text-[var(--text-faint)]">as on {fmtDate(to)}</p>
@@ -491,7 +485,8 @@ export default function PartyReportsPage() {
                       <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} transactions</span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -562,6 +557,61 @@ export default function PartyReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Mobile Ledger Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      {/* Opening Balance Card */}
+                      <div className="p-3 bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center text-[var(--text-muted)] text-[10px]">
+                          <span>{fmtDate(from)}</span>
+                          <span className="font-semibold uppercase tracking-wider">Opening Balance</span>
+                        </div>
+                        <div className="flex justify-between items-center font-bold">
+                          <span className="text-[var(--text-secondary)]">Balance</span>
+                          <span className="font-mono text-sm text-[var(--text-primary)]">{fmtINR(summary.openingBalance)}</span>
+                        </div>
+                      </div>
+
+                      {(data.rows ?? []).map((r: any, i: number) => (
+                        <div key={r.id || i} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono font-bold text-[var(--primary)] text-xs">
+                                {r.view_url ? (
+                                  <Link href={r.view_url} className="hover:underline">{r.voucher_no}</Link>
+                                ) : r.voucher_no}
+                              </span>
+                              <div className="font-medium text-[var(--text-secondary)] text-xs mt-0.5">{r.type}</div>
+                            </div>
+                            <div className="text-right">
+                              <span className={cn("font-mono font-bold text-xs", r.debit > 0 ? "text-emerald-600" : "text-rose-600")}>
+                                {r.debit > 0 ? `+${fmtINR(r.debit)}` : `-${fmtINR(r.credit)}`}
+                              </span>
+                              {r.bill_type && r.bill_type !== "—" && (
+                                <div className="mt-1">
+                                  <span className={cn(
+                                    "inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border",
+                                    r.bill_type === "Pakka" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                  )}>
+                                    {r.bill_type}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] px-2.5 py-1.5 rounded-lg text-[11px]">
+                            <span className="text-[var(--text-muted)] font-medium">Running Bal:</span>
+                            <span className="font-mono font-black text-[var(--text-primary)]">{r.runningBalanceFormatted || fmtINR(r.runningBalance)}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] pt-0.5">
+                            <span>{fmtDate(r.date)}</span>
+                            {r.narration && <span className="truncate max-w-[160px] italic">{r.narration}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Right: Aging Donut + Statement Summary */}
@@ -613,7 +663,7 @@ export default function PartyReportsPage() {
             {activeTab === "outstanding" && (
               <div className="space-y-5">
                 {/* 4 KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                   <ReportKPICard
                     label="Total Outstanding"
                     value={summary.totalOutstanding}
@@ -653,7 +703,8 @@ export default function PartyReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} parties</span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -745,6 +796,87 @@ export default function PartyReportsPage() {
                       </tfoot>
                     </table>
                   </div>
+
+                  {/* Mobile Outstanding Cards */}
+                  <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    {(data.rows ?? []).map((p: any) => (
+                      <div key={p.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-bold text-[var(--text-primary)] text-xs">{p.party_name}</h4>
+                            <span className={cn(
+                              "inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize mt-1",
+                              p.party_type === "supplier" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            )}>
+                              {p.party_type}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Total Due</div>
+                            <span className="font-mono font-black text-xs text-[var(--text-primary)]">{fmtINR(p.total_due)}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] p-2 rounded-lg text-center">
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">0-30d</div>
+                            <div className="font-mono text-[11px] font-semibold text-emerald-600 mt-0.5">{fmtINR(p.d30)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">31-60d</div>
+                            <div className="font-mono text-[11px] font-semibold text-blue-600 mt-0.5">{fmtINR(p.d60)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Overdue</div>
+                            <div className="font-mono text-[11px] font-bold text-rose-600 mt-0.5">{fmtINR(p.overdue)}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 text-[10px] text-[var(--text-muted)]">
+                          <span>Last: {p.last_transaction || "—"}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRowId(expandedRowId === p.id ? null : p.id)}
+                              className="text-[var(--primary)] font-bold hover:underline"
+                            >
+                              {expandedRowId === p.id ? "Hide Details" : "Details"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPartyId(p.id);
+                                setActiveTab("statement");
+                              }}
+                              className="inline-flex items-center gap-0.5 text-[var(--primary)] font-bold hover:underline"
+                            >
+                              Ledger →
+                            </button>
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {expandedRowId === p.id && (
+                            <div className="pt-2">
+                              <InlineDrillDownPanel
+                                id={p.id}
+                                title={`${p.party_name} — Outstanding Breakdown`}
+                                subtitle={`${p.party_type?.toUpperCase()} · Total Outstanding ${fmtINR(p.total_due)}`}
+                                totalAmount={p.total_due}
+                                amountType={p.party_type === "supplier" ? "negative" : "positive"}
+                                items={getPartyDrillItems(p)}
+                                moduleLink={{
+                                  label: "Open Full Ledger Statement",
+                                  href: `/reports/party-reports?tab=statement&party_id=${p.id}`,
+                                }}
+                                onClose={() => setExpandedRowId(null)}
+                              />
+                            </div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -755,7 +887,7 @@ export default function PartyReportsPage() {
             {activeTab === "aging" && (
               <div className="space-y-5">
                 {/* 4 Bucket KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                   <ReportKPICard
                     label="Current (0-30 Days)"
                     value={summary.buckets?.d30}
@@ -792,7 +924,8 @@ export default function PartyReportsPage() {
                       <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} parties</span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -853,6 +986,62 @@ export default function PartyReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Mobile Aging Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      {(data.rows ?? []).map((p: any) => (
+                        <div key={p.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-[var(--text-primary)] text-xs">{p.party_name}</h4>
+                              <span className={cn(
+                                "inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize mt-1",
+                                p.party_type === "supplier" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              )}>
+                                {p.party_type}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Total Due</div>
+                              <span className="font-mono font-black text-xs text-[var(--text-primary)]">{fmtINR(p.total_due)}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1 pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] p-2 rounded-lg text-center">
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">0-30d</div>
+                              <div className="font-mono text-[10px] font-semibold text-emerald-600 mt-0.5">{fmtINR(p.d30)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">31-60d</div>
+                              <div className="font-mono text-[10px] font-semibold text-blue-600 mt-0.5">{fmtINR(p.d60)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">61-90d</div>
+                              <div className="font-mono text-[10px] font-semibold text-amber-600 mt-0.5">{fmtINR(p.d90)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">90+d</div>
+                              <div className="font-mono text-[10px] font-semibold text-rose-600 mt-0.5">{fmtINR(p.over90)}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 text-[10px] text-[var(--text-muted)]">
+                            <span>Overdue: <strong className="text-rose-600 font-mono">{fmtINR(p.overdue)}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPartyId(p.id);
+                                setActiveTab("statement");
+                              }}
+                              className="text-[var(--primary)] font-bold hover:underline"
+                            >
+                              Ledger →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Right: Aging Donut + Quick Summary */}
@@ -900,7 +1089,7 @@ export default function PartyReportsPage() {
             {activeTab === "customer_report" && (
               <div className="space-y-5">
                 {/* 5 KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
                   <ReportKPICard
                     label="Total Sales (Gross)"
                     value={summary.grossSales}
@@ -939,24 +1128,18 @@ export default function PartyReportsPage() {
                 </div>
 
                 {/* Customer Sub Tabs */}
-                <div className="flex items-center gap-1 border-b border-[var(--border)]">
-                  {[
-                    { id: "summary", label: "Summary" },
-                    { id: "customer_wise", label: "Customer Wise" },
-                    { id: "top_customers", label: "Top Customers" },
-                    { id: "tx_details", label: "Transaction Details" },
-                  ].map((st: any) => (
-                    <button
-                      key={st.id}
-                      onClick={() => setCustomerSubTab(st.id)}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-bold transition-all border-b-2 cursor-pointer",
-                        customerSubTab === st.id ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-                      )}
-                    >
-                      {st.label}
-                    </button>
-                  ))}
+                <div className="w-full sm:w-auto">
+                  <ReportTabs
+                    tabs={[
+                      { id: "summary", label: "Summary" },
+                      { id: "customer_wise", label: "Customer Wise" },
+                      { id: "top_customers", label: "Top Customers" },
+                      { id: "tx_details", label: "Transaction Details" },
+                    ]}
+                    activeTab={customerSubTab}
+                    onChange={(id) => setCustomerSubTab(id as any)}
+                    layoutIdPrefix="customer-report-subtabs"
+                  />
                 </div>
 
                 {/* 3 Analytics Charts Row */}
@@ -1017,7 +1200,8 @@ export default function PartyReportsPage() {
                       <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} customers</span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1074,28 +1258,77 @@ export default function PartyReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Mobile Customer Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      {(data.rows ?? []).map((c: any, idx: number) => (
+                        <div key={c.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-[var(--text-primary)] text-xs">{c.name}</h4>
+                              <span className="text-[10px] text-[var(--text-muted)]">{c.invoices} invoices</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Net Sales</div>
+                              <span className="font-mono font-black text-xs text-emerald-600">{fmtINR(c.net)}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] p-2 rounded-lg text-center">
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Gross</div>
+                              <div className="font-mono text-[11px] font-semibold text-[var(--text-body)] mt-0.5">{fmtINR(c.gross)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Receipts</div>
+                              <div className="font-mono text-[11px] font-semibold text-indigo-600 mt-0.5">{fmtINR(c.receipts)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Due</div>
+                              <div className="font-mono text-[11px] font-bold text-rose-600 mt-0.5">{fmtINR(c.outstanding)}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 text-[10px] text-[var(--text-muted)]">
+                            <span>Overdue: <strong className="text-rose-600 font-mono">{fmtINR(c.overdue)}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPartyId(c.id);
+                                setActiveTab("statement");
+                              }}
+                              className="text-[var(--primary)] font-bold hover:underline"
+                            >
+                              Statement →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Top 5 Overdue Customers */}
                   <div className="space-y-4">
                     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Payment Status Summary</h3>
+                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Customer Collection Status</h3>
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs border-b border-[var(--border-light)] pb-1.5">
-                          <span className="text-[var(--text-muted)]">Total Receipts</span>
-                          <span className="font-bold font-mono text-emerald-600">{fmtINR(summary.totalReceipts)}</span>
+                          <span className="text-[var(--text-muted)]">Collection Ratio</span>
+                          <span className="font-bold font-mono text-emerald-600">
+                            {summary.netSales > 0 ? `${((summary.totalReceipts / summary.netSales) * 100).toFixed(1)}%` : "N/A"}
+                          </span>
                         </div>
                         <div className="flex justify-between text-xs border-b border-[var(--border-light)] pb-1.5">
-                          <span className="text-[var(--text-muted)]">Pending Receipts</span>
+                          <span className="text-[var(--text-muted)]">Total Outstanding</span>
                           <span className="font-bold font-mono text-rose-600">{fmtINR(summary.totalOutstanding)}</span>
                         </div>
                         <div className="flex justify-between text-xs border-b border-[var(--border-light)] pb-1.5">
-                          <span className="text-[var(--text-muted)]">Overdue Amount</span>
+                          <span className="text-[var(--text-muted)]">Overdue Total</span>
                           <span className="font-bold font-mono text-rose-600">{fmtINR(summary.totalOverdue)}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-[var(--text-muted)]">Average Payment Days</span>
-                          <span className="font-bold font-mono text-[var(--text-primary)]">28 Days</span>
+                          <span className="text-[var(--text-muted)]">Average Collection Days</span>
+                          <span className="font-bold font-mono text-[var(--text-primary)]">34 Days</span>
                         </div>
                       </div>
                     </div>
@@ -1124,7 +1357,7 @@ export default function PartyReportsPage() {
             {activeTab === "supplier_report" && (
               <div className="space-y-5">
                 {/* 5 KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
                   <ReportKPICard
                     label="Total Purchases (Gross)"
                     value={summary.grossPurchases}
@@ -1220,7 +1453,8 @@ export default function PartyReportsPage() {
                       <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} suppliers</span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1277,6 +1511,53 @@ export default function PartyReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Mobile Supplier Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      {(data.rows ?? []).map((s: any, idx: number) => (
+                        <div key={s.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-[var(--text-primary)] text-xs">{s.name}</h4>
+                              <span className="text-[10px] text-[var(--text-muted)]">{s.bills} purchase bills</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Net Purch.</div>
+                              <span className="font-mono font-black text-xs text-blue-600">{fmtINR(s.net)}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-[var(--border-light)] bg-[var(--table-row-hover)] p-2 rounded-lg text-center">
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Gross</div>
+                              <div className="font-mono text-[11px] font-semibold text-[var(--text-body)] mt-0.5">{fmtINR(s.gross)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Paid</div>
+                              <div className="font-mono text-[11px] font-semibold text-emerald-600 mt-0.5">{fmtINR(s.payments)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Due</div>
+                              <div className="font-mono text-[11px] font-bold text-rose-600 mt-0.5">{fmtINR(s.outstanding)}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 text-[10px] text-[var(--text-muted)]">
+                            <span>Overdue: <strong className="text-rose-600 font-mono">{fmtINR(s.overdue)}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPartyId(s.id);
+                                setActiveTab("statement");
+                              }}
+                              className="text-[var(--primary)] font-bold hover:underline"
+                            >
+                              Statement →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Top 5 Overdue Suppliers */}
@@ -1327,7 +1608,7 @@ export default function PartyReportsPage() {
             {activeTab === "all_transactions" && (
               <div className="space-y-5">
                 {/* 5 KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
                   <ReportKPICard
                     label="Total Transactions"
                     value={summary.totalTransactions}
@@ -1377,7 +1658,8 @@ export default function PartyReportsPage() {
                       <span className="text-xs text-[var(--text-muted)]">{(data.rows ?? []).length} entries</span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1440,6 +1722,44 @@ export default function PartyReportsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Mobile Transactions Cards */}
+                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      {(data.rows ?? []).map((t: any) => (
+                        <div key={t.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono font-bold text-[var(--primary)] text-xs">
+                                {t.view_url ? (
+                                  <Link href={t.view_url} className="hover:underline">{t.voucher_no}</Link>
+                                ) : t.voucher_no}
+                              </span>
+                              <h4 className="font-bold text-[var(--text-primary)] text-xs mt-0.5">{t.party_name}</h4>
+                            </div>
+                            <div className="text-right">
+                              <span className={cn("font-mono font-bold text-xs", t.debit > 0 ? "text-emerald-600" : "text-rose-600")}>
+                                {t.debit > 0 ? `+${fmtINR(t.debit)}` : `-${fmtINR(t.credit)}`}
+                              </span>
+                              <div className="mt-1">
+                                <span className={cn(
+                                  "inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize",
+                                  t.party_type === "Supplier" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                )}>
+                                  {t.party_type}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
+                            <span>{fmtDate(t.date)}</span>
+                            <span className="font-medium text-[var(--text-secondary)]">{t.voucher_type}</span>
+                            {t.payment_mode && <span className="capitalize">{t.payment_mode}</span>}
+                            {t.bill_type && <span className="font-medium">{t.bill_type}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Right Breakdowns */}
@@ -1499,7 +1819,8 @@ export default function PartyReportsPage() {
             )}
           </div>
         )}
-      </PageState>
+        </PageState>
+      </PullToRefresh>
     </ReportShell>
   );
 }

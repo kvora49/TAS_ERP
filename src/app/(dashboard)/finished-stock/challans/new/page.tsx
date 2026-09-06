@@ -323,48 +323,50 @@ export default function NewChallanPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-3.5 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
-        <Link href="/finished-stock" className="hover:text-[#6366F1] transition-colors">
+      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
+        <Link href="/finished-stock" className="hover:text-[var(--primary)] transition-colors">
           Finished Stock
         </Link>
         <span>/</span>
-        <Link href="/finished-stock/challans" className="hover:text-[#6366F1] transition-colors">
+        <Link href="/finished-stock/challans" className="hover:text-[var(--primary)] transition-colors">
           Challans
         </Link>
         <span>/</span>
-        <span className="text-[#334155]">New</span>
+        <span className="text-[var(--text-primary)] font-bold">New</span>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/finished-stock/challans"
-          className="p-2 bg-white hover:bg-gray-50 border border-[#E2E8F0] rounded-xl transition-all cursor-pointer"
-        >
-          <ArrowLeft className="h-5 w-5 text-[#475569]" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">Create Delivery Challan</h1>
-          <p className="text-sm text-[#64748B]">Issue inward/outward delivery challans for garments stock movements</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <Link
+            href="/finished-stock/challans"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 text-[var(--text-secondary)]" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">Create Delivery Challan</h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] truncate">Issue inward/outward delivery challans for garments stock movements</p>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Left Side: Challan Header Details & Items Table */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4 sm:space-y-6">
           {/* Header Panel */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#1E293B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
-              <Building2 className="h-4.5 w-4.5 text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
+              <Building2 className="h-4.5 w-4.5 text-[var(--primary)]" />
               <span>Challan Header Information</span>
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
               {/* Date */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Challan Date *
                 </label>
                 <input
@@ -372,13 +374,13 @@ export default function NewChallanPage() {
                   required
                   value={challanDate}
                   onChange={(e) => setChallanDate(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* Type */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Challan Type *
                 </label>
                 <select
@@ -386,10 +388,9 @@ export default function NewChallanPage() {
                   value={challanType}
                   onChange={(e) => {
                     setChallanType(e.target.value as any);
-                    // Reset stocks
                     setItems(items.map(it => ({ ...it, available_stock: 0 })));
                   }}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white font-bold text-[#6366F1]"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none font-bold text-[var(--primary)]"
                 >
                   <option value="outward">Outward (Dispatch to client)</option>
                   <option value="inward">Inward (Returns or dye house)</option>
@@ -398,7 +399,7 @@ export default function NewChallanPage() {
 
               {/* Godown */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Storage Godown *
                 </label>
                 <select
@@ -408,7 +409,7 @@ export default function NewChallanPage() {
                     setFromGodownId(e.target.value);
                     setItems(items.map(it => ({ ...it, available_stock: 0 })));
                   }}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="">Select Warehouse...</option>
                   {godowns.map((g) => (
@@ -419,14 +420,14 @@ export default function NewChallanPage() {
 
               {/* Party */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Receiver Party *
                 </label>
                 <select
                   required
                   value={toPartyId}
                   onChange={(e) => setToPartyId(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="">Select Party...</option>
                   {parties.map((p) => (
@@ -436,10 +437,10 @@ export default function NewChallanPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
               {/* Ref No */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Reference / PO No
                 </label>
                 <input
@@ -447,75 +448,74 @@ export default function NewChallanPage() {
                   placeholder="e.g. PO-89021"
                   value={referenceNo}
                   onChange={(e) => setReferenceNo(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* Transporter */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider flex items-center gap-1">
-                  <Truck className="h-3.5 w-3.5 text-[#94A3B8]" />
-                  <span>Transporter</span>
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Transporter Name
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. VRL Logistics"
+                  placeholder="e.g. V-Trans Logistics"
                   value={transporter}
                   onChange={(e) => setTransporter(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
               {/* LR/AWB No */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-                  LR / AWB Number
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                  LR / Docket No
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. LR-400921"
+                  placeholder="e.g. LR-449102"
                   value={lrAwbNo}
                   onChange={(e) => setLrAwbNo(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
 
-              {/* Eway Bill */}
+              {/* E-way Bill No */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-                  E-Way Bill Number
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                  E-way Bill No
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 121092837482"
+                  placeholder="e.g. 541092819281"
                   value={ewayBillNo}
                   onChange={(e) => setEwayBillNo(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
               {/* Status */}
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Initial Status
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2.5 text-sm focus:border-[#C7D2FE] outline-none bg-white font-semibold text-slate-800"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none font-semibold"
                 >
-                  <option value="pending">Pending (Draft mode - no stock changes)</option>
-                  <option value="in_transit">In Transit (Dispatched from site - no stock changes)</option>
-                  <option value="dispatched">Dispatched (Outward stock deducted immediately)</option>
-                  <option value="received">Received / Completed (Inward stock credited immediately)</option>
+                  <option value="pending">Pending (Created - no stock changes)</option>
+                  <option value="in_transit">In Transit (Dispatched - no stock changes)</option>
+                  <option value="dispatched">Dispatched (Outward stock deducted)</option>
+                  <option value="received">Received / Completed (Stock updated)</option>
                 </select>
               </div>
 
               {/* Remarks */}
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   Remarks
                 </label>
                 <input
@@ -523,58 +523,171 @@ export default function NewChallanPage() {
                   placeholder="Notes for party/transporter..."
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  className="w-full border border-[#E2E8F0] rounded-xl px-3 py-2.5 text-sm focus:border-[#C7D2FE] outline-none"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 />
               </div>
             </div>
           </div>
 
           {/* Items Table Panel */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <ListPlus className="h-4.5 w-4.5 text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden space-y-4 p-4 sm:p-5">
+            <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-3">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <ListPlus className="h-4.5 w-4.5 text-[var(--primary)]" />
                 <span>Challan Garment Items</span>
               </h3>
               <button
                 type="button"
                 onClick={handleAddRow}
-                className="flex items-center gap-1.5 text-xs font-bold text-[#15803D] bg-green-50 border border-green-200 px-3.5 py-2 rounded-xl hover:bg-green-100/70 transition-all cursor-pointer shadow-sm"
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Item Row</span>
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs font-semibold text-[#475569]">
+            {/* ── MOBILE: Dedicated Garment Item Cards (md:hidden) ── */}
+            <div className="md:hidden space-y-3">
+              {items.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-3 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
+                      Item #{idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRow(idx)}
+                      className="text-[var(--text-muted)] hover:text-rose-500 p-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Design select */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Design *</label>
+                    <select
+                      required
+                      value={item.design_id}
+                      onChange={(e) => handleDesignChange(idx, e.target.value)}
+                      className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2.5 py-2 text-xs outline-none"
+                    >
+                      <option value="">Select Design...</option>
+                      {designs.map((d) => (
+                        <option key={d.id} value={d.id}>{d.design_number} - {d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Colour and Size */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Colour *</label>
+                      <select
+                        required
+                        value={item.colour_id}
+                        onChange={(e) => handleItemPropertyChange(idx, "colour_id", e.target.value)}
+                        disabled={!item.design_id}
+                        className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2.5 py-2 text-xs outline-none disabled:opacity-50"
+                      >
+                        <option value="">Colour...</option>
+                        {item.coloursList.map((c) => (
+                          <option key={c.id} value={c.id}>{c.colour_name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Size *</label>
+                      <select
+                        required
+                        value={item.size}
+                        onChange={(e) => handleItemPropertyChange(idx, "size", e.target.value)}
+                        disabled={!item.design_id}
+                        className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2.5 py-2 text-xs outline-none disabled:opacity-50 text-center"
+                      >
+                        <option value="">Size...</option>
+                        {item.sizesList.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Stock, Qty, Cost */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--border-light)]">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-[var(--text-muted)]">
+                        <span>Quantity (Pcs)</span>
+                        {challanType === "outward" && (
+                          <span className="text-emerald-600 dark:text-emerald-400">Avail: {item.available_stock}</span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={(challanType === "outward" && ["dispatched", "received", "completed"].includes(status)) ? item.available_stock : undefined}
+                        value={item.quantity}
+                        onChange={(e) => handleItemPropertyChange(idx, "quantity", e.target.value)}
+                        className="w-full text-center bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Cost/Pc (₹)</label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        value={item.unit_cost}
+                        onChange={(e) => handleItemPropertyChange(idx, "unit_cost", e.target.value)}
+                        className="w-full text-right bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-2 border-t border-[var(--border-light)]">
+                    <span className="text-[var(--text-muted)]">Line Total:</span>
+                    <span className="font-mono font-bold text-[var(--primary)] text-sm">{formatRupee(item.total_value)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── DESKTOP: Full Table (hidden md:block) ── */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--border)]">
+              <table className="w-full border-collapse text-left text-xs font-semibold text-[var(--text-body)]">
                 <thead>
-                  <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-bold text-[#475569] uppercase tracking-wider">
+                  <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                     <th className="py-3 px-4 w-8 text-center">#</th>
                     <th className="py-3 px-4 w-48">Design</th>
                     <th className="py-3 px-4 w-36">Colour</th>
                     <th className="py-3 px-3 w-24 text-center">Size</th>
-                    {challanType === "outward" && <th className="py-3 px-3 w-28 text-center bg-slate-50/50">Available</th>}
+                    {challanType === "outward" && <th className="py-3 px-3 w-28 text-center bg-[var(--page-bg)]">Available</th>}
                     <th className="py-3 px-3 w-28 text-center">Qty (Pcs)</th>
                     <th className="py-3 px-3 w-28 text-right">Cost/Pc (₹)</th>
                     <th className="py-3 px-4 w-32 text-right">Total Value</th>
                     <th className="py-3 px-4 w-12 text-center">Remove</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
+                <tbody className="divide-y divide-[var(--border)]">
                   {items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/20">
-                      <td className="py-3.5 px-4 text-center text-[#94A3B8] font-bold">{idx + 1}</td>
+                    <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                      <td className="py-3.5 px-4 text-center text-[var(--text-faint)] font-bold">{idx + 1}</td>
                       <td className="py-3 px-2">
                         <select
                           required
                           value={item.design_id}
                           onChange={(e) => handleDesignChange(idx, e.target.value)}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white"
+                          className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs outline-none"
                         >
                           <option value="">Select Design...</option>
                           {designs.map((d) => (
-                            <option key={d.id} value={d.id}>{d.design_number}</option>
+                            <option key={d.id} value={d.id}>{d.design_number} - {d.name}</option>
                           ))}
                         </select>
                       </td>
@@ -584,7 +697,7 @@ export default function NewChallanPage() {
                           value={item.colour_id}
                           onChange={(e) => handleItemPropertyChange(idx, "colour_id", e.target.value)}
                           disabled={!item.design_id}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white disabled:bg-gray-50"
+                          className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs outline-none disabled:opacity-50"
                         >
                           <option value="">Colour...</option>
                           {item.coloursList.map((c) => (
@@ -598,7 +711,7 @@ export default function NewChallanPage() {
                           value={item.size}
                           onChange={(e) => handleItemPropertyChange(idx, "size", e.target.value)}
                           disabled={!item.design_id}
-                          className="w-full border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none bg-white text-center disabled:bg-gray-50"
+                          className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs outline-none text-center disabled:opacity-50"
                         >
                           <option value="">Size</option>
                           {item.sizesList.map((s) => (
@@ -607,8 +720,8 @@ export default function NewChallanPage() {
                         </select>
                       </td>
                       {challanType === "outward" && (
-                        <td className="py-3 px-2 text-center bg-slate-50/30 text-[#1E293B] font-bold">
-                          {item.available_stock.toLocaleString()} <span className="text-[10px] text-[#64748B] font-normal">pcs</span>
+                        <td className="py-3 px-2 text-center bg-[var(--page-bg)]/40 text-[var(--text-primary)] font-bold">
+                          {item.available_stock.toLocaleString()} <span className="text-[10px] text-[var(--text-muted)] font-normal">pcs</span>
                         </td>
                       )}
                       <td className="py-3 px-2">
@@ -619,7 +732,7 @@ export default function NewChallanPage() {
                           max={(challanType === "outward" && ["dispatched", "received", "completed"].includes(status)) ? item.available_stock : undefined}
                           value={item.quantity}
                           onChange={(e) => handleItemPropertyChange(idx, "quantity", e.target.value)}
-                          className="w-full text-center border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none font-bold text-[#1E293B]"
+                          className="w-full text-center bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl px-2 py-1.5 text-xs outline-none font-bold text-[var(--text-primary)]"
                         />
                       </td>
                       <td className="py-3 px-2">
@@ -629,17 +742,17 @@ export default function NewChallanPage() {
                           min={0}
                           value={item.unit_cost}
                           onChange={(e) => handleItemPropertyChange(idx, "unit_cost", e.target.value)}
-                          className="w-full text-right border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs outline-none"
+                          className="w-full text-right bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs outline-none"
                         />
                       </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-[#6366F1] text-xs">
+                      <td className="py-3.5 px-4 text-right font-bold text-[var(--primary)] font-mono text-xs">
                         {formatRupee(item.total_value)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => handleRemoveRow(idx)}
-                          className="text-[#94A3B8] hover:text-[#EF4444] p-1.5 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                          className="text-[var(--text-muted)] hover:text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -653,33 +766,33 @@ export default function NewChallanPage() {
         </div>
 
         {/* Right Side: Total Summary Sidebar Panel */}
-        <div className="space-y-6">
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#1E293B] border-b border-[#F1F5F9] pb-2 flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-2 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               <span>Challan Impact</span>
             </h3>
 
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-[#64748B]">Total Items:</span>
-                <span className="font-bold text-[#1E293B]">{items.length} rows</span>
+                <span className="text-[var(--text-muted)]">Total Items:</span>
+                <span className="font-bold text-[var(--text-primary)]">{items.length} rows</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[#64748B]">Total Quantity (Pcs):</span>
-                <span className="font-bold text-sm text-[#1E293B]">{totalQty.toLocaleString()} Pcs</span>
+                <span className="text-[var(--text-muted)]">Total Quantity (Pcs):</span>
+                <span className="font-bold font-mono text-sm text-[var(--text-primary)]">{totalQty.toLocaleString()} Pcs</span>
               </div>
-              <div className="flex items-center justify-between border-t border-dashed border-[#F1F5F9] pt-3.5">
-                <span className="text-[#64748B] font-bold">Aggregate Value:</span>
-                <span className="font-extrabold text-base text-[#15803D]">{formatRupee(totalVal)}</span>
+              <div className="flex items-center justify-between border-t border-dashed border-[var(--border)] pt-3.5">
+                <span className="text-[var(--text-muted)] font-bold">Aggregate Value:</span>
+                <span className="font-extrabold font-mono text-base text-emerald-600 dark:text-emerald-400">{formatRupee(totalVal)}</span>
               </div>
             </div>
 
-            <div className="border border-green-100 bg-green-50/50 rounded-xl p-3 flex gap-2.5">
-              <Info className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-              <div className="text-[10px] text-green-800 leading-normal font-semibold">
+            <div className="border border-emerald-500/20 bg-emerald-500/10 rounded-xl p-3 flex gap-2.5">
+              <Info className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <div className="text-[10px] text-emerald-900 dark:text-emerald-300 leading-normal font-semibold">
                 <strong className="block mb-0.5">Stock Timing Rule:</strong>
-                - Outward: Stock deducted immediately on Dispatched/Completed.
+                - Outward: Stock deducted immediately on Dispatched/Completed.<br />
                 - Inward: Stock added immediately on Received/Completed.
               </div>
             </div>
@@ -687,13 +800,13 @@ export default function NewChallanPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-[#15803D] hover:bg-[#166534] py-3 rounded-xl transition-all cursor-pointer shadow-md shadow-green-100 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-50"
             >
               {submitting ? "Saving..." : "Save Delivery Challan"}
             </button>
             <Link
               href="/finished-stock/challans"
-              className="w-full flex items-center justify-center text-xs font-bold text-[#475569] bg-white border border-[#E2E8F0] py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-all cursor-pointer text-center"
+              className="w-full flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] py-3 rounded-xl hover:bg-[var(--table-row-hover)] transition-all cursor-pointer text-center"
             >
               Cancel
             </Link>

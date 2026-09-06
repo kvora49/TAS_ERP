@@ -5,6 +5,8 @@ import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { InfoBanner } from "@/components/shared/InfoBanner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import PageState from "@/components/shared/PageState";
+import { useBackupSettings, BackupRecord } from "@/hooks/useBackupSettings";
 import {
   CloudUpload,
   Database,
@@ -18,25 +20,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface BackupRecord {
-  id: string;
-  backup_type: "manual" | "automatic";
-  file_key: string;
-  file_url: string;
-  file_size_bytes: number;
-  status: "in_progress" | "completed" | "failed";
-  error_message: string | null;
-  created_at: string;
-  users?: {
-    full_name: string;
-  };
-}
-
 export default function BackupRestoreSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [historyRecords, setHistoryRecords] = useState<BackupRecord[]>([]);
+  const {
+    schedule,
+    history: historyRecords,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    updateSchedule,
+    isSavingSchedule,
+    createBackup,
+    isCreatingBackup,
+    deleteBackup,
+    syncBackups,
+    isSyncing,
+  } = useBackupSettings();
 
   // Restore file selection state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -52,62 +51,23 @@ export default function BackupRestoreSettingsPage() {
   const [backupFrequency, setBackupFrequency] = useState("daily");
   const [backupTime, setBackupTime] = useState("23:45");
   const [backupRetentionDays, setBackupRetentionDays] = useState(30);
-  const [savingSettings, setSavingSettings] = useState(false);
-
-  const fetchBackupSettings = async () => {
-    try {
-      const res = await fetch("/api/settings/backup");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.settings) {
-        setAutoBackupEnabled(data.settings.auto_backup_enabled ?? true);
-        setBackupFrequency(data.settings.backup_frequency || "daily");
-        setBackupTime(data.settings.backup_time || "23:45");
-        setBackupRetentionDays(data.settings.backup_retention_days || 30);
-      }
-    } catch (_err) {}
-  };
-
-  const fetchBackupHistory = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/settings/backup-history");
-      if (!res.ok) throw new Error("Failed to load backup history");
-      const data = await res.json();
-      setHistoryRecords(data.history || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error fetching backup history");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchBackupSettings();
-    fetchBackupHistory();
-  }, []);
+    if (schedule) {
+      setAutoBackupEnabled(schedule.auto_backup_enabled ?? true);
+      setBackupFrequency(schedule.backup_frequency || "daily");
+      setBackupTime(schedule.backup_time || "23:45");
+      setBackupRetentionDays(schedule.backup_retention_days || 30);
+    }
+  }, [schedule]);
 
   const handleSaveSettings = async () => {
-    setSavingSettings(true);
-    try {
-      const res = await fetch("/api/settings/backup", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auto_backup_enabled: autoBackupEnabled,
-          backup_frequency: backupFrequency,
-          backup_time: backupTime,
-          backup_retention_days: backupRetentionDays,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save backup settings");
-      toast.success("Backup schedule settings updated successfully");
-    } catch (err: any) {
-      toast.error(err.message || "Error saving backup settings");
-    } finally {
-      setSavingSettings(false);
-    }
+    await updateSchedule({
+      auto_backup_enabled: autoBackupEnabled,
+      backup_frequency: backupFrequency,
+      backup_time: backupTime,
+      backup_retention_days: backupRetentionDays,
+    });
   };
 
   const getNextScheduledLabel = () => {
@@ -126,57 +86,16 @@ export default function BackupRestoreSettingsPage() {
   };
 
   const handleCreateBackup = async () => {
-    setCreating(true);
-    const toastId = toast.loading("Creating real database backup...");
-    try {
-      const res = await fetch("/api/settings/backup", { method: "POST" });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || "Backup failed");
-
-      toast.success("Database backup created successfully", { id: toastId });
-      fetchBackupHistory();
-    } catch (err: any) {
-      toast.error(err.message || "Backup execution failed", { id: toastId });
-    } finally {
-      setCreating(false);
-    }
+    await createBackup();
   };
 
   const handleSyncBuckets = async () => {
-    setSyncing(true);
-    const toastId = toast.loading("Replicating backups to secondary Cloudflare R2 bucket...");
-    try {
-      const res = await fetch("/api/admin/backup/sync", { method: "POST" });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || "Sync failed");
-
-      toast.success(
-        data.message || `Successfully synced ${data.syncedCount || 0} backup file(s) to secondary bucket.`,
-        { id: toastId }
-      );
-    } catch (err: any) {
-      toast.error(err.message || "Backup replication sync failed", { id: toastId });
-    } finally {
-      setSyncing(false);
-    }
+    await syncBackups();
   };
 
   const handleDeleteBackup = async (id: string) => {
     setActiveMenuId(null);
-    const toastId = toast.loading("Deleting backup file...");
-    try {
-      const res = await fetch(`/api/settings/backup-history/${id}`, { method: "DELETE" });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || "Deletion failed");
-
-      toast.success("Backup deleted successfully", { id: toastId });
-      fetchBackupHistory();
-    } catch (err: any) {
-      toast.error(err.message || "Error deleting backup", { id: toastId });
-    }
+    await deleteBackup(id);
   };
 
   const handleRestoreSubmit = async () => {
@@ -219,16 +138,23 @@ export default function BackupRestoreSettingsPage() {
   const lastBackup = historyRecords.find((h) => h.status === "completed");
 
   return (
-    <div className="flex flex-col gap-6 text-left">
-      <SettingsPageHeader
-        section="Backup & Restore"
-        title="Settings > Backup & Restore"
-        subtitle="Manage system backups, cross-account replication, and database restoration"
-        actionLabel="Create Backup Now"
-        onAction={handleCreateBackup}
-        actionIcon={<CloudUpload className="size-4 text-white" />}
-        actionLoading={creating}
-      />
+    <PageState
+      isLoading={isLoading}
+      isError={!!error}
+      error={error?.message}
+      onRetry={refetch}
+      skeletonVariant="form"
+    >
+      <div className="flex flex-col gap-6 text-left">
+        <SettingsPageHeader
+          section="Backup & Restore"
+          title="Settings > Backup & Restore"
+          subtitle="Manage system backups, cross-account replication, and database restoration"
+          actionLabel="Create Backup Now"
+          onAction={handleCreateBackup}
+          actionIcon={<CloudUpload className="size-4 text-white" />}
+          actionLoading={isCreatingBackup}
+        />
 
       {/* TOP ROW — 3 columns grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -263,20 +189,20 @@ export default function BackupRestoreSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={handleCreateBackup}
-                disabled={creating}
+                disabled={isCreatingBackup}
                 className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 transition-colors"
               >
                 <CloudUpload className="size-4 shrink-0" />
-                {creating ? "Creating..." : "Backup Now"}
+                {isCreatingBackup ? "Creating..." : "Backup Now"}
               </button>
 
               <button
                 onClick={handleSyncBuckets}
-                disabled={syncing}
+                disabled={isSyncing}
                 className="w-full h-10 border border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`size-3.5 shrink-0 ${syncing ? "animate-spin" : ""}`} />
-                {syncing ? "Syncing..." : "Sync 2nd Bucket"}
+                <RefreshCw className={`size-3.5 shrink-0 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Syncing..." : "Sync 2nd Bucket"}
               </button>
             </div>
 
@@ -355,10 +281,10 @@ export default function BackupRestoreSettingsPage() {
 
               <button
                 onClick={handleSaveSettings}
-                disabled={savingSettings}
+                disabled={isSavingSchedule}
                 className="w-full h-9 mt-1 border border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {savingSettings ? "Saving schedule..." : "Save Backup Schedule"}
+                {isSavingSchedule ? "Saving schedule..." : "Save Backup Schedule"}
               </button>
             </div>
           </div>
@@ -487,7 +413,85 @@ export default function BackupRestoreSettingsPage() {
         title="Backup History"
         subtitle="View and manage all system backups"
       >
-        <div className="overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
+        {/* Mobile Backup History Cards (< md) */}
+        <div className="md:hidden divide-y divide-[var(--border)] border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--card-bg)] mb-4">
+          {isLoading ? (
+            <div className="p-6 text-center text-xs text-[var(--text-muted)]">
+              Loading backup history...
+            </div>
+          ) : historyRecords.length === 0 ? (
+            <div className="p-6 text-center text-xs text-[var(--text-muted)] italic">
+              No backups registered. Click &quot;Create Backup Now&quot; above.
+            </div>
+          ) : (
+            historyRecords.map((h) => (
+              <div key={h.id} className="p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-xs font-bold text-[var(--text-primary)] truncate block" title={h.file_key}>
+                      {h.file_key.split("/").pop()}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-faint)]">
+                      {new Date(h.created_at).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded shrink-0 ${
+                      h.status === "completed"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : h.status === "failed"
+                        ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    }`}
+                  >
+                    {h.status === "completed" ? "Success" : h.status === "failed" ? "Failed" : "In Progress"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 bg-[var(--page-bg)] p-2 rounded-lg text-xs">
+                  <div>
+                    <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block">Size</span>
+                    <span className="font-semibold text-[var(--text-primary)]">{formatBytes(h.file_size_bytes)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block">By</span>
+                    <span className="font-semibold text-[var(--text-primary)] truncate block">{h.users?.full_name || "System"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block">Location</span>
+                    <span className="font-semibold text-[var(--text-primary)] truncate block">
+                      {h.file_url.startsWith("/backups/") ? "Local Server" : "Cloud R2"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1 border-t border-[var(--border-light)]">
+                  {h.file_url && h.status === "completed" && (
+                    <a
+                      href={h.file_url}
+                      download
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--primary)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-[var(--table-row-hover)]"
+                    >
+                      <Download className="size-3.5" />
+                      <span>Download</span>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBackup(h.id)}
+                    className="px-2.5 py-1.5 rounded-lg border border-red-500/20 text-red-500 bg-red-500/5 hover:bg-red-500/10 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table (hidden on mobile) */}
+        <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg mb-4">
           <table className="w-full text-sm text-[var(--text-body)]">
             <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
               <tr>
@@ -501,7 +505,7 @@ export default function BackupRestoreSettingsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {loading ? (
+              {isLoading ? (
                 <tr>
                   <td colSpan={7} className="text-center py-6 text-[var(--text-muted)]">
                     Loading backup history...
@@ -599,5 +603,6 @@ export default function BackupRestoreSettingsPage() {
         cancelText="Cancel"
       />
     </div>
+    </PageState>
   );
 }

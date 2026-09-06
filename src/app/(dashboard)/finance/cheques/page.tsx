@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { Plus, Search, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Landmark, CheckCircle2, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { Modal } from "@/components/shared/Modal";
+import { ChequeStatsBar } from "./_components/ChequeStatsBar";
+import { formatCurrency } from "@/lib/utils";
 
 interface Party {
   id: string;
@@ -325,35 +327,38 @@ export default function ChequesPage() {
   const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Cheques & PDC Manager</h1>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">Cheques & PDC Manager</h1>
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
             Reconcile post-dated cheques, track bank deposits, clear items, and manage bounce incidents
           </p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center gap-2">
+        <button
+          onClick={handleOpenAdd}
+          className="h-9 px-4 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold rounded-lg flex items-center gap-2 shadow-[var(--shadow-sm)] transition-all active:scale-95 cursor-pointer"
+        >
           <Plus size={16} />
           <span>Record Cheque Entry</span>
-        </Button>
+        </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#E5E7EB] select-none">
+      <div className="flex border-b border-[var(--border)] select-none">
         <button
           onClick={() => {
             setActiveTab("received");
             setStatusFilter("");
           }}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === "received"
-              ? "border-[#6366F1] text-[#6366F1]"
-              : "border-transparent text-[#64748B] hover:text-[#374151]"
+              ? "border-[var(--primary)] text-[var(--primary)]"
+              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           }`}
         >
-          <ArrowDownLeft size={16} className={activeTab === "received" ? "text-[#6366F1]" : "text-slate-400"} />
+          <ArrowDownLeft size={16} className={activeTab === "received" ? "text-[var(--primary)]" : "text-[var(--text-faint)]"} />
           <span>Received (From Customers)</span>
         </button>
         <button
@@ -361,73 +366,41 @@ export default function ChequesPage() {
             setActiveTab("issued");
             setStatusFilter("");
           }}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === "issued"
-              ? "border-[#6366F1] text-[#6366F1]"
-              : "border-transparent text-[#64748B] hover:text-[#374151]"
+              ? "border-[var(--primary)] text-[var(--primary)]"
+              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           }`}
         >
-          <ArrowUpRight size={16} className={activeTab === "issued" ? "text-[#6366F1]" : "text-slate-400"} />
+          <ArrowUpRight size={16} className={activeTab === "issued" ? "text-[var(--primary)]" : "text-[var(--text-faint)]"} />
           <span>Issued (To Suppliers)</span>
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEF3C7] text-[#D97706] rounded-lg">
-            <Landmark className="h-6 w-6" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Outstanding PDC / Pending</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{pendingValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#DCFCE7] text-[#16A34A] rounded-lg">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Value Cleared</span>
-            <span className="text-xl font-bold text-slate-800">
-              ₹{clearedValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-[#FEE2E2] text-[#DC2626] rounded-lg">
-            <AlertTriangle className="h-6 w-6" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Value Bounced</span>
-            <span className="text-xl font-bold text-[#DC2626]">
-              ₹{bouncedValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
-      </div>
+      <ChequeStatsBar
+        pendingValue={pendingValue}
+        clearedValue={clearedValue}
+        bouncedValue={bouncedValue}
+      />
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 shadow-[var(--shadow-sm)] flex flex-wrap items-center justify-between gap-4">
         <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-[var(--text-faint)]" />
           <input
             type="text"
             placeholder="Search cheque no, bank, party..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-10 pl-10 pr-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg pl-10 pr-3 h-10 text-sm transition-colors"
           />
         </div>
 
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-full sm:w-44 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+          className="w-full sm:w-44 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
         >
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -439,19 +412,19 @@ export default function ChequesPage() {
       </div>
 
       {/* Cheques Table */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-sm)] overflow-hidden">
         {chequesQuery.isPending ? (
           chequesQuery.Skeleton
         ) : cheques.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-2">
-            <Landmark className="h-8 w-8 text-slate-300" />
+          <div className="flex flex-col items-center justify-center p-12 text-[var(--text-muted)] gap-2">
+            <Landmark className="h-8 w-8 text-[var(--text-faint)]" />
             <span className="text-sm font-semibold">No cheque records found matching the filters.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#F3F4F6] bg-slate-50 font-bold text-slate-600">
+                <tr className="border-b border-[var(--border)] bg-[var(--table-header-bg)] font-bold text-[var(--text-muted)]">
                   <th className="p-4">Cheque Date</th>
                   <th className="p-4">Cheque Number</th>
                   <th className="p-4">Bank Name</th>
@@ -462,86 +435,81 @@ export default function ChequesPage() {
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
+              <tbody className="divide-y divide-[var(--border-light)]">
                 {cheques.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-semibold text-slate-700">{c.cheque_date}</td>
-                    <td className="p-4 font-bold text-slate-700 font-mono">{c.cheque_number}</td>
+                  <tr key={c.id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                    <td className="p-4 font-semibold text-[var(--text-secondary)]">{c.cheque_date}</td>
+                    <td className="p-4 font-bold text-[var(--text-primary)] font-mono">{c.cheque_number}</td>
                     <td className="p-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">{c.bank_name}</span>
+                        <span className="font-bold text-[var(--text-primary)]">{c.bank_name}</span>
                         {c.account_no && (
-                          <span className="text-[10px] text-slate-400 font-mono">A/C: {c.account_no}</span>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">A/C: {c.account_no}</span>
                         )}
                       </div>
                     </td>
-                    <td className="p-4 font-semibold text-slate-800">{c.party?.name || "—"}</td>
-                    <td className="p-4 text-right font-bold text-slate-800">
-                      ₹{c.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    <td className="p-4 font-semibold text-[var(--text-primary)]">{c.party?.name || "—"}</td>
+                    <td className="p-4 text-right font-bold text-[var(--text-primary)] font-mono">
+                      {formatCurrency(c.amount)}
                     </td>
                     <td className="p-4 text-center">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                           c.status === "cleared"
-                            ? "bg-[#DCFCE7] text-[#15803D]"
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/30"
                             : c.status === "deposited"
-                            ? "bg-[#E0F2FE] text-[#0369A1]"
+                            ? "bg-sky-500/10 text-sky-500 border border-sky-500/30"
                             : c.status === "bounced"
-                            ? "bg-[#FEE2E2] text-[#DC2626]"
+                            ? "bg-red-500/10 text-red-500 border border-red-500/30"
                             : c.status === "cancelled"
-                            ? "bg-slate-100 text-slate-500"
-                            : "bg-[#FEF3C7] text-[#D97706]"
+                            ? "bg-slate-500/10 text-slate-400 border border-slate-500/30"
+                            : "bg-amber-500/10 text-amber-500 border border-amber-500/30"
                         }`}
                       >
                         {c.status}
                       </span>
                     </td>
-                    <td className="p-4 text-center text-slate-600 font-semibold">
+                    <td className="p-4 text-center text-[var(--text-muted)] font-semibold">
                       {c.received_account?.bank_name || "—"}
                     </td>
                     <td className="p-4">
                       <div className="flex justify-end gap-2">
                         {c.status === "pending" && c.direction === "received" && (
-                          <Button
-                            size="xs"
+                          <button
                             onClick={() => handleOpenDeposit(c)}
-                            className="bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] border border-[#BFDBFE] font-bold"
+                            className="px-2.5 py-1 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30 font-bold rounded-lg transition-all"
                           >
                             Deposit
-                          </Button>
+                          </button>
                         )}
                         {(c.status === "pending" || c.status === "deposited") && (
                           <>
-                            <Button
-                              size="xs"
+                            <button
                               onClick={() => handleClearCheque(c)}
-                              className="bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#16A34A] border border-[#BBF7D0] font-bold"
+                              className="px-2.5 py-1 text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 font-bold rounded-lg transition-all"
                             >
                               Clear
-                            </Button>
-                            <Button
-                              size="xs"
+                            </button>
+                            <button
                               onClick={() => handleOpenBounce(c)}
-                              className="bg-[#FEE2E2] hover:bg-[#FCD3D3] text-[#DC2626] border border-[#FCA5A5] font-bold"
+                              className="px-2.5 py-1 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 font-bold rounded-lg transition-all"
                             >
                               Bounce
-                            </Button>
+                            </button>
                           </>
                         )}
                         {c.status === "pending" && (
-                          <Button
-                            size="xs"
-                            variant="outline"
+                          <button
                             onClick={() => handleCancelCheque(c)}
-                            className="font-bold text-slate-600"
+                            className="px-2.5 py-1 text-xs border border-[var(--border)] hover:bg-[var(--table-row-hover)] font-bold text-[var(--text-muted)] rounded-lg transition-all"
                           >
                             Cancel
-                          </Button>
+                          </button>
                         )}
                         {(c.status === "cancelled" || c.status === "bounced") && (
                           <button
                             onClick={() => handleOpenDelete(c)}
-                            className="w-7 h-7 border border-[#FEE2E2] hover:bg-[#FEF2F2] text-[#DC2626] rounded-lg flex items-center justify-center cursor-pointer transition-all self-center"
+                            className="w-7 h-7 border border-red-500/30 hover:bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center cursor-pointer transition-all self-center"
                             title="Delete Cheque"
                           >
                             <Trash2 size={13} />
@@ -557,7 +525,7 @@ export default function ChequesPage() {
         )}
         {/* Pagination Controls */}
         {meta.total > meta.limit && (
-          <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-[#E5E7EB] text-xs font-semibold text-slate-500">
+          <div className="flex items-center justify-between px-6 py-4 bg-[var(--card-bg)] border-t border-[var(--border)] text-xs font-semibold text-[var(--text-muted)]">
             <span>
               Showing {(page - 1) * limit + 1} to {Math.min(page * limit, meta.total)} of {meta.total} records
             </span>
@@ -584,267 +552,259 @@ export default function ChequesPage() {
       </div>
 
       {/* Add Modal */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Record Cheque Transaction</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateCheque} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Direction *</label>
-                <select
-                  value={direction}
-                  onChange={(e) => setDirection(e.target.value as any)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                >
-                  <option value="received">Received (From Customer)</option>
-                  <option value="issued">Issued (To Supplier)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Party / Contact</label>
-                <select
-                  value={partyId}
-                  onChange={(e) => setPartyId(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
-                >
-                  <option value="">Select Contact</option>
-                  {parties
-                    .filter((p) => {
-                      if (direction === "received") return p.type.includes("customer");
-                      return p.type.includes("supplier");
-                    })
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.company_name ? `(${p.company_name})` : ""}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cheque Number *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="6 digit micr no"
-                  value={chequeNumber}
-                  onChange={(e) => setChequeNumber(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cheque Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={chequeDate}
-                  onChange={(e) => setChequeDate(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cheque Bank Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. HDFC Bank"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cheque Account No</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 50100982348"
-                  value={accountNo}
-                  onChange={(e) => setAccountNo(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Amount (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  min="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PDC Release/Due Date</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-                />
-              </div>
-            </div>
-
+      <Modal open={isAddOpen} onOpenChange={setIsAddOpen} title="Record Cheque Transaction" maxWidth="max-w-md">
+        <form onSubmit={handleCreateCheque} className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remarks / Description</label>
-              <input
-                type="text"
-                placeholder="PDC against bill number or other references"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Record Cheque</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Deposit Modal */}
-      <Dialog open={isDepositOpen} onOpenChange={setIsDepositOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-800">Deposit Cheque to Bank</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleDepositCheque} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Settlement Bank Account *</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Direction *</label>
               <select
-                value={receivedAccountId}
-                required
-                onChange={(e) => setReceivedAccountId(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none cursor-pointer"
+                value={direction}
+                onChange={(e) => setDirection(e.target.value as any)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
               >
-                <option value="">Select Account</option>
-                {bankAccounts.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.bank_name} ({b.account_number})
-                  </option>
-                ))}
+                <option value="received">Received (From Customer)</option>
+                <option value="issued">Issued (To Supplier)</option>
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Deposit Date *</label>
-              <input
-                type="date"
-                required
-                value={depositDate}
-                onChange={(e) => setDepositDate(e.target.value)}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
-              />
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Party / Contact</label>
+              <select
+                value={partyId}
+                onChange={(e) => setPartyId(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
+              >
+                <option value="">Select Contact</option>
+                {parties
+                  .filter((p) => {
+                    if (direction === "received") return p.type.includes("customer");
+                    return p.type.includes("supplier");
+                  })
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.company_name ? `(${p.company_name})` : ""}
+                    </option>
+                  ))}
+              </select>
             </div>
+          </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsDepositOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#6366F1] hover:bg-[#4F46E5] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Deposit Cheque</span>
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bounce Modal */}
-      <Dialog open={isBounceOpen} onOpenChange={setIsBounceOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#DC2626]">Record Bounced Cheque</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleBounceCheque} className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reason for Bounce *</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Cheque Number *</label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Insufficient Funds or Signature Mismatch"
-                value={bounceReason}
-                onChange={(e) => setBounceReason(e.target.value)}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                placeholder="6 digit micr no"
+                value={chequeNumber}
+                onChange={(e) => setChequeNumber(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Bounce Penalty Charges (₹)</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Cheque Date *</label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={bounceCharges}
-                onChange={(e) => setBounceCharges(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-full h-10 px-3 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] outline-none"
+                type="date"
+                required
+                value={chequeDate}
+                onChange={(e) => setChequeDate(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Cheque Bank Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. HDFC Bank"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsBounceOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
-                {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-                <span>Record Bounce</span>
-              </Button>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Cheque Account No</label>
+              <input
+                type="text"
+                placeholder="e.g. 50100982348"
+                value={accountNo}
+                onChange={(e) => setAccountNo(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Modal */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-sm bg-white rounded-xl shadow-lg border border-[#E5E7EB] p-6">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#DC2626]">Delete Cheque Record</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 pt-2">
-            <p className="text-xs text-slate-500 leading-normal">
-              Are you sure you want to delete cheque booking <span className="font-bold text-slate-700">#{selectedCheque?.cheque_number}</span>?
-            </p>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsDeleteOpen(false)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Amount (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                min="0.01"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">PDC Release/Due Date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Remarks / Description</label>
+            <input
+              type="text"
+              placeholder="PDC against bill number or other references"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsAddOpen(false)}
+              className="px-4 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer"
+            >
               Cancel
-            </Button>
-            <Button onClick={handleDeleteCheque} size="sm" disabled={saving} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
-              {saving && <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" />}
-              <span>Delete Permanently</span>
-            </Button>
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>Record Cheque</span>
+            </button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </Modal>
+
+      {/* Deposit Modal */}
+      <Modal open={isDepositOpen} onOpenChange={setIsDepositOpen} title="Deposit Cheque to Bank" maxWidth="max-w-sm">
+        <form onSubmit={handleDepositCheque} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Settlement Bank Account *</label>
+            <select
+              value={receivedAccountId}
+              required
+              onChange={(e) => setReceivedAccountId(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors cursor-pointer"
+            >
+              <option value="">Select Account</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.bank_name} ({b.account_number})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Deposit Date *</label>
+            <input
+              type="date"
+              required
+              value={depositDate}
+              onChange={(e) => setDepositDate(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsDepositOpen(false)}
+              className="px-4 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>Deposit Cheque</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bounce Modal */}
+      <Modal open={isBounceOpen} onOpenChange={setIsBounceOpen} title="Record Bounced Cheque" maxWidth="max-w-sm">
+        <form onSubmit={handleBounceCheque} className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Reason for Bounce *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Insufficient Funds or Signature Mismatch"
+              value={bounceReason}
+              onChange={(e) => setBounceReason(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Bounce Penalty Charges (₹)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={bounceCharges}
+              onChange={(e) => setBounceCharges(e.target.value === "" ? "" : Number(e.target.value))}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors font-mono"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setIsBounceOpen(false)}
+              className="px-4 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>Record Bounce</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete Cheque Record"
+        description={`Are you sure you want to delete cheque booking #${selectedCheque?.cheque_number}? This action cannot be undone.`}
+        onConfirm={handleDeleteCheque}
+        confirmText="Delete Permanently"
+        cancelText="Cancel"
+      />
 
       <ConfirmDialog
         open={isClearOpen}

@@ -25,6 +25,8 @@ import { Badge } from "@/components/shared/Badge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
+import { SwipeableRow } from "@/components/shared/SwipeableRow";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -255,7 +257,8 @@ export default function SalesOrdersPage() {
   const activeFilterCount = (statusFilter ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 pb-12">
+    <PullToRefresh onRefresh={async () => { await refetchOrders(); }}>
+      <div className="flex flex-col gap-4 sm:gap-6 pb-12">
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -503,115 +506,130 @@ export default function SalesOrdersPage() {
         {/* ── MOBILE: Clean Cards List ── */}
         <div className="md:hidden space-y-3">
           {orders.map((o) => (
-            <div
+            <SwipeableRow
               key={o.id}
-              className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3 transition-shadow"
+              leftAction={{
+                label: "Edit",
+                icon: <Pencil size={16} />,
+                bgClass: "bg-amber-500 text-white",
+                onAction: () => handleOpenEdit(o),
+              }}
+              rightAction={{
+                label: "Delete",
+                icon: <Trash2 size={16} />,
+                bgClass: "bg-rose-600 text-white",
+                onAction: () => handleOpenDelete(o),
+              }}
             >
-              {/* Header: Order# + Status */}
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-black text-[var(--primary)] text-sm tracking-tight">
-                  {o.order_number}
-                </span>
-                {getStatusBadge(o.status)}
-              </div>
+              <div
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3 transition-shadow"
+              >
+                {/* Header: Order# + Status */}
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-black text-[var(--primary)] text-sm tracking-tight">
+                    {o.order_number}
+                  </span>
+                  {getStatusBadge(o.status)}
+                </div>
 
-              {/* Customer + Date */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-bold text-[var(--text-primary)] text-sm truncate">
-                    {o.party?.name || "Unknown Customer"}
-                  </p>
-                  {o.party?.company_name && (
-                    <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
-                      {o.party.company_name}
+                {/* Customer + Date */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-[var(--text-primary)] text-sm truncate">
+                      {o.party?.name || "Unknown Customer"}
                     </p>
-                  )}
+                    {o.party?.company_name && (
+                      <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                        {o.party.company_name}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-[var(--text-faint)] shrink-0 font-medium">
+                    {o.order_date}
+                  </span>
                 </div>
-                <span className="text-[11px] text-[var(--text-faint)] shrink-0 font-medium">
-                  {o.order_date}
-                </span>
-              </div>
 
-              {/* Value + Due Date Grid */}
-              <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
-                <div>
-                  <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
-                    Booking Value
-                  </span>
-                  <span className="text-xs font-black text-[var(--text-primary)] mt-0.5 block">
-                    ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
-                    Delivery Due
-                  </span>
-                  <div className="mt-0.5">
-                    <DueDateBadge
-                      dueDate={o.expected_delivery}
-                      isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
-                      type="order"
-                    />
+                {/* Value + Due Date Grid */}
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-[var(--page-bg)] border border-[var(--border-light)]">
+                  <div>
+                    <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
+                      Booking Value
+                    </span>
+                    <span className="text-xs font-black text-[var(--text-primary)] mt-0.5 block">
+                      ₹{o.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider block">
+                      Delivery Due
+                    </span>
+                    <div className="mt-0.5">
+                      <DueDateBadge
+                        dueDate={o.expected_delivery}
+                        isCompleted={o.status === "dispatched" || !!o.converted_bill_id}
+                        type="order"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Quick Action Buttons (Convert, Start Lot, Linked Bill) */}
-              <div className="pt-1">
-                {o.converted_bill_id ? (
-                  <Link
-                    href={`/sales/bills/${o.converted_bill_id}`}
-                    className="inline-flex items-center gap-1.5 text-[var(--primary)] font-bold text-xs hover:underline"
+                {/* Quick Action Buttons (Convert, Start Lot, Linked Bill) */}
+                <div className="pt-1">
+                  {o.converted_bill_id ? (
+                    <Link
+                      href={`/sales/bills/${o.converted_bill_id}`}
+                      className="inline-flex items-center gap-1.5 text-[var(--primary)] font-bold text-xs hover:underline"
+                    >
+                      <LinkIcon size={12} />
+                      <span>Linked Bill: {o.bill?.bill_number || "View Invoice"}</span>
+                    </Link>
+                  ) : o.status !== "cancelled" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
+                        className="h-8 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/20 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span>Convert</span>
+                        <ChevronRight size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`
+                          )
+                        }
+                        className="h-8 rounded-lg bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Layers size={13} />
+                        <span>Start Lot</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Footer Actions (Edit & Delete) */}
+                <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(o)}
+                    className="h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-[var(--card-bg)] transition-colors"
                   >
-                    <LinkIcon size={12} />
-                    <span>Linked Bill: {o.bill?.bill_number || "View Invoice"}</span>
-                  </Link>
-                ) : o.status !== "cancelled" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/sales/bills/new?order_id=${o.id}`)}
-                      className="h-8 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/20 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <span>Convert</span>
-                      <ChevronRight size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(
-                          `/production/lots/new?sale_order_id=${o.id}&order_no=${o.order_number}`
-                        )
-                      }
-                      className="h-8 rounded-lg bg-[var(--primary-light)] hover:bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <Layers size={13} />
-                      <span>Start Lot</span>
-                    </button>
-                  </div>
-                ) : null}
+                    <Pencil size={12} />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(o)}
+                    className="h-8 px-3 rounded-lg border border-red-500/20 bg-red-500/10 text-red-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-red-500/20 transition-colors"
+                  >
+                    <Trash2 size={12} />
+                    <span>Delete</span>
+                  </button>
+                </div>
               </div>
-
-              {/* Footer Actions (Edit & Delete) */}
-              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-light)] pt-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleOpenEdit(o)}
-                  className="h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-amber-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-[var(--card-bg)] transition-colors"
-                >
-                  <Pencil size={12} />
-                  <span>Edit</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenDelete(o)}
-                  className="h-8 px-3 rounded-lg border border-red-500/20 bg-red-500/10 text-red-500 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-red-500/20 transition-colors"
-                >
-                  <Trash2 size={12} />
-                  <span>Delete</span>
-                </button>
-              </div>
-            </div>
+            </SwipeableRow>
           ))}
         </div>
 
@@ -974,5 +992,6 @@ export default function SalesOrdersPage() {
         </div>
       </Modal>
     </div>
+    </PullToRefresh>
   );
 }

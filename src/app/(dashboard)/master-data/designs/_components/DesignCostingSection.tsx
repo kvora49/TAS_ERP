@@ -10,11 +10,9 @@ import {
   Save,
   Printer,
   Layers,
-  ChevronDown
 } from "lucide-react";
-import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 
 interface FabricCostItem {
   id: string;
@@ -111,12 +109,10 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
       }
       if (active.notes) setNotes(active.notes);
     } else if (costingData && !isLoading) {
-      // Auto-populate from production lots if no saved costing exists yet
       loadAutoPopulatedCosting();
     }
   }, [costingData, isLoading, designId]);
 
-  // Import / Auto-populate from production lot history manually
   const handleImportFromProductionLot = async () => {
     await loadAutoPopulatedCosting();
   };
@@ -151,97 +147,93 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
       return json;
     },
     onSuccess: () => {
-      toast.success("Design costing saved successfully!");
+      toast.success("Design BOM Costing updated successfully!");
       queryClient.invalidateQueries({ queryKey: ["design-costing-detail", designId] });
       onSave?.();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save costing");
+    },
   });
 
+  // Calculate totals
   const totalFabricCost = useMemo(() => {
-    return fabricItems.reduce((acc, item) => acc + (Number(item.consumption) * Number(item.rate) || 0), 0);
+    return fabricItems.reduce((acc, curr) => acc + (curr.total || 0), 0);
   }, [fabricItems]);
 
   const totalTrimsCost = useMemo(() => {
-    return trimItems.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.rate) || 0), 0);
+    return trimItems.reduce((acc, curr) => acc + (curr.total || 0), 0);
   }, [trimItems]);
 
   const totalProcessCost = useMemo(() => {
-    return processItems.reduce((acc, item) => acc + (Number(item.rate_per_piece) || 0), 0);
+    return processItems.reduce((acc, curr) => acc + (curr.total || 0), 0);
   }, [processItems]);
 
-  const rawSubtotal = totalFabricCost + totalTrimsCost + totalProcessCost;
-  const wastageCost = (rawSubtotal * (wastagePercent || 0)) / 100;
-  const overheadCost = (rawSubtotal * (overheadPercent || 0)) / 100;
-  const totalOverheadsCost = wastageCost + overheadCost + (freightPerPiece || 0);
-  const totalBOMCostPerPiece = rawSubtotal + totalOverheadsCost;
+  const directMaterialCost = totalFabricCost + totalTrimsCost;
+  const wastageCost = directMaterialCost * (wastagePercent / 100);
+  const overheadPercentageCost = (directMaterialCost + totalProcessCost) * (overheadPercent / 100);
+  const totalOverheadsCost = wastageCost + overheadPercentageCost + freightPerPiece;
+  const totalBOMCostPerPiece = directMaterialCost + totalProcessCost + totalOverheadsCost;
+  const suggestedSalePrice = targetMarginPercent < 100
+    ? totalBOMCostPerPiece / (1 - (targetMarginPercent / 100))
+    : totalBOMCostPerPiece * 1.3;
 
-  const suggestedSalePrice = useMemo(() => {
-    if (targetMarginPercent >= 100) return totalBOMCostPerPiece * 2;
-    return totalBOMCostPerPiece / (1 - (targetMarginPercent || 0) / 100);
-  }, [totalBOMCostPerPiece, targetMarginPercent]);
-
-  const updateFabricRow = (index: number, field: keyof FabricCostItem, value: any) => {
-    setFabricItems((prev) => {
-      const copy = [...prev];
-      const row = { ...copy[index], [field]: value };
-      row.total = (Number(row.consumption) || 0) * (Number(row.rate) || 0);
-      copy[index] = row;
-      return copy;
-    });
+  // Handlers for dynamic rows
+  const addFabricRow = () => {
+    setFabricItems([
+      ...fabricItems,
+      { id: Math.random().toString(), fabric_name: "", consumption: 1, unit: "mtr", rate: 0, total: 0 },
+    ]);
   };
 
-  const addFabricRow = () => {
-    setFabricItems((prev) => [
-      ...prev,
-      { id: Date.now().toString(), fabric_name: "New Fabric", consumption: 1, unit: "mtr", rate: 0, total: 0 },
-    ]);
+  const updateFabricRow = (index: number, field: keyof FabricCostItem, value: any) => {
+    const updated = [...fabricItems];
+    const item = { ...updated[index], [field]: value };
+    item.total = (Number(item.consumption) || 0) * (Number(item.rate) || 0);
+    updated[index] = item;
+    setFabricItems(updated);
   };
 
   const removeFabricRow = (index: number) => {
-    setFabricItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateTrimRow = (index: number, field: keyof TrimCostItem, value: any) => {
-    setTrimItems((prev) => {
-      const copy = [...prev];
-      const row = { ...copy[index], [field]: value };
-      row.total = (Number(row.quantity) || 0) * (Number(row.rate) || 0);
-      copy[index] = row;
-      return copy;
-    });
+    setFabricItems(fabricItems.filter((_, idx) => idx !== index));
   };
 
   const addTrimRow = () => {
-    setTrimItems((prev) => [
-      ...prev,
-      { id: Date.now().toString(), trim_name: "New Accessory", quantity: 1, rate: 0, total: 0 },
+    setTrimItems([
+      ...trimItems,
+      { id: Math.random().toString(), trim_name: "", quantity: 1, rate: 0, total: 0 },
     ]);
+  };
+
+  const updateTrimRow = (index: number, field: keyof TrimCostItem, value: any) => {
+    const updated = [...trimItems];
+    const item = { ...updated[index], [field]: value };
+    item.total = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+    updated[index] = item;
+    setTrimItems(updated);
   };
 
   const removeTrimRow = (index: number) => {
-    setTrimItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateProcessRow = (index: number, field: keyof ProcessCostItem, value: any) => {
-    setProcessItems((prev) => {
-      const copy = [...prev];
-      const row = { ...copy[index], [field]: value };
-      row.total = Number(row.rate_per_piece) || 0;
-      copy[index] = row;
-      return copy;
-    });
+    setTrimItems(trimItems.filter((_, idx) => idx !== index));
   };
 
   const addProcessRow = () => {
-    setProcessItems((prev) => [
-      ...prev,
-      { id: Date.now().toString(), process_name: "New Operation", worker_type: "In-House", rate_per_piece: 0, total: 0 },
+    setProcessItems([
+      ...processItems,
+      { id: Math.random().toString(), process_name: "", worker_type: "Job Worker", rate_per_piece: 0, total: 0 },
     ]);
   };
 
+  const updateProcessRow = (index: number, field: keyof ProcessCostItem, value: any) => {
+    const updated = [...processItems];
+    const item = { ...updated[index], [field]: value };
+    item.total = Number(item.rate_per_piece) || 0;
+    updated[index] = item;
+    setProcessItems(updated);
+  };
+
   const removeProcessRow = (index: number) => {
-    setProcessItems((prev) => prev.filter((_, i) => i !== index));
+    setProcessItems(processItems.filter((_, idx) => idx !== index));
   };
 
   const inputClass = `
@@ -249,89 +241,181 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
     border border-[var(--input-border)]
     text-[var(--text-primary)]
     placeholder:text-[var(--text-faint)]
-    focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
-    rounded-lg px-3 h-10 text-xs
+    focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent
+    rounded-lg px-2.5 h-8 text-xs font-semibold
     transition-colors
   `;
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--shadow-sm)] space-y-6">
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3.5 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
       {/* Title & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-light)] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-light)] pb-3">
         <div>
-          <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-amber-500" />
+          <h2 className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Calculator className="h-4 w-4 text-amber-500" />
             <span>Design Costing Calculator</span>
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            BOM raw material, accessories, labor rates, overheads, and target selling price for this design
+          <p className="text-[11px] sm:text-xs text-[var(--text-muted)] mt-0.5">
+            Bill of Materials (BOM), accessories, processes & profit margin
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <AsyncButton
-            variant="outline"
-            onClick={handleImportFromProductionLot}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold"
-          >
-            <Layers className="h-4 w-4 inline mr-1 text-[var(--primary)]" /> Import from Lot
-          </AsyncButton>
+        <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => window.print()}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-body)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--card-bg)] transition-all cursor-pointer"
+            type="button"
+            onClick={handleImportFromProductionLot}
+            disabled={importingLot}
+            className="h-8 sm:h-9 px-3 rounded-xl text-xs font-semibold text-[var(--primary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
           >
-            <Printer className="h-4 w-4 inline mr-1" /> Print
+            <Layers className={cn("h-3.5 w-3.5", importingLot && "animate-spin")} />
+            <span>Import Lot</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="hidden sm:inline-flex h-8 sm:h-9 px-3 rounded-xl text-xs font-semibold text-[var(--text-secondary)] bg-[var(--page-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer items-center gap-1.5"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span>Print</span>
+          </button>
+
           <AsyncButton
             variant="primary"
             onClick={() => saveCostingMutation.mutateAsync()}
-            className="px-4 py-2 rounded-xl text-xs font-semibold"
+            isLoading={saveCostingMutation.isPending}
+            className="h-8 sm:h-9 px-3.5 rounded-xl text-xs font-bold"
           >
-            <Save className="h-4 w-4 inline mr-1" /> Save Costing
+            <Save className="h-3.5 w-3.5" />
+            <span>Save</span>
           </AsyncButton>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Fabric Cost</p>
-          <h3 className="text-lg font-bold text-[var(--text-primary)]">{formatCurrency(totalFabricCost)}</h3>
+      {/* KPI Cards Grid (Compact 2x3 or 3x2 on mobile, 6-col on lg) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase truncate">Fabric Cost</p>
+          <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate mt-0.5">
+            {formatCurrency(totalFabricCost)}
+          </h3>
         </div>
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Trims Cost</p>
-          <h3 className="text-lg font-bold text-[var(--text-primary)]">{formatCurrency(totalTrimsCost)}</h3>
+
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase truncate">Trims Cost</p>
+          <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate mt-0.5">
+            {formatCurrency(totalTrimsCost)}
+          </h3>
         </div>
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Labor Operations</p>
-          <h3 className="text-lg font-bold text-[var(--text-primary)]">{formatCurrency(totalProcessCost)}</h3>
+
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase truncate">Labor / Process</p>
+          <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate mt-0.5">
+            {formatCurrency(totalProcessCost)}
+          </h3>
         </div>
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Overheads</p>
-          <h3 className="text-lg font-bold text-[var(--text-primary)]">{formatCurrency(totalOverheadsCost)}</h3>
+
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase truncate">Overheads</p>
+          <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate mt-0.5">
+            {formatCurrency(totalOverheadsCost)}
+          </h3>
         </div>
-        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">Total Cost / Piece</p>
-          <h3 className="text-xl font-extrabold text-amber-700 dark:text-amber-300">{formatCurrency(totalBOMCostPerPiece)}</h3>
+
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-amber-700 dark:text-amber-400 uppercase truncate">Total Cost / Pc</p>
+          <h3 className="text-sm sm:text-base font-extrabold text-amber-700 dark:text-amber-400 truncate mt-0.5">
+            {formatCurrency(totalBOMCostPerPiece)}
+          </h3>
         </div>
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl p-3.5">
-          <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">Target Price</p>
-          <h3 className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">{formatCurrency(suggestedSalePrice)}</h3>
+
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 sm:p-3">
+          <p className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 uppercase truncate">Target Price</p>
+          <h3 className="text-sm sm:text-base font-extrabold text-emerald-700 dark:text-emerald-400 truncate mt-0.5">
+            {formatCurrency(suggestedSalePrice)}
+          </h3>
         </div>
       </div>
 
-      {/* 4 Costing Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+      {/* 4 Costing Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 1. Fabric Cost Table */}
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">1. Fabric & Raw Materials</h3>
-            <button onClick={addFabricRow} className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer">
-              + Add Row
+            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              1. Fabric & Raw Materials
+            </h3>
+            <button
+              type="button"
+              onClick={addFabricRow}
+              className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <Plus size={13} /> Add Row
             </button>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Cards View (block md:hidden) - Zero horizontal cut-off */}
+          <div className="block md:hidden space-y-2">
+            {fabricItems.length === 0 ? (
+              <p className="text-xs text-[var(--text-faint)] italic py-2 text-center">No fabric rows added</p>
+            ) : (
+              fabricItems.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border)] space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Fabric/Material Name"
+                      value={item.fabric_name}
+                      onChange={(e) => updateFabricRow(idx, "fabric_name", e.target.value)}
+                      className={`${inputClass} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFabricRow(idx)}
+                      className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 cursor-pointer"
+                      title="Remove row"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 items-center text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Qty</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.consumption}
+                        onChange={(e) => updateFabricRow(idx, "consumption", parseFloat(e.target.value) || 0)}
+                        className={`${inputClass} w-full`}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Rate (₹)</span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={item.rate}
+                        onChange={(e) => updateFabricRow(idx, "rate", parseFloat(e.target.value) || 0)}
+                        className={`${inputClass} w-full`}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Cost</span>
+                      <span className="font-bold text-[var(--text-primary)] text-xs block py-1">
+                        {formatCurrency(item.total)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase font-semibold">
@@ -351,7 +435,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         type="text"
                         value={item.fabric_name}
                         onChange={(e) => updateFabricRow(idx, "fabric_name", e.target.value)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
@@ -360,14 +444,14 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         step="0.01"
                         value={item.consumption}
                         onChange={(e) => updateFabricRow(idx, "consumption", parseFloat(e.target.value) || 0)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
                       <select
                         value={item.unit}
                         onChange={(e) => updateFabricRow(idx, "unit", e.target.value)}
-                        className={`${inputClass} w-full h-8 px-1`}
+                        className={`${inputClass} w-full px-1`}
                       >
                         <option value="mtr">mtr</option>
                         <option value="kg">kg</option>
@@ -379,12 +463,19 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         step="1"
                         value={item.rate}
                         onChange={(e) => updateFabricRow(idx, "rate", parseFloat(e.target.value) || 0)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
-                    <td className="py-1.5 text-right font-bold">{formatCurrency(item.total)}</td>
+                    <td className="py-1.5 text-right font-bold text-[var(--text-primary)]">
+                      {formatCurrency(item.total)}
+                    </td>
                     <td className="py-1.5 text-center">
-                      <button onClick={() => removeFabricRow(idx)} className="text-red-500 hover:text-red-700">
+                      <button
+                        type="button"
+                        onClick={() => removeFabricRow(idx)}
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                        title="Delete"
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
@@ -393,21 +484,90 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               </tbody>
             </table>
           </div>
+
           <div className="flex justify-between pt-2 border-t border-[var(--border)] font-bold text-xs">
-            <span>Total Fabric:</span>
+            <span className="text-[var(--text-secondary)]">Total Fabric:</span>
             <span className="text-[var(--primary)]">{formatCurrency(totalFabricCost)}</span>
           </div>
         </div>
 
         {/* 2. Trims Cost Table */}
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">2. Trims & Accessories</h3>
-            <button onClick={addTrimRow} className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer">
-              + Add Row
+            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              2. Trims & Accessories
+            </h3>
+            <button
+              type="button"
+              onClick={addTrimRow}
+              className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <Plus size={13} /> Add Row
             </button>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Cards View (block md:hidden) */}
+          <div className="block md:hidden space-y-2">
+            {trimItems.length === 0 ? (
+              <p className="text-xs text-[var(--text-faint)] italic py-2 text-center">No trims added</p>
+            ) : (
+              trimItems.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border)] space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Trim Name (e.g. Button, Zipper)"
+                      value={item.trim_name}
+                      onChange={(e) => updateTrimRow(idx, "trim_name", e.target.value)}
+                      className={`${inputClass} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTrimRow(idx)}
+                      className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 cursor-pointer"
+                      title="Remove row"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 items-center text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Qty</span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={item.quantity}
+                        onChange={(e) => updateTrimRow(idx, "quantity", parseFloat(e.target.value) || 0)}
+                        className={`${inputClass} w-full`}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Rate (₹)</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={item.rate}
+                        onChange={(e) => updateTrimRow(idx, "rate", parseFloat(e.target.value) || 0)}
+                        className={`${inputClass} w-full`}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Cost</span>
+                      <span className="font-bold text-[var(--text-primary)] text-xs block py-1">
+                        {formatCurrency(item.total)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase font-semibold">
@@ -426,7 +586,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         type="text"
                         value={item.trim_name}
                         onChange={(e) => updateTrimRow(idx, "trim_name", e.target.value)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
@@ -435,7 +595,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         step="1"
                         value={item.quantity}
                         onChange={(e) => updateTrimRow(idx, "quantity", parseFloat(e.target.value) || 0)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
@@ -444,12 +604,19 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         step="0.5"
                         value={item.rate}
                         onChange={(e) => updateTrimRow(idx, "rate", parseFloat(e.target.value) || 0)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
-                    <td className="py-1.5 text-right font-bold">{formatCurrency(item.total)}</td>
+                    <td className="py-1.5 text-right font-bold text-[var(--text-primary)]">
+                      {formatCurrency(item.total)}
+                    </td>
                     <td className="py-1.5 text-center">
-                      <button onClick={() => removeTrimRow(idx)} className="text-red-500 hover:text-red-700">
+                      <button
+                        type="button"
+                        onClick={() => removeTrimRow(idx)}
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                        title="Delete"
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
@@ -458,21 +625,84 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               </tbody>
             </table>
           </div>
+
           <div className="flex justify-between pt-2 border-t border-[var(--border)] font-bold text-xs">
-            <span>Total Trims:</span>
+            <span className="text-[var(--text-secondary)]">Total Trims:</span>
             <span className="text-[var(--primary)]">{formatCurrency(totalTrimsCost)}</span>
           </div>
         </div>
 
         {/* 3. Labor Operations Table */}
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">3. Labor Operations</h3>
-            <button onClick={addProcessRow} className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer">
-              + Add Row
+            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              3. Labor Operations
+            </h3>
+            <button
+              type="button"
+              onClick={addProcessRow}
+              className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <Plus size={13} /> Add Row
             </button>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Cards View (block md:hidden) */}
+          <div className="block md:hidden space-y-2">
+            {processItems.length === 0 ? (
+              <p className="text-xs text-[var(--text-faint)] italic py-2 text-center">No operations added</p>
+            ) : (
+              processItems.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border)] space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Operation (e.g. Stitching, QC)"
+                      value={item.process_name}
+                      onChange={(e) => updateProcessRow(idx, "process_name", e.target.value)}
+                      className={`${inputClass} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeProcessRow(idx)}
+                      className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 cursor-pointer"
+                      title="Remove row"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Worker Type</span>
+                      <input
+                        type="text"
+                        placeholder="Worker/Role"
+                        value={item.worker_type}
+                        onChange={(e) => updateProcessRow(idx, "worker_type", e.target.value)}
+                        className={`${inputClass} w-full`}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] block">Rate / Pc (₹)</span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={item.rate_per_piece}
+                        onChange={(e) => updateProcessRow(idx, "rate_per_piece", parseFloat(e.target.value) || 0)}
+                        className={`${inputClass} w-full font-bold text-[var(--text-primary)]`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase font-semibold">
@@ -490,7 +720,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         type="text"
                         value={item.process_name}
                         onChange={(e) => updateProcessRow(idx, "process_name", e.target.value)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
@@ -498,7 +728,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         type="text"
                         value={item.worker_type}
                         onChange={(e) => updateProcessRow(idx, "worker_type", e.target.value)}
-                        className={`${inputClass} w-full h-8`}
+                        className={`${inputClass} w-full`}
                       />
                     </td>
                     <td className="py-1.5 pr-1">
@@ -507,11 +737,16 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
                         step="1"
                         value={item.rate_per_piece}
                         onChange={(e) => updateProcessRow(idx, "rate_per_piece", parseFloat(e.target.value) || 0)}
-                        className={`${inputClass} w-full h-8 text-right font-bold`}
+                        className={`${inputClass} w-full text-right font-bold`}
                       />
                     </td>
                     <td className="py-1.5 text-center">
-                      <button onClick={() => removeProcessRow(idx)} className="text-red-500 hover:text-red-700">
+                      <button
+                        type="button"
+                        onClick={() => removeProcessRow(idx)}
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                        title="Delete"
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
@@ -520,19 +755,22 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               </tbody>
             </table>
           </div>
+
           <div className="flex justify-between pt-2 border-t border-[var(--border)] font-bold text-xs">
-            <span>Total Labor:</span>
+            <span className="text-[var(--text-secondary)]">Total Labor:</span>
             <span className="text-[var(--primary)]">{formatCurrency(totalProcessCost)}</span>
           </div>
         </div>
 
         {/* 4. Overheads & Profit Target */}
-        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">4. Overheads & Profit Target</h3>
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
+          <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+            4. Overheads & Margin
+          </h3>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <label className="text-[11px] text-[var(--text-muted)] block mb-0.5">Wastage (%)</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-0.5">Wastage (%)</label>
               <input
                 type="number"
                 value={wastagePercent}
@@ -541,7 +779,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               />
             </div>
             <div>
-              <label className="text-[11px] text-[var(--text-muted)] block mb-0.5">Freight (₹/pcs)</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-0.5">Freight (₹/pc)</label>
               <input
                 type="number"
                 value={freightPerPiece}
@@ -550,7 +788,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               />
             </div>
             <div>
-              <label className="text-[11px] text-[var(--text-muted)] block mb-0.5">Overheads (%)</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-0.5">Overhead (%)</label>
               <input
                 type="number"
                 value={overheadPercent}
@@ -559,7 +797,7 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
               />
             </div>
             <div>
-              <label className="text-[11px] text-[var(--text-muted)] block mb-0.5">Profit Margin (%)</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-0.5">Margin (%)</label>
               <input
                 type="number"
                 value={targetMarginPercent}
@@ -570,17 +808,16 @@ export default function DesignCostingSection({ designId, onSave }: { designId: s
           </div>
 
           <div>
-            <label className="text-[11px] text-[var(--text-muted)] block mb-0.5">Costing Notes</label>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-0.5">Costing Remarks</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add costing notes or remarks..."
+              placeholder="Add costing notes or scope details..."
               rows={2}
-              className={`${inputClass} w-full h-auto py-1.5`}
+              className={`${inputClass} w-full h-auto py-1.5 resize-none`}
             />
           </div>
         </div>
-
       </div>
     </div>
   );

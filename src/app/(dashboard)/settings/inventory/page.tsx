@@ -6,6 +6,8 @@ import { SettingsCard } from "@/components/settings/SettingsCard";
 import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
 import { SettingsPreviewCard } from "@/components/settings/SettingsPreviewCard";
 import { InfoBanner } from "@/components/shared/InfoBanner";
+import PageState from "@/components/shared/PageState";
+import { useInventorySettings, GodownItem } from "@/hooks/useInventorySettings";
 import {
   Package,
   Bell,
@@ -28,11 +30,10 @@ interface Godown {
 }
 
 export default function InventorySettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data, isLoading, error, refetch, updateSettings, isSaving } = useInventorySettings();
 
   // Godowns list
-  const [godowns, setGodowns] = useState<Godown[]>([]);
+  const [godowns, setGodowns] = useState<GodownItem[]>([]);
 
   // Settings states
   const [defaultGodownId, setDefaultGodownId] = useState("");
@@ -68,33 +69,19 @@ export default function InventorySettingsPage() {
     }
   };
 
-  const fetchInventorySettings = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/settings/inventory");
-      if (!res.ok) throw new Error("Failed to load inventory settings");
-      const data = await res.json();
-
-      if (data.settings) {
-        setDefaultGodownId(data.settings.default_godown_id || "");
-        setLowStockThreshold(data.settings.low_stock_threshold || 10);
-        setAllowNegativeStock(data.settings.allow_negative_stock ?? false);
-        setEnableBatchTracking(data.settings.enable_batch_tracking ?? true);
-        setEnableSerialNumbers(data.settings.enable_serial_numbers ?? false);
-        setValuationMethod(data.settings.stock_valuation_method || "fifo");
-      }
-
-      setGodowns(data.godowns || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading inventory settings");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchInventorySettings();
-  }, []);
+    if (data?.settings) {
+      setDefaultGodownId(data.settings.default_godown_id || "");
+      setLowStockThreshold(data.settings.low_stock_threshold || 10);
+      setAllowNegativeStock(data.settings.allow_negative_stock ?? false);
+      setEnableBatchTracking(data.settings.enable_batch_tracking ?? true);
+      setEnableSerialNumbers(data.settings.enable_serial_numbers ?? false);
+      setValuationMethod(data.settings.stock_valuation_method || "fifo");
+    }
+    if (data?.godowns) {
+      setGodowns(data.godowns);
+    }
+  }, [data]);
 
   const handleSave = async () => {
     if (!defaultGodownId) {
@@ -102,31 +89,14 @@ export default function InventorySettingsPage() {
       return;
     }
 
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings/inventory", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          default_godown_id: defaultGodownId,
-          low_stock_threshold: lowStockThreshold,
-          allow_negative_stock: allowNegativeStock,
-          enable_batch_tracking: enableBatchTracking,
-          enable_serial_numbers: enableSerialNumbers,
-          stock_valuation_method: valuationMethod,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update inventory settings");
-
-      toast.success("Inventory settings updated successfully");
-      fetchInventorySettings();
-    } catch (err: any) {
-      toast.error(err.message || "Error saving inventory settings");
-    } finally {
-      setSaving(false);
-    }
+    await updateSettings({
+      default_godown_id: defaultGodownId,
+      low_stock_threshold: lowStockThreshold,
+      allow_negative_stock: allowNegativeStock,
+      enable_batch_tracking: enableBatchTracking,
+      enable_serial_numbers: enableSerialNumbers,
+      stock_valuation_method: valuationMethod,
+    });
   };
 
   // Find godown name for preview
@@ -154,27 +124,24 @@ export default function InventorySettingsPage() {
     { icon: Hash, label: "Enable Serial Numbers", value: enableSerialNumbers, type: "badge" as const },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <span className="text-sm font-semibold text-slate-500 animate-pulse">
-          Loading inventory preferences...
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6 text-left">
-      <SettingsPageHeader
-        section="Inventory"
-        title="Settings > Inventory"
-        subtitle="Manage inventory related preferences"
-        actionLabel="Save Changes"
-        onAction={handleSave}
-        actionIcon={<Save className="size-4 text-white" />}
-        actionLoading={saving}
-      />
+    <PageState
+      isLoading={isLoading}
+      isError={!!error}
+      error={error?.message}
+      onRetry={refetch}
+      skeletonVariant="form"
+    >
+      <div className="flex flex-col gap-6 text-left">
+        <SettingsPageHeader
+          section="Inventory"
+          title="Settings > Inventory"
+          subtitle="Manage inventory related preferences"
+          actionLabel="Save Changes"
+          onAction={handleSave}
+          actionIcon={<Save className="size-4 text-white" />}
+          actionLoading={isSaving}
+        />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT + CENTER columns */}
@@ -327,19 +294,19 @@ export default function InventorySettingsPage() {
             rows={previewRows}
           >
             <div className="flex flex-col gap-3 text-sm text-[#64748B]">
-              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-2 text-xs font-semibold text-slate-700 select-none">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-2 text-xs font-semibold text-[var(--text-primary)] select-none">
                 <span>Valuation Method</span>
                 <span>{getValuationLabel()}</span>
               </div>
 
               {/* About note box */}
-              <div className="bg-[#EFF6FF] rounded-lg p-3 mt-2 flex items-start gap-2">
-                <Info className="size-4 text-[#1D4ED8] shrink-0 mt-0.5" />
+              <div className="bg-[var(--primary-light)] rounded-lg p-3 mt-2 flex items-start gap-2">
+                <Info className="size-4 text-[var(--primary)] shrink-0 mt-0.5" />
                 <div className="text-left">
-                  <span className="text-xs font-semibold text-[#1D4ED8] block">
+                  <span className="text-xs font-semibold text-[var(--primary)] block">
                     About Inventory Settings
                   </span>
-                  <span className="text-[11px] text-[#64748B] block mt-1 leading-snug">
+                  <span className="text-[11px] text-[var(--text-muted)] block mt-1 leading-snug">
                     These preferences control how inventory is managed in the system. Changes will affect new transactions going forward.
                   </span>
                 </div>
@@ -349,5 +316,6 @@ export default function InventorySettingsPage() {
         </div>
       </div>
     </div>
+    </PageState>
   );
 }

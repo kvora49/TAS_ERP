@@ -8,6 +8,7 @@ import { useERPQuery, useERPMutation } from "@/hooks/useERPQuery";
 import { Button } from "@/components/ui/button";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Building2, FileText, Landmark, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function BillBuilderPage() {
   const [layout, setLayout] = useState<CustomBillLayout>(DEFAULT_BILL_LAYOUT);
@@ -108,35 +109,37 @@ export default function BillBuilderPage() {
   `;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
+    <div className={cn("max-w-6xl mx-auto space-y-4 sm:space-y-6", activeTab === "layout_builder" ? "p-1 sm:p-4" : "p-3.5 sm:p-6")}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-light)] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-light)] pb-4">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">Bill &amp; Invoice Settings</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-[var(--text-primary)]">Bill &amp; Invoice Settings</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Configure Terms &amp; Conditions, Bank Details, Declarations, and print layout options for Sales Bills.
           </p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-2 bg-[var(--page-bg)] p-1 rounded-xl border border-[var(--border)] self-start">
+        <div className="flex items-center gap-1.5 bg-[var(--page-bg)] p-1 rounded-xl border border-[var(--border)] self-start w-full sm:w-auto">
           <button
             onClick={() => setActiveTab("print_settings")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={cn(
+              "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center",
               activeTab === "print_settings"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-xs"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
+            )}
           >
             Invoice Footer &amp; Bank
           </button>
           <button
             onClick={() => setActiveTab("layout_builder")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={cn(
+              "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center",
               activeTab === "layout_builder"
-                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-xs"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
+            )}
           >
             Visual Layout Builder
           </button>

@@ -20,6 +20,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 interface StageEntry {
   id: string;
@@ -61,7 +62,7 @@ export default function StageEntriesListPage() {
   const [deleteTarget, setDeleteTarget] = useState<StageEntry | null>(null);
 
   // Fetch all stage entries from API
-  const { data, isLoading, error } = useQuery<{ entries: StageEntry[] }>({
+  const { data, isLoading, error, refetch } = useQuery<{ entries: StageEntry[] }>({
     queryKey: ["stage-entries", debouncedSearch],
     queryFn: async () => {
       const res = await fetch(`/api/production/stage-entries?search=${encodeURIComponent(debouncedSearch)}`);
@@ -117,7 +118,8 @@ export default function StageEntriesListPage() {
   const totalLaborCost = entries.reduce((acc, curr) => acc + curr.total_job_work_amount, 0);
 
   return (
-    <div className="space-y-6 select-none max-w-[1400px] mx-auto">
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <div className="space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Breadcrumb and Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -500,5 +502,6 @@ export default function StageEntriesListPage() {
         </Modal>
       )}
     </div>
+    </PullToRefresh>
   );
 }

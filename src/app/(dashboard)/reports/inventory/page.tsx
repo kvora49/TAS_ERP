@@ -15,13 +15,15 @@ import Link from "next/link";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import FilterPills from "@/components/reports/filters/FilterPills";
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
+import ReportTabs from "@/components/reports/ReportTabs";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 type InvTab = "valuation" | "warehouse" | "design";
 
 const TABS: { id: InvTab; label: string; icon: React.ReactNode }[] = [
-  { id: "valuation", label: "Stock Valuation", icon: <Tag size={13} /> },
-  { id: "warehouse", label: "Warehouse Stock", icon: <WarehouseIcon size={13} /> },
-  { id: "design", label: "Design Stock", icon: <Package size={13} /> },
+  { id: "valuation", label: "Stock Valuation", icon: <Tag size={14} /> },
+  { id: "warehouse", label: "Warehouse Stock", icon: <WarehouseIcon size={14} /> },
+  { id: "design", label: "Design Stock", icon: <Package size={14} /> },
 ];
 
 const STOCK_STATUS_OPTIONS = [
@@ -157,7 +159,8 @@ export default function InventoryReportsPage() {
   }));
 
   return (
-    <ReportShell
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <ReportShell
       title="Inventory & Stock"
       infoTooltip="Stock valuation across finished goods, raw materials & accessories, godown breakdown, and design variant levels."
       breadcrumbs={["Reports", "Inventory & Stock"]}
@@ -188,30 +191,19 @@ export default function InventoryReportsPage() {
             onChange={setStockStatus}
             options={STOCK_STATUS_OPTIONS}
           />
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="w-full sm:w-auto flex items-center gap-1.5 sm:ml-auto">
             <StockCategoryFilter value={category} onChange={setCategory} />
           </div>
         </div>
       }
     >
       {/* Sub Tabs */}
-      <div className="flex border-b border-[var(--border)] gap-1 -mt-2 print:hidden">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={cn(
-              "flex items-center gap-1.5 px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer",
-              activeTab === t.id
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+      <div className="-mt-1 mb-2">
+        <ReportTabs
+          tabs={TABS}
+          activeTab={activeTab}
+          onChange={(id) => setActiveTab(id as InvTab)}
+        />
       </div>
 
       <PageState
@@ -223,9 +215,9 @@ export default function InventoryReportsPage() {
         skeletonCount={4}
       >
         {data && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
               <ReportKPICard label="Total Stock Value" value={s.totalValue} color="emerald" icon={<Tag size={16} />} />
               <ReportKPICard label="Pakka Stock Value" value={s.pakkaStockValue ?? 0} color="blue" icon={<Tag size={16} />} />
               <ReportKPICard label="Kaccha Stock Value" value={s.kachaStockValue ?? 0} color="amber" icon={<Tag size={16} />} />
@@ -620,6 +612,7 @@ export default function InventoryReportsPage() {
           </div>
         )}
       </PageState>
-    </ReportShell>
+      </ReportShell>
+    </PullToRefresh>
   );
 }

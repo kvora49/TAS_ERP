@@ -447,12 +447,12 @@ export default function DesignsPage() {
     return (
       <div
         key={design.id}
-        className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all flex flex-col group"
+        className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all flex flex-col group"
       >
-        {/* Catalog Image Swatch */}
+        {/* Catalog Image Swatch (Compact 16:10 / 140px on mobile) */}
         <Link
           href={`/master-data/designs/${design.id}`}
-          className="aspect-[4/3] bg-[var(--page-bg)] border-b border-[var(--border)] relative flex items-center justify-center overflow-hidden cursor-pointer"
+          className="h-32 sm:h-40 bg-[var(--page-bg)] border-b border-[var(--border)] relative flex items-center justify-center overflow-hidden cursor-pointer"
         >
           {coverImage ? (
             <img
@@ -461,7 +461,7 @@ export default function DesignsPage() {
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <ImageIcon className="h-10 w-10 text-[var(--text-faint)]" />
+            <ImageIcon className="h-8 w-8 text-[var(--text-faint)]" />
           )}
 
           {/* Active Status tag overlay */}
@@ -471,13 +471,13 @@ export default function DesignsPage() {
         </Link>
 
         {/* Meta info */}
-        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+        <div className="p-3 flex-1 flex flex-col justify-between space-y-2.5">
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider truncate">
                 {design.brand?.name || "Apparel Brand"}
               </span>
-              <span className="text-[10px] font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded font-mono border border-[var(--border)]">
+              <span className="text-[10px] font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-1.5 py-0.5 rounded font-mono border border-[var(--border)] shrink-0">
                 {design.design_number}
               </span>
             </div>
@@ -490,15 +490,15 @@ export default function DesignsPage() {
             </Link>
 
             {design.category && (
-              <span className="text-xs text-[var(--text-muted)] font-semibold block mt-0.5">
+              <span className="text-[11px] text-[var(--text-muted)] font-medium block truncate">
                 {design.category} {design.sub_category ? `• ${design.sub_category}` : ""}
               </span>
             )}
           </div>
 
           {/* Sizes & Colors preview */}
-          <div className="border-t border-[var(--border-light)] pt-3 flex items-center justify-between text-xs">
-            <div className="flex flex-wrap gap-1 max-w-[120px] overflow-hidden">
+          <div className="border-t border-[var(--border-light)] pt-2 flex items-center justify-between text-xs">
+            <div className="flex flex-wrap gap-1 max-w-[130px] overflow-hidden">
               {design.size_set?.sizes &&
                 design.size_set.sizes.slice(0, 3).map((size: string) => (
                   <span
@@ -510,7 +510,7 @@ export default function DesignsPage() {
                 ))}
               {design.size_set?.sizes && design.size_set.sizes.length > 3 && (
                 <span className="text-[9px] font-bold text-[var(--text-muted)]">
-                  + {design.size_set.sizes.length - 3}
+                  +{design.size_set.sizes.length - 3}
                 </span>
               )}
             </div>
@@ -521,7 +521,7 @@ export default function DesignsPage() {
                 design.design_colours.slice(0, 4).map((c: any, i: number) => (
                   <span
                     key={i}
-                    className="w-3.5 h-3.5 rounded-full border border-white ring-1 ring-black/10 inline-block shrink-0"
+                    className="w-3.5 h-3.5 rounded-full border border-[var(--card-bg)] ring-1 ring-black/10 inline-block shrink-0"
                     style={{ backgroundColor: c.colour_hex || "#6366F1" }}
                     title={c.colour_name}
                   />
@@ -530,9 +530,9 @@ export default function DesignsPage() {
           </div>
 
           {/* Stock Summary Section */}
-          <div className="border-t border-b border-[var(--border-light)] py-2.5 grid grid-cols-2 gap-2 text-xs bg-[var(--page-bg)] rounded-lg px-2.5">
+          <div className="border-t border-b border-[var(--border-light)] py-1.5 grid grid-cols-2 gap-2 text-xs bg-[var(--page-bg)] rounded-lg px-2">
             <div>
-              <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+              <span className="text-[8px] font-bold text-[var(--text-faint)] uppercase block leading-tight">
                 Stock On Hand
               </span>
               <span className="font-extrabold text-[var(--text-primary)] text-xs">
@@ -540,45 +540,50 @@ export default function DesignsPage() {
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[9px] font-bold text-[var(--text-faint)] uppercase block">
+              <span className="text-[8px] font-bold text-[var(--text-faint)] uppercase block leading-tight">
                 Stock Value
               </span>
               <span className="font-extrabold text-emerald-500 text-xs">
-                ₹{stockVal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                ₹{stockVal.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
               </span>
             </div>
           </div>
 
           {/* Price & Actions */}
-          <div className="pt-1 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] font-bold text-[var(--text-faint)] block uppercase">
+          <div className="pt-0.5 flex items-center justify-between gap-1">
+            <div className="min-w-0">
+              <span className="text-[8px] font-bold text-[var(--text-faint)] block uppercase leading-tight">
                 Sale Price
               </span>
-              <span className="font-bold text-xs text-[var(--text-primary)]">
+              <span className="font-bold text-xs text-[var(--text-primary)] truncate block">
                 ₹{design.sale_price?.toLocaleString("en-IN") || "0.00"}
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <Link
                 href={`/master-data/designs/${design.id}`}
                 className="w-7 h-7 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] hover:bg-[var(--card-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
                 title="View Design Details & Stock"
+                aria-label="View Design"
               >
                 <Eye size={13} />
               </Link>
               <button
+                type="button"
                 onClick={() => handleOpenEdit(design)}
                 className="w-7 h-7 rounded-lg border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
                 title="Edit Design"
+                aria-label="Edit Design"
               >
                 <Pencil size={12} />
               </button>
               <button
+                type="button"
                 onClick={() => handleOpenDelete(design)}
                 className="w-7 h-7 rounded-lg border border-red-500/20 hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer transition-all"
                 title="Delete Design"
+                aria-label="Delete Design"
               >
                 <Trash2 size={12} />
               </button>
@@ -593,18 +598,33 @@ export default function DesignsPage() {
     <div className="space-y-4 sm:space-y-6">
       {!isEditing ? (
         <>
-          <PageHeader
-            title="Designs Master"
-            subtitle="Manage product design catalogs, catalog photos, and color sets brand-wise"
-            breadcrumbs={[
-              { label: "Dashboard", href: "/" },
-              { label: "Master Data" },
-              { label: "Designs" },
-            ]}
-            actionLabel="Add Design"
-            onAction={handleOpenAdd}
-            actionIcon={<Plus size={16} className="text-white" />}
-          />
+          {/* Mobile App Bar Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[var(--border)]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+                  Designs Master
+                </h1>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)]">
+                  {filteredDesigns.length} {filteredDesigns.length === 1 ? "Design" : "Designs"}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">
+                Manage product catalogs, catalog photos, size sets, and colour variations
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="w-full sm:w-auto h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[var(--primary)]/15"
+              >
+                <Plus size={16} />
+                <span>Add Design</span>
+              </button>
+            </div>
+          </div>
 
           {/* 10-DIMENSIONAL DESIGN STOCK FILTERS & ANALYSIS PANEL */}
           <MainDesignStockFiltersPanel onFilterChange={setPanelFilters} />
@@ -684,14 +704,14 @@ export default function DesignsPage() {
                   </div>
 
                   {/* Design Cards Grid for Brand */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
                     {bDesigns.map(renderDesignCard)}
                   </div>
                 </div>
               ))}
 
               {unbrandedDesigns.length > 0 && (
-                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
                   <div className="pb-3 border-b border-[var(--border)]">
                     <h2 className="text-base font-bold text-[var(--text-primary)]">
                       Unassigned Brand Designs
@@ -700,7 +720,7 @@ export default function DesignsPage() {
                       {unbrandedDesigns.length} Designs
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
                     {unbrandedDesigns.map(renderDesignCard)}
                   </div>
                 </div>
@@ -708,7 +728,7 @@ export default function DesignsPage() {
             </div>
           ) : (
             /* FLAT GRID VIEW */
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {filteredDesigns.map(renderDesignCard)}
             </div>
           )}

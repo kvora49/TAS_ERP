@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface AsyncButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => Promise<void> | void;
@@ -27,9 +28,14 @@ export default function AsyncButton({
 
   const handlePress = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!onClick) return;
+    triggerHaptic("impactLight");
     setInternalLoading(true);
     try {
       await onClick(e);
+      triggerHaptic("success");
+    } catch (err) {
+      triggerHaptic("error");
+      throw err;
     } finally {
       setInternalLoading(false);
     }

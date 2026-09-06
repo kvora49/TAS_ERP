@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   MessageSquare,
   Edit2,
+  Share2,
 } from "lucide-react";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
@@ -30,6 +31,7 @@ import PageState from "@/components/shared/PageState";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { openWhatsApp, shareInvoiceWithWhatsApp } from "@/lib/utils/whatsapp";
+import { shareContent } from "@/lib/share";
 import { getPublicBillUrl } from "@/lib/utils/baseUrl";
 import { numberToWords } from "@/lib/utils/numberToWords";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -321,6 +323,20 @@ export default function SaleBillDetailPage() {
     });
   };
 
+  const handleNativeShare = async () => {
+    if (!bill) return;
+    const formattedTotal = bill.grand_total.toLocaleString("en-IN", { minimumFractionDigits: 2 });
+    const billDate = new Date(bill.bill_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const billUrl = getPublicBillUrl(bill.id);
+    const partyName = (bill.party?.company_name || bill.party?.name || "Customer").trim();
+
+    await shareContent({
+      title: `Invoice ${bill.bill_number}`,
+      text: `Tax Invoice ${bill.bill_number} for ${partyName} - ₹${formattedTotal} (${billDate})`,
+      url: billUrl,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 md:pb-0">
       {/* ── MOBILE APP HEADER ── */}
@@ -338,8 +354,8 @@ export default function SaleBillDetailPage() {
           </div>
         </div>
 
-        {/* Action Header — accessible on both mobile and desktop */}
-        <div className="flex items-center gap-1.5 sm:gap-2 select-none flex-wrap">
+        {/* Action Header — accessible on both mobile and desktop, right-aligned */}
+        <div className="flex items-center justify-end self-end sm:self-auto w-full sm:w-auto ml-auto gap-1.5 sm:gap-2 select-none flex-wrap">
           {bill.is_temporary && (
             <button onClick={() => setConvertModalOpen(true)}
               className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
@@ -355,6 +371,14 @@ export default function SaleBillDetailPage() {
             </Link>
           )}
 
+          <button onClick={handleNativeShare}
+            className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-[var(--border)] rounded-lg text-xs font-semibold text-[var(--text-primary)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Share via native sheet or copy link"
+          >
+            <Share2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[var(--primary)]" />
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
           <button onClick={handleWhatsAppShare}
             className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
           ><MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">WhatsApp</span></button>
@@ -365,7 +389,7 @@ export default function SaleBillDetailPage() {
 
           {bill.status !== "cancelled" && (
             <button disabled={cancelling} onClick={handleCancelBill}
-              className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-red-200 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-rose-500/30 rounded-lg text-xs font-semibold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
             ><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">Cancel</span></button>
           )}
         </div>

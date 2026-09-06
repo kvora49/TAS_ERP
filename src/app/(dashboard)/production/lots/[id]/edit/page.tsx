@@ -449,45 +449,45 @@ export default function EditLotPage({ params }: EditLotProps) {
         {/* Left Column: Form Sections */}
         <div className="lg:col-span-2 space-y-6">
           {/* Section 1: Fabric Roll Allocation */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
             <div className="flex items-center gap-3">
-              <span className="w-6 h-6 rounded-full bg-[#EEF2FF] text-[#6366F1] font-bold text-xs flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
                 1
               </span>
               <div>
-                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">Allocated Fabric Rolls Breakdown</h3>
-                <p className="text-[11px] text-[#64748B]">View roll-wise meters allocated to this lot</p>
+                <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Allocated Fabric Rolls Breakdown</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">View roll-wise meters allocated to this lot</p>
               </div>
             </div>
 
             {allocatedRolls.length === 0 ? (
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs text-slate-500 font-medium">
+              <div className="p-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg text-center text-xs text-[var(--text-muted)] font-medium">
                 No roll-wise fabric allocated to this production lot.
               </div>
             ) : (
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] font-bold text-[var(--text-muted)] uppercase text-[10px]">
                       <th className="py-2.5 px-3">Roll No</th>
                       <th className="py-2.5 px-3">Fabric & Supplier</th>
                       <th className="py-2.5 px-3">Shade</th>
                       <th className="py-2.5 px-3 text-right">Meters Allocated</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold">
+                  <tbody className="divide-y divide-[var(--border-light)] font-semibold">
                     {allocatedRolls.map((r: any, idx: number) => (
-                      <tr key={r.id || idx} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-600">
+                      <tr key={r.id || idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                        <td className="py-2.5 px-3 font-mono font-bold text-[var(--primary)]">
                           Roll #{r.purchase_roll?.roll_number || r.roll_number || "—"}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-800">
+                        <td className="py-2.5 px-3 text-[var(--text-primary)]">
                           {r.purchase_roll?.item?.material_type?.name || r.material_name || "Fabric"}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-600">
+                        <td className="py-2.5 px-3 text-[var(--text-secondary)]">
                           {r.purchase_roll?.shade || r.shade || "—"}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                           {r.allocated_meters} Mtr
                         </td>
                       </tr>
@@ -499,24 +499,24 @@ export default function EditLotPage({ params }: EditLotProps) {
           </div>
 
           {/* Section 2: Lot Info */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
             <div className="flex items-center gap-3">
-              <span className="w-6 h-6 rounded-full bg-[#EEF2FF] text-[#6366F1] font-bold text-xs flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
                 2
               </span>
               <div>
-                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">Lot Information</h3>
-                <p className="text-[11px] text-[#64748B]">Update basic settings for this lot</p>
+                <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Lot Information</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Update basic settings for this lot</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Brand</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Brand</label>
                 <select
                   value={brandId}
                   onChange={(e) => setBrandId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
                   {brands.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -527,11 +527,11 @@ export default function EditLotPage({ params }: EditLotProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Design</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Design</label>
                 <select
                   value={designId}
                   onChange={(e) => setDesignId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
                   {designs.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -542,11 +542,11 @@ export default function EditLotPage({ params }: EditLotProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Colour</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Colour</label>
                 <select
                   value={colourId}
                   onChange={(e) => setColourId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                   disabled={!designId}
                 >
                   <option value="">Select Colour</option>
@@ -559,41 +559,41 @@ export default function EditLotPage({ params }: EditLotProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase font-mono">Lot No.</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase font-mono">Lot No.</label>
                 <input
                   type="text"
                   value={lotNumber}
                   disabled
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-gray-50 px-3 text-sm font-mono font-bold text-[#374151]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--page-bg)] px-3 text-sm font-mono font-bold text-[var(--text-primary)] opacity-80"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Target Start Date</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Target Start Date</label>
                 <input
                   type="date"
                   value={targetStartDate}
                   onChange={(e) => setTargetStartDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Target Due Date</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Target Due Date</label>
                 <input
                   type="date"
                   value={targetDueDate}
                   onChange={(e) => setTargetDueDate(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Priority</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Priority</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
                   <option value="low">🟢 Low</option>
                   <option value="normal">🟡 Normal</option>
@@ -602,11 +602,11 @@ export default function EditLotPage({ params }: EditLotProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Status</label>
+                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
                   <option value="draft">Draft</option>
                   <option value="in_progress">In Progress</option>
@@ -618,56 +618,56 @@ export default function EditLotPage({ params }: EditLotProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">Notes</label>
+              <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">Notes</label>
               <textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 maxLength={250}
-                className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:ring-1 focus:ring-[#6366F1] resize-none"
+                className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] resize-none transition-colors"
                 placeholder="Enter notes..."
               />
-              <span className="text-[10px] text-[#94A3B8] font-bold block text-right mt-1">
+              <span className="text-[10px] text-[var(--text-faint)] font-bold block text-right mt-1">
                 {notes.length} / 250 characters
               </span>
             </div>
           </div>
 
           {/* Section 2: Size Breakdowns */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
             <div className="flex items-center gap-3">
-              <span className="w-6 h-6 rounded-full bg-[#DBEAFE] text-[#1D4ED8] font-bold text-xs flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center">
                 2
               </span>
               <div>
-                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
                   Quantity Breakdown by Size
                 </h3>
-                <p className="text-[11px] text-[#64748B]">Update quantities for the current size sets</p>
+                <p className="text-[11px] text-[var(--text-muted)]">Update quantities for the current size sets</p>
               </div>
             </div>
 
             {availableSizes.length === 0 ? (
-              <div className="py-6 text-center text-sm text-[#94A3B8]">No sizes configured.</div>
+              <div className="py-6 text-center text-sm text-[var(--text-faint)]">No sizes configured.</div>
             ) : (
-              <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <table className="w-full text-center border-collapse">
                   <thead>
-                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase">
                       <th className="py-2.5 px-3">Size</th>
                       {availableSizes.map((size) => (
-                        <th key={size} className="py-2.5 px-3 border-l border-[#E5E7EB]">
+                        <th key={size} className="py-2.5 px-3 border-l border-[var(--border)]">
                           {size}
                         </th>
                       ))}
-                      <th className="py-2.5 px-3 border-l border-[#E5E7EB]">Total</th>
+                      <th className="py-2.5 px-3 border-l border-[var(--border)]">Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr className="text-sm">
-                      <td className="py-2 px-3 bg-[#F9FAFB] font-bold text-[#374151]">Qty (Pcs)</td>
+                      <td className="py-2 px-3 bg-[var(--table-header-bg)] font-bold text-[var(--text-body)]">Qty (Pcs)</td>
                       {availableSizes.map((size) => (
-                        <td key={size} className="py-2 px-3 border-l border-[#E5E7EB]">
+                        <td key={size} className="py-2 px-3 border-l border-[var(--border)]">
                           <input
                             type="number"
                             min="0"
@@ -679,11 +679,11 @@ export default function EditLotPage({ params }: EditLotProps) {
                                 [size]: val,
                               });
                             }}
-                            className="w-20 h-9 text-center border border-[#E5E7EB] rounded-lg text-sm"
+                            className="w-20 h-9 text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                           />
                         </td>
                       ))}
-                      <td className="py-2 px-3 border-l border-[#E5E7EB] font-black text-[#0F172A] bg-[#F9FAFB]">
+                      <td className="py-2 px-3 border-l border-[var(--border)] font-black text-[var(--text-primary)] bg-[var(--table-header-bg)]">
                         {totalQuantity}
                       </td>
                     </tr>
@@ -731,10 +731,10 @@ export default function EditLotPage({ params }: EditLotProps) {
               </div>
             </div>
 
-            <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
+            <div className="border border-[var(--border)] rounded-lg overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase">
+                  <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase">
                     <th className="py-2.5 px-4 w-12 text-center">Order</th>
                     <th className="py-2.5 px-4">Stage Name</th>
                     <th className="py-2.5 px-4">Description</th>
@@ -742,31 +742,31 @@ export default function EditLotPage({ params }: EditLotProps) {
                     <th className="py-2.5 px-4 text-center w-20">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB] text-sm">
+                <tbody className="divide-y divide-[var(--border-light)] text-sm">
                   {assignedStages.map((stage, index) => (
-                    <tr key={stage.stage_id} className="hover:bg-[#F9FAFB]">
+                    <tr key={stage.stage_id} className="hover:bg-[var(--table-row-hover)] transition-colors">
                       <td className="py-2.5 px-4 text-center">
                         <div className="flex flex-col items-center">
                           <button
                             type="button"
                             onClick={() => moveStage(index, "up")}
                             disabled={index === 0}
-                            className="p-0.5 text-[#94A3B8] hover:text-[#6366F1] disabled:opacity-35 cursor-pointer"
+                            className="p-0.5 text-[var(--text-faint)] hover:text-[var(--primary)] disabled:opacity-35 cursor-pointer transition-colors"
                           >
                             <ChevronUp size={14} />
                           </button>
-                          <span className="font-mono text-xs font-bold">{stage.sequence_no}</span>
+                          <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{stage.sequence_no}</span>
                           <button
                             type="button"
                             onClick={() => moveStage(index, "down")}
                             disabled={index === assignedStages.length - 1}
-                            className="p-0.5 text-[#94A3B8] hover:text-[#6366F1] disabled:opacity-35 cursor-pointer"
+                            className="p-0.5 text-[var(--text-faint)] hover:text-[var(--primary)] disabled:opacity-35 cursor-pointer transition-colors"
                           >
                             <ChevronDown size={14} />
                           </button>
                         </div>
                       </td>
-                      <td className="py-2.5 px-4 font-semibold text-[#374151]">
+                      <td className="py-2.5 px-4 font-semibold text-[var(--text-primary)]">
                         {stage.stage_name}
                       </td>
                       <td className="py-2.5 px-4">
@@ -774,7 +774,7 @@ export default function EditLotPage({ params }: EditLotProps) {
                           type="text"
                           value={stage.description}
                           onChange={(e) => handleStageDescChange(index, e.target.value)}
-                          className="h-8 rounded border border-[#E5E7EB] bg-white px-2 text-xs w-full"
+                          className="h-8 rounded border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-2 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] transition-colors"
                           placeholder="e.g. In-house cutting details"
                         />
                       </td>
@@ -783,14 +783,14 @@ export default function EditLotPage({ params }: EditLotProps) {
                           type="checkbox"
                           checked={stage.is_mandatory}
                           onChange={() => handleStageRequiredToggle(index)}
-                          className="h-4.5 w-4.5 rounded border-[#E5E7EB] text-[#6366F1] focus:ring-[#6366F1]"
+                          className="h-4.5 w-4.5 rounded border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--primary)] focus:ring-[var(--input-focus)]"
                         />
                       </td>
                       <td className="py-2.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => handleRemoveStage(index)}
-                          className="p-1.5 rounded border border-[#E5E7EB] text-red-500 hover:bg-red-50 cursor-pointer"
+                          className="p-1.5 rounded border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -808,7 +808,7 @@ export default function EditLotPage({ params }: EditLotProps) {
                   if (e.target.value) handleAddStage(e.target.value);
                   e.target.value = "";
                 }}
-                className="h-9 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[210px] w-auto max-w-xs"
+                className="h-9 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2.5 focus:ring-1 focus:ring-[var(--input-focus)] min-w-[210px] w-auto max-w-xs transition-colors"
               >
                 <option value="">+ Add Production Stage</option>
                 {stagesByTemplate.map((group) => (
@@ -822,9 +822,9 @@ export default function EditLotPage({ params }: EditLotProps) {
                 ))}
               </select>
 
-              <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3 flex gap-2">
-                <Info className="h-4 w-4 text-[#1D4ED8] mt-0.5 shrink-0" />
-                <span className="text-xs text-[#1E40AF]">
+              <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded-lg p-3 flex gap-2">
+                <Info className="h-4 w-4 text-[var(--primary)] mt-0.5 shrink-0" />
+                <span className="text-xs text-[var(--text-secondary)]">
                   Changes will be reflected in the lot and related upcoming stage entries.
                 </span>
               </div>
@@ -836,9 +836,9 @@ export default function EditLotPage({ params }: EditLotProps) {
         <div className="space-y-6">
           <LotSummaryPanel title="Lot Live Preview" items={summaryItems} />
 
-          <div className="bg-[#FEF3C7] border border-[#FDE68A] rounded-xl p-4 flex gap-2.5">
-            <Info className="h-5 w-5 text-[#D97706] shrink-0 mt-0.5" />
-            <span className="text-xs text-[#92400E] font-medium leading-relaxed">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-2.5">
+            <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <span className="text-xs text-[var(--text-body)] font-medium leading-relaxed">
               Updating lot settings will recalculate pending stage flows. Make sure existing stages are locked before modifying their sequence.
             </span>
           </div>

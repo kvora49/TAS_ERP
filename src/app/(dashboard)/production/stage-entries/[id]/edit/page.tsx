@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface EditStageEntryPageProps {
   params: { id: string };
@@ -65,6 +66,15 @@ export default function EditStageEntryPage({ params }: EditStageEntryPageProps) 
       setRemarks(entry.remarks || "");
     }
   }, [entry]);
+
+  const isDirty = Boolean(
+    entry &&
+      (qtyIn !== (entry.qty_in || 0) ||
+        qtyOut !== (entry.qty_out || 0) ||
+        workerId !== (entry.worker_id || entry.worker?.id || "") ||
+        remarks !== (entry.remarks || ""))
+  );
+  useUnsavedChangesGuard(isDirty);
 
   // Fetch active workers
   const { data: workersData } = useQuery({

@@ -26,10 +26,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileSpreadsheet,
+  Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import { shareContent } from "@/lib/share";
 
 interface ContactNumber {
   label: string;
@@ -187,11 +189,11 @@ export default function PartyDetailPage() {
     return (
       <div className="p-6 text-center space-y-4">
         <AlertCircle className="h-12 w-12 text-rose-500 mx-auto" />
-        <h3 className="text-lg font-bold text-[#0F172A]">Party Not Found</h3>
-        <p className="text-sm text-[#64748B]">The requested party could not be loaded or has been deleted.</p>
+        <h3 className="text-lg font-bold text-[var(--text-primary)]">Party Not Found</h3>
+        <p className="text-sm text-[var(--text-muted)]">The requested party could not be loaded or has been deleted.</p>
         <Link
           href="/parties"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-lg text-sm font-semibold transition-all shadow-md"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg text-sm font-semibold transition-all shadow-md"
         >
           <ArrowLeft size={16} /> Back to Parties List
         </Link>
@@ -203,6 +205,18 @@ export default function PartyDetailPage() {
   const isSupplier = party.type?.includes("supplier");
   const isCustomer = party.type?.includes("customer");
   const isWorker = party.type?.includes("worker");
+
+  const handleShareParty = async () => {
+    if (!party) return;
+    const phone = getPartyPhone(party);
+    const partyUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    await shareContent({
+      title: `${party.name} (${party.code})`,
+      text: `Contact Card: ${party.name}${party.company_name ? ` - ${party.company_name}` : ""}${phone ? ` • Phone: ${phone}` : ""}`,
+      url: partyUrl,
+    });
+  };
 
   const getPaymentStatusBadge = (status: string) => {
     switch (status) {
@@ -252,6 +266,13 @@ export default function PartyDetailPage() {
             className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-all cursor-pointer flex items-center gap-1.5"
           >
             <ArrowLeft size={14} /> Back
+          </button>
+          <button
+            onClick={handleShareParty}
+            className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-all cursor-pointer flex items-center gap-1.5"
+            title="Share Contact Card"
+          >
+            <Share2 size={13} className="text-[var(--primary)]" /> Share
           </button>
           <button
             onClick={() => router.push(`/master-data/parties/${party.id}/edit`)}

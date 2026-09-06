@@ -12,11 +12,19 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
+  ExternalLink,
+  Sparkles,
+  Palette,
+  Warehouse,
+  Hash,
+  FileCheck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import ProgressBar from "@/components/shared/ProgressBar";
 import PageState from "@/components/shared/PageState";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Badge } from "@/components/shared/Badge";
 
 interface Design {
   id?: string;
@@ -80,7 +88,7 @@ interface BrandDetailResponse {
 export default function BrandDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("lots");
+  const [activeTab, setActiveTab] = useState<"lots" | "designs" | "stock" | "details">("lots");
 
   const { data: detailData, isLoading, error, refetch } = useQuery<BrandDetailResponse>({
     queryKey: ["brand-detail", id],
@@ -103,17 +111,32 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
   const totalPlannedQty = lots.reduce((acc, curr) => acc + Number(curr.total_quantity || 0), 0);
   const totalProducedQty = lots.reduce((acc, curr) => acc + Number(curr.completed_quantity || 0), 0);
 
+  const getLotStatusStyle = (status: Lot["status"]) => {
+    switch (status) {
+      case "in_progress":
+        return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "completed":
+        return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
+      case "on_hold":
+        return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+      case "cancelled":
+        return "bg-red-500/10 text-red-500 border-red-500/20";
+      default:
+        return "bg-[var(--page-bg)] text-[var(--text-muted)] border-[var(--border)]";
+    }
+  };
+
   return (
     <PageState
       isLoading={isLoading}
       isError={!!error || (!isLoading && !brand)}
-      error={error?.message || "Brand not found"}
+      error={error ? (error instanceof Error ? error.message : "Failed to load brand") : "Brand not found"}
       onRetry={refetch}
       skeletonVariant="card"
       skeletonCount={4}
     >
       {brand && (
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Navigation breadcrumbs */}
           <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] select-none">
             <Link href="/" className="hover:text-[var(--text-primary)] transition-colors">
@@ -129,13 +152,13 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
             <span className="text-[var(--text-primary)]">{brand.name}</span>
           </div>
 
-          {/* Header card */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+          {/* Header Card - Mobile App Bar & Hero */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
             {/* Subtle decorative background gradient */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -z-10 pointer-events-none" />
 
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 bg-[var(--primary-light)] rounded-2xl border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] shrink-0 font-black text-xl shadow-sm overflow-hidden">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[var(--primary-light)] rounded-2xl border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] shrink-0 font-black text-xl shadow-sm overflow-hidden">
                 {brand.logo_url ? (
                   <Image
                     src={brand.logo_url}
@@ -148,33 +171,27 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
                   brand.name.substring(0, 2).toUpperCase()
                 )}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">{brand.name}</h1>
+                  <h1 className="text-lg sm:text-xl font-black text-[var(--text-primary)] tracking-tight truncate">
+                    {brand.name}
+                  </h1>
                   {brand.is_primary && (
                     <span className="bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[var(--primary)]/20 uppercase">
                       Primary
                     </span>
                   )}
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
-                      brand.is_active
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-red-500/10 text-red-500 border-red-500/20"
-                    }`}
-                  >
-                    {brand.is_active ? "Active" : "Inactive"}
-                  </span>
+                  <StatusBadge active={brand.is_active} />
                 </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)] font-semibold">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)] font-semibold">
                   {brand.gstin && (
                     <span className="font-mono bg-[var(--page-bg)] px-1.5 py-0.5 rounded border border-[var(--border)] text-[var(--text-secondary)]">
                       GST: {brand.gstin}
                     </span>
                   )}
                   {brand.state && (
-                    <span className="flex items-center gap-1 text-[var(--text-muted)]">
-                      <MapPin size={13} className="text-[var(--text-faint)]" />
+                    <span className="flex items-center gap-1">
+                      <MapPin size={12} className="text-[var(--text-faint)]" />
                       {brand.state} ({brand.state_code || "—"})
                     </span>
                   )}
@@ -183,374 +200,503 @@ export default function BrandDetailPage({ params }: { params: { id: string } }) 
             </div>
 
             <button
+              type="button"
               onClick={() => router.push(`/master-data/brands`)}
-              className="h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="self-start md:self-center h-9 sm:h-10 px-3.5 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
             >
               <ArrowLeft size={14} /> Back to List
             </button>
           </div>
 
-          {/* Stats row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-              <div className="p-3 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
-                <Layers className="h-5 w-5" />
+          {/* Stats Row - Responsive 2x2 Grid on Mobile, 4 Columns on Desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 sm:p-4 shadow-sm flex items-center gap-3">
+              <div className="p-2.5 bg-[var(--primary-light)] rounded-lg text-[var(--primary)] shrink-0">
+                <Layers className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider">
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider truncate">
                   Total Lots
                 </span>
-                <span className="text-lg font-black text-[var(--text-primary)]">{totalLots}</span>
+                <span className="text-base sm:text-lg font-black text-[var(--text-primary)]">
+                  {totalLots}
+                </span>
               </div>
             </div>
 
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-              <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-500 shrink-0">
-                <CheckCircle2 className="h-5 w-5" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 sm:p-4 shadow-sm flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/10 rounded-lg text-emerald-500 shrink-0">
+                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider">
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider truncate">
                   Produced Qty
                 </span>
-                <span className="text-lg font-black text-[var(--text-primary)]">
+                <span className="text-base sm:text-lg font-black text-[var(--text-primary)]">
                   {totalProducedQty.toLocaleString()}
                 </span>
               </div>
             </div>
 
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-              <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
-                <Clock className="h-5 w-5" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 sm:p-4 shadow-sm flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/10 rounded-lg text-amber-500 shrink-0">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider">
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider truncate">
                   Active Lots
                 </span>
-                <span className="text-lg font-black text-[var(--text-primary)]">{activeLots}</span>
+                <span className="text-base sm:text-lg font-black text-[var(--text-primary)]">
+                  {activeLots}
+                </span>
               </div>
             </div>
 
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex items-center gap-3.5">
-              <div className="p-3 bg-[var(--page-bg)] rounded-lg text-[var(--text-muted)] shrink-0">
-                <TrendingUp className="h-5 w-5" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 sm:p-4 shadow-sm flex items-center gap-3">
+              <div className="p-2.5 bg-[var(--page-bg)] rounded-lg text-[var(--text-muted)] shrink-0 border border-[var(--border)]">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider">
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase tracking-wider truncate">
                   Planned Qty
                 </span>
-                <span className="text-lg font-black text-[var(--text-primary)]">
+                <span className="text-base sm:text-lg font-black text-[var(--text-primary)]">
                   {totalPlannedQty.toLocaleString()}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Tabs list */}
-          <div className="flex gap-1 border-b border-[var(--border)] pb-px select-none">
+          {/* Subtabs Navigation - Horizontally Scrollable Segmented Bar */}
+          <div className="flex gap-1.5 border-b border-[var(--border)] pb-px select-none overflow-x-auto no-scrollbar">
             <button
+              type="button"
               onClick={() => setActiveTab("lots")}
-              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "lots"
                   ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
+              <Layers size={13} />
               Production Lots ({totalLots})
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("designs")}
-              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "designs"
                   ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
+              <Palette size={13} />
               Designs ({designs.length})
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("stock")}
-              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "stock"
                   ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
+              <Warehouse size={13} />
               Finished Stock ({stock.length})
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("details")}
-              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "details"
                   ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
+              <FileCheck size={13} />
               Brand Information
             </button>
           </div>
 
-          {/* Tab content */}
+          {/* Tab Content: Production Lots */}
           {activeTab === "lots" && (
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                      <th className="py-3 px-5 w-40">Lot Number</th>
-                      <th className="py-3 px-5">Lot Date</th>
-                      <th className="py-3 px-5">Design / Style</th>
-                      <th className="py-3 px-5 text-right w-32">Total Qty</th>
-                      <th className="py-3 px-5 w-44">Production Progress</th>
-                      <th className="py-3 px-5 text-center w-36">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
-                    {lots.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-[var(--text-muted)]">
-                          No production lots have been assigned to this brand yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      lots.map((lot) => (
-                        <tr
-                          key={lot.id}
-                          onClick={() => router.push(`/production/lots/${lot.id}`)}
-                          className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                        >
-                          <td className="py-3.5 px-5 font-mono text-xs font-bold text-[var(--primary)]">
-                            {lot.lot_number}
-                          </td>
-                          <td className="py-3.5 px-5 text-[var(--text-muted)] font-mono text-xs">
-                            {formatDate(lot.lot_date)}
-                          </td>
-                          <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
-                            {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
-                          </td>
-                          <td className="py-3.5 px-5 text-right font-medium text-[var(--text-body)]">
-                            {lot.total_quantity.toLocaleString()}
-                          </td>
-                          <td className="py-3.5 px-5">
-                            <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
-                          </td>
-                          <td className="py-3.5 px-5 text-center" onClick={(e) => e.stopPropagation()}>
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                                lot.status === "in_progress"
-                                  ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                                  : lot.status === "completed"
-                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                  : lot.status === "on_hold"
-                                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                  : lot.status === "cancelled"
-                                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
-                                  : "bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)]"
-                              }`}
-                            >
-                              {lot.status.replace("_", " ")}
+            <div className="space-y-3">
+              {lots.length === 0 ? (
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-8 text-center text-[var(--text-muted)] text-sm">
+                  No production lots have been assigned to this brand yet.
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Card List View (block md:hidden) */}
+                  <div className="block md:hidden space-y-2.5">
+                    {lots.map((lot) => (
+                      <div
+                        key={lot.id}
+                        onClick={() => router.push(`/production/lots/${lot.id}`)}
+                        className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 shadow-sm active:scale-[0.99] transition-all cursor-pointer space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-mono text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-1.5 py-0.5 rounded border border-[var(--primary)]/20">
+                              {lot.lot_number}
                             </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                            <h4 className="font-bold text-sm text-[var(--text-primary)] mt-1 truncate">
+                              {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
+                            </h4>
+                          </div>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getLotStatusStyle(
+                              lot.status
+                            )}`}
+                          >
+                            {lot.status.replace("_", " ")}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                            <span>Production Progress</span>
+                            <span className="font-bold text-[var(--text-primary)]">
+                              {lot.completed_quantity.toLocaleString()} / {lot.total_quantity.toLocaleString()} pcs
+                            </span>
+                          </div>
+                          <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
+                        </div>
+
+                        <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--text-muted)]">
+                          <span>Date: {formatDate(lot.lot_date)}</span>
+                          <span className="font-bold text-[var(--primary)] text-[11px] flex items-center gap-1">
+                            View Lot <ChevronRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View (hidden md:block) */}
+                  <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                            <th className="py-3 px-5 w-40">Lot Number</th>
+                            <th className="py-3 px-5">Lot Date</th>
+                            <th className="py-3 px-5">Design / Style</th>
+                            <th className="py-3 px-5 text-right w-32">Total Qty</th>
+                            <th className="py-3 px-5 w-44">Production Progress</th>
+                            <th className="py-3 px-5 text-center w-36">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
+                          {lots.map((lot) => (
+                            <tr
+                              key={lot.id}
+                              onClick={() => router.push(`/production/lots/${lot.id}`)}
+                              className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                            >
+                              <td className="py-3.5 px-5 font-mono text-xs font-bold text-[var(--primary)]">
+                                {lot.lot_number}
+                              </td>
+                              <td className="py-3.5 px-5 text-[var(--text-muted)] font-mono text-xs">
+                                {formatDate(lot.lot_date)}
+                              </td>
+                              <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
+                                {lot.design?.code ? `${lot.design.code} - ${lot.design.name}` : "—"}
+                              </td>
+                              <td className="py-3.5 px-5 text-right font-medium text-[var(--text-body)]">
+                                {lot.total_quantity.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-5">
+                                <ProgressBar value={lot.completed_quantity} total={lot.total_quantity} />
+                              </td>
+                              <td className="py-3.5 px-5 text-center" onClick={(e) => e.stopPropagation()}>
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider border ${getLotStatusStyle(
+                                    lot.status
+                                  )}`}
+                                >
+                                  {lot.status.replace("_", " ")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
+          {/* Tab Content: Designs */}
           {activeTab === "designs" && (
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                      <th className="py-3 px-5">Design Code</th>
-                      <th className="py-3 px-5">Design Name</th>
-                      <th className="py-3 px-5">Created At</th>
-                      <th className="py-3 px-5 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
-                    {designs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-12 text-center text-[var(--text-muted)]">
-                          No designs configured for this brand yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      designs.map((d) => (
-                        <tr
-                          key={d.id}
-                          onClick={() => router.push(`/master-data/designs?search=${d.design_number}`)}
-                          className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                        >
-                          <td className="py-3.5 px-5 font-mono text-xs font-bold text-[var(--primary)]">
-                            {d.design_number}
-                          </td>
-                          <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
-                            {d.name}
-                          </td>
-                          <td className="py-3.5 px-5 text-[var(--text-muted)] font-mono text-xs">
-                            {formatDate(d.created_at)}
-                          </td>
-                          <td className="py-3.5 px-5 text-center">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                d.is_active
-                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                  : "bg-[var(--page-bg)] text-[var(--text-muted)] border border-[var(--border)]"
-                              }`}
-                            >
-                              {d.is_active ? "Active" : "Inactive"}
+            <div className="space-y-3">
+              {designs.length === 0 ? (
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-8 text-center text-[var(--text-muted)] text-sm">
+                  No designs configured for this brand yet.
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Card List View (block md:hidden) */}
+                  <div className="block md:hidden space-y-2.5">
+                    {designs.map((d) => (
+                      <div
+                        key={d.id}
+                        onClick={() => router.push(`/master-data/designs/${d.id}`)}
+                        className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 shadow-sm active:scale-[0.99] transition-all cursor-pointer space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-mono text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-1.5 py-0.5 rounded border border-[var(--primary)]/20">
+                              {d.design_number}
                             </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                            <h4 className="font-bold text-sm text-[var(--text-primary)] mt-1 truncate">
+                              {d.name}
+                            </h4>
+                          </div>
+                          <StatusBadge active={d.is_active} />
+                        </div>
+
+                        <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--text-muted)]">
+                          <span>Created: {formatDate(d.created_at)}</span>
+                          <span className="font-bold text-[var(--primary)] text-[11px] flex items-center gap-1">
+                            View Design <ChevronRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View (hidden md:block) */}
+                  <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                            <th className="py-3 px-5">Design Code</th>
+                            <th className="py-3 px-5">Design Name</th>
+                            <th className="py-3 px-5">Created At</th>
+                            <th className="py-3 px-5 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
+                          {designs.map((d) => (
+                            <tr
+                              key={d.id}
+                              onClick={() => router.push(`/master-data/designs/${d.id}`)}
+                              className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                            >
+                              <td className="py-3.5 px-5 font-mono text-xs font-bold text-[var(--primary)]">
+                                {d.design_number}
+                              </td>
+                              <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
+                                {d.name}
+                              </td>
+                              <td className="py-3.5 px-5 text-[var(--text-muted)] font-mono text-xs">
+                                {formatDate(d.created_at)}
+                              </td>
+                              <td className="py-3.5 px-5 text-center">
+                                <StatusBadge active={d.is_active} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
+          {/* Tab Content: Finished Stock */}
           {activeTab === "stock" && (
-            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                      <th className="py-3 px-5">Design / Style</th>
-                      <th className="py-3 px-5">Colour</th>
-                      <th className="py-3 px-5">Godown</th>
-                      <th className="py-3 px-5 text-right">In Stock Qty</th>
-                      <th className="py-3 px-5 text-right">Cost Per Piece</th>
-                      <th className="py-3 px-5 text-right">Total Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
-                    {stock.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-[var(--text-muted)]">
-                          No finished stock available for this brand&apos;s designs.
-                        </td>
-                      </tr>
-                    ) : (
-                      stock.map((item) => (
-                        <tr
-                          key={item.id}
-                          onClick={() => item.design?.id && router.push(`/finished-stock/designs/${item.design.id}`)}
-                          className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
-                        >
-                          <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
-                            {item.design?.code ? `${item.design.code} - ${item.design.name}` : item.design?.name || "—"}
-                          </td>
-                          <td className="py-3.5 px-5 text-xs text-[var(--text-muted)] font-medium">
-                            {item.colour?.colour_name || "—"}
-                          </td>
-                          <td className="py-3.5 px-5 text-xs text-[var(--text-muted)]">
-                            {item.godown?.name || "—"}
-                          </td>
-                          <td className="py-3.5 px-5 text-right font-mono font-bold text-[var(--text-primary)]">
-                            {item.total_quantity.toLocaleString()}
-                          </td>
-                          <td className="py-3.5 px-5 text-right font-mono text-xs text-[var(--text-muted)]">
-                            ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
-                          </td>
-                          <td className="py-3.5 px-5 text-right font-mono font-bold text-[var(--primary)]">
+            <div className="space-y-3">
+              {stock.length === 0 ? (
+                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-8 text-center text-[var(--text-muted)] text-sm">
+                  No finished stock available for this brand&apos;s designs.
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Card List View (block md:hidden) */}
+                  <div className="block md:hidden space-y-2.5">
+                    {stock.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => item.design?.id && router.push(`/finished-stock/designs/${item.design.id}`)}
+                        className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 shadow-sm active:scale-[0.99] transition-all cursor-pointer space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm text-[var(--text-primary)] truncate">
+                              {item.design?.code ? `${item.design.code} - ${item.design.name}` : item.design?.name || "—"}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              {item.colour?.colour_name && (
+                                <span className="bg-[var(--page-bg)] px-2 py-0.5 rounded text-[10px] font-semibold text-[var(--text-muted)] border border-[var(--border)]">
+                                  {item.colour.colour_name}
+                                </span>
+                              )}
+                              {item.godown?.name && (
+                                <span className="bg-[var(--page-bg)] px-2 py-0.5 rounded text-[10px] font-semibold text-[var(--text-muted)] border border-[var(--border)]">
+                                  {item.godown.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs text-[var(--text-muted)] block font-medium">In Stock</span>
+                            <span className="text-sm font-black text-[var(--text-primary)] font-mono">
+                              {item.total_quantity.toLocaleString()} pcs
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
+                          <span className="text-[var(--text-muted)]">
+                            Cost: ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
+                          </span>
+                          <span className="font-mono font-bold text-[var(--primary)] text-sm">
                             ₹{item.total_value ? item.total_value.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View (hidden md:block) */}
+                  <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                            <th className="py-3 px-5">Design / Style</th>
+                            <th className="py-3 px-5">Colour</th>
+                            <th className="py-3 px-5">Godown</th>
+                            <th className="py-3 px-5 text-right">In Stock Qty</th>
+                            <th className="py-3 px-5 text-right">Cost Per Piece</th>
+                            <th className="py-3 px-5 text-right">Total Value</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text-body)]">
+                          {stock.map((item) => (
+                            <tr
+                              key={item.id}
+                              onClick={() => item.design?.id && router.push(`/finished-stock/designs/${item.design.id}`)}
+                              className="hover:bg-[var(--table-row-hover)] transition-colors cursor-pointer"
+                            >
+                              <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
+                                {item.design?.code ? `${item.design.code} - ${item.design.name}` : item.design?.name || "—"}
+                              </td>
+                              <td className="py-3.5 px-5 text-xs text-[var(--text-muted)] font-medium">
+                                {item.colour?.colour_name || "—"}
+                              </td>
+                              <td className="py-3.5 px-5 text-xs text-[var(--text-muted)]">
+                                {item.godown?.name || "—"}
+                              </td>
+                              <td className="py-3.5 px-5 text-right font-mono font-bold text-[var(--text-primary)]">
+                                {item.total_quantity.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-5 text-right font-mono text-xs text-[var(--text-muted)]">
+                                ₹{item.cost_per_piece ? item.cost_per_piece.toFixed(2) : "0.00"}
+                              </td>
+                              <td className="py-3.5 px-5 text-right font-mono font-bold text-[var(--primary)]">
+                                ₹{item.total_value ? item.total_value.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
+          {/* Tab Content: Brand Information - Mobile App Settings Styling */}
           {activeTab === "details" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Billing prefixes & configurations */}
-              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-black text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider">
-                  Document Numbering Configuration
-                </h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-xs">
-                  <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {/* Document Numbering Configuration */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-[var(--border)] pb-3">
+                  <Hash size={16} className="text-[var(--primary)]" />
+                  <h3 className="text-xs sm:text-sm font-black text-[var(--text-primary)] uppercase tracking-wider">
+                    Document Numbering Configuration
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                     <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
                       Bill Prefix (Pakka)
                     </span>
-                    <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
                       {brand.bill_prefix_pakka || "N/A"}
                     </span>
                   </div>
-                  <div>
+                  <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                     <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
                       Bill Prefix (Kacha)
                     </span>
-                    <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
                       {brand.bill_prefix_kacha || "N/A"}
                     </span>
                   </div>
-                  <div>
+                  <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                     <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
                       Design Prefix
                     </span>
-                    <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
                       {brand.design_prefix || "N/A"}
                     </span>
                   </div>
-                  <div>
+                  <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                     <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
-                      Design Separator
+                      Separator & Digits
                     </span>
-                    <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
-                      {brand.design_separator || "."}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
-                      Design Digits
-                    </span>
-                    <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
-                      {brand.design_digits || "4"}
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
+                      &apos;{brand.design_separator || "."}&apos; / {brand.design_digits || "4"} digits
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Legal / Contact Details */}
-              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-black text-[var(--text-primary)] border-b border-[var(--border)] pb-3 uppercase tracking-wider">
-                  Legal & Address Details
-                </h3>
-                <div className="space-y-3.5 text-xs">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+              {/* Legal & Contact Profile */}
+              <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-[var(--border)] pb-3">
+                  <FileCheck size={16} className="text-emerald-500" />
+                  <h3 className="text-xs sm:text-sm font-black text-[var(--text-primary)] uppercase tracking-wider">
+                    Legal & Location Details
+                  </h3>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                       <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
                         GSTIN
                       </span>
-                      <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                      <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
                         {brand.gstin || "—"}
                       </span>
                     </div>
-                    <div>
+                    <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                       <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
-                        State (Code)
+                        State & Code
                       </span>
-                      <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                      <span className="font-mono text-sm font-bold text-[var(--text-primary)]">
                         {brand.state ? `${brand.state} (${brand.state_code || "—"})` : "—"}
                       </span>
                     </div>
                   </div>
-                  <div>
+                  <div className="p-3 bg-[var(--page-bg)] rounded-xl border border-[var(--border)]">
                     <span className="text-[var(--text-muted)] block font-bold mb-1 uppercase tracking-wider text-[10px]">
                       Registered Address
                     </span>
-                    <span className="text-sm font-medium text-[var(--text-body)] block leading-relaxed">
-                      {brand.address || "No address provided."}
-                    </span>
+                    <p className="text-xs sm:text-sm font-medium text-[var(--text-body)] leading-relaxed mt-0.5">
+                      {brand.address || "No registered address provided for this brand."}
+                    </p>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,21 +12,19 @@ import {
   GripVertical,
   Pencil,
   Trash2,
-  AlertCircle,
-  HelpCircle,
   Layers,
+  ChevronUp,
+  ChevronDown,
+  Palette,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/shared/Modal";
+import AsyncButton from "@/components/shared/AsyncButton";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -79,8 +77,176 @@ interface ProductionStage {
   is_active: boolean;
 }
 
-// Drag & Drop Sortable Row Component
-function SortableRow({
+const PRESET_COLORS = [
+  "#6366F1", // Indigo
+  "#3B82F6", // Blue
+  "#10B981", // Emerald
+  "#F59E0B", // Amber
+  "#F43F5E", // Rose
+  "#8B5CF6", // Purple
+  "#64748B", // Slate
+];
+
+// Mobile Sortable Card Component
+function SortableStageCard({
+  stage,
+  index,
+  total,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}: {
+  stage: ProductionStage;
+  index: number;
+  total: number;
+  onEdit: (stage: ProductionStage) => void;
+  onDelete: (stage: ProductionStage) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: stage.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  const accentColor = stage.color || "#6366F1";
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] relative overflow-hidden transition-all space-y-3",
+        isDragging && "ring-2 ring-[var(--primary)] shadow-lg"
+      )}
+    >
+      {/* Left color stripe */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5"
+        style={{ backgroundColor: accentColor }}
+      />
+
+      {/* Card Header: Drag grip, Step number, Reorder buttons & Status */}
+      <div className="flex items-center justify-between gap-2 pl-1.5">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="w-8 h-8 rounded-lg hover:bg-[var(--table-row-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-grab active:cursor-grabbing shrink-0"
+            title="Drag to reorder"
+            aria-label="Drag to reorder stage"
+          >
+            <GripVertical size={18} />
+          </button>
+
+          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-secondary)] border border-[var(--border)]">
+            Step {stage.order_index}
+          </span>
+
+          <div className="flex items-center gap-0.5 border border-[var(--border)] rounded-lg p-0.5 bg-[var(--table-header-bg)]">
+            <button
+              type="button"
+              disabled={index === 0}
+              onClick={() => onMoveUp(index)}
+              className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title="Move Up"
+            >
+              <ChevronUp size={14} />
+            </button>
+            <button
+              type="button"
+              disabled={index === total - 1}
+              onClick={() => onMoveDown(index)}
+              className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title="Move Down"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
+        </div>
+
+        <StatusBadge active={stage.is_active} />
+      </div>
+
+      {/* Stage Details */}
+      <div className="pl-1.5 space-y-1">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-3 h-3 rounded-full shrink-0 border border-black/10"
+            style={{ backgroundColor: accentColor }}
+          />
+          <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight">
+            {stage.name}
+          </h3>
+        </div>
+        {stage.description ? (
+          <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+            {stage.description}
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--text-faint)] italic">No scope description</p>
+        )}
+      </div>
+
+      {/* Custom Fields Preview */}
+      <div className="pl-1.5 pt-1 border-t border-[var(--border-light)]">
+        <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">
+          <span>Job Work Parameters</span>
+          <span className="font-mono">{stage.custom_fields?.length || 0} fields</span>
+        </div>
+
+        {stage.custom_fields && stage.custom_fields.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {stage.custom_fields.map((f, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] border border-[var(--border)] text-[var(--text-secondary)]"
+              >
+                <span>{f.name}</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-mono">({f.type})</span>
+                {f.required && (
+                  <span className="text-[9px] text-red-500 font-bold uppercase">*</span>
+                )}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] text-[var(--text-faint)]">
+            Standard tracking only (worker, quantity out, piece rate)
+          </span>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="pl-1.5 pt-2 border-t border-[var(--border-light)] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(stage)}
+          className="flex-1 h-9 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-[var(--text-secondary)] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Pencil size={14} /> Edit Stage
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(stage)}
+          className="h-9 px-3 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/60 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Desktop Sortable Row Component
+function SortableDesktopRow({
   stage,
   onEdit,
   onDelete,
@@ -96,90 +262,105 @@ function SortableRow({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    backgroundColor: isDragging ? "#F8FAFC" : "transparent",
   };
 
+  const accentColor = stage.color || "#6366F1";
+
   return (
-    <tr ref={setNodeRef} style={style} className="group hover:bg-[#F8FAFC]/50 transition-colors">
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group hover:bg-[var(--table-row-hover)] transition-colors border-b border-[var(--border)] last:border-b-0",
+        isDragging && "bg-[var(--table-header-bg)]"
+      )}
+    >
       {/* Handle */}
-      <td className="align-middle">
+      <td className="w-12 text-center align-middle py-3">
         <button
           type="button"
           {...attributes}
           {...listeners}
-          className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors mx-auto cursor-grab active:cursor-grabbing"
+          className="w-8 h-8 rounded-lg hover:bg-[var(--table-row-hover)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors mx-auto cursor-grab active:cursor-grabbing"
           title="Drag to reorder"
+          aria-label="Drag to reorder stage"
         >
           <GripVertical size={16} />
         </button>
       </td>
 
       {/* Seq Number */}
-      <td className="px-4 text-center align-middle font-bold text-[#475569] text-xs font-mono">
+      <td className="w-16 text-center align-middle font-mono font-bold text-xs text-[var(--text-secondary)] py-3">
         {stage.order_index}
       </td>
 
       {/* Name */}
-      <td className="px-6 align-middle font-bold text-[#0F172A]">
-        {stage.name}
+      <td className="px-4 align-middle font-bold text-[var(--text-primary)] text-sm py-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-3 h-3 rounded-full shrink-0 border border-black/10"
+            style={{ backgroundColor: accentColor }}
+          />
+          <span>{stage.name}</span>
+        </div>
       </td>
 
       {/* Description */}
-      <td className="px-6 align-middle text-xs font-semibold text-[#64748B] max-w-xs truncate">
+      <td className="px-4 align-middle text-xs text-[var(--text-muted)] max-w-xs truncate py-3">
         {stage.description || "—"}
       </td>
 
-      {/* Color Picker */}
-      <td className="px-6 align-middle">
+      {/* Color Picker / Tag */}
+      <td className="px-4 align-middle py-3">
         <div className="flex items-center gap-1.5">
           <span
-            className="w-3.5 h-3.5 rounded-full border border-black/10 inline-block"
-            style={{ backgroundColor: stage.color || "#6366F1" }}
+            className="w-3.5 h-3.5 rounded-full border border-black/10 inline-block shrink-0"
+            style={{ backgroundColor: accentColor }}
           />
-          <span className="text-xs font-mono font-bold text-[#475569]">
-            {stage.color || "#6366F1"}
+          <span className="text-xs font-mono font-semibold text-[var(--text-secondary)]">
+            {accentColor}
           </span>
         </div>
       </td>
 
       {/* Custom Fields */}
-      <td className="px-6 align-middle">
+      <td className="px-4 align-middle py-3">
         {stage.custom_fields && stage.custom_fields.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {stage.custom_fields.map((f, i) => (
-              <Badge key={i} variant="purple" className="text-[10px] font-bold">
+              <Badge key={i} variant="purple" className="text-[10px] font-semibold">
                 {f.name} ({f.type})
               </Badge>
             ))}
           </div>
         ) : (
-          <span className="text-xs text-[#94A3B8] font-bold">—</span>
+          <span className="text-xs text-[var(--text-faint)]">—</span>
         )}
       </td>
 
       {/* Status */}
-      <td className="px-6 align-middle">
+      <td className="px-4 align-middle py-3">
         <StatusBadge active={stage.is_active} />
       </td>
 
       {/* Actions */}
-      <td className="px-6 align-middle">
-        <div className="flex items-center justify-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 align-middle text-center py-3">
+        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => onEdit(stage)}
-            className="w-9 h-9 border border-[#E5E7EB] rounded-lg hover:bg-[#F1F5F9] text-[#6B7280] flex items-center justify-center cursor-pointer transition-all"
+            className="w-8 h-8 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-secondary)] flex items-center justify-center cursor-pointer transition-colors"
             title="Edit Stage"
           >
-            <Pencil size={15} />
+            <Pencil size={14} />
           </button>
           <button
             type="button"
             onClick={() => onDelete(stage)}
-            className="w-9 h-9 border border-[#FEE2E2] rounded-lg hover:bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center cursor-pointer transition-all"
+            className="w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center cursor-pointer transition-colors"
             title="Delete Stage"
           >
-            <Trash2 size={15} />
+            <Trash2 size={14} />
           </button>
         </div>
       </td>
@@ -190,7 +371,7 @@ function SortableRow({
 export default function NewTemplatePage() {
   const router = useRouter();
 
-  // Template Metadata state (handled via native react state or react-hook-form)
+  // Template Metadata state
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
   const [templateDefault, setTemplateDefault] = useState(false);
@@ -229,9 +410,14 @@ export default function NewTemplatePage() {
     name: "custom_fields",
   });
 
+  const selectedColor = watch("color") || "#6366F1";
+  const isActiveStage = watch("is_active");
+
   // dnd-kit sensors configuration
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -246,6 +432,28 @@ export default function NewTemplatePage() {
       const newIndex = items.findIndex((i) => i.id === over.id);
 
       const reordered = arrayMove(items, oldIndex, newIndex);
+      return reordered.map((item, idx) => ({
+        ...item,
+        order_index: idx + 1,
+      }));
+    });
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index <= 0) return;
+    setStages((items) => {
+      const reordered = arrayMove(items, index, index - 1);
+      return reordered.map((item, idx) => ({
+        ...item,
+        order_index: idx + 1,
+      }));
+    });
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index >= stages.length - 1) return;
+    setStages((items) => {
+      const reordered = arrayMove(items, index, index + 1);
       return reordered.map((item, idx) => ({
         ...item,
         order_index: idx + 1,
@@ -291,13 +499,12 @@ export default function NewTemplatePage() {
       return filtered.map((s, i) => ({ ...s, order_index: i + 1 }));
     });
     setDeleteOpen(false);
-    toast.success("Stage removed from local list.");
+    toast.success("Stage removed from draft");
   };
 
   // On stage form submit (Local memory only)
   const onStageSubmit = (data: StageFormValues) => {
     if (editingStage) {
-      // Edit existing local stage
       setStages((prev) =>
         prev.map((s) =>
           s.id === editingStage.id
@@ -313,9 +520,8 @@ export default function NewTemplatePage() {
             : s
         )
       );
-      toast.success("Stage updated in local list.");
+      toast.success("Stage updated in draft");
     } else {
-      // Add new local stage
       const newStage: ProductionStage = {
         id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
         name: data.name,
@@ -327,7 +533,7 @@ export default function NewTemplatePage() {
         is_active: data.is_active,
       };
       setStages((prev) => [...prev, newStage]);
-      toast.success("Stage added to local list.");
+      toast.success("Stage added to draft");
     }
     setModalOpen(false);
   };
@@ -373,343 +579,444 @@ export default function NewTemplatePage() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-IN", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   return (
-    <div className="p-6 space-y-6">
-      {/* Navigation breadcrumbs */}
-      <div className="flex items-center gap-2 text-xs font-bold text-[#64748B] select-none">
-        <Link href="/" className="hover:text-[#0F172A] transition-colors">
-          Dashboard
-        </Link>
-        <ChevronRight size={12} />
-        <span>Master Data</span>
-        <ChevronRight size={12} />
-        <Link href="/master-data/production-stages/templates" className="hover:text-[#0F172A] transition-colors">
-          Templates
-        </Link>
-        <ChevronRight size={12} />
-        <span className="text-[#0F172A]">New Template</span>
-      </div>
-
-      {/* Main Form Fields (Aesthetics card) */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
-
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-[#F1F5F9]">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xl shadow-sm">
-              <Layers size={24} />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-[#0F172A] tracking-tight">Create Production Template</h1>
-              <p className="text-xs text-[#64748B] font-semibold mt-0.5">Configure your stages sequence and custom inputs inline.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <button
-              onClick={handleSaveTemplate}
-              disabled={isSubmittingTemplate}
-              className="flex-1 md:flex-initial h-10 px-5 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-[#6366F1]/10 disabled:opacity-50"
-            >
-              {isSubmittingTemplate ? (
-                <RefreshCw size={14} className="animate-spin" />
-              ) : (
-                "Save Template"
-              )}
-            </button>
-            <button
-              onClick={() => router.push(`/master-data/production-stages/templates`)}
-              className="h-10 px-4 rounded-lg bg-white border border-[#E2E8F0] hover:bg-[#F1F5F9] text-[#475569] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              Cancel
-            </button>
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+      {/* Mobile App Bar Header */}
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-[var(--border)]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link
+            href="/master-data/production-stages/templates"
+            className="w-10 h-10 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] flex items-center justify-center text-[var(--text-secondary)] transition-colors shrink-0"
+            aria-label="Back to templates"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-bold text-[var(--text-primary)] truncate">
+              New Template
+            </h1>
+            <p className="text-[11px] sm:text-xs text-[var(--text-muted)] truncate">
+              Define production stages workflow
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Template Name *</label>
-              <input
-                type="text"
-                placeholder="e.g. Winter Wear Template, Basic T-Shirt"
-                className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold text-[#0F172A]"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Description</label>
-              <textarea
-                placeholder="Brief details about the template usage..."
-                rows={3}
-                className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none text-[#334155]"
-                value={templateDesc}
-                onChange={(e) => setTemplateDesc(e.target.value)}
-              />
-            </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => router.push("/master-data/production-stages/templates")}
+            className="hidden sm:inline-flex h-10 px-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors items-center cursor-pointer"
+          >
+            Cancel
+          </button>
+          <AsyncButton
+            onClick={handleSaveTemplate}
+            isLoading={isSubmittingTemplate}
+            variant="primary"
+            className="h-10 px-4 sm:px-5 rounded-xl text-xs font-bold shadow-md shadow-[var(--primary)]/15"
+          >
+            <span className="hidden sm:inline">Save Template</span>
+            <span className="sm:hidden">Save</span>
+          </AsyncButton>
+        </div>
+      </div>
+
+      {/* Template Metadata Card */}
+      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 sm:p-6 shadow-[var(--shadow-sm)] space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--primary-light)] border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] shrink-0 font-bold shadow-sm">
+            <Layers size={20} />
+          </div>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+              Template Information
+            </h2>
+            <p className="text-xs text-[var(--text-muted)]">
+              Specify the workflow identification and default status
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3.5">
+          {/* Template Name */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Template Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Winter Wear, Kurti Stitching & Packing"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl px-3.5 h-11 text-sm font-semibold transition-colors"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+            />
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 flex flex-col justify-center">
-            <div className="flex items-center justify-between">
+          {/* Description */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Description <span className="text-[10px] lowercase text-[var(--text-faint)]">(optional)</span>
+            </label>
+            <textarea
+              placeholder="Provide context or instructions on where this sequence is used..."
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-body)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl text-sm transition-colors resize-none"
+              value={templateDesc}
+              onChange={(e) => setTemplateDesc(e.target.value)}
+            />
+          </div>
+
+          {/* Default Template Switch Card */}
+          <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3.5 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0 mt-0.5">
+                <Star size={16} className="fill-current" />
+              </div>
               <div>
-                <h4 className="text-xs font-bold text-[#0F172A]">Default Template</h4>
-                <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-normal max-w-[200px]">
-                  Setting this automatically defaults newly created production lots to this sequence.
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">
+                  Default Workflow Template
+                </h4>
+                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed mt-0.5">
+                  Automatically preselect this workflow when creating new production lots.
                 </p>
               </div>
-              <input
-                type="checkbox"
-                className="h-5 w-5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                checked={templateDefault}
-                onChange={(e) => setTemplateDefault(e.target.checked)}
-              />
             </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={templateDefault}
+              onClick={() => setTemplateDefault(!templateDefault)}
+              className={cn(
+                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2",
+                templateDefault ? "bg-[var(--primary)]" : "bg-[var(--border)]"
+              )}
+            >
+              <span
+                className={cn(
+                  "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[var(--card-bg)] shadow-lg ring-0 transition duration-200 ease-in-out",
+                  templateDefault ? "translate-x-5" : "translate-x-0"
+                )}
+              />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Stages Reorderable Section */}
+      {/* Stages Sequence Section */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-[#0F172A] uppercase tracking-wider">Stages Sequence</h2>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+              Workflow Stages
+            </h2>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)]">
+              {stages.length} {stages.length === 1 ? "Stage" : "Stages"}
+            </span>
+          </div>
+
           <button
+            type="button"
             onClick={handleOpenAdd}
-            className="h-9 px-3 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#6366F1]/10"
+            className="h-9 px-3.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-[var(--primary)]/20"
           >
-            <Plus size={14} /> Add Stage
+            <Plus size={15} /> Add Stage
           </button>
         </div>
 
-        <div className="text-xs font-semibold text-[#64748B] bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-2 select-none">
-          <GripVertical size={14} className="text-[#94A3B8]" />
-          <span>Grip and drag the handle icon to reorder the stages. The layout sequence updates dynamically.</span>
-        </div>
+        {stages.length > 0 && (
+          <div className="text-xs font-medium text-[var(--text-muted)] bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-2 select-none">
+            <GripVertical size={15} className="text-[var(--text-faint)] shrink-0" />
+            <span>
+              Touch drag the grip handle or use the ▲ / ▼ buttons to adjust the sequence order.
+            </span>
+          </div>
+        )}
 
-        {/* Stages Reorderable Table */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-xs font-bold text-[#475569] uppercase tracking-wider h-12">
-                  <th className="w-12 text-center">Drag</th>
-                  <th className="w-16 text-center">Seq No</th>
-                  <th className="px-6">Stage Name</th>
-                  <th className="px-6">Description</th>
-                  <th className="px-6 w-36">Color Tag</th>
-                  <th className="px-6">Custom Fields</th>
-                  <th className="px-6 w-32">Status</th>
-                  <th className="px-6 w-36 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB] text-sm text-[#334155]">
-                {stages.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-[#64748B]">
-                      <div className="text-sm font-semibold">
-                        No stages added to this template. Click &quot;Add Stage&quot; to begin.
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+        {/* Empty State */}
+        {stages.length === 0 ? (
+          <div className="bg-[var(--card-bg)] border border-dashed border-[var(--border)] rounded-2xl p-8 sm:p-12 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--primary-light)] border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] mx-auto">
+              <Layers size={26} />
+            </div>
+            <div className="space-y-1 max-w-sm mx-auto">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">
+                No stages added yet
+              </h3>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                Add production stages like Cutting, Stitching, Embroidery, Quality Check, and Packing to build the workflow.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-[var(--primary)]/15"
+            >
+              <Plus size={16} /> Add First Stage
+            </button>
+          </div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              {/* Mobile Card List View (block md:hidden) - 0 horizontal scroll */}
+              <div className="block md:hidden space-y-3">
+                {stages.map((stage, idx) => (
+                  <SortableStageCard
+                    key={stage.id}
+                    stage={stage}
+                    index={idx}
+                    total={stages.length}
+                    onEdit={handleOpenEdit}
+                    onDelete={handleOpenDelete}
+                    onMoveUp={handleMoveUp}
+                    onMoveDown={handleMoveDown}
+                  />
+                ))}
+              </div>
+
+              {/* Desktop Table View (hidden md:block) */}
+              <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider h-11">
+                        <th className="w-12 text-center">Drag</th>
+                        <th className="w-16 text-center">Seq</th>
+                        <th className="px-4">Stage Name</th>
+                        <th className="px-4">Scope Description</th>
+                        <th className="px-4 w-32">Theme Color</th>
+                        <th className="px-4">Custom Fields</th>
+                        <th className="px-4 w-28">Status</th>
+                        <th className="px-4 w-28 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)] text-sm">
                       {stages.map((stage) => (
-                        <SortableRow
+                        <SortableDesktopRow
                           key={stage.id}
                           stage={stage}
                           onEdit={handleOpenEdit}
                           onDelete={handleOpenDelete}
                         />
                       ))}
-                    </SortableContext>
-                  </DndContext>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
 
-      {/* Add/Edit Stage Dialog */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white rounded-xl shadow-lg border border-[#E5E7EB] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#0F172A]">
-              {editingStage ? "Edit Stage details" : "Add New Stage to Template"}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Add / Edit Stage Modal (Using shared Modal) */}
+      <Modal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editingStage ? "Edit Workflow Stage" : "Add Workflow Stage"}
+        description={
+          editingStage
+            ? "Modify stage scope, color accent, or worker input parameters"
+            : "Define a step in this production workflow sequence"
+        }
+        maxWidth="max-w-xl"
+      >
+        <form onSubmit={handleSubmit(onStageSubmit)} className="space-y-4 pt-1">
+          {/* Stage Name */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Stage Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Cutting, Stitching, Embroidery, QC"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl px-3.5 h-11 text-sm font-semibold transition-colors"
+              {...register("name")}
+            />
+            {errors.name && (
+              <p className="text-xs font-medium text-red-500">{errors.name.message}</p>
+            )}
+          </div>
 
-          <form onSubmit={handleSubmit(onStageSubmit)} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Stage Name */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Stage Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cutting, Stitching, Quality Check"
-                  className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-semibold"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs font-semibold text-[#DC2626]">{errors.name.message}</p>
-                )}
-              </div>
+          {/* Description */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Scope / Instructions <span className="text-[10px] lowercase text-[var(--text-faint)]">(optional)</span>
+            </label>
+            <textarea
+              placeholder="Define work instructions or quality requirements for this stage..."
+              rows={2}
+              className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-body)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-xl text-sm transition-colors resize-none"
+              {...register("description")}
+            />
+          </div>
 
-              {/* Description */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Description</label>
-                <textarea
-                  placeholder="Define work instructions or stage scope..."
-                  rows={2}
-                  className="w-full p-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all resize-none"
-                  {...register("description")}
-                />
-              </div>
+          {/* Color Accent Picker */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
+              <span>Visual Accent Color</span>
+              <span className="font-mono text-[11px] text-[var(--text-secondary)]">{selectedColor}</span>
+            </label>
 
-              {/* Color Tag Picker */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Visual Theme Color *</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    className="w-10 h-10 rounded-lg cursor-pointer border border-[#D1D5DB]"
-                    {...register("color")}
-                  />
-                  <input
-                    type="text"
-                    className="flex-1 h-10 px-3 bg-white border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent transition-all font-mono font-bold"
-                    {...register("color")}
-                  />
-                </div>
-              </div>
-
-              {/* Active Status */}
-              <div className="flex items-center justify-between sm:col-span-1 pt-3">
-                <div>
-                  <h4 className="text-xs font-bold text-[#0F172A]">Stage Status</h4>
-                  <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-none">
-                    Allows staging assignments.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                  {...register("is_active")}
-                />
-              </div>
-            </div>
-
-            {/* Custom Field Config Block */}
-            <div className="border border-[#E5E7EB] rounded-xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider">Job Work Stage Fields</h3>
-                  <p className="text-[10px] text-[#64748B] font-medium mt-0.5 leading-none">
-                    Define variables that workers/managers must input when completing this stage.
-                  </p>
-                </div>
+            {/* Quick preset color swatches */}
+            <div className="flex flex-wrap items-center gap-2">
+              {PRESET_COLORS.map((c) => (
                 <button
+                  key={c}
                   type="button"
-                  onClick={() => append({ name: "", type: "text", required: true })}
-                  className="h-8 px-3 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  onClick={() => setValue("color", c)}
+                  className={cn(
+                    "w-8 h-8 rounded-xl transition-transform flex items-center justify-center cursor-pointer border border-black/10",
+                    selectedColor.toLowerCase() === c.toLowerCase()
+                      ? "scale-110 ring-2 ring-offset-2 ring-[var(--primary)]"
+                      : "hover:scale-105"
+                  )}
+                  style={{ backgroundColor: c }}
+                  title={c}
                 >
-                  <Plus size={12} /> Add Field
+                  {selectedColor.toLowerCase() === c.toLowerCase() && (
+                    <CheckCircle2 size={16} className="text-white" />
+                  )}
                 </button>
+              ))}
+
+              <div className="flex items-center gap-2 ml-auto">
+                <input
+                  type="color"
+                  className="w-8 h-8 rounded-lg cursor-pointer border border-[var(--input-border)] bg-transparent"
+                  {...register("color")}
+                />
               </div>
-
-              {fields.length === 0 ? (
-                <p className="text-xs text-center py-4 text-[#94A3B8] font-bold">No custom fields added yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {fields.map((item, index) => (
-                    <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <div className="flex-1 w-full space-y-1">
-                        <input
-                          type="text"
-                          placeholder="Field Name (e.g. Reject count, Cutting Operator)"
-                          className="w-full h-9 px-3 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...register(`custom_fields.${index}.name` as const)}
-                        />
-                        {errors.custom_fields?.[index]?.name && (
-                          <p className="text-[10px] text-red-500 font-bold">
-                            {errors.custom_fields[index]?.name?.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="w-full sm:w-36">
-                        <select
-                          className="w-full h-9 px-2 bg-white border border-[#D1D5DB] rounded-lg text-xs font-semibold"
-                          {...register(`custom_fields.${index}.type` as const)}
-                        >
-                          <option value="text">Text / String</option>
-                          <option value="number">Numeric</option>
-                          <option value="boolean">Toggle / Checkbox</option>
-                          <option value="date">Date picker</option>
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-2 w-full sm:w-auto pt-1 sm:pt-0">
-                        <label className="text-[10px] font-bold text-[#64748B] flex items-center gap-1.5 select-none cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 text-[#6366F1] focus:ring-[#6366F1] border-gray-300 rounded cursor-pointer"
-                            {...register(`custom_fields.${index}.required` as const)}
-                          />
-                          Required
-                        </label>
-
-                        <button
-                          type="button"
-                          onClick={() => remove(index)}
-                          className="w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center shrink-0 ml-auto cursor-pointer"
-                          title="Remove custom field"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+          </div>
 
-            <DialogFooter className="pt-2 border-t border-[#F1F5F9]">
-              <button
-                type="submit"
-                disabled={isSubmittingStage}
-                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all cursor-pointer shadow-md shadow-[#6366F1]/10 disabled:opacity-50"
-              >
-                {editingStage ? "Update Stage" : "Add Stage"}
-              </button>
+          {/* Active Status Row */}
+          <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-[var(--text-primary)]">
+                Active Stage
+              </h4>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Allow production lots to be assigned to this stage
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="is_active_toggle"
+              className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--border)] rounded cursor-pointer"
+              {...register("is_active")}
+            />
+          </div>
+
+          {/* Job Work Stage Custom Parameters Subform */}
+          <div className="border border-[var(--border)] rounded-xl p-3 sm:p-4 space-y-3 bg-[var(--card-bg)]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                  Job Work Custom Fields
+                </h3>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Parameters recorded upon stage completion (e.g. Reject Count)
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
-                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-[#475569] bg-[#F1F5F9] hover:bg-[#E2E8F0] rounded-lg transition-all cursor-pointer"
+                onClick={() => append({ name: "", type: "text", required: false })}
+                className="h-8 px-2.5 rounded-lg border border-[var(--primary)]/30 text-[var(--primary)] hover:bg-[var(--primary-light)] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
               >
-                Close
+                <Plus size={14} /> Add Parameter
               </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </div>
+
+            {fields.length === 0 ? (
+              <div className="text-center py-3 px-2 bg-[var(--table-header-bg)] border border-dashed border-[var(--border)] rounded-lg text-xs text-[var(--text-faint)]">
+                No custom parameters. Standard metrics (worker, quantity out, piece rate) will apply.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {fields.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="bg-[var(--table-header-bg)] p-3 rounded-xl border border-[var(--border)] space-y-2"
+                  >
+                    {/* Field label */}
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        placeholder="Parameter Name (e.g. Reject Count, Shade, Waist)"
+                        className="w-full h-9 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] rounded-lg text-xs font-semibold"
+                        {...register(`custom_fields.${index}.name` as const)}
+                      />
+                      {errors.custom_fields?.[index]?.name && (
+                        <p className="text-[10px] text-red-500 font-medium">
+                          {errors.custom_fields[index]?.name?.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Type, Required toggle, and Delete button */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="flex-1 h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                        {...register(`custom_fields.${index}.type` as const)}
+                      >
+                        <option value="text">Text string</option>
+                        <option value="number">Numeric count / measurement</option>
+                        <option value="boolean">Yes / No toggle</option>
+                        <option value="date">Date selector</option>
+                      </select>
+
+                      <label className="text-xs font-medium text-[var(--text-secondary)] flex items-center gap-1.5 select-none cursor-pointer px-2 shrink-0">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--border)] rounded cursor-pointer"
+                          {...register(`custom_fields.${index}.required` as const)}
+                        />
+                        Required
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                        title="Remove parameter"
+                        aria-label="Remove custom field"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Modal Action Buttons */}
+          <div className="pt-3 border-t border-[var(--border)] flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="h-10 px-4 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              type="submit"
+              variant="primary"
+              className="h-10 px-5 text-xs font-bold"
+            >
+              {editingStage ? "Update Stage" : "Add Stage"}
+            </AsyncButton>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Remove Stage?"
-        description="Are you sure you want to remove this stage from the template? This action only affects this template draft."
-        confirmText="Remove"
-        loading={false}
+        title="Remove Stage from Draft?"
+        description={`Are you sure you want to remove "${deletingStage?.name}"? This action only affects this template draft.`}
+        confirmText="Remove Stage"
         onConfirm={handleDeleteConfirm}
       />
     </div>

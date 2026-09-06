@@ -268,17 +268,18 @@ export default function DirectContraLinkModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
+        <div className="flex flex-col-reverse sm:flex-row items-center sm:justify-end gap-2 sm:gap-3 border-t border-[var(--border)] pt-4">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="px-4 h-10 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--page-bg)] transition-colors"
+            className="w-full sm:w-auto px-4 h-10 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--page-bg)] transition-colors text-center"
           >
             Cancel
           </button>
           <AsyncButton
             onClick={() => linkMutation.mutateAsync()}
             variant="primary"
+            className="w-full sm:w-auto justify-center text-xs font-bold"
           >
             Execute Direct Contra Link
           </AsyncButton>

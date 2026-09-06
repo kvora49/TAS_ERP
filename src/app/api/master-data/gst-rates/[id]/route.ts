@@ -26,32 +26,36 @@ export async function GET(
       return NextResponse.json({ error: "GST Rate not found" }, { status: 404 });
     }
 
-    // 2. Fetch raw materials matching this HSN code
-    const { data: rawMaterials } = await supabase
-      .from("raw_material_types")
-      .select("id, name, category, unit, is_active")
-      .eq("hsn_code", gstRate.hsn_code)
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
+    const cleanHsn = (gstRate.hsn_code || "").trim();
 
-    // 3. Fetch designs matching this HSN code
-    const { data: designs } = await supabase
-      .from("designs")
-      .select(`
-        id,
-        name,
-        design_number,
-        is_active,
-        brand:brands(name)
-      `)
-      .eq("hsn_code", gstRate.hsn_code)
-      .eq("business_id", businessId)
-      .is("deleted_at", null);
+    // 2. Fetch raw materials and designs matching this HSN code in parallel
+    const [rawMaterialsRes, designsRes] = await Promise.all([
+      supabase
+        .from("raw_material_types")
+        .select("id, name, category, unit, is_active")
+        .ilike("hsn_code", cleanHsn)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("name", { ascending: true }),
+      supabase
+        .from("designs")
+        .select(`
+          id,
+          name,
+          design_number,
+          is_active,
+          brand:brands(name)
+        `)
+        .ilike("hsn_code", cleanHsn)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("design_number", { ascending: true }),
+    ]);
 
     return NextResponse.json({
       gstRate,
-      rawMaterials: rawMaterials || [],
-      designs: designs || [],
+      rawMaterials: rawMaterialsRes.data || [],
+      designs: designsRes.data || [],
     });
 
   } catch (err: any) {
@@ -95,11 +99,22 @@ export async function PUT(
       );
     }
 
+    // Fetch existing record to check if HSN is being renamed
+    const { data: existingRate } = await supabase
+      .from("gst_rates")
+      .select("hsn_code")
+      .eq("id", gstRateId)
+      .eq("business_id", businessId)
+      .single();
+
+    const oldHsn = (existingRate?.hsn_code || "").trim();
+    const newHsn = (hsn_code || "").trim();
+
     // Optimistic locking update query
     const { data: updatedGstRate, error } = await supabase
       .from("gst_rates")
       .update({
-        hsn_code,
+        hsn_code: newHsn,
         description: description || null,
         gst_percent: Number(gst_percent),
         auto_tier: !!auto_tier,
@@ -124,6 +139,22 @@ export async function PUT(
       );
     }
 
+    // If HSN changed, cascade update referencing raw materials & designs to prevent orphaned references
+    if (oldHsn && oldHsn.toLowerCase() !== newHsn.toLowerCase()) {
+      await Promise.all([
+        supabase
+          .from("raw_material_types")
+          .update({ hsn_code: newHsn })
+          .eq("business_id", businessId)
+          .ilike("hsn_code", oldHsn),
+        supabase
+          .from("designs")
+          .update({ hsn_code: newHsn })
+          .eq("business_id", businessId)
+          .ilike("hsn_code", oldHsn),
+      ]);
+    }
+
     return NextResponse.json({ gstRate: updatedGstRate[0] });
   } catch (err: any) {
     return NextResponse.json(
@@ -146,7 +177,52 @@ export async function DELETE(
   }
 
   try {
-    // Hard delete since gst_rates does not have deleted_at
+    // 1. Fetch the target GST rate to get its HSN code
+    const { data: targetRate, error: fetchErr } = await supabase
+      .from("gst_rates")
+      .select("id, hsn_code")
+      .eq("id", gstRateId)
+      .eq("business_id", businessId)
+      .single();
+
+    if (fetchErr || !targetRate) {
+      return NextResponse.json({ error: "GST rate not found" }, { status: 404 });
+    }
+
+    const cleanHsn = (targetRate.hsn_code || "").trim();
+
+    // 2. Check for active references in Raw Materials and Designs
+    const [rawMaterialsCountRes, designsCountRes] = await Promise.all([
+      supabase
+        .from("raw_material_types")
+        .select("id", { count: "exact", head: true })
+        .ilike("hsn_code", cleanHsn)
+        .eq("business_id", businessId)
+        .is("deleted_at", null),
+      supabase
+        .from("designs")
+        .select("id", { count: "exact", head: true })
+        .ilike("hsn_code", cleanHsn)
+        .eq("business_id", businessId)
+        .is("deleted_at", null),
+    ]);
+
+    const matCount = rawMaterialsCountRes.count || 0;
+    const desCount = designsCountRes.count || 0;
+
+    if (matCount > 0 || desCount > 0) {
+      const parts = [];
+      if (matCount > 0) parts.push(`${matCount} raw material(s)`);
+      if (desCount > 0) parts.push(`${desCount} catalog design(s)`);
+      return NextResponse.json(
+        {
+          error: `Cannot delete GST rate "${targetRate.hsn_code}": it is actively referenced by ${parts.join(" and ")}. Please reassign them to another HSN code first.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. Delete safely since no active items reference this code
     const { error } = await supabase
       .from("gst_rates")
       .delete()
@@ -154,10 +230,9 @@ export async function DELETE(
       .eq("business_id", businessId);
 
     if (error) {
-      // Check if item is referenced as a foreign key somewhere
       if (error.code === "23503") {
         return NextResponse.json(
-          { error: "Cannot delete GST rate because it is referenced in transactional logs." },
+          { error: "Cannot delete GST rate because it is referenced in transactional records." },
           { status: 400 }
         );
       }

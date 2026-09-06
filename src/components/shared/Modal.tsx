@@ -4,6 +4,7 @@ import React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { useExperienceProfile } from "@/components/experience/NavigationExperienceProvider";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface ModalProps {
   open: boolean;
@@ -28,6 +29,17 @@ export function Modal({
   const isUltraFast = profile?.level === "ultraFast";
   const isPremium = profile?.level === "premium";
 
+  React.useEffect(() => {
+    if (open) {
+      triggerHaptic("selection");
+    }
+  }, [open]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    triggerHaptic("selection");
+    onOpenChange(newOpen);
+  };
+
   const animationClass = isUltraFast
     ? ""
     : isPremium
@@ -35,7 +47,7 @@ export function Modal({
     : "animate-fadeIn";
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <DialogPrimitive.Portal>
         {/* Backdrop */}
         <DialogPrimitive.Backdrop

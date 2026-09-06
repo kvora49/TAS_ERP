@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Menu, User, Calendar, LogOut, Sliders } from "lucide-react";
+import { Bell, Menu, User, Calendar, LogOut, Sliders, Search } from "lucide-react";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -19,9 +19,8 @@ import ThemeToggle from "./ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
-
-
 import { CompanySwitcher } from "./CompanySwitcher";
+import { CommandPalette } from "@/components/shared/CommandPalette";
 
 // Header component with collapsible sidebar support
 
@@ -31,6 +30,7 @@ interface BrandItem {
 }
 
 const ROUTE_LABELS: Record<string, string> = {
+  offline: "Offline Mode",
   reports: "Reports",
   financial: "Financial Reports",
   inventory: "Inventory & Stock",
@@ -67,6 +67,13 @@ const ROUTE_LABELS: Record<string, string> = {
   bills: "Sales Bills",
   returns: "Returns",
   parties: "Parties",
+  brands: "Brands",
+  godowns: "Godowns",
+  "gst-rates": "GST Rates",
+  designs: "Catalog Designs",
+  "banks-upi": "Banks & UPI",
+  "production-stages": "Production Stages",
+  templates: "Workflow Templates",
 };
 
 export default function Header() {
@@ -117,17 +124,21 @@ export default function Header() {
     if (!pathname) return ["Dashboard"];
     const parts = pathname.split("/").filter(Boolean);
     if (parts.length === 0) return ["Dashboard"];
-    return parts.map((part) =>
-      ROUTE_LABELS[part] ??
-      (part || "")
+    return parts.map((part, idx) => {
+      if (ROUTE_LABELS[part]) return ROUTE_LABELS[part];
+      // If segment is a UUID or hex ID, render readable 'Details'
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(part) || /^[0-9a-f]{16,}$/i.test(part) || /^\d+$/.test(part)) {
+        return "Details";
+      }
+      return (part || "")
         .split("-")
         .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
-        .join(" ")
-    );
+        .join(" ");
+    });
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-[calc(3rem+env(safe-area-inset-top,0px))] sm:h-16 pt-[env(safe-area-inset-top,0px)] bg-[var(--card-bg)]/95 backdrop-blur-md border-b border-[var(--border)] z-30 flex items-center justify-between px-2.5 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden">
+    <header className="fixed top-0 right-0 left-0 h-[calc(3rem+env(safe-area-inset-top,0px))] sm:h-16 pt-[env(safe-area-inset-top,0px)] bg-[var(--card-bg)] border-b border-[var(--border)] z-30 flex items-center justify-between px-2.5 sm:px-4 select-none transition-all duration-200 print:hidden overflow-hidden shadow-xs">
       {/* Left: Logo block + Hamburger + Breadcrumb / Mobile Title */}
       <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
 
@@ -214,6 +225,22 @@ export default function Header() {
             </MobileFilterField>
           </MobileFilterSheet>
         </div>
+
+        {/* Quick Command Palette Trigger (Ctrl/⌘ + K) */}
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+          }}
+          className="h-8 sm:h-9 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs text-[var(--text-muted)] flex items-center gap-2 transition-colors cursor-pointer"
+          title="Search or execute command (Ctrl+K)"
+        >
+          <Search size={14} className="text-[var(--text-faint)]" />
+          <span className="hidden xl:inline text-xs font-medium">Search...</span>
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-bold text-[var(--text-muted)] bg-[var(--page-bg)] border border-[var(--border)] rounded">
+            ⌘K
+          </kbd>
+        </button>
 
         {/* Brand Filter (Desktop/Tablet) */}
         <div className="hidden sm:block">
@@ -329,6 +356,8 @@ export default function Header() {
           </DropdownMenu>
         )}
       </div>
+
+      <CommandPalette />
     </header>
   );
 }

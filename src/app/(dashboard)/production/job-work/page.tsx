@@ -39,6 +39,7 @@ import WorkerAvatar from "@/components/shared/WorkerAvatar";
 import { DueDateBadge } from "@/components/shared/DueDateBadge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { cn } from "@/lib/utils";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, cardVariants, hoverLift, tableRowVariants } from "@/lib/animations";
@@ -535,8 +536,17 @@ export default function UnifiedJobWorkPage() {
     }).format(val || 0);
   }
 
+  const handleRefresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["job-work-entries-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["worker-ledger"] }),
+      queryClient.invalidateQueries({ queryKey: ["job-work-payments-list"] }),
+    ]);
+  };
+
   return (
-    <div className="space-y-6">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
       {/* Breadcrumbs & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
@@ -1542,6 +1552,7 @@ export default function UnifiedJobWorkPage() {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

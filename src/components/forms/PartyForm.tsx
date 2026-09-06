@@ -16,6 +16,7 @@ import { WorkerFieldsSection } from "./PartyForm/WorkerFieldsSection";
 import { AddressSection } from "./PartyForm/AddressSection";
 import { ContactSection } from "./PartyForm/ContactSection";
 import { MobileStickyFormBar } from "@/components/forms/MobileStickyFormBar";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface PartyFormProps {
   initialData?: any;
@@ -94,11 +95,13 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
     setValue,
     watch,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<PartyFormValues>({
     resolver: zodResolver(partySchema) as any,
     defaultValues: sanitizedInitialData ? { ...defaultValues, ...sanitizedInitialData } : defaultValues,
   });
+
+  useUnsavedChangesGuard(isDirty);
 
   const { fields, append, remove } = useFieldArray({
     control,

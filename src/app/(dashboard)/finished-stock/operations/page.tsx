@@ -26,6 +26,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 interface StockAdjustment {
   id: string;
@@ -81,6 +82,14 @@ export default function StockOperationsUnifiedPage() {
       setActiveTab(currentTab);
     }
   }, [searchParams]);
+
+  const handleRefresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["godown-transfers-list"] }),
+      queryClient.invalidateQueries({ queryKey: ["delivery-challans-list"] }),
+    ]);
+  };
 
   const handleTabChange = (tab: "adjustments" | "transfers" | "challans") => {
     setActiveTab(tab);
@@ -145,7 +154,8 @@ export default function StockOperationsUnifiedPage() {
     );
   }, [challansList, searchQuery]);
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Breadcrumb Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
@@ -227,7 +237,7 @@ export default function StockOperationsUnifiedPage() {
           >
             <RotateCcw size={14} />
             <span>1. Adjustments</span>
-            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "adjustments" ? "bg-white/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
+            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "adjustments" ? "bg-black/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
               {adjustmentsList.length}
             </span>
           </button>
@@ -242,7 +252,7 @@ export default function StockOperationsUnifiedPage() {
           >
             <ArrowLeftRight size={14} />
             <span>2. Transfers</span>
-            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "transfers" ? "bg-white/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
+            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "transfers" ? "bg-black/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
               {transfersList.length}
             </span>
           </button>
@@ -257,7 +267,7 @@ export default function StockOperationsUnifiedPage() {
           >
             <Truck size={14} />
             <span>3. Delivery Challans</span>
-            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "challans" ? "bg-white/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
+            <span className={`px-2 py-0.5 text-[10px] rounded-full font-black ${activeTab === "challans" ? "bg-black/20 text-white" : "bg-[var(--card-bg)] text-[var(--text-secondary)]"}`}>
               {challansList.length}
             </span>
           </button>
@@ -500,7 +510,6 @@ export default function StockOperationsUnifiedPage() {
           )}
         </div>
       )}
-
       {/* ------------------------------------------------------------- */}
       {/* TAB 3: DELIVERY CHALLANS */}
       {/* ------------------------------------------------------------- */}
@@ -590,6 +599,7 @@ export default function StockOperationsUnifiedPage() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

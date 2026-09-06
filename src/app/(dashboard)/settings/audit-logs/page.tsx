@@ -9,6 +9,8 @@ import { ModuleBadge } from "@/components/shared/ModuleBadge";
 import { ActionBadge } from "@/components/shared/ActionBadge";
 import { InfoBanner } from "@/components/shared/InfoBanner";
 import { Modal } from "@/components/shared/Modal";
+import PageState from "@/components/shared/PageState";
+import { useAuditLogs, useAuditUsers, useStockIntegritySync, type AuditLogItem } from "@/hooks/useAuditLogs";
 import {
   SlidersHorizontal,
   Download,
@@ -27,8 +29,10 @@ import {
   ArrowRight,
   RefreshCw,
   ShieldCheck,
+  Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface AuditLog {
   id: string;
@@ -490,28 +494,35 @@ const IGNORED_KEYS = new Set([
 ]);
 
 export default function AuditLogsSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-
   // Filtering states
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedModule, setSelectedModule] = useState("All Modules");
   const [selectedUser, setSelectedUser] = useState("All Users");
   const [selectedAction, setSelectedAction] = useState("All Actions");
+  const [filtersCollapsed, setFiltersCollapsed] = useState(true);
+
+  // Applied filter state
+  const [appliedFilters, setAppliedFilters] = useState<any>({});
 
   // Pagination states
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
+
+  // Queries
+  const { data: users = [] } = useAuditUsers();
+  const { data, isLoading, error, refetch } = useAuditLogs(appliedFilters, page, limit);
+  const syncMutation = useStockIntegritySync();
+  const isSyncing = syncMutation.isPending;
+
+  const logs = (data?.logs || []) as AuditLog[];
+  const totalCount = data?.count || 0;
 
   // Active dropdown & Detail modal
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const router = useRouter();
 
   // Navigate to entity route and close modal — using router.push after close
@@ -522,80 +533,29 @@ export default function AuditLogsSettingsPage() {
   }, [router]);
 
   const handleRunStockSync = async () => {
-    setIsSyncing(true);
     try {
-      const res = await fetch("/api/cron/stock-integrity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to run stock integrity sync");
-
-      const found = data.integrity_report?.discrepancies_found ?? 0;
-      const fixed = data.integrity_report?.discrepancies_fixed ?? 0;
+      const result = await syncMutation.mutateAsync();
+      const found = result.integrity_report?.discrepancies_found ?? 0;
+      const fixed = result.integrity_report?.discrepancies_fixed ?? 0;
       if (found === 0) {
         toast.success("✅ Stock is 100% synchronized! No discrepancies found.");
       } else {
         toast.success(`⚡ Stock audit complete: ${found} checked, ${fixed} auto-fixed.`);
       }
-      fetchLogs(1, limit);
     } catch (err: any) {
       toast.error(err.message || "Failed to run stock audit");
-    } finally {
-      setIsSyncing(false);
     }
   };
-
-  // Fetch Users for filters
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch("/api/settings/users");
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users || []);
-      }
-    } catch (err) {
-      console.warn("Could not fetch user filters:", err);
-    }
-  };
-
-  // Fetch Logs
-  const fetchLogs = async (currentPage = page, currentLimit = limit) => {
-    setLoading(true);
-    try {
-      const query = new URLSearchParams({
-        page: String(currentPage),
-        limit: String(currentLimit),
-      });
-
-      if (fromDate) query.append("fromDate", fromDate);
-      if (toDate) query.append("toDate", toDate);
-      if (selectedModule !== "All Modules") query.append("module", selectedModule);
-      if (selectedUser !== "All Users") query.append("userId", selectedUser);
-      if (selectedAction !== "All Actions") query.append("action", selectedAction);
-
-      const res = await fetch(`/api/settings/audit-logs?${query.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch logs");
-      const data = await res.json();
-
-      setLogs(data.logs || []);
-      setTotalCount(data.count || 0);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading audit logs");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-    fetchLogs(1, limit);
-  }, []);
 
   const handleApplyFilters = () => {
     setPage(1);
-    fetchLogs(1, limit);
+    setAppliedFilters({
+      fromDate,
+      toDate,
+      selectedModule,
+      selectedUser,
+      selectedAction,
+    });
   };
 
   const handleResetFilters = () => {
@@ -605,10 +565,7 @@ export default function AuditLogsSettingsPage() {
     setSelectedUser("All Users");
     setSelectedAction("All Actions");
     setPage(1);
-    
-    setTimeout(() => {
-      fetchLogs(1, limit);
-    }, 50);
+    setAppliedFilters({});
   };
 
   const handleExport = () => {
@@ -662,12 +619,10 @@ export default function AuditLogsSettingsPage() {
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
     setPage(1);
-    fetchLogs(1, newLimit);
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    fetchLogs(newPage, limit);
   };
 
   const totalPages = Math.ceil(totalCount / limit) || 1;
@@ -750,8 +705,32 @@ export default function AuditLogsSettingsPage() {
       </div>
 
       {/* FILTER CARD */}
-      <SettingsCard icon={Filter} title="Filter Audit Logs">
-        <div className="flex flex-col gap-4 select-none">
+      <SettingsCard
+        icon={Filter}
+        title="Filter Audit Logs"
+        headerRight={
+          <button
+            type="button"
+            onClick={() => setFiltersCollapsed(!filtersCollapsed)}
+            className="sm:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-primary)] cursor-pointer"
+          >
+            <Sliders size={13} />
+            <span>{filtersCollapsed ? "Show Filters" : "Hide Filters"}</span>
+            {((fromDate || toDate ? 1 : 0) +
+              (selectedModule !== "All Modules" ? 1 : 0) +
+              (selectedUser !== "All Users" ? 1 : 0) +
+              (selectedAction !== "All Actions" ? 1 : 0)) > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[var(--primary)] text-white text-[10px] flex items-center justify-center font-bold">
+                {(fromDate || toDate ? 1 : 0) +
+                  (selectedModule !== "All Modules" ? 1 : 0) +
+                  (selectedUser !== "All Users" ? 1 : 0) +
+                  (selectedAction !== "All Actions" ? 1 : 0)}
+              </span>
+            )}
+          </button>
+        }
+      >
+        <div className={cn("flex flex-col gap-4 select-none", filtersCollapsed ? "hidden sm:flex" : "flex")}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             {/* Filter 1 — Date Range */}
             <div>
@@ -875,38 +854,95 @@ export default function AuditLogsSettingsPage() {
               <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
-            <span className="text-xs font-semibold text-[var(--text-muted)]">entries</span>
+            <span className="text-xs font-semibold text-[var(--text-muted)] hidden sm:inline">entries</span>
           </div>
         }
       >
-        <div className="overflow-x-auto border border-[var(--border)] rounded-lg mb-4 select-none">
-          <table className="w-full text-sm text-[var(--text-body)]">
-            <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
-              <tr>
-                <th className="px-4 py-2 text-left w-[150px]">Date & Time</th>
-                <th className="px-4 py-2 text-left w-[180px]">User</th>
-                <th className="px-4 py-2 text-left w-[150px]">Module</th>
-                <th className="px-4 py-2 text-left w-[120px]">Action</th>
-                <th className="px-4 py-2 text-left">Description</th>
-                <th className="px-4 py-2 text-left w-[130px]">IP Address</th>
-                <th className="px-4 py-2 text-center w-[60px]">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {loading ? (
+        <PageState
+          isLoading={isLoading}
+          isError={!!error}
+          error={error?.message}
+          onRetry={refetch}
+          isEmpty={logs.length === 0}
+          emptyTitle="No activity logs found"
+          emptyDescription="No activity logs match your current filter criteria."
+          skeletonVariant="table"
+          skeletonRows={limit}
+          skeletonColumns={7}
+        >
+          {/* Mobile Audit Log Cards (< md) */}
+          <div className="md:hidden divide-y divide-[var(--border)] border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--card-bg)] mb-4">
+            {logs.map((log) => {
+              const userName = log.user_name || log.users?.full_name || "System";
+              const desc = getSummarySentence(log);
+              const formattedDate = new Date(log.created_at).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+              const formattedTime = new Date(log.created_at).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              });
+
+              return (
+                <div
+                  key={log.id}
+                  onClick={() => openLogDetails(log)}
+                  className="p-3.5 flex flex-col gap-2.5 cursor-pointer hover:bg-[var(--table-row-hover)] transition-colors active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${getAvatarBg(
+                          userName
+                        )}`}
+                      >
+                        {getInitials(userName)}
+                      </div>
+                      <span className="font-bold text-xs text-[var(--text-primary)] truncate">{userName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <ModuleBadge module={log.table_name} />
+                      <ActionBadge action={log.action} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-[var(--text-body)] font-medium leading-snug">
+                    {desc}
+                  </p>
+
+                  <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] pt-1 border-t border-[var(--border-light)]">
+                    <span>
+                      {formattedDate} at {formattedTime}
+                    </span>
+                    <span className="text-[var(--primary)] font-semibold flex items-center gap-1">
+                      <Eye className="size-3" />
+                      Details
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table (hidden on mobile) */}
+          <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg mb-4 select-none">
+            <table className="w-full text-sm text-[var(--text-body)]">
+              <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-11">
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-[var(--text-faint)]">
-                    Loading audit activities...
-                  </td>
+                  <th className="px-4 py-2 text-left w-[150px]">Date & Time</th>
+                  <th className="px-4 py-2 text-left w-[180px]">User</th>
+                  <th className="px-4 py-2 text-left w-[150px]">Module</th>
+                  <th className="px-4 py-2 text-left w-[120px]">Action</th>
+                  <th className="px-4 py-2 text-left">Description</th>
+                  <th className="px-4 py-2 text-left w-[130px]">IP Address</th>
+                  <th className="px-4 py-2 text-center w-[60px]">Action</th>
                 </tr>
-              ) : logs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-6 text-[var(--text-faint)] italic">
-                    No logs found matching search criteria.
-                  </td>
-                </tr>
-              ) : (
-                logs.map((log) => {
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {logs.map((log) => {
                   const userName = log.user_name || log.users?.full_name || "System";
                   const desc = getSummarySentence(log);
                   const formattedDate = new Date(log.created_at).toLocaleDateString("en-IN", {
@@ -991,11 +1027,11 @@ export default function AuditLogsSettingsPage() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        </PageState>
 
         {/* PAGINATION FOOTER */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 select-none">

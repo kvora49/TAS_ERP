@@ -2,13 +2,14 @@
 
 import React, { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   TrendingUp, Users, ShoppingBag, IndianRupee, Receipt,
   RotateCcw, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Clock,
   CreditCard, FileText, FileSpreadsheet, Star
 } from "lucide-react";
 import PageState from "@/components/shared/PageState";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
 import ReportKPICard from "@/components/reports/ReportKPICard";
 import { ReportAreaChart, ReportDonutChart, ChartCard, CHART_COLORS } from "@/components/reports/ReportChart";
@@ -19,6 +20,7 @@ import BillTypeFilter from "@/components/reports/BillTypeFilter";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import FilterPills from "@/components/reports/filters/FilterPills";
 import InlineDrillDownPanel, { DrillDownItem } from "@/components/reports/InlineDrillDownPanel";
+import ReportTabs from "@/components/reports/ReportTabs";
 import { useAppStore } from "@/store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,6 +67,8 @@ export default function SalesReportsPage() {
   const [partyId, setPartyId] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
+  const [expandedReturnId, setExpandedReturnId] = useState<string | null>(null);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<string | null>(null);
 
   // Global header filters
   const globalBrandId = useAppStore(s => s.filters.brandId);
@@ -225,8 +229,9 @@ export default function SalesReportsPage() {
         </div>
       }
     >
-      <PageState
-        isLoading={isLoading}
+      <PullToRefresh onRefresh={async () => { await refetch(); }}>
+        <PageState
+          isLoading={isLoading}
         isError={!!error}
         error={(error as any)?.message}
         onRetry={refetch}
@@ -238,8 +243,8 @@ export default function SalesReportsPage() {
       >
         {data && (
           <div className="space-y-5">
-            {/* ── KPI Row ─────────────────────────────────────────────────────── */}
-            <div className="flex md:grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 overflow-x-auto snap-x snap-mandatory pb-1 md:pb-0 scrollbar-none">
+            {/* ── KPI Row ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
               {[
                 { label: "Gross Sales", value: summary.grossSales, color: "emerald" as const, icon: <TrendingUp size={15}/> },
                 { label: "Net Sales", value: summary.netSales, color: "blue" as const, icon: <TrendingUp size={15}/>, subLabel: `After ${fmtINR(summary.totalReturns ?? 0)} returns` },
@@ -249,35 +254,70 @@ export default function SalesReportsPage() {
                 { label: "Sales Returns", value: summary.totalReturns, color: "amber" as const, icon: <RotateCcw size={15}/>, subLabel: `${summary.returnCount ?? 0} credit notes` },
                 { label: "Avg. Bill Value", value: summary.avgBillValue, color: "slate" as const, icon: <IndianRupee size={15}/>, subLabel: `${summary.totalBills} bills total` },
               ].map((kpi) => (
-                <div key={kpi.label} className="snap-start shrink-0 w-[148px] md:w-auto">
-                  <ReportKPICard {...kpi} />
-                </div>
+                <ReportKPICard key={kpi.label} {...kpi} />
               ))}
             </div>
 
-            {/* ── Quick Insights Strip ─────────────────────────────────────────── */}
+            {/* ── Quick Insights Strip ── */}
             {data.quickInsights && (
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 {data.quickInsights.bestDay && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs">
-                    <Star size={12} className="text-amber-500 shrink-0" />
-                    <span className="text-[var(--text-muted)]">Best Day:</span>
-                    <span className="font-bold text-[var(--text-primary)]">{fmtDate(data.quickInsights.bestDay.date)}</span>
-                    <span className="font-mono font-bold text-emerald-600">{fmtINR(data.quickInsights.bestDay.amount)}</span>
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)]">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                      <Star size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                        Best Sales Day
+                      </span>
+                      <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                          {fmtDate(data.quickInsights.bestDay.date)}
+                        </span>
+                        <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 shrink-0">
+                          {fmtINR(data.quickInsights.bestDay.amount)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {data.quickInsights.topCustomer && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs">
-                    <Users size={12} className="text-blue-500 shrink-0" />
-                    <span className="text-[var(--text-muted)]">Top Customer:</span>
-                    <span className="font-bold text-[var(--text-primary)]">{data.quickInsights.topCustomer.name}</span>
-                    <span className="font-mono font-bold text-blue-600">{fmtINR(data.quickInsights.topCustomer.amount)}</span>
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)]">
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                      <Users size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                        Top Customer
+                      </span>
+                      <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                          {data.quickInsights.topCustomer.name}
+                        </span>
+                        <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400 shrink-0">
+                          {fmtINR(data.quickInsights.topCustomer.amount)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs">
-                  <ShoppingBag size={12} className="text-violet-500 shrink-0" />
-                  <span className="text-[var(--text-muted)]">Collection Rate:</span>
-                  <span className="font-bold font-mono text-violet-600">{data.quickInsights.collectionRate ?? 0}%</span>
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-sm)]">
+                  <div className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-500 flex items-center justify-center shrink-0">
+                    <ShoppingBag size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                      Collection Rate
+                    </span>
+                    <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                      <span className="text-xs font-semibold text-[var(--text-muted)]">
+                        Collected vs Billed
+                      </span>
+                      <span className="font-mono font-bold text-xs text-violet-600 dark:text-violet-400 shrink-0">
+                        {data.quickInsights.collectionRate ?? 0}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -304,23 +344,12 @@ export default function SalesReportsPage() {
 
                 {/* Sub-tab navigation */}
                 <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-                  <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
-                    {SUB_TABS.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => { setSubTab(tab.id); setExpandedBillId(null); }}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0",
-                          subTab === tab.id
-                            ? "bg-[var(--primary)] text-white shadow-sm"
-                            : "text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] hover:text-[var(--text-body)]"
-                        )}
-                      >
-                        {tab.icon}
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ReportTabs
+                    tabs={SUB_TABS}
+                    activeTab={subTab}
+                    onChange={(t) => { setSubTab(t as SubTab); setExpandedBillId(null); setExpandedReturnId(null); }}
+                    layoutIdPrefix="sales-subtabs"
+                  />
 
                   {/* ── Tab: Bill Register ── */}
                   {subTab === "register" && (
@@ -399,25 +428,81 @@ export default function SalesReportsPage() {
                           </tbody>
                         </table>
                       </div>
-                      {/* Mobile cards */}
+                      {/* Mobile cards with tap-to-drilldown */}
                       <div className="md:hidden divide-y divide-[var(--border-light)]">
-                        {(data.bills ?? []).slice(0, 20).map((b: any) => (
-                          <div key={b.id} className="p-3.5 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Link href={`/sales/bills/${b.id}`} className="font-mono font-black text-xs text-[var(--primary)] hover:underline">{b.bill_number}</Link>
-                              <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "")}>{b.payment_status}</span>
+                        {(data.bills ?? []).slice(0, 30).map((b: any) => {
+                          const isExpanded = expandedBillId === b.id;
+                          return (
+                            <div key={b.id} className="p-3.5 space-y-2">
+                              <div
+                                onClick={() => setExpandedBillId(isExpanded ? null : b.id)}
+                                className="cursor-pointer space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-black text-xs text-[var(--primary)]">{b.bill_number}</span>
+                                    <span className={cn(
+                                      "inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold border",
+                                      b.bill_type === "pakka" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                    )}>
+                                      {b.bill_type === "pakka" ? "Pakka" : "Kaacha"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize", STATUS_COLORS[b.payment_status] ?? "")}>
+                                      {b.payment_status}
+                                    </span>
+                                    <ChevronDown
+                                      size={14}
+                                      className={cn("text-[var(--text-muted)] transition-transform", isExpanded && "rotate-180 text-[var(--primary)]")}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{b.party}</span>
+                                  <span className="text-[var(--text-muted)] text-[11px]">{fmtDate(b.bill_date)}</span>
+                                </div>
+                                <div className="grid grid-cols-3 text-center border-t border-[var(--border-light)] pt-1.5">
+                                  <div>
+                                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Total</p>
+                                    <p className="text-xs font-bold mt-0.5 text-[var(--text-primary)] font-mono">{fmtINR(b.grand_total)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Paid</p>
+                                    <p className="text-xs font-bold mt-0.5 text-emerald-600 dark:text-emerald-400 font-mono">{fmtINR(b.paid_amount)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">Due</p>
+                                    <p className="text-xs font-bold mt-0.5 text-rose-600 dark:text-rose-400 font-mono">{fmtINR(b.outstanding)}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Mobile Inline Drilldown */}
+                              <AnimatePresence>
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="pt-2"
+                                  >
+                                    <InlineDrillDownPanel
+                                      id={b.id}
+                                      title={`Bill ${b.bill_number} — Transaction Detail`}
+                                      subtitle={`${b.party} · ${b.bill_type === "pakka" ? "Pakka" : "Kaacha"} · ${fmtDate(b.bill_date)}`}
+                                      totalAmount={b.grand_total}
+                                      amountType="positive"
+                                      items={getBillDrillItems(b)}
+                                      moduleLink={{ label: "Open Bill", href: `/sales/bills/${b.id}` }}
+                                      onClose={() => setExpandedBillId(null)}
+                                    />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="font-semibold text-[var(--text-primary)] truncate max-w-[55%]">{b.party}</span>
-                              <span className="text-[var(--text-muted)]">{fmtDate(b.bill_date)}</span>
-                            </div>
-                            <div className="grid grid-cols-3 text-center border-t border-[var(--border-light)] pt-1.5">
-                              {[["Total", fmtINR(b.grand_total), "text-[var(--text-primary)]"], ["Paid", fmtINR(b.paid_amount), "text-emerald-500"], ["Due", fmtINR(b.outstanding), "text-rose-500"]].map(([lbl, val, cls]) => (
-                                <div key={lbl}><p className="text-[9px] font-bold text-[var(--text-faint)] uppercase">{lbl}</p><p className={`text-xs font-bold mt-0.5 ${cls}`}>{val}</p></div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       {/* Export current tab */}
                       <div className="px-4 py-3 border-t border-[var(--border)] flex items-center justify-between">
@@ -435,19 +520,29 @@ export default function SalesReportsPage() {
                   {subTab === "ageing" && (
                     <div className="p-4 space-y-4">
                       <p className="text-xs text-[var(--text-muted)]">Outstanding receivables bucketed by days overdue from bill/due date.</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                         {[
-                          { label: "Current (Not Due)", value: data.ageing?.current, color: "text-emerald-600" },
-                          { label: "1–30 Days", value: data.ageing?.d30, color: "text-blue-600" },
-                          { label: "31–60 Days", value: data.ageing?.d60, color: "text-amber-600" },
-                          { label: "61–90 Days", value: data.ageing?.d90, color: "text-orange-600" },
-                          { label: "90+ Days", value: data.ageing?.over90, color: "text-rose-600" },
-                        ].map((bucket) => (
-                          <div key={bucket.label} className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3.5 text-center">
-                            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">{bucket.label}</p>
-                            <p className={`text-base font-black font-mono ${bucket.color}`}>{fmtINR(bucket.value ?? 0)}</p>
-                          </div>
-                        ))}
+                          { label: "Current (Not Due)", value: data.ageing?.current, color: "text-emerald-600 dark:text-emerald-400", barColor: "bg-emerald-500" },
+                          { label: "1–30 Days", value: data.ageing?.d30, color: "text-blue-600 dark:text-blue-400", barColor: "bg-blue-500" },
+                          { label: "31–60 Days", value: data.ageing?.d60, color: "text-amber-600 dark:text-amber-400", barColor: "bg-amber-500" },
+                          { label: "61–90 Days", value: data.ageing?.d90, color: "text-orange-600 dark:text-orange-400", barColor: "bg-orange-500" },
+                          { label: "90+ Days", value: data.ageing?.over90, color: "text-rose-600 dark:text-rose-400", barColor: "bg-rose-500" },
+                        ].map((bucket) => {
+                          const total = summary.totalOutstanding || 1;
+                          const pct = Math.min(100, Math.round(((bucket.value ?? 0) / total) * 100));
+                          return (
+                            <div key={bucket.label} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3.5 shadow-[var(--shadow-sm)] space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider">{bucket.label}</span>
+                                <span className="text-[10px] font-mono text-[var(--text-faint)] font-bold">{pct}%</span>
+                              </div>
+                              <p className={`text-lg font-black font-mono ${bucket.color}`}>{fmtINR(bucket.value ?? 0)}</p>
+                              <div className="w-full bg-[var(--table-header-bg)] rounded-full h-1.5 overflow-hidden">
+                                <div className={`h-full rounded-full ${bucket.barColor}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                       <div className="mt-2">
                         <InlineDrillDownPanel
@@ -513,24 +608,55 @@ export default function SalesReportsPage() {
                               </tfoot>
                             </table>
                           </div>
-                          {/* Mobile Returns Cards */}
+                          {/* Mobile Returns Cards with Drilldown */}
                           <div className="md:hidden divide-y divide-[var(--border-light)]">
-                            {(data.returns ?? []).map((r: any) => (
-                              <div key={r.id} className="p-3.5 space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-mono font-bold text-xs text-[var(--primary)]">{r.return_number}</span>
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-rose-500/20 bg-rose-500/10 text-rose-600 capitalize">{r.status}</span>
+                            {(data.returns ?? []).map((r: any) => {
+                              const isExpanded = expandedReturnId === r.id;
+                              return (
+                                <div key={r.id} className="p-3.5 space-y-2">
+                                  <div
+                                    onClick={() => setExpandedReturnId(isExpanded ? null : r.id)}
+                                    className="cursor-pointer space-y-1.5"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-mono font-bold text-xs text-[var(--primary)]">{r.return_number}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-rose-500/20 bg-rose-500/10 text-rose-600 capitalize">{r.status}</span>
+                                        <ChevronDown size={14} className={cn("text-[var(--text-muted)] transition-transform", isExpanded && "rotate-180 text-[var(--primary)]")} />
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{r.party}</span>
+                                      <span className="text-[var(--text-muted)] text-[11px]">{fmtDate(r.return_date)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
+                                      <span className="text-[var(--text-muted)]">Return Total</span>
+                                      <span className="font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</span>
+                                    </div>
+                                  </div>
+                                  {isExpanded && (
+                                    <div className="pt-2 border-t border-[var(--border-light)] text-xs space-y-1.5 bg-[var(--table-header-bg)] p-2.5 rounded-lg">
+                                      <div className="flex justify-between text-[11px]">
+                                        <span className="text-[var(--text-muted)]">Customer Ledger:</span>
+                                        {r.party_id ? (
+                                          <Link href={`/parties/${r.party_id}/ledger`} className="text-[var(--primary)] font-bold hover:underline">
+                                            View Ledger &rarr;
+                                          </Link>
+                                        ) : <span>{r.party}</span>}
+                                      </div>
+                                      <div className="flex justify-between text-[11px]">
+                                        <span className="text-[var(--text-muted)]">Return Date:</span>
+                                        <span className="font-mono">{fmtDate(r.return_date)}</span>
+                                      </div>
+                                      <div className="flex justify-between text-[11px]">
+                                        <span className="text-[var(--text-muted)]">Amount Credited:</span>
+                                        <span className="font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{r.party}</span>
-                                  <span className="text-[var(--text-muted)] text-[11px]">{fmtDate(r.return_date)}</span>
-                                </div>
-                                <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs">
-                                  <span className="text-[var(--text-muted)]">Return Total</span>
-                                  <span className="font-mono font-bold text-rose-600">{fmtINR(r.grand_total)}</span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                             <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
                               <span className="text-[var(--text-muted)]">Total Returns ({data.returns?.length})</span>
                               <span className="font-mono text-rose-600">{fmtINR(summary.totalReturns ?? 0)}</span>
@@ -551,24 +677,46 @@ export default function SalesReportsPage() {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {(data.paymentModeSummary ?? []).map((pm: any, i: number) => {
+                          <p className="text-[11px] text-[var(--text-muted)] mb-2">Tap any payment method to inspect details.</p>
+                          {(data.paymentModeSummary ?? []).map((pm: any) => {
                             const pct = summary.totalPaid > 0 ? (pm.amount / summary.totalPaid) * 100 : 0;
+                            const isSelected = selectedPaymentMode === pm.mode;
                             return (
-                              <div key={pm.mode} className="flex items-center gap-3">
-                                <div className="w-28 text-xs font-bold text-[var(--text-body)] shrink-0">{pm.mode}</div>
+                              <div
+                                key={pm.mode}
+                                onClick={() => setSelectedPaymentMode(isSelected ? null : pm.mode)}
+                                className={cn(
+                                  "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer",
+                                  isSelected
+                                    ? "border-[var(--primary)] bg-[var(--primary-light)]/40 shadow-xs"
+                                    : "border-transparent hover:bg-[var(--table-row-hover)]"
+                                )}
+                              >
+                                <div className="w-28 text-xs font-bold text-[var(--text-body)] shrink-0 capitalize">{pm.mode}</div>
                                 <div className="flex-1 bg-[var(--table-header-bg)] rounded-full h-2 overflow-hidden">
                                   <div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
                                 </div>
                                 <div className="w-28 text-right">
                                   <span className="text-xs font-mono font-bold text-[var(--text-primary)]">{fmtINR(pm.amount)}</span>
-                                  <span className="text-[10px] text-[var(--text-faint)] ml-1">({pct.toFixed(1)}%)</span>
+                                  <span className="text-[10px] text-[var(--text-faint)] ml-1 font-mono">({pct.toFixed(1)}%)</span>
                                 </div>
                               </div>
                             );
                           })}
+                          {selectedPaymentMode && (
+                            <div className="mt-3 p-3 bg-[var(--card-bg)] border border-[var(--primary)] rounded-xl text-xs space-y-1.5 animate-in fade-in-50">
+                              <div className="flex justify-between items-center font-bold">
+                                <span className="text-[var(--primary)] capitalize">Selected: {selectedPaymentMode}</span>
+                                <button onClick={() => setSelectedPaymentMode(null)} className="text-[10px] text-[var(--text-muted)] hover:underline cursor-pointer">Clear</button>
+                              </div>
+                              <p className="text-[11px] text-[var(--text-muted)]">
+                                Filtered transactions for {selectedPaymentMode} · <Link href="/reports/payments" className="text-[var(--primary)] font-bold hover:underline">View in Payment Register &rarr;</Link>
+                              </p>
+                            </div>
+                          )}
                           <div className="mt-3 pt-3 border-t border-[var(--border)] flex justify-between text-xs font-bold">
                             <span className="text-[var(--text-muted)]">Total Received</span>
-                            <span className="font-mono text-emerald-600">{fmtINR(summary.totalPaid ?? 0)}</span>
+                            <span className="font-mono text-emerald-600 dark:text-emerald-400">{fmtINR(summary.totalPaid ?? 0)}</span>
                           </div>
                         </div>
                       )}
@@ -712,7 +860,8 @@ export default function SalesReportsPage() {
             </div>
           </div>
         )}
-      </PageState>
+        </PageState>
+      </PullToRefresh>
     </ReportShell>
   );
 }

@@ -1,37 +1,88 @@
 {
+  "id": "/tas-erp-pwa",
   "name": "TAS ERP - Garment Manufacturing Intelligence Platform",
   "short_name": "TAS ERP",
-  "description": "Garment Manufacturing Intelligence Platform",
+  "description": "Enterprise garment manufacturing intelligence platform for inventory, sales, purchases, production, and accounting.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en-IN",
   "background_color": "#0F172A",
   "theme_color": "#6366F1",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
       "name": "Scan QR / Barcode",
-      "short_name": "Scan PWA",
+      "short_name": "Scan",
       "url": "/scan",
-      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Add Sale Bill",
-      "short_name": "New Bill",
+      "name": "New Sale Bill",
+      "short_name": "Sale Bill",
       "url": "/sales/bills/new",
-      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "New Purchase",
+      "short_name": "Purchase",
+      "url": "/purchases/new",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "New Production Lot",
+      "short_name": "New Lot",
+      "url": "/production/lots/new",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "TAS ERP Mobile Dashboard"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "TAS ERP Desktop Command Hub"
+    }
+  ],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "auto"
+  }
 }

@@ -220,19 +220,19 @@ export default function RecordJobWorkPaymentPage() {
     <PageState isLoading={initLoading} error={initError?.message}>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Page Header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-gray-200 pb-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-[var(--border)] pb-4">
           <div className="flex items-center gap-3">
             <Link
               href="/production/job-work"
-              className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-gray-200 shadow-sm"
+              className="p-2 hover:bg-[var(--card-bg)] rounded-lg transition-colors border border-[var(--border)] shadow-[var(--shadow-sm)]"
             >
-              <ArrowLeft className="h-5 w-5 text-slate-500" />
+              <ArrowLeft className="h-5 w-5 text-[var(--text-muted)]" />
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
                 Make Supplier / Worker Payment
               </h1>
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">
                 PAYMENTS & FINANCE / OUTGOING PAYMENTS
               </p>
             </div>
@@ -242,14 +242,14 @@ export default function RecordJobWorkPaymentPage() {
             <Button
               variant="outline"
               onClick={() => router.back()}
-              className="flex items-center gap-1.5 text-xs font-bold border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC] h-9 rounded-lg px-4"
+              className="flex items-center gap-1.5 text-xs font-bold border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--card-bg)] h-9 rounded-lg px-4"
             >
               <X className="h-4 w-4" />
               Cancel
             </Button>
             <AsyncButton
               onClick={handleSave}
-              className="flex items-center gap-1.5 text-xs font-bold bg-[#6366F1] hover:bg-[#4F46E5] text-white h-9 rounded-lg px-4 shadow-md shadow-[#6366F1]/20 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs font-bold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white h-9 rounded-lg px-4 shadow-md shadow-[var(--primary)]/20 cursor-pointer"
             >
               <Save className="h-4 w-4" />
               Save & Record
@@ -260,20 +260,20 @@ export default function RecordJobWorkPaymentPage() {
         {/* 3-Column Top Form Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Payee Details Card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2">
               Payee Details
             </h2>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-600">Select Supplier / Worker *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Select Supplier / Worker *</label>
               <select
                 value={selectedPayeeId}
                 onChange={(e) => setSelectedPayeeId(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none w-full"
+                className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none w-full"
               >
-                <option value="">-- Choose Payee --</option>
+                <option value="" className="bg-[var(--card-bg)]">-- Choose Payee --</option>
                 {payees.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.id} className="bg-[var(--card-bg)]">
                     {p.name} [WORKER]
                   </option>
                 ))}
@@ -283,15 +283,15 @@ export default function RecordJobWorkPaymentPage() {
             {selectedPayee && (
               <div className="grid grid-cols-2 gap-4 pt-2 text-xs">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Contact Person</span>
-                  <span className="font-bold text-slate-800">{selectedPayee.name}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Contact Person</span>
+                  <span className="font-bold text-[var(--text-primary)]">{selectedPayee.name}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Phone</span>
-                  <span className="font-bold text-slate-800">{selectedPayee.phone || "—"}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Phone</span>
+                  <span className="font-bold text-[var(--text-primary)]">{selectedPayee.phone || "—"}</span>
                 </div>
-                <div className="col-span-2 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Current Ledger Balance</span>
+                <div className="col-span-2 pt-2 border-t border-[var(--border-light)]">
+                  <span className="text-[10px] text-[var(--text-muted)] block font-bold uppercase">Current Ledger Balance</span>
                   <span
                     className={`text-sm font-extrabold ${
                       payeeBalanceSign === "Dr" ? "text-rose-600" : "text-emerald-600"
@@ -305,60 +305,60 @@ export default function RecordJobWorkPaymentPage() {
           </div>
 
           {/* Payment Details Card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2">
               Payment Details
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-600">Payment Date *</label>
+                <label className="text-xs font-bold text-[var(--text-secondary)]">Payment Date *</label>
                 <input
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-[var(--input-border)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
+                  className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-600">Payment Mode *</label>
+                <label className="text-xs font-bold text-[var(--text-secondary)]">Payment Mode *</label>
                 <select
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
+                  className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
                 >
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="upi">UPI</option>
-                  <option value="cash">Cash</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="neft">NEFT</option>
-                  <option value="rtgs">RTGS</option>
+                  <option value="bank_transfer" className="bg-[var(--card-bg)]">Bank Transfer</option>
+                  <option value="upi" className="bg-[var(--card-bg)]">UPI</option>
+                  <option value="cash" className="bg-[var(--card-bg)]">Cash</option>
+                  <option value="cheque" className="bg-[var(--card-bg)]">Cheque</option>
+                  <option value="neft" className="bg-[var(--card-bg)]">NEFT</option>
+                  <option value="rtgs" className="bg-[var(--card-bg)]">RTGS</option>
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-600">Reference / UTR No.</label>
+                <label className="text-xs font-bold text-[var(--text-secondary)]">Reference / UTR No.</label>
                 <input
                   type="text"
                   value={referenceNo}
                   placeholder="e.g. UTR12345"
                   onChange={(e) => setReferenceNo(e.target.value)}
-                  className="h-9 text-xs font-semibold rounded-lg border border-[var(--input-border)] bg-transparent px-3 py-1 outline-none focus:ring-1 focus:ring-[var(--primary)] w-full"
+                  className="h-9 text-xs font-semibold rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 py-1 outline-none focus:ring-1 focus:ring-[var(--primary)] w-full"
                 />
               </div>
 
               {paymentMode !== "cash" && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-600">Source Account *</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">Source Account *</label>
                   <select
                     value={bankAccountId}
                     onChange={(e) => setBankAccountId(e.target.value)}
-                    className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-white text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
+                    className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
                   >
                     {bankAccounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
+                      <option key={acc.id} value={acc.id} className="bg-[var(--card-bg)]">
                         {acc.account_name} ({acc.bank_name})
                       </option>
                     ))}
@@ -368,39 +368,39 @@ export default function RecordJobWorkPaymentPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-600">Amount Paid (₹) *</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Amount Paid (₹) *</label>
               <input
                 type="number"
                 placeholder="0.00"
                 value={amountPaid || ""}
                 onChange={(e) => setAmountPaid(Math.max(0, parseFloat(e.target.value) || 0))}
-                className="h-9 text-xs font-bold text-[var(--primary)] border border-[var(--input-border)] bg-transparent px-3 py-1 outline-none focus:ring-1 focus:ring-[var(--primary)] w-full rounded-lg"
+                className="h-9 text-xs font-bold text-[var(--primary)] border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-1 outline-none focus:ring-1 focus:ring-[var(--primary)] w-full rounded-lg"
               />
             </div>
           </div>
 
           {/* Additional Details Card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2">
               Additional Details
             </h2>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-600">Cheque / UTR Ref Date</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Cheque / UTR Ref Date</label>
               <input
                 type="date"
                 value={refDate}
                 onChange={(e) => setRefDate(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-[var(--input-border)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
+                className="h-9 px-3 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs font-bold focus:ring-1 focus:ring-[var(--primary)] outline-none"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-600">Remarks / Notes</label>
+              <label className="text-xs font-bold text-[var(--text-secondary)]">Remarks / Notes</label>
               <textarea
                 value={remarks}
                 rows={3}
                 placeholder="Write any additional details here..."
                 onChange={(e) => setRemarks(e.target.value)}
-                className="p-3 text-xs font-medium rounded-lg border border-[var(--input-border)] focus:ring-1 focus:ring-[var(--primary)] outline-none w-full resize-none"
+                className="p-3 text-xs font-medium rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-1 focus:ring-[var(--primary)] outline-none w-full resize-none"
               />
             </div>
           </div>
@@ -409,17 +409,17 @@ export default function RecordJobWorkPaymentPage() {
         {/* Outstanding Invoices Section */}
         {selectedPayeeId && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-sm font-extrabold text-slate-800">
+            <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-2">
+              <h3 className="text-sm font-extrabold text-[var(--text-primary)]">
                 Allocate to Outstanding Invoices / Job Work
               </h3>
-              <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[var(--text-muted)] font-semibold bg-[var(--page-bg)] px-2 py-0.5 rounded-full border border-[var(--border)]">
                 {outstandingBills.length} Items Outstanding
               </span>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-2.5 items-start">
-              <CheckCircle className="h-4.5 w-4.5 shrink-0 text-blue-600 mt-0.5" />
+            <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 text-[var(--primary)] p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-2.5 items-start">
+              <CheckCircle className="h-4.5 w-4.5 shrink-0 text-[var(--primary)] mt-0.5" />
               <p>
                 Select outstanding bills, purchases, or job work entries below to apply payment. Unallocated amounts will be recorded as an outgoing advance.
               </p>
@@ -441,31 +441,31 @@ export default function RecordJobWorkPaymentPage() {
 
         {/* Payment Outflow Summary card */}
         <div className="flex justify-end pt-4">
-          <div className="bg-white text-slate-800 border border-gray-200 rounded-xl p-5 shadow-sm w-full max-w-sm space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 border-b border-gray-100 pb-2">
+          <div className="bg-[var(--card-bg)] text-[var(--text-primary)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] w-full max-w-sm space-y-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border-light)] pb-2">
               Payment Outflow Summary
             </h3>
             <div className="space-y-2 text-xs font-semibold">
               <div className="flex justify-between">
-                <span className="text-slate-500">Total Outflow:</span>
-                <span className="text-sm font-extrabold text-slate-900">₹{amountPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-[var(--text-muted)]">Total Outflow:</span>
+                <span className="text-sm font-extrabold text-[var(--text-primary)]">₹{amountPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Allocated to Items:</span>
+                <span className="text-[var(--text-muted)]">Allocated to Items:</span>
                 <span className="text-sm font-bold text-emerald-600">₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">To Advance Outflow:</span>
-                <span className="text-sm font-bold text-blue-600">₹{unallocatedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-[var(--text-muted)]">To Advance Outflow:</span>
+                <span className="text-sm font-bold text-[var(--primary)]">₹{unallocatedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="border-t border-gray-100 pt-2 flex justify-between">
-                <span className="text-slate-500">Mode:</span>
+              <div className="border-t border-[var(--border-light)] pt-2 flex justify-between">
+                <span className="text-[var(--text-muted)]">Mode:</span>
                 <span className="uppercase text-[11px] font-bold text-amber-600">{paymentMode.replace(/_/g, " ")}</span>
               </div>
               {paymentMode !== "cash" && bankAccountId && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Source Bank:</span>
-                  <span className="truncate max-w-[180px] text-slate-700">
+                  <span className="text-[var(--text-muted)]">Source Bank:</span>
+                  <span className="truncate max-w-[180px] text-[var(--text-secondary)]">
                     {bankAccounts.find((b) => b.id === bankAccountId)?.account_name || "—"}
                   </span>
                 </div>

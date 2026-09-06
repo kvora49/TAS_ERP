@@ -1,12 +1,13 @@
 "use client"
 
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
-
 import { cn } from "@/lib/utils"
+import { triggerHaptic } from "@/lib/haptics"
 
 function Switch({
   className,
   size = "default",
+  onCheckedChange,
   ...props
 }: SwitchPrimitive.Root.Props & {
   size?: "sm" | "default"
@@ -16,9 +17,13 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[size=default]:h-[20px] data-[size=default]:w-[36px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 bg-[#D1D5DB] data-[checked]:bg-[#6366F1] transition-colors duration-200",
+        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-[size=default]:h-[20px] data-[size=default]:w-[36px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 bg-[var(--input-border)] data-[checked]:bg-[var(--primary)] transition-colors duration-200 cursor-pointer",
         className
       )}
+      onCheckedChange={(checked, event) => {
+        triggerHaptic("selection");
+        onCheckedChange?.(checked, event);
+      }}
       {...props}
     >
       <SwitchPrimitive.Thumb

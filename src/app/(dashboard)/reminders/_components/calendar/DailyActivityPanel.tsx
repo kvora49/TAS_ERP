@@ -238,32 +238,36 @@ export function DailyActivityPanel({
           ))}
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-1 overflow-x-auto scrollbar-none pb-px">
-          {typeFilters.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setFilterType(key)}
-              className={cn(
-                "shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors",
-                filterType === key
-                  ? "bg-[var(--primary)] text-white"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Filter tabs and sort options */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-[var(--border-light)]">
+          <div className="flex gap-1 overflow-x-auto scrollbar-none py-0.5">
+            {typeFilters.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilterType(key)}
+                className={cn(
+                  "shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors cursor-pointer",
+                  filterType === key
+                    ? "bg-[var(--primary)] text-white shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--table-row-hover)]"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-          <div className="ml-auto flex items-center gap-1 shrink-0">
-            <span className="text-[10px] text-[var(--text-faint)]">Sort:</span>
+          <div className="flex items-center gap-1 self-end sm:self-auto shrink-0 bg-[var(--page-bg)] p-0.5 rounded-lg border border-[var(--border)]">
+            <span className="text-[10px] font-bold text-[var(--text-muted)] px-1.5">Sort:</span>
             {["time", "priority", "type"].map((s) => (
               <button
                 key={s}
                 onClick={() => setSortBy(s as any)}
                 className={cn(
-                  "text-[10px] font-medium px-1.5 py-0.5 rounded capitalize",
-                  sortBy === s ? "text-[var(--primary)]" : "text-[var(--text-muted)]"
+                  "text-[10px] font-bold px-2 py-0.5 rounded capitalize transition-colors cursor-pointer",
+                  sortBy === s
+                    ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-xs"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 )}
               >
                 {s}
@@ -274,7 +278,7 @@ export function DailyActivityPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-3.5 py-3 sm:px-5 sm:py-4 space-y-4 sm:space-y-5">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">

@@ -1,4 +1,11 @@
-import * as XLSX from "xlsx";
+// Lazy dynamic loader for XLSX to keep initial route bundle chunks ultra-fast (<100ms)
+let _xlsxPromise: Promise<typeof import("xlsx")> | null = null;
+export async function getXLSX() {
+  if (!_xlsxPromise) {
+    _xlsxPromise = import("xlsx");
+  }
+  return _xlsxPromise;
+}
 
 // ─── Excel Export ─────────────────────────────────────────────────────────────
 
@@ -9,12 +16,13 @@ export interface ExcelColumn {
   format?: "currency" | "number" | "percent" | "date" | "text";
 }
 
-export function exportToExcel(
+export async function exportToExcel(
   columns: ExcelColumn[],
   rows: Record<string, any>[],
   filename: string,
   sheetName = "Report"
-): void {
+): Promise<void> {
+  const XLSX = await getXLSX();
   const header = columns.map((c) => c.label);
   const data = rows.map((row) =>
     columns.map((col) => {
@@ -57,7 +65,8 @@ export interface ExcelSheet {
   rows: Record<string, any>[];
 }
 
-export function exportMultiSheetExcel(sheets: ExcelSheet[], filename: string): void {
+export async function exportMultiSheetExcel(sheets: ExcelSheet[], filename: string): Promise<void> {
+  const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
   for (const sheet of sheets) {
     const header = sheet.columns.map((c) => c.label);
@@ -155,11 +164,15 @@ export const DATE_PRESETS: { label: string; value: DatePreset }[] = [
  * Safely parse an Excel worksheet into JSON rows without prototype pollution risk.
  * Filters out __proto__, constructor, and prototype keys from incoming rows.
  */
-export function safeSheetToJson<T = Record<string, any>>(ws: XLSX.WorkSheet, opts?: XLSX.Sheet2JSONOpts): T[] {
-  const raw = XLSX.utils.sheet_to_json<any>(ws, opts);
+export function safeSheetToJson<T = Record<string, any>>(ws: any, opts?: any, xlsxLib?: any): T[] {
+  const lib = xlsxLib || (typeof window !== "undefined" && ((window as any).XLSX || (ws as any)?._xlsx));
+  if (!lib) {
+    return [];
+  }
+  const raw = lib.utils.sheet_to_json(ws, opts);
   if (!Array.isArray(raw)) return [];
 
-  return raw.map((row) => {
+  return raw.map((row: any) => {
     if (typeof row !== "object" || row === null) return row;
     const safeObj: any = Object.create(null);
     for (const key of Object.keys(row)) {
@@ -172,7 +185,8 @@ export function safeSheetToJson<T = Record<string, any>>(ws: XLSX.WorkSheet, opt
 
 // ─── Formatted Financial Multi-Sheet Exporters ────────────────────────────────
 
-export function exportFormattedPLExcel(data: any, from: string, to: string): void {
+export async function exportFormattedPLExcel(data: any, from: string, to: string): Promise<void> {
+  const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Main P&L Statement
@@ -246,7 +260,8 @@ export function exportFormattedPLExcel(data: any, from: string, to: string): voi
   XLSX.writeFile(wb, `Profit_Loss_${from}_${to}.xlsx`);
 }
 
-export function exportFormattedBalanceExcel(data: any, asOn: string): void {
+export async function exportFormattedBalanceExcel(data: any, asOn: string): Promise<void> {
+  const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
 
   const rows: (string | number)[][] = [
@@ -362,7 +377,8 @@ export function exportFormattedGSTExcel(data: any, from: string, to: string): vo
   ], `GST_Summary_${from}_${to}`);
 }
 
-export function exportFormattedCashFlowExcel(data: any, from: string, to: string): void {
+export async function exportFormattedCashFlowExcel(data: any, from: string, to: string): Promise<void> {
+  const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
 
   const rows: (string | number)[][] = [

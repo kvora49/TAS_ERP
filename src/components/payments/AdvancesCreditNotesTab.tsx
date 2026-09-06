@@ -132,105 +132,176 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
     >
       <div className="space-y-6">
         {/* Header Switcher & Actions */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             {showBackButton && (
               <Link
                 href="/payments"
-                className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] border border-[var(--border)] transition-colors"
+                className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] border border-[var(--border)] transition-colors shrink-0"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Link>
             )}
 
-            <div className="flex items-center gap-2 border-b border-[var(--border)]">
+            <div className="flex items-center gap-1 bg-[var(--page-bg)] p-1 rounded-xl border border-[var(--border)] w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setSubTab("received")}
-                className={`pb-2.5 px-4 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex-1 sm:flex-none py-1.5 px-3 text-xs font-bold rounded-lg transition-all text-center ${
                   subTab === "received"
-                    ? "border-[var(--primary)] text-[var(--primary)] font-bold"
-                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 }`}
               >
-                Received (from Customers)
+                Received Advances
               </button>
 
               <button
                 type="button"
                 onClick={() => setSubTab("given")}
-                className={`pb-2.5 px-4 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex-1 sm:flex-none py-1.5 px-3 text-xs font-bold rounded-lg transition-all text-center ${
                   subTab === "given"
-                    ? "border-[var(--primary)] text-[var(--primary)] font-bold"
-                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 }`}
               >
-                Given (to Suppliers & Workers)
+                Given Advances
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Link
               href="/payments/receive"
-              className="px-4 py-2 bg-[var(--primary)] text-white text-xs font-semibold rounded-full hover:bg-[var(--primary-dark)] transition-all flex items-center gap-1.5 shadow-sm"
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-[var(--primary)] text-white text-xs font-semibold rounded-xl hover:bg-[var(--primary-dark)] transition-all flex items-center gap-1.5 shadow-sm"
             >
-              <ArrowDownLeft className="w-3.5 h-3.5" />
-              Record Received Advance
+              <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
+              <span>Record Received</span>
             </Link>
 
             <Link
               href="/payments/make"
-              className="px-4 py-2 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-full hover:bg-[var(--page-bg)] transition-all flex items-center gap-1.5 shadow-sm"
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl hover:bg-[var(--page-bg)] transition-all flex items-center gap-1.5 shadow-sm"
             >
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              Record Outgoing Advance
+              <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+              <span>Record Outgoing</span>
             </Link>
           </div>
         </div>
 
-        {/* 4 Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {/* 4 Stat Cards: Responsive 2x2 on mobile, 4 columns on sm+ */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="p-3 sm:p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl sm:rounded-2xl shadow-sm space-y-0.5 sm:space-y-1">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               TOTAL ADVANCES
             </div>
-            <div className="text-xl font-bold text-[var(--text-primary)]">
+            <div className="text-sm sm:text-xl font-bold font-mono text-[var(--text-primary)]">
               ₹{totalAdvancesSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <div className="p-3 sm:p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl sm:rounded-2xl shadow-sm space-y-0.5 sm:space-y-1">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               SETTLED
             </div>
-            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="text-sm sm:text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
               ₹{settledSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              UNSETTLED / OUTSTANDING
+          <div className="p-3 sm:p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl sm:rounded-2xl shadow-sm space-y-0.5 sm:space-y-1">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              OUTSTANDING
             </div>
-            <div className="text-xl font-bold text-rose-500">
+            <div className="text-sm sm:text-xl font-bold font-mono text-rose-600 dark:text-rose-400">
               ₹{unsettledSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              RECORDED THIS MONTH
+          <div className="p-3 sm:p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl sm:rounded-2xl shadow-sm space-y-0.5 sm:space-y-1">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              THIS MONTH
             </div>
-            <div className="text-xl font-bold text-[var(--primary)]">
+            <div className="text-sm sm:text-xl font-bold font-mono text-[var(--primary)]">
               ₹{recordedThisMonthSum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
 
-        {/* Advances Table */}
+        {/* Advances Container */}
         <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Mobile Card List (md:hidden) */}
+          <div className="md:hidden divide-y divide-[var(--border-light)]">
+            {advancesList.length === 0 ? (
+              <div className="py-10 text-center text-xs text-[var(--text-muted)] font-medium">
+                No advance payments found for this category.
+              </div>
+            ) : (
+              advancesList.map((adv) => (
+                <div key={adv.id} className="p-3.5 space-y-2.5 hover:bg-[var(--table-row-hover)] transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[var(--text-primary)] truncate">
+                        {adv.party?.name || "Unknown Party"}
+                      </div>
+                      {adv.party?.company_name && (
+                        <div className="text-[11px] text-[var(--text-muted)] truncate">
+                          {adv.party.company_name}
+                        </div>
+                      )}
+                    </div>
+                    {adv.is_settled ? (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        Fully Settled
+                      </span>
+                    ) : (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        Active
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+                    <span>Date: {adv.created_at ? new Date(adv.created_at).toLocaleDateString("en-IN") : "-"}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-[var(--page-bg)] text-center text-xs">
+                    <div>
+                      <span className="text-[9px] uppercase font-semibold text-[var(--text-faint)] block">Advance</span>
+                      <span className="font-mono font-bold text-[var(--text-primary)]">
+                        ₹{Number(adv.advance_amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-semibold text-[var(--text-faint)] block">Settled</span>
+                      <span className="font-mono font-semibold text-[var(--text-muted)]">
+                        ₹{Number(adv.settled_amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-semibold text-[var(--text-faint)] block">Remaining</span>
+                      <span className="font-mono font-bold text-[var(--primary)]">
+                        ₹{Number(adv.remaining_amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {!adv.is_settled && Number(adv.remaining_amount || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAdvance(adv)}
+                      className="w-full py-1.5 px-3 bg-[var(--primary)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--primary-dark)] transition-colors text-center"
+                    >
+                      Settle Against Bill
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[var(--table-header-bg)] text-[var(--text-muted)] uppercase tracking-wider font-semibold border-b border-[var(--border)]">
                 <tr>

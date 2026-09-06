@@ -9,6 +9,7 @@ import { Badge, BadgeVariant } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { Plus, Search, FileText, Pencil, Trash2, Users, Briefcase, UserCheck, User, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ import { usePartiesList } from "@/hooks/queries/useParties";
 import { formatCurrency, cn } from "@/lib/utils";
 import { invalidatePartyRelatedQueries } from "@/lib/utils/party";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 
 interface Party {
   id: string;
@@ -108,6 +110,15 @@ export default function PartiesPage() {
     const matchesTab = activeTab === "all" || p.type?.includes(activeTab);
 
     return matchesSearch && matchesTab;
+  });
+
+  const [mobileDisplayLimit, setMobileDisplayLimit] = useState(25);
+  const hasMoreParties = filteredParties.length > mobileDisplayLimit;
+  const { sentinelRef } = useInfiniteScroll<HTMLDivElement>({
+    enabled: hasMoreParties,
+    onIntersect: () => {
+      setMobileDisplayLimit((prev) => prev + 25);
+    },
   });
 
   const supplierCount = parties.filter((p) => p.type?.includes("supplier")).length;
@@ -217,7 +228,8 @@ export default function PartiesPage() {
   ];
 
   return (
-    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Parties Directory</h1>
@@ -399,7 +411,7 @@ export default function PartiesPage() {
 
           {/* High Density Rows Container */}
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
-            {filteredParties.map((party) => {
+            {filteredParties.slice(0, mobileDisplayLimit).map((party) => {
               const primaryType = party.type?.[0] || "supplier";
               let badgeVariant: BadgeVariant = "gray";
               if (primaryType === "supplier") badgeVariant = "primary";
@@ -439,6 +451,19 @@ export default function PartiesPage() {
               );
             })}
           </div>
+
+          {/* Mobile Infinite Scroll Sentinel & Status */}
+          {hasMoreParties && (
+            <div ref={sentinelRef} className="py-4 text-center">
+              <button
+                type="button"
+                onClick={() => setMobileDisplayLimit((prev) => prev + 25)}
+                className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer"
+              >
+                Load more ({filteredParties.length - mobileDisplayLimit} remaining)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── DESKTOP: DataTable ── */}
@@ -478,5 +503,6 @@ export default function PartiesPage() {
         }}
       />
     </div>
+    </PullToRefresh>
   );
 }

@@ -24,6 +24,7 @@ import {
   Percent,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface Brand {
   id: string;
@@ -58,6 +59,9 @@ export default function FinancialSettingsPage() {
   const [editKacha, setEditKacha] = useState("");
   const [editSeparator, setEditSeparator] = useState("/");
   const [editDigits, setEditDigits] = useState(5);
+  const [isDirty, setIsDirty] = useState(false);
+
+  useUnsavedChangesGuard(isDirty);
 
   const fetchFinancialSettings = async () => {
     setLoading(true);
@@ -107,6 +111,7 @@ export default function FinancialSettingsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to update financial settings");
 
       toast.success("Financial settings saved successfully");
+      setIsDirty(false);
       fetchFinancialSettings();
     } catch (err: any) {
       toast.error(err.message || "Error saving financial settings");
@@ -141,6 +146,7 @@ export default function FinancialSettingsPage() {
       })
     );
 
+    setIsDirty(true);
     setEditDialogOpen(false);
     toast.info("Brand changes staged locally. Click 'Save Changes' at the top to commit.");
   };
@@ -187,7 +193,52 @@ export default function FinancialSettingsPage() {
             </button>
           }
         >
-          <div className="overflow-x-auto border border-[var(--border)] rounded-lg">
+          {/* Mobile Series Cards (< md) */}
+          <div className="md:hidden divide-y divide-[var(--border)] border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--card-bg)] mb-3">
+            {brands.map((b) => (
+              <div key={b.id} className="p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-sm text-[var(--text-primary)] block">{b.name}</span>
+                    <span className="text-[11px] text-[var(--text-muted)] font-medium">Invoice Series</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditBrand(b)}
+                      className="h-8 px-2.5 border border-[var(--border)] hover:bg-[var(--page-bg)] text-[var(--primary)] rounded-lg inline-flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                    >
+                      <Pencil className="size-3.5" />
+                      <span>Edit</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 bg-[var(--page-bg)] p-2.5 rounded-lg text-xs">
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block">Pakka Prefix</span>
+                    <span className="font-mono font-bold text-[var(--text-primary)]">{b.bill_prefix_pakka || "PK"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block">Kacha Prefix</span>
+                    <span className="font-mono font-bold text-[var(--text-primary)]">{b.bill_prefix_kacha || "KC"}</span>
+                  </div>
+                  <div className="col-span-2 pt-1 border-t border-[var(--border-light)] flex justify-between items-center">
+                    <span className="text-[10px] text-[var(--text-muted)]">Next Document #</span>
+                    <span className="font-mono font-bold text-[var(--primary)]">{getNextNumberPreview(b)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {brands.length === 0 && (
+              <div className="p-4 text-center text-xs text-[var(--text-faint)] italic">
+                No brands available. Please add brands in Master Data first.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table (hidden on mobile) */}
+          <div className="hidden md:block overflow-x-auto border border-[var(--border)] rounded-lg">
             <table className="w-full text-sm text-[var(--text-body)]">
               <thead className="bg-[var(--table-header-bg)] text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider h-10">
                 <tr>

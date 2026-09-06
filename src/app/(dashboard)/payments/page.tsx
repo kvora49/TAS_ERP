@@ -12,12 +12,19 @@ import {
   Filter,
   Link as LinkIcon,
   Clock,
+  Eye,
+  CreditCard,
+  Share2,
 } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import AdvancesCreditNotesTab from "@/components/payments/AdvancesCreditNotesTab";
 import DirectLinkingTab from "@/components/payments/DirectLinkingTab";
+import ReportTabs from "@/components/reports/ReportTabs";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { cn } from "@/lib/utils";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { shareContent } from "@/lib/share";
 
 function PaymentsContent() {
   const router = useRouter();
@@ -30,6 +37,7 @@ function PaymentsContent() {
   // Filters for History Tab
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(15);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -43,9 +51,9 @@ function PaymentsContent() {
     payments: any[];
     totalCount: number;
   }>({
-    queryKey: ["payments-list-overview", directionFilter, page],
+    queryKey: ["payments-list-overview", directionFilter, page, limit],
     queryFn: async () => {
-      const res = await fetch(`/api/payments?direction=${directionFilter}&page=${page}&limit=15`);
+      const res = await fetch(`/api/payments?direction=${directionFilter}&page=${page}&limit=${limit}`);
       if (!res.ok) throw new Error("Failed to load payments history");
       return res.json();
     },
@@ -54,7 +62,15 @@ function PaymentsContent() {
 
   const payments = data?.payments || [];
   const totalCount = data?.totalCount || 0;
-  const totalPages = Math.ceil(totalCount / 15);
+  const totalPages = Math.ceil(totalCount / limit);
+
+  const hasMoreMobile = payments.length < totalCount;
+  const { sentinelRef } = useInfiniteScroll<HTMLDivElement>({
+    enabled: hasMoreMobile && !isLoading,
+    onIntersect: () => {
+      setLimit((prev) => Math.min(prev + 15, 100));
+    },
+  });
 
   // Metrics calculation
   const totalReceived = payments
@@ -69,8 +85,24 @@ function PaymentsContent() {
     .filter((p) => p.is_advance)
     .reduce((sum, p) => sum + Number(p.unallocated_amount || 0), 0);
 
+  // Share payment voucher handler
+  const handleSharePayment = async (p: any) => {
+    const partyName = p.party?.name || "Party";
+    const isReceived = p.direction === "received";
+    const directionLabel = isReceived ? "Payment Receipt" : "Payment Voucher";
+    const formattedAmount = `₹${Number(p.amount || 0).toLocaleString("en-IN")}`;
+    const voucherUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    await shareContent({
+      title: `${directionLabel} ${p.payment_number}`,
+      text: `${directionLabel} ${p.payment_number} for ${partyName} - ${formattedAmount} via ${p.payment_mode?.replace("_", " ")}${p.reference_no ? ` (Ref: ${p.reference_no})` : ""}`,
+      url: voucherUrl,
+    });
+  };
+
   return (
-    <div className="p-2.5 sm:p-6 max-w-[1600px] mx-auto space-y-4 sm:space-y-6">
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <div className="p-2.5 sm:p-6 max-w-[1600px] mx-auto space-y-4 sm:space-y-6">
       {/* Top Header & Direct Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -84,120 +116,92 @@ function PaymentsContent() {
         </div>
 
         {/* Direct Action Buttons - Navigate directly to dedicated full pages */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <Link
             href="/payments/receive"
-            className="px-4 py-2.5 bg-[var(--primary)] text-white text-xs font-semibold rounded-xl hover:bg-[var(--primary-dark)] transition-all flex items-center gap-2 shadow-sm"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-[var(--primary)] text-white text-xs font-bold rounded-xl hover:bg-[var(--primary-dark)] transition-all flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <Plus className="w-4 h-4 text-emerald-500" />
-            Receive Payment
+            <Plus className="w-3.5 h-3.5" />
+            <span>Receive Payment</span>
           </Link>
 
           <Link
             href="/payments/make"
-            className="px-4 py-2.5 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl hover:bg-[var(--page-bg)] transition-all flex items-center gap-2 shadow-sm"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-bold rounded-xl hover:bg-[var(--table-row-hover)] transition-all flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <ArrowUpRight className="w-4 h-4 text-amber-500" />
-            Make Payment
+            <ArrowUpRight className="w-3.5 h-3.5 text-amber-500" />
+            <span>Make Payment</span>
           </Link>
 
           <Link
             href="/payments/direct-link"
-            className="px-3.5 py-2.5 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-semibold rounded-xl hover:bg-[var(--page-bg)] transition-all flex items-center gap-2 shadow-sm"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] text-xs font-bold rounded-xl hover:bg-[var(--table-row-hover)] transition-all flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <LinkIcon className="w-4 h-4 text-emerald-500" />
-            Direct Payment Linking
+            <LinkIcon className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Direct Linking</span>
           </Link>
         </div>
       </div>
 
-      {/* Workspace Section Tabs - scrollable on mobile */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
-        <button
-          type="button"
-          onClick={() => handleTabChange("history")}
-          className={`pb-3 px-4 text-xs font-semibold border-b-2 transition-all ${
-            activeTab === "history"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          Payment Vouchers & History
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("advances")}
-          className={`pb-3 px-4 text-xs font-semibold border-b-2 transition-all ${
-            activeTab === "advances"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          Advances & Credit Notes
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("direct-link")}
-          className={`pb-3 px-4 text-xs font-semibold border-b-2 transition-all ${
-            activeTab === "direct-link"
-              ? "border-[var(--primary)] text-[var(--primary)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          Direct Payment Linking
-        </button>
-      </div>
+      {/* Workspace Section Tabs with ReportTabs */}
+      <ReportTabs
+        tabs={[
+          { id: "history", label: "Vouchers & History", icon: <Wallet size={14} /> },
+          { id: "advances", label: "Advances & Credit Notes", icon: <Clock size={14} /> },
+          { id: "direct-link", label: "Direct Payment Linking", icon: <LinkIcon size={14} /> },
+        ]}
+        activeTab={activeTab}
+        onChange={handleTabChange}
+        layoutIdPrefix="payments-workspace-tab"
+      />
 
       {/* TAB 1: Payment History */}
       {activeTab === "history" && (
-        <div className="space-y-6">
-          {/* ── MOBILE: snap-scroll stat cards ── */}
-          <div className="md:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 scrollbar-none">
-            {[
-              { label: "Received",  value: `₹${totalReceived.toLocaleString("en-IN")}`, icon: ArrowDownLeft, bg: "bg-emerald-500/10",         color: "text-emerald-500" },
-              { label: "Paid Out",  value: `₹${totalPaid.toLocaleString("en-IN")}`,    icon: ArrowUpRight,  bg: "bg-amber-500/10",            color: "text-amber-500" },
-              { label: "Advances",  value: `₹${totalAdvances.toLocaleString("en-IN")}`,icon: Clock,         bg: "bg-[var(--primary-light)]",  color: "text-[var(--primary)]" },
-            ].map(({ label, value, icon: Icon, bg, color }) => (
-              <div key={label} className="snap-start shrink-0 w-[152px] bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 shadow-[var(--shadow-sm)] flex items-center gap-2.5">
-                <div className={cn("p-2 rounded-lg shrink-0", bg)}><Icon className={cn("h-4 w-4", color)} /></div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate">{label}</p>
-                  <p className={cn("text-xs font-black mt-0.5", color)}>{value}</p>
-                </div>
+        <div className="space-y-4 sm:space-y-6">
+          {/* Responsive 3-Column KPI Stats Grid */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-emerald-500/10 rounded-lg w-fit shrink-0">
+                <ArrowDownLeft className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-            ))}
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Total Received
+                </span>
+                <p className="text-xs sm:text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate font-mono leading-tight">
+                  ₹{totalReceived.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-amber-500/10 rounded-lg w-fit shrink-0">
+                <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Total Paid Out
+                </span>
+                <p className="text-xs sm:text-lg md:text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5 truncate font-mono leading-tight">
+                  ₹{totalPaid.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-2.5 sm:p-4 shadow-[var(--shadow-sm)] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5 transition-all hover:border-[var(--primary)]/30">
+              <div className="p-2 sm:p-2.5 bg-[var(--primary-light)] rounded-lg w-fit shrink-0">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-[var(--primary)]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] sm:text-xs font-bold text-[var(--text-muted)] uppercase tracking-tight block truncate">
+                  Active Advances
+                </span>
+                <p className="text-xs sm:text-lg md:text-xl font-black text-[var(--primary)] mt-0.5 truncate font-mono leading-tight">
+                  ₹{totalAdvances.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
           </div>
-
-          {/* ── DESKTOP: existing 3-col stat grid ── */}
-          <div className="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span>Total Received (Inward)</span>
-                  <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
-                </div>
-                <div className="text-lg font-bold text-[var(--text-primary)]">₹{totalReceived.toLocaleString("en-IN")}</div>
-              </div>
-            
-
-              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span>Total Paid (Outward)</span>
-                  <ArrowUpRight className="w-4 h-4 text-amber-500" />
-                </div>
-                <div className="text-lg font-bold text-[var(--text-primary)]">₹{totalPaid.toLocaleString("en-IN")}</div>
-              </div>
-            
-
-              <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span>Active Unallocated Advances</span>
-                  <Clock className="w-4 h-4 text-indigo-500" />
-                </div>
-                <div className="text-lg font-bold text-[var(--primary)]">₹{totalAdvances.toLocaleString("en-IN")}</div>
-              </div>
-            </div>{/* end desktop grid */}
 
           {/* ── MOBILE direction filter chips ── */}
           <div className="md:hidden flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -277,9 +281,30 @@ function PaymentsContent() {
                         </span>
                       )
                     }
+                    onClick={() => {
+                      if (p.party_id) router.push(`/parties/${p.party_id}`);
+                    }}
+                    leftAction={p.party_id ? {
+                      label: "Party",
+                      icon: <Eye size={14} />,
+                      bgClass: "bg-indigo-600 text-white",
+                      onAction: () => router.push(`/parties/${p.party_id}`),
+                    } : undefined}
+                    rightAction={{
+                      label: "Share",
+                      icon: <Share2 size={14} />,
+                      bgClass: "bg-[var(--primary)] text-white",
+                      onAction: () => handleSharePayment(p),
+                    }}
                   />
                 );
               })
+            )}
+            {hasMoreMobile && (
+              <div ref={sentinelRef} className="py-3 flex justify-center items-center text-xs text-[var(--text-muted)] font-medium">
+                <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse mr-2" />
+                Loading more payment vouchers...
+              </div>
             )}
           </div>
 
@@ -292,7 +317,7 @@ function PaymentsContent() {
             isEmpty={payments.length === 0}
             skeletonVariant="table"
             skeletonRows={8}
-            skeletonColumns={6}
+            skeletonColumns={9}
             emptyTitle="No Payments Found"
             emptyMessage="There are no payment vouchers matching the selected filter criteria."
           >
@@ -309,6 +334,7 @@ function PaymentsContent() {
                       <th className="px-4 py-3">Total Amount</th>
                       <th className="px-4 py-3">Unallocated</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
@@ -368,6 +394,16 @@ function PaymentsContent() {
                             {p.status || "completed"}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleSharePayment(p)}
+                            title="Share Payment Voucher"
+                            className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-all cursor-pointer inline-flex items-center justify-center"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -411,6 +447,7 @@ function PaymentsContent() {
       {/* TAB 3: Direct Contra Linking */}
       {activeTab === "direct-link" && <DirectLinkingTab />}
     </div>
+    </PullToRefresh>
   );
 }
 

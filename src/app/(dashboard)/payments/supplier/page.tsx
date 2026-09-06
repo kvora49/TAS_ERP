@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 import { MobileCompactRow } from "@/components/shared/MobileCompactRow";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 interface Payment {
   id: string;
@@ -30,7 +31,7 @@ interface Payment {
 export default function SupplierPaymentsPage() {
   const [search, setSearch] = useState("");
 
-  const { data: paymentsData, isLoading: paymentsLoading } = useQuery<Payment[]>({
+  const { data: paymentsData, isLoading: paymentsLoading, refetch } = useQuery<Payment[]>({
     queryKey: ["payments", "supplier"],
     queryFn: async () => {
       const res = await fetch("/api/payments/supplier");
@@ -122,8 +123,9 @@ export default function SupplierPaymentsPage() {
   ];
 
   return (
-    <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <div className="p-2.5 sm:p-6 space-y-4 sm:space-y-6">
+        <PageHeader
         title="Supplier Payments"
         subtitle="Comprehensive ledger log of all cash, UPI, and bank transfer outlays to suppliers."
       />
@@ -217,5 +219,6 @@ export default function SupplierPaymentsPage() {
         />
       </div>
     </div>
+    </PullToRefresh>
   );
 }

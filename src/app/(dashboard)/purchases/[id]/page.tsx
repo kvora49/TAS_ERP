@@ -7,10 +7,11 @@ import { Badge } from "@/components/shared/Badge";
 import PageState from "@/components/shared/PageState";
 import { RecordPaymentModal } from "@/components/forms/RecordPaymentModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { ArrowLeft, CreditCard, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Pencil, Trash2, Share2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { shareContent } from "@/lib/share";
 
 interface PurchaseRoll {
   id: string;
@@ -153,6 +154,19 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
 
   const outstanding = purchase ? Math.max(0, purchase.grand_total - purchase.paid_amount) : 0;
 
+  const handleSharePurchase = async () => {
+    if (!purchase) return;
+    const supplierName = purchase.supplier?.name || "Supplier";
+    const formattedTotal = formatCurrency(purchase.grand_total);
+    const purchaseUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    await shareContent({
+      title: `Purchase Bill ${purchase.purchase_number}`,
+      text: `Purchase Bill ${purchase.purchase_number} from ${supplierName} - ${formattedTotal}`,
+      url: purchaseUrl,
+    });
+  };
+
   return (
     <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
       <PageState
@@ -202,6 +216,14 @@ export default function PurchaseDetailPage({ params }: { params: { id: string } 
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleSharePurchase}
+                  className="flex-1 sm:flex-initial h-9 px-3.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  title="Share Purchase Bill"
+                >
+                  <Share2 className="h-3.5 w-3.5 text-[var(--primary)]" /> Share
+                </button>
                 {purchase.status !== "cancelled" && (
                   <>
                     <Link

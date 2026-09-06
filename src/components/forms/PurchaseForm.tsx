@@ -19,9 +19,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
 import { QuickAddDesignModal } from "@/components/forms/QuickAddDesignModal";
-import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
+const SizeQuantityMatrix = dynamic(
+  () => import("@/components/shared/SizeQuantityMatrix").then((m) => m.SizeQuantityMatrix),
+  { ssr: false }
+);
 import { useGstRateLookup } from "@/hooks/useGstRateLookup";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -671,11 +676,13 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     setValue,
     watch,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseSchema) as any,
     defaultValues: initialData ? { ...defaultValues, ...initialData } : defaultValues,
   });
+
+  useUnsavedChangesGuard(isDirty);
 
   const { fields, append, remove } = useFieldArray({
     control,

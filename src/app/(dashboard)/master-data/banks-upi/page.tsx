@@ -2,14 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/layout/PageHeader";
+import Link from "next/link";
 import { DataTable, DataTableColumn } from "@/components/tables/DataTable";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DeleteBankAccountDialog } from "./_components/DeleteBankAccountDialog";
 import { Badge } from "@/components/shared/Badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Modal } from "@/components/shared/Modal";
-import { Pencil, Trash2, Plus, RefreshCw, Star, Building2, Smartphone, Wallet } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  RefreshCw,
+  Star,
+  Building2,
+  Smartphone,
+  Wallet,
+  ArrowLeft,
+  Search,
+  Filter,
+  X,
+  ChevronRight,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -60,13 +74,13 @@ export default function BanksUpiPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "bank" | "upi">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "pakka" | "kacha">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const {
     register,
@@ -149,45 +163,10 @@ export default function BanksUpiPage() {
       upi_id: account.upi_id || "",
       upi_provider: account.upi_provider || "GPay",
       is_default: account.is_default,
-      opening_balance: String(account.opening_balance || 0),
+      opening_balance: account.opening_balance.toString(),
       is_active: account.is_active,
     });
     setModalOpen(true);
-  };
-
-  const onSubmit = async (values: AccountFormValues) => {
-    try {
-      const url = editingAccount
-        ? `/api/master-data/banks-upi/${editingAccount.id}`
-        : "/api/master-data/banks-upi";
-
-      const method = editingAccount ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...values,
-          updated_at: editingAccount?.updated_at,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to save bank/upi account");
-      }
-
-      toast.success(
-        editingAccount
-          ? "Account updated successfully"
-          : "Account created successfully"
-      );
-      setModalOpen(false);
-      fetchAccounts();
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
-    }
   };
 
   const handleOpenDelete = (account: BankAccount) => {
@@ -195,48 +174,75 @@ export default function BanksUpiPage() {
     setDeleteOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deletingAccount) return;
-    setDeleteLoading(true);
+  const onSubmit = async (data: AccountFormValues) => {
     try {
-      const res = await fetch(`/api/master-data/banks-upi/${deletingAccount.id}`, {
-        method: "DELETE",
-      });
+      const payload = {
+        ...data,
+        opening_balance: parseFloat(data.opening_balance || "0"),
+      };
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete account");
+      if (editingAccount) {
+        const res = await fetch(`/api/master-data/banks-upi/${editingAccount.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to update account");
+        }
+        toast.success("Account updated successfully");
+      } else {
+        const res = await fetch("/api/master-data/banks-upi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create account");
+        }
+        toast.success("New account added successfully");
       }
 
-      toast.success("Account deleted successfully");
-      setDeleteOpen(false);
+      setModalOpen(false);
       fetchAccounts();
     } catch (err: any) {
-      toast.error(err.message || "An error occurred during deletion");
-    } finally {
-      setDeleteLoading(false);
+      toast.error(err.message || "An error occurred while saving");
     }
   };
 
+  // Filter calculation
   const filteredAccounts = accounts.filter((acc) => {
+    const q = search.toLowerCase().trim();
     const matchesSearch =
-      acc.name.toLowerCase().includes(search.toLowerCase()) ||
-      (acc.bank_name && acc.bank_name.toLowerCase().includes(search.toLowerCase())) ||
-      (acc.upi_id && acc.upi_id.toLowerCase().includes(search.toLowerCase()));
-    
-    const matchesType = activeTab === "all" ? true : acc.type === activeTab;
+      !q ||
+      acc.name.toLowerCase().includes(q) ||
+      acc.bank_name?.toLowerCase().includes(q) ||
+      acc.account_number?.includes(q) ||
+      acc.upi_id?.toLowerCase().includes(q) ||
+      acc.sub_label?.toLowerCase().includes(q);
+
+    const matchesType = activeTab === "all" || acc.type === activeTab;
+    const cat = acc.account_category || (acc.type === "cash" ? "kacha" : "pakka");
     const matchesCategory =
-      categoryFilter === "all"
-        ? true
-        : (acc.account_category || (acc.type === "cash" ? "kacha" : "pakka")) === categoryFilter;
+      categoryFilter === "all" ||
+      cat === categoryFilter ||
+      cat === "both";
 
     return matchesSearch && matchesType && matchesCategory;
   });
 
+  const activeFilterCount = (categoryFilter !== "all" ? 1 : 0) + (search ? 1 : 0);
+
+  // Tab counts
+  const bankCount = accounts.filter((a) => a.type === "bank").length;
+  const upiCount = accounts.filter((a) => a.type === "upi").length;
+
   const columns: DataTableColumn<BankAccount>[] = [
     {
       key: "type",
-      header: "Type",
+      header: "Channel",
       width: "110px",
       render: (row) =>
         row.type === "bank" ? (
@@ -262,13 +268,13 @@ export default function BanksUpiPage() {
         if (cat === "pakka") {
           return (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              🏷️ Pakka (Official)
+              🏷️ Pakka
             </span>
           );
         } else if (cat === "kacha") {
           return (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              📝 Kaccha (Non-GST)
+              📝 Kaccha
             </span>
           );
         } else {
@@ -358,8 +364,8 @@ export default function BanksUpiPage() {
               e.stopPropagation();
               handleOpenEdit(row);
             }}
-            className="w-9 h-9 border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center cursor-pointer transition-all"
-            title="Edit Credentials"
+            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--table-row-hover)] rounded-md transition-colors cursor-pointer"
+            title="Edit Details"
           >
             <Pencil size={15} />
           </button>
@@ -368,8 +374,8 @@ export default function BanksUpiPage() {
               e.stopPropagation();
               handleOpenDelete(row);
             }}
-            className="w-9 h-9 border border-rose-500/20 rounded-lg hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center cursor-pointer transition-all"
-            title="Delete Credentials"
+            className="p-1.5 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+            title="Delete Account"
           >
             <Trash2 size={15} />
           </button>
@@ -379,118 +385,233 @@ export default function BanksUpiPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Banks & UPI"
-        subtitle="Manage business bank accounts and UPI payment endpoints"
-        breadcrumbs={[
-          { label: "Dashboard", href: "/" },
-          { label: "Master Data" },
-          { label: "Banks & UPI" },
-        ]}
-        searchPlaceholder="Search account or UPI..."
-        searchValue={search}
-        onSearch={setSearch}
-      />
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] select-none">
+        <Link href="/" className="hover:text-[var(--primary)] transition-colors">
+          Dashboard
+        </Link>
+        <ChevronRight size={12} className="text-[var(--text-faint)]" />
+        <Link href="/master-data" className="hover:text-[var(--primary)] transition-colors">
+          Master Data
+        </Link>
+        <ChevronRight size={12} className="text-[var(--text-faint)]" />
+        <span className="text-[var(--text-primary)] font-bold">Banks & UPI</span>
+      </div>
 
-      {/* Tabs & Multi Action Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border)] pb-3">
-        {/* Filters Group */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Tab filters */}
-          <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl">
-            <button
-              onClick={() => setActiveTab("all")}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                activeTab === "all"
-                  ? "bg-[var(--primary)] text-white shadow-xs"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              All Types
-            </button>
-            <button
-              onClick={() => setActiveTab("bank")}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                activeTab === "bank"
-                  ? "bg-[var(--primary)] text-white shadow-xs"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Banks
-            </button>
-            <button
-              onClick={() => setActiveTab("upi")}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                activeTab === "upi"
-                  ? "bg-[var(--primary)] text-white shadow-xs"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              UPI IDs
-            </button>
-          </div>
-
-          {/* Category filter pills */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Nature:</span>
-            <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--border)] p-1 rounded-xl">
-              <button
-                onClick={() => setCategoryFilter("all")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                  categoryFilter === "all"
-                    ? "bg-[var(--table-header-bg)] border border-[var(--border)] text-[var(--text-primary)] shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setCategoryFilter("pakka")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                  categoryFilter === "pakka"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-indigo-500"
-                }`}
-              >
-                🏷️ Pakka
-              </button>
-              <button
-                onClick={() => setCategoryFilter("kacha")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                  categoryFilter === "kacha"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-amber-500"
-                }`}
-              >
-                📝 Kaccha
-              </button>
+      {/* Header & Primary Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/master-data"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer shrink-0"
+            title="Back to Master Data"
+          >
+            <ArrowLeft className="h-5 w-5 text-[var(--text-secondary)]" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+                Banks & UPI
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
+                {accounts.length}
+              </span>
             </div>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)]">
+              Manage corporate bank accounts and UPI endpoints
+            </p>
           </div>
         </div>
 
-        {/* Dual Actions */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleOpenAdd("bank")}
-            className="flex-1 sm:flex-initial h-10 px-4 rounded-lg bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--primary)] text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+            className="flex-1 sm:flex-initial h-10 px-3.5 sm:px-4 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--primary)] text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
           >
-            <Building2 size={16} /> Add Bank
+            <Building2 size={15} />
+            <span>+ Add Bank</span>
           </button>
           <button
             onClick={() => handleOpenAdd("upi")}
-            className="flex-1 sm:flex-initial h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[var(--primary)]/10"
+            className="flex-1 sm:flex-initial h-10 px-3.5 sm:px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-[var(--primary)]/15"
           >
-            <Smartphone size={16} /> Add UPI
+            <Smartphone size={15} />
+            <span>+ Add UPI</span>
           </button>
         </div>
       </div>
 
+      {/* Tabs and Filter Toggle Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        {/* Sleek Segmented Type Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${
+              activeTab === "all"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <span>All Types</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--input-bg)] text-[var(--text-muted)]">
+              {accounts.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("bank")}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${
+              activeTab === "bank"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <Building2 size={13} />
+            <span>Banks</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--input-bg)] text-[var(--text-muted)]">
+              {bankCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("upi")}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${
+              activeTab === "upi"
+                ? "bg-[var(--card-bg)] text-[var(--primary)] shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <Smartphone size={13} />
+            <span>UPI IDs</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--input-bg)] text-[var(--text-muted)]">
+              {upiCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Filter Toggle Button */}
+        <div className="flex items-center gap-2">
+          {/* Quick Search on larger screens */}
+          <div className="relative hidden md:block w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-faint)]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search account or UPI..."
+              className="w-full h-9 pl-9 pr-3 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
+            />
+          </div>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`h-9 px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              showFilters || activeFilterCount > 0
+                ? "bg-[var(--primary-light)] border-[var(--primary)]/30 text-[var(--primary)]"
+                : "bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[var(--primary)] text-white text-[10px] flex items-center justify-center font-black">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Collapsible Filters Panel */}
+      {showFilters && (
+        <div className="p-4 bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl shadow-sm space-y-3 transition-all">
+          <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
+            <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              Filter Accounts
+            </span>
+            {(search || categoryFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setCategoryFilter("all");
+                }}
+                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <X size={12} /> Clear all
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* Search Input (always visible in filter panel for mobile) */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Keyword Search
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-faint)]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, A/C, IFSC, UPI..."
+                  className="w-full h-10 pl-9 pr-3 text-xs bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Nature Selector */}
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Account Nature / Category
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCategoryFilter("all")}
+                  className={`h-10 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    categoryFilter === "all"
+                      ? "bg-[var(--primary)] text-white shadow-xs"
+                      : "bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  All Natures
+                </button>
+                <button
+                  onClick={() => setCategoryFilter("pakka")}
+                  className={`h-10 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    categoryFilter === "pakka"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-500"
+                  }`}
+                >
+                  🏷️ Pakka (Official)
+                </button>
+                <button
+                  onClick={() => setCategoryFilter("kacha")}
+                  className={`h-10 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    categoryFilter === "kacha"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-[var(--input-bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-amber-500"
+                  }`}
+                >
+                  📝 Kaccha (Non-GST)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MOBILE: Banks & UPI Card List ── */}
-      <div className="md:hidden space-y-3">
+      <div className="block md:hidden space-y-3">
         {filteredAccounts.length === 0 ? (
-          <div className="text-center py-10 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-6 text-sm text-[var(--text-muted)]">
-            No bank or UPI accounts match the filter.
+          <div className="text-center py-12 bg-[var(--card-bg)] border border-dashed border-[var(--border)] rounded-2xl p-6 space-y-2">
+            <Building2 className="mx-auto h-8 w-8 text-[var(--text-faint)]" />
+            <p className="text-sm font-bold text-[var(--text-primary)]">No Accounts Found</p>
+            <p className="text-xs text-[var(--text-muted)]">
+              No bank or UPI accounts match the selected filters.
+            </p>
           </div>
         ) : (
           filteredAccounts.map((acc) => {
@@ -499,20 +620,21 @@ export default function BanksUpiPage() {
               <div
                 key={acc.id}
                 onClick={() => router.push(`/master-data/banks-upi/${acc.id}`)}
-                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3 cursor-pointer active:scale-[0.99] transition-transform"
+                className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-sm space-y-3 cursor-pointer active:scale-[0.99] transition-transform hover:border-[var(--primary)]/40"
               >
+                {/* Card Top Row: Badges */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {acc.type === "bank" ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20">
                         <Building2 size={11} /> Bank
                       </span>
                     ) : acc.type === "upi" ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                         <Smartphone size={11} /> UPI ID
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         <Wallet size={11} /> Cash
                       </span>
                     )}
@@ -532,11 +654,14 @@ export default function BanksUpiPage() {
                   </div>
                 </div>
 
+                {/* Card Main: Account Title & Details */}
                 <div>
-                  <h4 className="font-bold text-sm text-[var(--text-primary)] leading-tight">{acc.name}</h4>
+                  <h4 className="font-extrabold text-sm text-[var(--text-primary)] leading-tight">
+                    {acc.name}
+                  </h4>
                   {acc.type === "bank" ? (
                     <p className="text-xs font-mono text-[var(--text-secondary)] mt-0.5">
-                      {acc.bank_name} · {acc.account_number}
+                      {acc.bank_name} · A/C {acc.account_number}
                     </p>
                   ) : acc.type === "upi" ? (
                     <p className="text-xs font-mono text-[var(--text-secondary)] mt-0.5">
@@ -547,9 +672,10 @@ export default function BanksUpiPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between border-t border-[var(--border-light)] pt-2 text-xs">
+                {/* Card Bottom: Balance & Actions */}
+                <div className="flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-xs">
                   <div>
-                    <span className="text-[10px] text-[var(--text-muted)] font-medium">Balance</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-medium block">Current Balance</span>
                     <p className="font-bold font-mono text-sm text-[var(--text-primary)]">
                       ₹{Number(acc.current_balance ?? acc.opening_balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </p>
@@ -558,15 +684,22 @@ export default function BanksUpiPage() {
                   <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleOpenEdit(acc)}
-                      className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-xs font-bold text-[var(--text-primary)] flex items-center gap-1 cursor-pointer hover:bg-[var(--table-row-hover)]"
                     >
                       <Pencil size={12} /> Edit
                     </button>
                     <button
                       onClick={() => handleOpenDelete(acc)}
-                      className="px-2.5 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 cursor-pointer hover:bg-rose-500/20"
                     >
                       <Trash2 size={12} /> Delete
+                    </button>
+                    <button
+                      onClick={() => router.push(`/master-data/banks-upi/${acc.id}`)}
+                      className="p-1.5 rounded-lg text-[var(--primary)] hover:bg-[var(--primary-light)] cursor-pointer"
+                      title="View Details"
+                    >
+                      <ChevronRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -600,281 +733,281 @@ export default function BanksUpiPage() {
             ? `Edit ${selectedType === "bank" ? "Bank Account" : selectedType === "upi" ? "UPI ID" : "Cash Account"}`
             : `Add New ${selectedType === "bank" ? "Bank Account" : "UPI ID"}`
         }
+        description={editingAccount ? editingAccount.name : "Fill in payment credentials and ledger details"}
         maxWidth="max-w-xl"
       >
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            {/* Split Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Type selector (disabled in edit mode) */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Account Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={!!editingAccount}
-                    onClick={() => setValue("type", "bank")}
-                    className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      selectedType === "bank"
-                        ? "bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-bold"
-                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
-                    } disabled:opacity-70`}
-                  >
-                    <Building2 size={16} /> Bank Account
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!editingAccount}
-                    onClick={() => setValue("type", "upi")}
-                    className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      selectedType === "upi"
-                        ? "bg-purple-500/15 border-purple-500 text-purple-600 dark:text-purple-400 font-bold"
-                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
-                    } disabled:opacity-70`}
-                  >
-                    <Smartphone size={16} /> UPI ID
-                  </button>
-                </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1">
+          {/* Split Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Type selector (disabled in edit mode) */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Account Type
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={!!editingAccount}
+                  onClick={() => setValue("type", "bank")}
+                  className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    selectedType === "bank"
+                      ? "bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)] font-bold"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  } disabled:opacity-70`}
+                >
+                  <Building2 size={16} /> Bank Account
+                </button>
+                <button
+                  type="button"
+                  disabled={!!editingAccount}
+                  onClick={() => setValue("type", "upi")}
+                  className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    selectedType === "upi"
+                      ? "bg-purple-500/15 border-purple-500 text-purple-600 dark:text-purple-400 font-bold"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  } disabled:opacity-70`}
+                >
+                  <Smartphone size={16} /> UPI ID
+                </button>
               </div>
+            </div>
 
-              {/* Account Category / Nature (Pakka vs Kaccha) */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Account Nature / Category *
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setValue("account_category", "pakka")}
-                    className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                      selectedCategory === "pakka"
-                        ? "bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-500/20"
-                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1 font-extrabold text-xs">🏷️ Pakka Account</span>
-                    <span className="text-[9px] font-normal text-[var(--text-muted)]">Official / GST / Current A/C</span>
-                  </button>
+            {/* Account Category / Nature (Pakka vs Kaccha) */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Account Nature / Category *
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setValue("account_category", "pakka")}
+                  className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                    selectedCategory === "pakka"
+                      ? "bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-500/20"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  }`}
+                >
+                  <span className="flex items-center gap-1 font-extrabold text-xs">🏷️ Pakka Account</span>
+                  <span className="text-[9px] font-normal text-[var(--text-muted)]">Official / GST / Current A/C</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setValue("account_category", "kacha")}
-                    className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                      selectedCategory === "kacha"
-                        ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/20"
-                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1 font-extrabold text-xs">📝 Kaccha Account</span>
-                    <span className="text-[9px] font-normal text-[var(--text-muted)]">Savings / Shop UPI / Cash</span>
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setValue("account_category", "kacha")}
+                  className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                    selectedCategory === "kacha"
+                      ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/20"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  }`}
+                >
+                  <span className="flex items-center gap-1 font-extrabold text-xs">📝 Kaccha Account</span>
+                  <span className="text-[9px] font-normal text-[var(--text-muted)]">Savings / Shop UPI / Cash</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setValue("account_category", "both")}
-                    className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer col-span-2 sm:col-span-1 ${
-                      selectedCategory === "both"
-                        ? "bg-slate-500/15 border-slate-500 text-slate-700 dark:text-slate-300 ring-2 ring-slate-500/20"
-                        : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1 font-extrabold text-xs">🔄 Both / General</span>
-                    <span className="text-[9px] font-normal text-[var(--text-muted)]">Combined Usage</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setValue("account_category", "both")}
+                  className={`h-12 px-3 rounded-lg text-xs font-bold border flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer col-span-2 sm:col-span-1 ${
+                    selectedCategory === "both"
+                      ? "bg-slate-500/15 border-slate-500 text-slate-700 dark:text-slate-300 ring-2 ring-slate-500/20"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  }`}
+                >
+                  <span className="flex items-center gap-1 font-extrabold text-xs">🔄 Both / General</span>
+                  <span className="text-[9px] font-normal text-[var(--text-muted)]">Combined Usage</span>
+                </button>
               </div>
+            </div>
 
-              {/* Display / Holder Name */}
-              <div className="sm:col-span-2 space-y-1.5 font-bold">
-                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Account Holder / Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. TAS Garments Pvt Ltd"
-                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs font-semibold text-rose-500">
-                    {errors.name.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Dynamic Bank Fields */}
-              {selectedType === "bank" && (
-                <>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Bank Name *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. HDFC Bank, ICICI"
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
-                      {...register("bank_name")}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Account Number *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Bank account number"
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
-                      {...register("account_number")}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      IFSC Code *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="11-character IFSC"
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
-                      {...register("ifsc")}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Branch Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Branch location"
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
-                      {...register("branch")}
-                    />
-                  </div>
-                </>
+            {/* Display / Holder Name */}
+            <div className="sm:col-span-2 space-y-1.5 font-bold">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Account Holder / Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. TAS Garments Pvt Ltd"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-xs font-semibold text-rose-500">
+                  {errors.name.message}
+                </p>
               )}
+            </div>
 
-              {/* Dynamic UPI Fields */}
-              {selectedType === "upi" && (
+            {/* Dynamic Bank Fields */}
+            {selectedType === "bank" && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Bank Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. HDFC Bank, ICICI"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                    {...register("bank_name")}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Account Number *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Bank account number"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
+                    {...register("account_number")}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    IFSC Code *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="11-character IFSC"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
+                    {...register("ifsc")}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Branch Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Branch location"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                    {...register("branch")}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Dynamic UPI Fields */}
+            {selectedType === "upi" && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    UPI ID (VPA) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="username@bank"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
+                    {...register("upi_id")}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    UPI Provider Channel
+                  </label>
+                  <select
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors cursor-pointer"
+                    {...register("upi_provider")}
+                  >
+                    <option value="GPay">Google Pay (GPay)</option>
+                    <option value="PhonePe">PhonePe</option>
+                    <option value="Paytm">Paytm</option>
+                    <option value="BHIM">BHIM UPI</option>
+                    <option value="HDFC">HDFC Payzapp</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Shared Fields */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Opening Balance (₹)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                {...register("opening_balance")}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Billing Sub-label
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Primary Current A/C"
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
+                {...register("sub_label")}
+              />
+            </div>
+          </div>
+
+          {/* Default accounts toggles */}
+          <div className="flex flex-col gap-2.5 pt-2 border-t border-[var(--border)]">
+            {/* Default Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Default Payment Option</h4>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                  Pre-selects this account/UPI on bills and ledgers.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+                {...register("is_default")}
+              />
+            </div>
+
+            {/* Active Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Status</h4>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
+                  Controls visibility in payment selector logs.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
+                {...register("is_active")}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[var(--primary)]/10"
+            >
+              {isSubmitting ? (
                 <>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      UPI ID (VPA) *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="username@bank"
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm font-mono transition-colors"
-                      {...register("upi_id")}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      UPI Provider Channel
-                    </label>
-                    <select
-                      className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors cursor-pointer"
-                      {...register("upi_provider")}
-                    >
-                      <option value="GPay">Google Pay (GPay)</option>
-                      <option value="PhonePe">PhonePe</option>
-                      <option value="Paytm">Paytm</option>
-                      <option value="BHIM">BHIM UPI</option>
-                      <option value="HDFC">HDFC Payzapp</option>
-                    </select>
-                  </div>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Saving...
                 </>
+              ) : (
+                "Save Credentials"
               )}
-
-              {/* Shared Fields */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Opening Balance (₹)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
-                  {...register("opening_balance")}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Billing Sub-label
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Primary Current A/C"
-                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg text-sm transition-colors"
-                  {...register("sub_label")}
-                />
-              </div>
-            </div>
-
-            {/* Default accounts toggles */}
-            <div className="flex flex-col gap-2.5 pt-2 border-t border-[var(--border)]">
-              {/* Default Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[var(--text-primary)]">Default Payment Option</h4>
-                  <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
-                    Pre-selects this account/UPI on bills and ledgers.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
-                  {...register("is_default")}
-                />
-              </div>
-
-              {/* Active Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-[var(--text-primary)]">Active Status</h4>
-                  <p className="text-[10px] text-[var(--text-muted)] font-medium leading-none mt-0.5">
-                    Controls visibility in payment selector logs.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-4.5 w-4.5 text-[var(--primary)] focus:ring-[var(--primary)] border-[var(--input-border)] rounded cursor-pointer"
-                  {...register("is_active")}
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-sm font-semibold text-[var(--text-body)] transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-[var(--primary)]/10"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Credentials"
-                )}
-              </button>
-            </div>
-          </form>
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Delete Bank Account Dialog */}

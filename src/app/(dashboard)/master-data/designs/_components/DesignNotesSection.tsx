@@ -8,15 +8,12 @@ import {
   Plus,
   Bell,
   CheckCircle2,
-  Pin,
   Trash2,
-  Search,
-  ChevronLeft,
-  ChevronRight
+  Clock,
 } from "lucide-react";
-import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { Modal } from "@/components/shared/Modal";
+import { cn } from "@/lib/utils";
 
 interface Note {
   id: string;
@@ -38,6 +35,7 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [currentMonth, setCurrentMonth] = useState<string>(todayStr.substring(0, 7));
+  const [filterMode, setFilterMode] = useState<"date" | "all">("date");
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -48,7 +46,7 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
   const [newHasReminder, setNewHasReminder] = useState(false);
   const [newReminderTime, setNewReminderTime] = useState("");
 
-  const { data: notesData, isLoading, refetch } = useQuery({
+  const { data: notesData, refetch } = useQuery({
     queryKey: ["calendar-notes-list", designId, currentMonth],
     queryFn: async () => {
       const res = await fetch(`/api/master-data/designs/notes?design_id=${designId}&month=${currentMonth}`);
@@ -62,6 +60,7 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
 
   const createNoteMutation = useMutation({
     mutationFn: async () => {
+      if (!newTitle.trim()) throw new Error("Note title is required");
       const res = await fetch("/api/master-data/designs/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,120 +114,183 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
     },
   });
 
-  const selectedDateNotes = useMemo(() => {
+  const displayedNotes = useMemo(() => {
+    if (filterMode === "all") return notes;
     return notes.filter((n) => n.note_date === selectedDate);
-  }, [notes, selectedDate]);
+  }, [notes, selectedDate, filterMode]);
 
   const inputClass = `
     bg-[var(--input-bg)]
     border border-[var(--input-border)]
     text-[var(--text-primary)]
     placeholder:text-[var(--text-faint)]
-    focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent
-    rounded-lg px-3 h-10 text-xs
+    focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent
+    rounded-lg px-2.5 h-8 text-xs font-semibold
     transition-colors
   `;
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--shadow-sm)] space-y-6">
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3.5 sm:p-5 shadow-[var(--shadow-sm)] space-y-4">
       {/* Title & Action Bar */}
-      <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-light)] pb-3">
         <div>
-          <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5 text-emerald-500" />
-            <span>Date-Wise Notes & Scheduled Reminders</span>
+          <h2 className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-emerald-500" />
+            <span>Date Notes & Reminders</span>
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Store date-wise instructions, follow-ups, and reminders for this design
+          <p className="text-[11px] sm:text-xs text-[var(--text-muted)] mt-0.5">
+            Store date-wise instructions, milestones, and scheduled alerts
           </p>
         </div>
 
         <button
+          type="button"
           onClick={() => {
             setNewDate(selectedDate);
             setAddModalOpen(true);
           }}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all cursor-pointer shadow-sm"
+          className="h-8 sm:h-9 px-3.5 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-all cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto"
         >
-          <Plus className="h-4 w-4" /> Add Note for Design
+          <Plus className="h-3.5 w-3.5" /> Add Note
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Quick Date Selector */}
-        <div className="lg:col-span-5 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase">Calendar View</h3>
-            <span className="text-xs font-bold text-[var(--primary)]">{notes.length} Notes Recorded</span>
+        <div className="lg:col-span-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-[var(--text-primary)] uppercase text-[10px]">Filter Mode</span>
+            <div className="flex items-center gap-1 bg-[var(--card-bg)] p-0.5 rounded-lg border border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setFilterMode("date")}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors",
+                  filterMode === "date" ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)]"
+                )}
+              >
+                Date
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode("all")}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors",
+                  filterMode === "all" ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)]"
+                )}
+              >
+                All ({notes.length})
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-[var(--text-muted)] shrink-0">Select Date:</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className={`${inputClass} flex-1`}
-            />
-          </div>
+          {filterMode === "date" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className={`${inputClass} flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayStr)}
+                  className="px-2 h-8 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[10px] font-bold text-[var(--text-secondary)] hover:bg-[var(--table-row-hover)]"
+                >
+                  Today
+                </button>
+              </div>
 
-          <div className="p-3 bg-[var(--card-bg)] rounded-xl border border-[var(--border-light)] space-y-1 text-xs">
-            <p className="font-bold text-[var(--text-primary)]">Selected: {selectedDate}</p>
-            <p className="text-[var(--text-muted)]">{selectedDateNotes.length} notes for this date</p>
-          </div>
+              <div className="p-2 bg-[var(--card-bg)] rounded-lg border border-[var(--border-light)] text-[11px] flex justify-between">
+                <span className="text-[var(--text-muted)] font-medium">{selectedDate}</span>
+                <span className="font-bold text-[var(--primary)]">{displayedNotes.length} notes</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Right: Notes List */}
-        <div className="lg:col-span-7 space-y-3">
-          {selectedDateNotes.length === 0 ? (
-            <div className="p-8 text-center bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-xl space-y-2">
-              <CalendarIcon className="h-8 w-8 text-[var(--text-faint)] mx-auto" />
-              <p className="text-xs font-bold text-[var(--text-primary)]">No notes recorded for {selectedDate}</p>
+        {/* Right: Notes Cards List */}
+        <div className="lg:col-span-8 space-y-2.5">
+          {displayedNotes.length === 0 ? (
+            <div className="p-8 text-center bg-[var(--page-bg)] border border-dashed border-[var(--border)] rounded-xl space-y-1.5">
+              <CalendarIcon className="h-6 w-6 text-[var(--text-faint)] mx-auto" />
+              <p className="text-xs font-bold text-[var(--text-primary)]">
+                {filterMode === "date" ? `No notes for ${selectedDate}` : "No notes recorded"}
+              </p>
               <button
+                type="button"
                 onClick={() => {
                   setNewDate(selectedDate);
                   setAddModalOpen(true);
                 }}
-                className="text-xs font-bold text-[var(--primary)] underline cursor-pointer"
+                className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer"
               >
                 + Add Note Now
               </button>
             </div>
           ) : (
-            selectedDateNotes.map((note) => (
+            displayedNotes.map((note) => (
               <div
                 key={note.id}
-                className="p-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl space-y-2 flex items-start justify-between"
+                className="p-3 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl space-y-1.5 flex items-start justify-between gap-2"
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
                   <button
+                    type="button"
                     onClick={() =>
                       toggleCompleteMutation.mutate({ id: note.id, is_completed: !note.is_completed })
                     }
-                    className="mt-0.5 cursor-pointer"
+                    className="mt-0.5 cursor-pointer shrink-0"
+                    title={note.is_completed ? "Mark incomplete" : "Mark complete"}
                   >
                     <CheckCircle2
-                      className={`h-5 w-5 ${note.is_completed ? "text-emerald-500 fill-emerald-500/10" : "text-[var(--text-muted)]"}`}
+                      className={cn(
+                        "h-4 w-4 transition-colors",
+                        note.is_completed
+                          ? "text-emerald-500 fill-emerald-500/15"
+                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      )}
                     />
                   </button>
-                  <div>
-                    <h4 className={`text-xs font-bold text-[var(--text-primary)] ${note.is_completed ? "line-through opacity-50" : ""}`}>
-                      {note.title}
-                    </h4>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">{note.content}</p>
+
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4
+                        className={cn(
+                          "text-xs font-bold text-[var(--text-primary)]",
+                          note.is_completed && "line-through opacity-50"
+                        )}
+                      >
+                        {note.title}
+                      </h4>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)] uppercase">
+                        {note.note_date}
+                      </span>
+                    </div>
+
+                    {note.content && (
+                      <p className="text-xs text-[var(--text-body)] leading-relaxed font-medium">
+                        {note.content}
+                      </p>
+                    )}
+
                     {note.has_reminder && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900">
-                        <Bell className="h-3 w-3" /> Reminder Set
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                        <Bell className="h-3 w-3" />
+                        <span>Reminder Scheduled</span>
                       </span>
                     )}
                   </div>
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => deleteNoteMutation.mutate(note.id)}
-                  className="text-[var(--text-muted)] hover:text-red-500 p-1 cursor-pointer"
+                  className="text-[var(--text-muted)] hover:text-red-500 p-1 cursor-pointer shrink-0 transition-colors"
+                  title="Delete note"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))
@@ -237,10 +299,18 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
       </div>
 
       {/* Add Modal */}
-      <Modal open={addModalOpen} onOpenChange={setAddModalOpen} title="Add Date Note for Design" maxWidth="max-w-md">
-        <div className="space-y-3 pt-2">
+      <Modal
+        open={addModalOpen}
+        onOpenChange={setAddModalOpen}
+        title="Add Date Note"
+        description="Schedule a note or reminder for this design SKU"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-3 pt-1">
           <div>
-            <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">Target Date</label>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase block mb-1">
+              Target Date
+            </label>
             <input
               type="date"
               value={newDate}
@@ -248,34 +318,40 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
               className={`${inputClass} w-full`}
             />
           </div>
+
           <div>
-            <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">Note Title *</label>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase block mb-1">
+              Note Title *
+            </label>
             <input
               type="text"
-              placeholder="e.g. Confirm Fabric Dyeing Colour Match"
+              placeholder="e.g. Confirm Fabric Dyeing Match"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               className={`${inputClass} w-full`}
             />
           </div>
+
           <div>
-            <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">Details</label>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase block mb-1">
+              Details
+            </label>
             <textarea
-              placeholder="Note details..."
+              placeholder="Provide context or instructions..."
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
-              rows={3}
-              className={`${inputClass} w-full h-auto py-2`}
+              rows={2}
+              className={`${inputClass} w-full h-auto py-1.5 resize-none`}
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-1">
             <input
               type="checkbox"
               id="chkSecRem"
               checked={newHasReminder}
               onChange={(e) => setNewHasReminder(e.target.checked)}
-              className="w-4 h-4 text-[var(--primary)]"
+              className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded cursor-pointer"
             />
             <label htmlFor="chkSecRem" className="text-xs font-bold text-[var(--text-primary)] cursor-pointer">
               Schedule Reminder Alert
@@ -284,7 +360,9 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
 
           {newHasReminder && (
             <div>
-              <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1">Reminder Time</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase block mb-1">
+                Reminder Time
+              </label>
               <input
                 type="datetime-local"
                 value={newReminderTime}
@@ -294,11 +372,20 @@ export default function DesignNotesSection({ designId }: { designId: string }) {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-3">
-            <button onClick={() => setAddModalOpen(false)} className="text-xs text-[var(--text-muted)] px-3 py-1.5">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(false)}
+              className="h-9 px-3.5 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--table-row-hover)] cursor-pointer"
+            >
               Cancel
             </button>
-            <AsyncButton variant="primary" onClick={() => createNoteMutation.mutateAsync()} className="text-xs px-3 py-1.5">
+            <AsyncButton
+              variant="primary"
+              onClick={() => createNoteMutation.mutateAsync()}
+              isLoading={createNoteMutation.isPending}
+              className="h-9 px-4 rounded-xl text-xs font-bold"
+            >
               Save Note
             </AsyncButton>
           </div>

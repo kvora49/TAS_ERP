@@ -9,6 +9,7 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const workerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -60,7 +61,7 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<WorkerFormValues>({
     resolver: zodResolver(workerSchema) as any,
     defaultValues: {
@@ -90,6 +91,8 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
       is_active: true,
     },
   });
+
+  useUnsavedChangesGuard(isDirty);
 
   const workerType = watch("type");
 
@@ -226,20 +229,20 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
         {/* Left Col: Personal & Contact */}
         <div className="md:col-span-2 space-y-6">
           {/* Card 1: Personal Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-3 uppercase tracking-wider">
               Personal & Contact Information
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   {...register("name")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. Shakti Sewing"
                 />
                 {errors.name && (
@@ -248,14 +251,14 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Worker ID / Code <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   {...register("worker_id")}
                   disabled={!!id}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-gray-50 px-3 text-sm focus:outline-none font-mono font-bold"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--page-bg)] text-[var(--text-muted)] px-3 text-sm focus:outline-none font-mono font-bold"
                   placeholder="Auto-generated"
                 />
                 {errors.worker_id && (
@@ -264,13 +267,13 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Worker Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   {...register("type")}
                   disabled={!!id}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 >
                   <option value="job_worker">Job Worker</option>
                   <option value="permanent">Permanent Worker</option>
@@ -278,25 +281,25 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Phone Number
                 </label>
                 <input
                   type="text"
                   {...register("phone")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. 98765 43210"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Email Address
                 </label>
                 <input
                   type="email"
                   {...register("email")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. worker@example.com"
                 />
                 {errors.email && (
@@ -305,37 +308,37 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   GSTIN
                 </label>
                 <input
                   type="text"
                   {...register("gstin")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] uppercase"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
                   placeholder="Optional"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   PAN Number
                 </label>
                 <input
                   type="text"
                   {...register("pan")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] uppercase"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
                   placeholder="Optional"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Aadhaar Number
                 </label>
                 <input
                   type="text"
                   {...register("aadhaar")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. 1234 5678 9012"
                 />
               </div>
@@ -343,38 +346,38 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Address
                 </label>
                 <input
                   type="text"
                   {...register("address")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="Street details"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                     City
                   </label>
                   <input
                     type="text"
                     {...register("city")}
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                     placeholder="e.g. Tiruppur"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                     State
                   </label>
                   <input
                     type="text"
                     {...register("state")}
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                     placeholder="e.g. Tamil Nadu"
                   />
                 </div>
@@ -383,31 +386,31 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
           </div>
 
           {/* Card 2: Employment Info */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-3 uppercase tracking-wider">
               Employment Details
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Joined Since
                 </label>
                 <input
                   type="date"
                   {...register("working_since")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Specialization (e.g. Stitching, Cutting)
                 </label>
                 <input
                   type="text"
                   {...register("specialization")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. Collar Stitching"
                 />
               </div>
@@ -418,7 +421,7 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                 </label>
                 <select
                   {...register("preferred_stage_id")}
-                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 >
                   <option value="">Select Preferred Stage</option>
                   {stagesByTemplate.map((group) => (
@@ -435,13 +438,13 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
 
               {workerType === "job_worker" && (
                 <div>
-                  <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                     Default Piece Rate (₹)
                   </label>
                   <NumericInput
                     step="0.01"
                     {...register("default_rate")}
-                    className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                     placeholder="e.g. 12.00"
                   />
                   {errors.default_rate && (
@@ -451,25 +454,25 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Max Capacity Per Day (Pcs)
                 </label>
                 <NumericInput
                   {...register("max_capacity_per_day")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="Optional"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                 Remarks
               </label>
               <textarea
                 rows={3}
                 {...register("remarks")}
-                className="w-full rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 placeholder="Add notes..."
               />
             </div>
@@ -479,56 +482,56 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
         {/* Right Col: Bank & Status */}
         <div className="space-y-6">
           {/* Card 3: Bank Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-3 uppercase tracking-wider">
               Bank Details
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Bank Name
                 </label>
                 <input
                   type="text"
                   {...register("bank_name")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. HDFC Bank"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Account Number
                 </label>
                 <input
                   type="text"
                   {...register("account_number")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. 50200012345678"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   IFSC Code
                 </label>
                 <input
                   type="text"
                   {...register("ifsc_code")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1] uppercase"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
                   placeholder="e.g. HDFC0001234"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Account Holder Name
                 </label>
                 <input
                   type="text"
                   {...register("account_holder_name")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="Exact name as in bank"
                 />
               </div>
@@ -536,19 +539,19 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
           </div>
 
           {/* Card 4: Payments & Preferences */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#0F172A] border-b border-[#F3F4F6] pb-3 uppercase tracking-wider">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-[var(--shadow-sm)] space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border-light)] pb-3 uppercase tracking-wider">
               Payments & Preferences
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Payment Mode
                 </label>
                 <select
                   {...register("payment_mode")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 >
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="cash">Cash</option>
@@ -557,12 +560,12 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1.5 uppercase">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
                   Payment Cycle
                 </label>
                 <select
                   {...register("payment_cycle")}
-                  className="w-full h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                 >
                   <option value="weekly">Weekly</option>
                   <option value="bi_weekly">Fortnightly (Bi-weekly)</option>

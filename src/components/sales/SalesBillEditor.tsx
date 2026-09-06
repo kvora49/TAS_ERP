@@ -20,6 +20,7 @@ import { PakkaBillTemplate } from "./PakkaBillTemplate";
 import { KachaBillTemplate } from "./KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { useGstRateLookup } from "@/hooks/useGstRateLookup";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -39,6 +40,10 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
   // Initialize unified state hook
   const { state, totals, loading: loadingBill } = useSalesBill(billId);
+
+  // Unsaved changes guard: active if user has entered items or selected a party and haven't finished saving
+  const isDirty = !loadingBill && (state.items.length > 0 || !!state.partyId);
+  useUnsavedChangesGuard(isDirty && !successModalOpen);
 
   // Company profile for preview
   const { business, getEffectiveLogo } = useCompanyProfile();

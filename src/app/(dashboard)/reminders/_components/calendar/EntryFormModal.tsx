@@ -7,9 +7,19 @@ import {
   Plus, X, Trash2, GripVertical, Bell, Clock, Tag, User2,
   Palette, Building2, FileText,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
-import { RichTextEditor } from "@/components/shared/RichTextEditor";
+
+const RichTextEditor = dynamic(
+  () => import("@/components/shared/RichTextEditor").then((m) => m.RichTextEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-32 border border-[var(--input-border)] bg-[var(--input-bg)] rounded-xl animate-pulse" />
+    ),
+  }
+);
 import { EntryTypeSelector, CATEGORY_CONFIG } from "./EntryCard";
 import { AttachmentManager } from "./AttachmentManager";
 import {
@@ -20,6 +30,7 @@ import {
   type CalendarAttachment,
 } from "@/hooks/queries/useCalendarEntries";
 import { cn } from "@/lib/utils";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low", color: "text-slate-500" },
@@ -167,6 +178,9 @@ export function EntryFormModal({
 
   const create = useCreateCalendarEntry();
   const update = useUpdateCalendarEntry();
+
+  const isDirty = open && Boolean(title.trim() || content.trim());
+  useUnsavedChangesGuard(isDirty);
 
   // Populate form when editing
   useEffect(() => {

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import WizardHeader from "@/components/shared/WizardHeader";
 import { Modal } from "@/components/shared/Modal";
 import LotSummaryPanel from "@/components/shared/LotSummaryPanel";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 // Step components
 import Step1RollAllocation from "./_components/Step1RollAllocation";
@@ -163,6 +164,11 @@ export default function CreateLotPage() {
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Unsaved changes guard: active if user has entered data and hasn't submitted yet
+  const isDirty = (allocatedRolls.length > 0 || allocatedAccessories.length > 0 || !!designId || currentStep > 1) && !isSubmitted;
+  useUnsavedChangesGuard(isDirty);
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: availableRollsData, isLoading: loadingRolls } = useQuery<{ rolls: any[] }>({
@@ -645,6 +651,7 @@ export default function CreateLotPage() {
       if (!res.ok) throw new Error(result.error || "Failed to create production lot");
 
       await queryClient.invalidateQueries({ queryKey: ["lots-list"] });
+      setIsSubmitted(true);
       toast.success("Production lot created successfully!");
       router.push("/production/lots");
     } catch (err: any) {
@@ -892,19 +899,19 @@ export default function CreateLotPage() {
           />
 
           {/* Lot Production Remarks */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm space-y-3">
-            <div className="flex items-center gap-2 border-b border-[#F3F4F6] pb-2 text-slate-800">
-              <FileText size={15} className="text-[#6366F1]" />
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-3">
+            <div className="flex items-center gap-2 border-b border-[var(--border-light)] pb-2 text-[var(--text-primary)]">
+              <FileText size={15} className="text-[var(--primary)]" />
               <h4 className="font-bold uppercase text-[10px] tracking-wider">Lot Production Remarks</h4>
             </div>
             <div className="space-y-1.5 text-xs">
-              <label className="block text-[9px] uppercase font-bold text-[#64748B] tracking-wider">Remarks / Notes</label>
+              <label className="block text-[9px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Remarks / Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add production instructions or lot remarks..."
                 rows={4}
-                className="w-full p-2.5 bg-white border border-[#E5E7EB] rounded-lg text-xs focus:ring-1 focus:ring-[#6366F1] outline-none resize-none font-medium"
+                className="w-full p-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:ring-2 focus:ring-[var(--input-focus)] outline-none resize-none font-medium transition-colors"
               />
             </div>
           </div>

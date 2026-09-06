@@ -11,6 +11,7 @@ import { Plus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AttachmentDropzone } from "@/components/shared/AttachmentDropzone";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const stockItemSchema = z.object({
   material_type_id: z.string().min(1, "Material is required"),
@@ -78,11 +79,13 @@ export function StockEntryForm() {
     setValue,
     watch,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<EntryFormValues>({
     resolver: zodResolver(entrySchema) as any,
     defaultValues,
   });
+
+  useUnsavedChangesGuard(isDirty);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -171,8 +174,8 @@ export function StockEntryForm() {
             <ArrowLeft className="h-5 w-5 text-[#64748B]" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-[#0F172A]">Record Stock Entry</h1>
-            <p className="text-xs text-[#64748B]">
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Record Stock Entry</h1>
+            <p className="text-xs text-[var(--text-muted)]">
               Input manual adjustments, physical stock updates, and batch lot parameters.
             </p>
           </div>
@@ -180,14 +183,14 @@ export function StockEntryForm() {
         <div className="flex items-center gap-3">
           <Link
             href="/raw-materials/stock"
-            className="px-4 py-2 text-sm font-semibold text-[#64748B] bg-white border border-[#CBD5E1] rounded-lg hover:bg-[#F8FAFC]"
+            className="px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] bg-[var(--card-bg)] border border-[var(--border)] rounded-lg hover:bg-[var(--table-row-hover)] transition-colors"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-semibold text-white bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg transition-all shadow-md shadow-[#6366F1]/20 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg transition-all shadow-md shadow-[var(--primary)]/20 flex items-center gap-2 cursor-pointer"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Submit Stock Entry
@@ -196,37 +199,35 @@ export function StockEntryForm() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main section: Info & Items table */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Header Info */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
               1. Entry Header Information
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Entry Type *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Entry Type *</label>
                 <select
                   {...register("entry_type")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white font-bold"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
-                  <option value="stock_in" className="text-green-600">Stock In (Inward)</option>
-                  <option value="stock_out" className="text-red-600">Stock Out (Outward)</option>
-                  <option value="adjustment" className="text-purple-600">Adjustment (Variance)</option>
+                  <option value="stock_in" className="text-green-600 bg-[var(--card-bg)]">Stock In (Inward)</option>
+                  <option value="stock_out" className="text-red-600 bg-[var(--card-bg)]">Stock Out (Outward)</option>
+                  <option value="adjustment" className="text-purple-600 bg-[var(--card-bg)]">Adjustment (Variance)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Godown Location *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Godown Location *</label>
                 <select
                   disabled={loadingGodowns}
                   {...register("godown_id")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
-                  <option value="">Select Godown</option>
+                  <option value="" className="bg-[var(--card-bg)]">Select Godown</option>
                   {godowns.map((g) => (
-                    <option key={g.id} value={g.id}>
+                    <option key={g.id} value={g.id} className="bg-[var(--card-bg)]">
                       {g.name}
                     </option>
                   ))}
@@ -235,53 +236,43 @@ export function StockEntryForm() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Posting Date *</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Posting Date *</label>
                 <input
                   type="date"
                   {...register("posting_date")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 />
                 {errors.posting_date && <p className="text-[10px] text-red-500 mt-1">{errors.posting_date.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reference Doc Type</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Reference Doc Type</label>
                 <select
                   {...register("reference_type")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 >
-                  <option value="manual">Manual Entry</option>
-                  <option value="purchase_invoice">Purchase Invoice</option>
-                  <option value="return">Purchase Return</option>
-                  <option value="transfer">Godown Transfer</option>
+                  <option value="manual" className="bg-[var(--card-bg)]">Manual Entry</option>
+                  <option value="purchase_invoice" className="bg-[var(--card-bg)]">Purchase Invoice</option>
+                  <option value="return" className="bg-[var(--card-bg)]">Purchase Return</option>
+                  <option value="transfer" className="bg-[var(--card-bg)]">Godown Transfer</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reference No.</label>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Reference No.</label>
                 <input
                   type="text"
-                  placeholder="e.g. PO-123 / RET-456"
+                  placeholder="e.g. PO-8921"
                   {...register("reference_no")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Reference Date</label>
-                <input
-                  type="date"
-                  {...register("reference_date")}
-                  className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                 />
               </div>
             </div>
           </div>
 
-          {/* Items grid */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
                 2. Entry Items & Traceability
               </h2>
               <button
@@ -298,14 +289,14 @@ export function StockEntryForm() {
                     amount: 0,
                   })
                 }
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Item Row
               </button>
             </div>
 
             {fields.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-[#CBD5E1] rounded-xl text-xs text-[#64748B]">
+              <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-xl text-xs text-[var(--text-muted)]">
                 No items added yet. Click &quot;Add Item Row&quot; to configure.
               </div>
             ) : (
@@ -313,38 +304,35 @@ export function StockEntryForm() {
                 {fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="border border-[#E2E8F0] rounded-xl p-4 bg-[#F8FAFC] space-y-3 relative"
+                    className="border border-[var(--border)] rounded-xl p-4 bg-[var(--page-bg)] space-y-3 relative"
                   >
-                    {/* Row number + delete */}
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#6366F1]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--primary)]">
                         Item #{index + 1}
                       </span>
                       <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
 
-                    {/* Row 1: Material (wide) + HSN + Unit */}
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                      {/* Raw Material — takes most space */}
                       <div className="md:col-span-5">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Raw Material Type *
                         </label>
                         <select
                           disabled={loadingMaterials}
                           {...register(`items.${index}.material_type_id` as const)}
                           onChange={(e) => handleMaterialChange(index, e.target.value)}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         >
-                          <option value="">Select Material</option>
+                          <option value="" className="bg-[var(--card-bg)]">Select Material</option>
                           {materialTypes.map((m) => (
-                            <option key={m.id} value={m.id}>
+                            <option key={m.id} value={m.id} className="bg-[var(--card-bg)]">
                               {m.name}
                             </option>
                           ))}
@@ -356,29 +344,27 @@ export function StockEntryForm() {
                         )}
                       </div>
 
-                      {/* HSN */}
                       <div className="md:col-span-4">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           HSN / SAC Code
                         </label>
                         <input
                           type="text"
                           placeholder="e.g. 5208"
                           {...register(`items.${index}.hsn_sac` as const)}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                       </div>
 
-                      {/* Unit */}
                       <div className="md:col-span-3">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Unit of Measure
                         </label>
                         <input
                           type="text"
                           placeholder="e.g. meter, kg, pcs"
                           {...register(`items.${index}.unit` as const)}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                         {errors.items?.[index]?.unit && (
                           <p className="text-[10px] text-red-500 mt-1">
@@ -388,11 +374,9 @@ export function StockEntryForm() {
                       </div>
                     </div>
 
-                    {/* Row 2: Quantity + Rate + Batch/Lot + Expiry + Amount */}
                     <div className="grid grid-cols-2 md:grid-cols-12 gap-3">
-                      {/* Quantity */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Quantity *
                         </label>
                         <NumericInput
@@ -403,7 +387,7 @@ export function StockEntryForm() {
                             register(`items.${index}.quantity` as const).onChange(e);
                             recalcItem(index);
                           }}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                         {errors.items?.[index]?.quantity && (
                           <p className="text-[10px] text-red-500 mt-1">
@@ -412,9 +396,8 @@ export function StockEntryForm() {
                         )}
                       </div>
 
-                      {/* Unit Rate */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Unit Cost (₹) *
                         </label>
                         <NumericInput
@@ -425,7 +408,7 @@ export function StockEntryForm() {
                             register(`items.${index}.rate` as const).onChange(e);
                             recalcItem(index);
                           }}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm text-right font-bold bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                         {errors.items?.[index]?.rate && (
                           <p className="text-[10px] text-red-500 mt-1">
@@ -434,37 +417,34 @@ export function StockEntryForm() {
                         )}
                       </div>
 
-                      {/* Batch / Lot No */}
                       <div className="md:col-span-3">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Batch / Lot No.
                         </label>
                         <input
                           type="text"
                           placeholder="e.g. B-987"
                           {...register(`items.${index}.batch_lot_no` as const)}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm font-mono bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                       </div>
 
-                      {/* Expiry Date */}
                       <div className="md:col-span-3">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Expiry Date
                         </label>
                         <input
                           type="date"
                           {...register(`items.${index}.expiry_date` as const)}
-                          className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-sm bg-white"
+                          className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
                         />
                       </div>
 
-                      {/* Amount (read-only computed) */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-semibold text-[#64748B] mb-1.5">
+                        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">
                           Amount (₹)
                         </label>
-                        <div className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-sm text-right font-mono font-black text-[#6366F1] bg-[#EEF2FF]">
+                        <div className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-right font-mono font-black text-[var(--primary)] bg-[var(--primary-light)]">
                           ₹{Number(watchItems[index]?.amount || 0).toFixed(2)}
                         </div>
                       </div>
@@ -472,11 +452,10 @@ export function StockEntryForm() {
                   </div>
                 ))}
 
-                {/* Grand Total row */}
                 <div className="flex justify-end pt-2">
-                  <div className="flex items-center gap-3 bg-[#0F172A] text-white px-5 py-2.5 rounded-xl">
-                    <span className="text-xs font-semibold">Total Items Value:</span>
-                    <span className="font-mono font-black text-lg text-[#A5B4FC]">
+                  <div className="flex items-center gap-3 bg-[var(--card-bg)] border border-[var(--border)] text-[var(--text-primary)] px-5 py-2.5 rounded-xl shadow-[var(--shadow-sm)]">
+                    <span className="text-xs font-semibold text-[var(--text-muted)]">Total Items Value:</span>
+                    <span className="font-mono font-black text-lg text-[var(--primary)]">
                       ₹{totalValue.toFixed(2)}
                     </span>
                   </div>
@@ -486,24 +465,21 @@ export function StockEntryForm() {
           </div>
         </div>
 
-        {/* Right Section: Totals, Attachments, Notes */}
         <div className="space-y-6">
-          {/* Summary Box */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)] space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] border-l-4 border-[var(--primary)] pl-2.5">
               3. Summary Details
             </h2>
-            <div className="flex justify-between items-center bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] font-bold text-[#0F172A]">
-              <span>Total Stock Value:</span>
-              <span className="font-mono text-lg font-black text-[#6366F1]">
+            <div className="flex justify-between items-center bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)] font-bold text-[var(--text-primary)]">
+              <span className="text-[var(--text-muted)] text-xs uppercase">Total Stock Value:</span>
+              <span className="font-mono text-lg font-black text-[var(--primary)]">
                 ₹{totalValue.toFixed(2)}
               </span>
             </div>
           </div>
 
-          {/* Attachments Dropzone */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#0F172A] mb-3 border-l-4 border-[#6366F1] pl-2.5">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)] mb-3 border-l-4 border-[var(--primary)] pl-2.5">
               4. Document Attachments
             </h2>
             <AttachmentDropzone
@@ -534,24 +510,23 @@ export function StockEntryForm() {
             />
           </div>
 
-          {/* Remarks & Notes */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)] space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Remarks / Reason</label>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Remarks / Reason</label>
               <input
                 type="text"
                 placeholder="e.g. Monthly audit adjustment"
                 {...register("remarks")}
-                className="w-full px-3 py-2 border border-[#CBD5E1] rounded-lg text-xs"
+                className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#64748B] mb-1.5">Internal Notes</label>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Internal Notes</label>
               <textarea
                 rows={3}
                 placeholder="Enter stock entry notes..."
                 {...register("notes")}
-                className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs"
+                className="w-full p-2.5 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors"
               ></textarea>
             </div>
           </div>

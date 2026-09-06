@@ -175,38 +175,43 @@ export default function MakePaymentView({
       onRetry={refetch}
       skeletonVariant="form"
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Card Header & Controls */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-            <div className="flex items-center gap-3">
+        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3.5 sm:p-6 shadow-sm space-y-4 sm:space-y-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[var(--border)] pb-3.5 sm:pb-4">
+            <div className="flex items-start gap-2.5 sm:gap-3">
               {onCancel && (
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="p-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)] hover:text-[var(--text-primary)] transition-colors"
+                  className="p-2 mt-0.5 rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--page-bg)] hover:text-[var(--text-primary)] transition-colors shrink-0"
                   title="Back to Payments"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               )}
-              <div>
-                <h2 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-amber-500" />
-                  Make Payment (Supplier / Job Worker)
-                </h2>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-amber-500 shrink-0" />
+                  <h2 className="text-base font-bold text-[var(--text-primary)] truncate">
+                    Make Payment
+                  </h2>
+                  <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    Supplier / Job Worker
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2 sm:line-clamp-none">
                   Record outward payment to supplier or worker, allocate against raw material purchases, purchase bills, or job work entries.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
               {onCancel && (
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="px-4 py-2 text-xs font-medium text-[var(--text-secondary)] border border-[var(--border)] rounded-xl hover:bg-[var(--page-bg)] transition-colors"
+                  className="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-xl hover:bg-[var(--page-bg)] transition-colors text-center"
                 >
                   Cancel
                 </button>
@@ -214,18 +219,19 @@ export default function MakePaymentView({
               <AsyncButton
                 onClick={() => saveMutation.mutateAsync()}
                 variant="primary"
+                className="flex-1 sm:flex-none justify-center py-2 text-xs font-bold"
               >
                 <Save className="w-4 h-4 mr-1.5" />
-                Save & Record Payment
+                Save Payment
               </AsyncButton>
             </div>
           </div>
 
           {/* Form Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-5">
             {/* Payee Selector */}
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Select Supplier / Worker *</label>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Select Supplier / Worker *</label>
               <select
                 value={selectedPayeeId}
                 onChange={(e) => setSelectedPayeeId(e.target.value)}
@@ -242,16 +248,16 @@ export default function MakePaymentView({
 
             {/* Payee Running Balance Badge */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Current Ledger Balance</label>
-              <div className="h-10 px-4 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-between text-sm font-semibold text-[var(--text-primary)]">
-                <span>Balance:</span>
-                <span className="text-amber-600">{payeeBalance}</span>
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Current Ledger Balance</label>
+              <div className="h-10 px-3.5 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-between text-sm font-semibold text-[var(--text-primary)]">
+                <span className="text-xs text-[var(--text-muted)]">Balance:</span>
+                <span className="font-mono text-amber-600 dark:text-amber-400">{payeeBalance}</span>
               </div>
             </div>
 
             {/* Payment Date */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Payment Date *</label>
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Payment Date *</label>
               <input
                 type="date"
                 value={paymentDate}
@@ -262,7 +268,7 @@ export default function MakePaymentView({
 
             {/* Payment Mode */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Payment Mode *</label>
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Payment Mode *</label>
               <select
                 value={paymentMode}
                 onChange={(e) => setPaymentMode(e.target.value)}
@@ -277,7 +283,7 @@ export default function MakePaymentView({
 
             {/* Amount Paid */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Amount Paid ₹ *</label>
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Amount Paid ₹ *</label>
               <input
                 type="number"
                 min="0"
@@ -291,8 +297,8 @@ export default function MakePaymentView({
 
             {/* Bank Account */}
             {paymentMode !== "cash" && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[var(--text-muted)]">Bank Account *</label>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-semibold text-[var(--text-secondary)]">Bank Account *</label>
                 <select
                   value={bankAccountId}
                   onChange={(e) => setBankAccountId(e.target.value)}
@@ -312,8 +318,8 @@ export default function MakePaymentView({
             )}
 
             {/* UTR / Reference No */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Ref / UTR / Cheque No.</label>
+            <div className={paymentMode === "cash" ? "space-y-1 sm:col-span-2" : "space-y-1"}>
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Ref / UTR / Cheque No.</label>
               <input
                 type="text"
                 value={referenceNo}
@@ -324,8 +330,8 @@ export default function MakePaymentView({
             </div>
 
             {/* Remarks */}
-            <div className="space-y-1 md:col-span-3">
-              <label className="text-xs font-medium text-[var(--text-muted)]">Remarks / Payment Memo</label>
+            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">Remarks / Payment Memo</label>
               <input
                 type="text"
                 value={remarks}
@@ -339,7 +345,7 @@ export default function MakePaymentView({
 
         {/* Standalone Debit Notes Knock-Off Section */}
         {selectedPayeeId && availableDebitNotes.length > 0 && (
-          <div className="bg-[var(--card-bg)] border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="bg-[var(--card-bg)] border border-amber-200 dark:border-amber-900/40 rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
                 <span>Available Standalone Debit Notes ({availableDebitNotes.length})</span>
@@ -350,7 +356,7 @@ export default function MakePaymentView({
                 )}
               </h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
               {availableDebitNotes.map((dn: any) => {
                 const isSelected = selectedDebitNoteIds.includes(dn.id);
                 return (
@@ -388,7 +394,7 @@ export default function MakePaymentView({
 
         {/* Bill Allocation Section */}
         {selectedPayeeId && (
-          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-3.5 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Unpaid Obligations ({outstandingBills.length})

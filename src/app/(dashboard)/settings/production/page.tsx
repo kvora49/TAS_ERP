@@ -7,6 +7,13 @@ import { SettingsCard } from "@/components/settings/SettingsCard";
 import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
 import { SettingsPreviewCard } from "@/components/settings/SettingsPreviewCard";
 import { InfoBanner } from "@/components/shared/InfoBanner";
+import PageState from "@/components/shared/PageState";
+import {
+  useProductionSettings,
+  ProductionStageItem,
+  ProductionGodownItem,
+  ProductionTemplateItem,
+} from "@/hooks/useProductionSettings";
 import {
   Factory,
   SlidersHorizontal,
@@ -42,13 +49,12 @@ const MOCK_STAGES: Stage[] = [
 ];
 
 export default function ProductionSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data, isLoading, error, refetch, updateSettings, isSaving } = useProductionSettings();
 
   // Lists
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [godowns, setGodowns] = useState<Godown[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [stages, setStages] = useState<ProductionStageItem[]>([]);
+  const [godowns, setGodowns] = useState<ProductionGodownItem[]>([]);
+  const [templates, setTemplates] = useState<ProductionTemplateItem[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState("");
 
   // Settings states
@@ -58,42 +64,31 @@ export default function ProductionSettingsPage() {
   const [lockCompletedLots, setLockCompletedLots] = useState(true);
   const [defaultWorkCenterId, setDefaultWorkCenterId] = useState(""); // Default Work Center
 
-  const fetchProductionSettings = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/settings/production");
-      if (!res.ok) throw new Error("Failed to load production settings");
-      const data = await res.json();
-
-      if (data.settings) {
-        setJobWorkBillType(data.settings.job_work_default_bill_type || "Job Work In");
-        setAutoCompleteLot(data.settings.auto_complete_lot ?? true);
-        setAllowBackDateProduction(data.settings.allow_back_date_production ?? false);
-        setLockCompletedLots(data.settings.lock_completed_lots ?? true);
-        setDefaultWorkCenterId(data.settings.default_work_center_id || "");
-      }
-
-      setTemplates(data.templates || []);
-      if (data.defaultTemplate?.id) {
-        setDefaultTemplateId(data.defaultTemplate.id);
-      } else if (data.templates && data.templates.length > 0) {
-        const def = data.templates.find((t: any) => t.is_default) || data.templates[0];
-        setDefaultTemplateId(def?.id || "");
-      }
-
-      setStages(data.stages && data.stages.length > 0 ? data.stages : MOCK_STAGES);
-      setGodowns(data.godowns || []);
-    } catch (err: any) {
-      toast.error(err.message || "Error loading production settings");
-      setStages(MOCK_STAGES);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchProductionSettings();
-  }, []);
+    if (data?.settings) {
+      setJobWorkBillType(data.settings.job_work_default_bill_type || "Job Work In");
+      setAutoCompleteLot(data.settings.auto_complete_lot ?? true);
+      setAllowBackDateProduction(data.settings.allow_back_date_production ?? false);
+      setLockCompletedLots(data.settings.lock_completed_lots ?? true);
+      setDefaultWorkCenterId(data.settings.default_work_center_id || "");
+    }
+
+    if (data?.templates) {
+      setTemplates(data.templates);
+    }
+
+    if (data?.defaultTemplate?.id) {
+      setDefaultTemplateId(data.defaultTemplate.id);
+    } else if (data?.templates && data.templates.length > 0) {
+      const def = data.templates.find((t: any) => t.is_default) || data.templates[0];
+      setDefaultTemplateId(def?.id || "");
+    }
+
+    setStages(data?.stages && data.stages.length > 0 ? data.stages : MOCK_STAGES);
+    if (data?.godowns) {
+      setGodowns(data.godowns);
+    }
+  }, [data]);
 
   const handleSelectDefaultTemplate = (tempId: string) => {
     setDefaultTemplateId(tempId);
@@ -104,33 +99,15 @@ export default function ProductionSettingsPage() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings/production", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          job_work_default_bill_type: jobWorkBillType,
-          auto_complete_lot: autoCompleteLot,
-          allow_back_date_production: allowBackDateProduction,
-          lock_completed_lots: lockCompletedLots,
-          default_work_center_id: defaultWorkCenterId,
-          default_template_id: defaultTemplateId || null,
-          // Staging sort orders of stages if they were reordered (currently static in UI)
-          stages: stages.map((s, idx) => ({ id: s.id, sort_order: idx + 1 })),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update production settings");
-
-      toast.success("Production settings saved successfully");
-      fetchProductionSettings();
-    } catch (err: any) {
-      toast.error(err.message || "Error saving production settings");
-    } finally {
-      setSaving(false);
-    }
+    await updateSettings({
+      job_work_default_bill_type: jobWorkBillType,
+      auto_complete_lot: autoCompleteLot,
+      allow_back_date_production: allowBackDateProduction,
+      lock_completed_lots: lockCompletedLots,
+      default_work_center_id: defaultWorkCenterId,
+      default_template_id: defaultTemplateId || null,
+      stages: stages.map((s, idx) => ({ id: s.id, sort_order: idx + 1 })),
+    });
   };
 
   // Preview helper values
@@ -164,27 +141,24 @@ export default function ProductionSettingsPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <span className="text-sm font-semibold text-slate-500 animate-pulse">
-          Loading production settings...
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6 text-left">
-      <SettingsPageHeader
-        section="Production"
-        title="Settings > Production"
-        subtitle="Manage production related preferences"
-        actionLabel="Save Changes"
-        onAction={handleSave}
-        actionIcon={<Save className="size-4 text-white" />}
-        actionLoading={saving}
-      />
+    <PageState
+      isLoading={isLoading}
+      isError={!!error}
+      error={error?.message}
+      onRetry={refetch}
+      skeletonVariant="form"
+    >
+      <div className="flex flex-col gap-6 text-left">
+        <SettingsPageHeader
+          section="Production"
+          title="Settings > Production"
+          subtitle="Manage production defaults & stage routing"
+          actionLabel="Save Changes"
+          onAction={handleSave}
+          actionIcon={<Save className="size-4 text-white" />}
+          actionLoading={isSaving}
+        />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT + CENTER AREA */}
@@ -356,13 +330,13 @@ export default function ProductionSettingsPage() {
               </div>
 
               {/* About Production settings */}
-              <div className="bg-[#EFF6FF] rounded-lg p-3 mt-2 flex items-start gap-2">
-                <Info className="size-4 text-[#1D4ED8] shrink-0 mt-0.5" />
+              <div className="bg-[var(--primary-light)] rounded-lg p-3 mt-2 flex items-start gap-2">
+                <Info className="size-4 text-[var(--primary)] shrink-0 mt-0.5" />
                 <div className="text-left">
-                  <span className="text-xs font-semibold text-[#1D4ED8] block">
+                  <span className="text-xs font-semibold text-[var(--primary)] block">
                     About Production Settings
                   </span>
-                  <span className="text-[11px] text-[#64748B] block mt-1 leading-snug">
+                  <span className="text-[11px] text-[var(--text-muted)] block mt-1 leading-snug">
                     These rules govern raw materials deductions, batch stage timelines, and lot lock states on complete operations.
                   </span>
                 </div>
@@ -372,5 +346,6 @@ export default function ProductionSettingsPage() {
         </div>
       </div>
     </div>
+    </PageState>
   );
 }

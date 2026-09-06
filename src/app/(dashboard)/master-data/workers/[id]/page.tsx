@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import WorkerAvatar from "@/components/shared/WorkerAvatar";
 import CardSectionHeader from "@/components/shared/CardSectionHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PageState from "@/components/shared/PageState";
 
 interface WorkerProfileProps {
   params: { id: string };
@@ -201,25 +202,6 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
 
   const isDataStale = profileData && profileData.worker && profileData.worker.id !== id;
 
-  if (isLoading || isDataStale) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <span className="text-sm text-[#64748B]">Loading worker profile...</span>
-      </div>
-    );
-  }
-
-  if (error || !worker) {
-    return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-2">
-        <span className="text-sm font-semibold text-red-500">Failed to load worker profile</span>
-        <Link href="/master-data/workers" className="text-xs text-[#6366F1] hover:underline">
-          Back to Workers List
-        </Link>
-      </div>
-    );
-  }
-
   // Calculate attendance numbers for this month
   const totalDaysThisMonth = attendanceList.length;
   const presentDaysThisMonth = attendanceList.filter((a: any) => a.status === "present").length;
@@ -227,44 +209,44 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
   const absentDaysThisMonth = attendanceList.filter((a: any) => a.status === "absent").length;
 
   return (
-    <div className="p-6 space-y-6 select-none max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 select-none max-w-[1400px] mx-auto">
       {/* Breadcrumbs and Action buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <nav className="flex items-center gap-1.5 text-xs text-[#64748B] mb-2 font-semibold uppercase tracking-wider">
-            <Link href="/" className="hover:text-[#6366F1] transition-colors">
+          <nav className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mb-2 font-semibold uppercase tracking-wider">
+            <Link href="/" className="hover:text-[var(--primary)] transition-colors">
               Master Data
             </Link>
-            <ChevronRight size={12} className="text-[#94A3B8]" />
-            <Link href="/master-data/workers" className="hover:text-[#6366F1] transition-colors">
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <Link href="/master-data/workers" className="hover:text-[var(--primary)] transition-colors">
               Workers
             </Link>
-            <ChevronRight size={12} className="text-[#94A3B8]" />
-            <span className="text-[#374151]">Worker Profile</span>
+            <ChevronRight size={12} className="text-[var(--text-faint)]" />
+            <span className="text-[var(--text-primary)]">Worker Profile</span>
           </nav>
-          <h1 className="text-[28px] font-bold text-[#0F172A] leading-tight tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] leading-tight tracking-tight">
             Worker Profile
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <Link
             href="/master-data/workers"
-            className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] font-semibold text-xs sm:text-sm px-3 sm:px-4 h-9 sm:h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-[var(--card-bg)]"
           >
             <ArrowLeft size={16} />
             Back to Workers
           </Link>
           <Link
             href={`/master-data/workers/${id}/edit`}
-            className="border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-white"
+            className="border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] font-semibold text-xs sm:text-sm px-3 sm:px-4 h-9 sm:h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer bg-[var(--card-bg)]"
           >
             <Pencil size={16} />
             Edit Worker
           </Link>
           <Link
             href="/master-data/workers/new"
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-semibold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#6366F1]/10"
+            className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 h-9 sm:h-10 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-[var(--shadow-sm)]"
           >
             <Plus className="h-4 w-4 text-white" />
             Add New Worker
@@ -272,36 +254,50 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
         </div>
       </div>
 
+      <PageState
+        isLoading={isLoading || isDataStale}
+        isError={!!error}
+        error={error instanceof Error ? error.message : "Failed to load worker profile"}
+        onRetry={() => queryClient.invalidateQueries({ queryKey: ["worker-profile", id] })}
+        isEmpty={!worker && !isLoading && !isDataStale}
+        emptyTitle="Worker Not Found"
+        emptyDescription="The requested worker profile could not be found."
+        skeletonVariant="card"
+        skeletonCount={3}
+      >
+        {worker && (
+          <>
+
       {/* WORKER HEADER CARD */}
-      <div className="flex flex-col lg:flex-row items-stretch gap-6 bg-white rounded-xl border border-[#E5E7EB] p-6">
+      <div className="flex flex-col lg:flex-row items-stretch gap-6 bg-[var(--card-bg)] rounded-xl border border-[var(--border)] p-4 sm:p-6 shadow-[var(--shadow-sm)]">
         {/* Left Info */}
-        <div className="flex flex-col items-center sm:items-start gap-4 shrink-0 sm:border-r border-[#F3F4F6] pr-6 lg:max-w-[280px] w-full">
+        <div className="flex flex-col items-center sm:items-start gap-4 shrink-0 sm:border-r border-[var(--border-light)] pr-6 lg:max-w-[280px] w-full">
           <div className="flex items-center gap-4">
             <WorkerAvatar name={worker.name} size="lg" />
             <div>
-              <h2 className="text-xl font-bold text-[#0F172A]">{worker.name}</h2>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-[#EDE9FE] text-[#7C3AED] mt-1.5">
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">{worker.name}</h2>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-[var(--primary-light)] text-[var(--primary)] mt-1.5">
                 {worker.type === "job_worker" ? "Job Worker" : "Permanent"}
               </span>
             </div>
           </div>
 
-          <div className="space-y-2 mt-2 w-full text-sm text-[#475569]">
+          <div className="space-y-2 mt-2 w-full text-sm text-[var(--text-secondary)]">
             {worker.phone && (
               <div className="flex items-center gap-2.5">
-                <Phone size={14} className="text-[#94A3B8]" />
+                <Phone size={14} className="text-[var(--text-muted)]" />
                 <span>{worker.phone}</span>
               </div>
             )}
             {worker.email && (
               <div className="flex items-center gap-2.5">
-                <Mail size={14} className="text-[#94A3B8]" />
+                <Mail size={14} className="text-[var(--text-muted)]" />
                 <span className="truncate">{worker.email}</span>
               </div>
             )}
             {worker.address && (
               <div className="flex items-start gap-2.5">
-                <MapPin size={14} className="text-[#94A3B8] mt-1 shrink-0" />
+                <MapPin size={14} className="text-[var(--text-muted)] mt-1 shrink-0" />
                 <span className="leading-tight">
                   {worker.address}, {worker.city}, {worker.state}
                 </span>
@@ -311,31 +307,31 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
         </div>
 
         {/* Center Grid */}
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 sm:border-r border-[#F3F4F6] sm:px-6 py-2">
+        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 sm:border-r border-[var(--border-light)] sm:px-6 py-2">
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Worker ID</span>
-            <span className="text-sm font-mono font-bold text-[#374151] mt-1 block">{worker.worker_id}</span>
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Worker ID</span>
+            <span className="text-sm font-mono font-bold text-[var(--text-primary)] mt-1 block">{worker.worker_id}</span>
           </div>
 
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Worker Type</span>
-            <span className="text-sm font-medium text-[#374151] capitalize mt-1 block">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Worker Type</span>
+            <span className="text-sm font-medium text-[var(--text-body)] capitalize mt-1 block">
               {worker.type.replace("_", " ")}
             </span>
           </div>
 
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Default Rate</span>
-            <span className="text-sm font-semibold text-[#374151] mt-1 block">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Default Rate</span>
+            <span className="text-sm font-semibold text-[var(--text-primary)] mt-1 block font-mono">
               {worker.type === "job_worker" ? formatCurrency(worker.default_rate || 0) : "—"}
             </span>
           </div>
 
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Status</span>
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Status</span>
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mt-1.5 ${
-                worker.is_active ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#FEE2E2] text-[#DC2626]"
+                worker.is_active ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/30" : "bg-red-500/10 text-red-500 border border-red-500/30"
               }`}
             >
               {worker.is_active ? "Active" : "Inactive"}
@@ -343,8 +339,8 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
           </div>
 
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Date Joined</span>
-            <span className="text-sm font-medium text-[#374151] mt-1 block">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Date Joined</span>
+            <span className="text-sm font-medium text-[var(--text-body)] mt-1 block">
               {worker.working_since
                 ? new Date(worker.working_since).toLocaleDateString("en-IN", {
                     day: "2-digit",
@@ -356,40 +352,40 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
           </div>
 
           <div>
-            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Preferred Stage</span>
-            <span className="text-sm font-medium text-[#374151] mt-1 block">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider block">Preferred Stage</span>
+            <span className="text-sm font-medium text-[var(--text-body)] mt-1 block">
               {worker.preferred_stage?.name || "—"}
             </span>
           </div>
         </div>
 
         {/* Right Stats Summary */}
-        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 min-w-[240px] flex flex-col justify-between">
+        <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 min-w-[240px] flex flex-col justify-between">
           <div>
-            <h4 className="text-xs font-bold text-[#64748B] uppercase tracking-wider">Current Status Summary</h4>
+            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Current Status Summary</h4>
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between items-center">
-                <span className="text-[#64748B]">Total Job Work Amount:</span>
-                <span className="font-semibold text-[#0F172A]">
+                <span className="text-[var(--text-muted)]">Total Job Work Amount:</span>
+                <span className="font-semibold text-[var(--text-primary)] font-mono">
                   {formatCurrency(stats.totalJobWorkAmount || 0)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#64748B]">Total Paid:</span>
-                <span className="font-semibold text-[#15803D]">
+                <span className="text-[var(--text-muted)]">Total Paid:</span>
+                <span className="font-semibold text-emerald-500 font-mono">
                   {formatCurrency(stats.totalPaidAmount || 0)}
                 </span>
               </div>
-              <div className="border-t border-[#E2E8F0] pt-2 flex justify-between items-center mt-1">
-                <span className="font-bold text-[#0F172A]">Outstanding:</span>
-                <span className="font-bold text-[#DC2626]">
+              <div className="border-t border-[var(--border)] pt-2 flex justify-between items-center mt-1">
+                <span className="font-bold text-[var(--text-primary)]">Outstanding:</span>
+                <span className="font-bold text-red-500 font-mono">
                   {formatCurrency(stats.currentOutstanding || 0)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-[#E2E8F0] text-[11px] text-[#94A3B8] font-medium flex items-center gap-1.5">
+          <div className="mt-4 pt-3 border-t border-[var(--border)] text-[11px] text-[var(--text-muted)] font-medium flex items-center gap-1.5">
             <Clock size={12} />
             <span>Attendance Rate: {stats.attendance?.attendanceRate || 0}%</span>
           </div>
@@ -397,152 +393,152 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="border-b border-[#E5E7EB] bg-transparent p-0 rounded-none w-full justify-start h-11">
+      <Tabs defaultValue="overview" className="space-y-4 sm:space-y-6">
+        <TabsList className="border-b border-[var(--border)] bg-transparent p-0 rounded-none w-full justify-start h-11 overflow-x-auto">
           <TabsTrigger
             value="overview"
-            className="px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[#6366F1] data-[state=active]:bg-transparent text-sm font-medium text-[#64748B] data-[state=active]:text-[#6366F1]"
+            className="px-4 sm:px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent text-xs sm:text-sm font-medium text-[var(--text-muted)] data-[state=active]:text-[var(--primary)]"
           >
             Overview
           </TabsTrigger>
           <TabsTrigger
             value="job-work"
-            className="px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[#6366F1] data-[state=active]:bg-transparent text-sm font-medium text-[#64748B] data-[state=active]:text-[#6366F1]"
+            className="px-4 sm:px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent text-xs sm:text-sm font-medium text-[var(--text-muted)] data-[state=active]:text-[var(--primary)]"
           >
             Job Work History
           </TabsTrigger>
           <TabsTrigger
             value="payments"
-            className="px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[#6366F1] data-[state=active]:bg-transparent text-sm font-medium text-[#64748B] data-[state=active]:text-[#6366F1]"
+            className="px-4 sm:px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent text-xs sm:text-sm font-medium text-[var(--text-muted)] data-[state=active]:text-[var(--primary)]"
           >
             Payments
           </TabsTrigger>
           <TabsTrigger
             value="attendance"
-            className="px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[#6366F1] data-[state=active]:bg-transparent text-sm font-medium text-[#64748B] data-[state=active]:text-[#6366F1]"
+            className="px-4 sm:px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent text-xs sm:text-sm font-medium text-[var(--text-muted)] data-[state=active]:text-[var(--primary)]"
           >
             Attendance
           </TabsTrigger>
           <TabsTrigger
             value="documents"
-            className="px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[#6366F1] data-[state=active]:bg-transparent text-sm font-medium text-[#64748B] data-[state=active]:text-[#6366F1]"
+            className="px-4 sm:px-6 h-11 rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent text-xs sm:text-sm font-medium text-[var(--text-muted)] data-[state=active]:text-[var(--primary)]"
           >
             Documents ({documents.length})
           </TabsTrigger>
         </TabsList>
 
         {/* OVERVIEW TAB */}
-        <TabsContent value="overview" className="grid grid-cols-1 lg:grid-cols-3 gap-6 outline-none">
+        <TabsContent value="overview" className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 outline-none">
           {/* Card 1: Personal Info */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)]">
             <CardSectionHeader variant="personal" title="Personal Information" />
             <div className="space-y-3.5 text-sm">
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Name</span>
-                <span className="font-medium text-[#374151]">{worker.name}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Name</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.name}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Phone</span>
-                <span className="font-medium text-[#374151]">{worker.phone || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Phone</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.phone || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Email</span>
-                <span className="font-medium text-[#374151] truncate max-w-[200px]">{worker.email || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Email</span>
+                <span className="font-medium text-[var(--text-body)] truncate max-w-[200px]">{worker.email || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Aadhaar No.</span>
-                <span className="font-medium text-[#374151]">{worker.aadhaar || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Aadhaar No.</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.aadhaar || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">PAN No.</span>
-                <span className="font-medium text-[#374151] uppercase">{worker.pan || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">PAN No.</span>
+                <span className="font-medium text-[var(--text-body)] uppercase">{worker.pan || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">GSTIN</span>
-                <span className="font-medium text-[#374151] uppercase">{worker.gstin || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">GSTIN</span>
+                <span className="font-medium text-[var(--text-body)] uppercase">{worker.gstin || "—"}</span>
               </div>
             </div>
           </div>
 
           {/* Card 2: Employment Info */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)]">
             <CardSectionHeader variant="employment" title="Employment Information" />
             <div className="space-y-3.5 text-sm">
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Worker Type</span>
-                <span className="font-medium text-[#374151] capitalize">
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Worker Type</span>
+                <span className="font-medium text-[var(--text-body)] capitalize">
                   {worker.type.replace("_", " ")}
                 </span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Working Since</span>
-                <span className="font-medium text-[#374151]">
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Working Since</span>
+                <span className="font-medium text-[var(--text-body)]">
                   {worker.working_since || "—"}
                 </span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Default Rate</span>
-                <span className="font-semibold text-[#374151]">
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Default Rate</span>
+                <span className="font-semibold text-[var(--text-primary)] font-mono">
                   {worker.type === "job_worker" ? formatCurrency(worker.default_rate || 0) : "—"}
                 </span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Specialization</span>
-                <span className="font-medium text-[#374151]">{worker.specialization || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Specialization</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.specialization || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Preferred Stage</span>
-                <span className="font-medium text-[#374151]">{worker.preferred_stage?.name || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Preferred Stage</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.preferred_stage?.name || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Max Capacity / Day</span>
-                <span className="font-medium text-[#374151]">{worker.max_capacity_per_day || "—"} pcs</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Max Capacity / Day</span>
+                <span className="font-medium text-[var(--text-body)] font-mono">{worker.max_capacity_per_day || "—"} pcs</span>
               </div>
             </div>
           </div>
 
           {/* Card 3: Bank Details */}
-          <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)]">
             <CardSectionHeader variant="bank" title="Bank & Salary Information" />
             <div className="space-y-3.5 text-sm">
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Bank Name</span>
-                <span className="font-medium text-[#374151]">{worker.bank_name || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Bank Name</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.bank_name || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Account Holder</span>
-                <span className="font-medium text-[#374151]">{worker.account_holder_name || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Account Holder</span>
+                <span className="font-medium text-[var(--text-body)]">{worker.account_holder_name || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Account No.</span>
-                <span className="font-medium text-[#374151] font-mono">{worker.account_number || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Account No.</span>
+                <span className="font-medium text-[var(--text-body)] font-mono">{worker.account_number || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">IFSC Code</span>
-                <span className="font-medium text-[#374151] font-mono uppercase">{worker.ifsc_code || "—"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">IFSC Code</span>
+                <span className="font-medium text-[var(--text-body)] font-mono uppercase">{worker.ifsc_code || "—"}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Payment Mode</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#DBEAFE] text-[#1D4ED8] uppercase">
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Payment Mode</span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-500 uppercase">
                   {worker.payment_mode ? worker.payment_mode.replace("_", " ") : "Bank Transfer"}
                 </span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-[#F3F4F6]">
-                <span className="text-[#64748B]">Payment Cycle</span>
-                <span className="font-medium text-[#374151] capitalize">{worker.payment_cycle || "Weekly"}</span>
+              <div className="flex justify-between py-1.5 border-b border-[var(--border-light)]">
+                <span className="text-[var(--text-muted)]">Payment Cycle</span>
+                <span className="font-medium text-[var(--text-body)] capitalize">{worker.payment_cycle || "Weekly"}</span>
               </div>
             </div>
           </div>
         </TabsContent>
 
         {/* JOB WORK HISTORY TAB */}
-        <TabsContent value="job-work" className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm outline-none">
+        <TabsContent value="job-work" className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] outline-none">
           <CardSectionHeader variant="quantity" title="Job Work Completion History" />
           
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
+                <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Lot Number</th>
                   <th className="py-3 px-4">Production Stage</th>
@@ -552,10 +548,10 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                   <th className="py-3 px-4 text-center">Payment Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E5E7EB] text-sm">
+              <tbody className="divide-y divide-[var(--border-light)] text-sm">
                 {ledgerEntries.filter((e: any) => e.entry_type === "stage_entry").length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-[#64748B]">
+                    <td colSpan={7} className="py-6 text-center text-[var(--text-muted)]">
                       No job work history recorded.
                     </td>
                   </tr>
@@ -563,27 +559,27 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                   ledgerEntries
                     .filter((e: any) => e.entry_type === "stage_entry")
                     .map((entry: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-[#F9FAFB]">
-                        <td className="py-3 px-4">{entry.date}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-xs text-[#6366F1]">
+                      <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                        <td className="py-3 px-4 text-[var(--text-secondary)]">{entry.date}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-xs text-[var(--primary)]">
                           <Link href={`/production/lots/${entry.lot_id}`} className="hover:underline">
                             {entry.lot_number}
                           </Link>
                         </td>
-                        <td className="py-3 px-4">{entry.stage_name}</td>
-                        <td className="py-3 px-4 text-right font-medium">{entry.qty}</td>
-                        <td className="py-3 px-4 text-right">₹{(entry.rate || 0).toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-[#0F172A]">
+                        <td className="py-3 px-4 text-[var(--text-body)]">{entry.stage_name}</td>
+                        <td className="py-3 px-4 text-right font-medium font-mono text-[var(--text-primary)]">{entry.qty}</td>
+                        <td className="py-3 px-4 text-right font-mono text-[var(--text-muted)]">₹{(entry.rate || 0).toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-[var(--text-primary)] font-mono">
                           {formatCurrency(entry.amount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               entry.payment_status === "paid"
-                                ? "bg-[#DCFCE7] text-[#15803D]"
+                                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/30"
                                 : entry.payment_status === "partial"
-                                ? "bg-[#FFF7ED] text-[#D97706]"
-                                : "bg-[#FEE2E2] text-[#DC2626]"
+                                ? "bg-amber-500/10 text-amber-500 border border-amber-500/30"
+                                : "bg-red-500/10 text-red-500 border border-red-500/30"
                             }`}
                           >
                             {entry.payment_status || "unpaid"}
@@ -598,13 +594,13 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
         </TabsContent>
 
         {/* PAYMENTS HISTORY TAB */}
-        <TabsContent value="payments" className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm outline-none">
+        <TabsContent value="payments" className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] outline-none">
           <CardSectionHeader variant="job_work" title="Payment Transactions History" />
           
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
+                <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   <th className="py-3 px-4">Payment Date</th>
                   <th className="py-3 px-4">Ref Number</th>
                   <th className="py-3 px-4">Payment Mode</th>
@@ -613,10 +609,10 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                   <th className="py-3 px-4 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E5E7EB] text-sm">
+              <tbody className="divide-y divide-[var(--border-light)] text-sm">
                 {ledgerEntries.filter((e: any) => e.entry_type === "payment").length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-[#64748B]">
+                    <td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">
                       No payment history recorded.
                     </td>
                   </tr>
@@ -624,16 +620,16 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                   ledgerEntries
                     .filter((e: any) => e.entry_type === "payment")
                     .map((pm: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-[#F9FAFB]">
-                        <td className="py-3 px-4">{pm.date}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-xs">{pm.ref_no || "—"}</td>
-                        <td className="py-3 px-4 capitalize">{pm.stage_name ? pm.stage_name.replace("_", " ") : "Bank Transfer"}</td>
-                        <td className="py-3 px-4">{pm.bank_name || "—"}</td>
-                        <td className="py-3 px-4 text-right font-bold text-[#15803D]">
+                      <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                        <td className="py-3 px-4 text-[var(--text-secondary)]">{pm.date}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-xs text-[var(--text-primary)]">{pm.ref_no || "—"}</td>
+                        <td className="py-3 px-4 capitalize text-[var(--text-body)]">{pm.stage_name ? pm.stage_name.replace("_", " ") : "Bank Transfer"}</td>
+                        <td className="py-3 px-4 text-[var(--text-muted)]">{pm.bank_name || "—"}</td>
+                        <td className="py-3 px-4 text-right font-bold text-emerald-500 font-mono">
                           {formatCurrency(Math.abs(pm.amount || 0))}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#DCFCE7] text-[#15803D]">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/30">
                             Success
                           </span>
                         </td>
@@ -646,31 +642,31 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
         </TabsContent>
 
         {/* ATTENDANCE TAB */}
-        <TabsContent value="attendance" className="space-y-6 outline-none">
+        <TabsContent value="attendance" className="space-y-4 sm:space-y-6 outline-none">
           {/* Calendar Logs and Summary side-by-side */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Summary */}
-            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm h-fit">
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] h-fit">
               <CardSectionHeader variant="timeline" title="Attendance Summary" />
               
               <div className="grid grid-cols-3 gap-3 mb-6">
-                <div className="bg-slate-50 p-3 rounded-lg border border-[#E2E8F0] text-center">
-                  <span className="text-[10px] text-[#64748B] font-bold block uppercase">Total Logs</span>
-                  <span className="text-xl font-bold text-[#0F172A] mt-1 block">{totalDaysThisMonth}</span>
+                <div className="bg-[var(--page-bg)] p-3 rounded-lg border border-[var(--border)] text-center">
+                  <span className="text-[10px] text-[var(--text-muted)] font-bold block uppercase">Total Logs</span>
+                  <span className="text-xl font-bold text-[var(--text-primary)] mt-1 block font-mono">{totalDaysThisMonth}</span>
                 </div>
-                <div className="bg-green-50 p-3 rounded-lg border border-green-100 text-center">
-                  <span className="text-[10px] text-green-700 font-bold block uppercase">Present</span>
-                  <span className="text-xl font-bold text-green-700 mt-1 block">{presentDaysThisMonth}</span>
+                <div className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/30 text-center">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block uppercase">Present</span>
+                  <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 block font-mono">{presentDaysThisMonth}</span>
                 </div>
-                <div className="bg-red-50 p-3 rounded-lg border border-red-100 text-center">
-                  <span className="text-[10px] text-red-600 font-bold block uppercase">Absent</span>
-                  <span className="text-xl font-bold text-red-600 mt-1 block">{absentDaysThisMonth}</span>
+                <div className="bg-red-500/10 p-3 rounded-lg border border-red-500/30 text-center">
+                  <span className="text-[10px] text-red-500 font-bold block uppercase">Absent</span>
+                  <span className="text-xl font-bold text-red-500 mt-1 block font-mono">{absentDaysThisMonth}</span>
                 </div>
               </div>
 
               {/* Action Log Box */}
               <div className="space-y-4">
-                <h4 className="text-xs font-bold text-[#374151] uppercase tracking-wider border-b border-[#F3F4F6] pb-2">
+                <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider border-b border-[var(--border-light)] pb-2">
                   Quick Mark Attendance
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
@@ -681,7 +677,7 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                         status: "present",
                       })
                     }
-                    className="h-9 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                    className="h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer active:scale-95"
                   >
                     Mark Present Today
                   </button>
@@ -692,7 +688,7 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                         status: "absent",
                       })
                     }
-                    className="h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                    className="h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors cursor-pointer active:scale-95"
                   >
                     Mark Absent Today
                   </button>
@@ -701,10 +697,10 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
             </div>
 
             {/* Logs Table */}
-            <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm lg:col-span-2">
-              <div className="flex items-center justify-between border-b border-[#F3F4F6] pb-4 mb-4">
-                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
-                  <Calendar className="h-4.5 w-4.5 text-[#6366F1]" />
+            <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] lg:col-span-2">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-4 mb-4">
+                <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+                  <Calendar className="h-4.5 w-4.5 text-[var(--primary)]" />
                   Monthly Attendance Logs
                 </h3>
                 
@@ -712,14 +708,14 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                   type="month"
                   value={attendanceMonth}
                   onChange={(e) => setAttendanceMonth(e.target.value)}
-                  className="h-8 text-xs rounded border border-[#E5E7EB] bg-white px-2 focus:ring-1 focus:ring-[#6366F1]"
+                  className="h-8 text-xs rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-2 focus:ring-1 focus:ring-[var(--input-focus)]"
                 />
               </div>
 
               <div className="overflow-y-auto max-h-[350px]">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB] text-xs font-bold text-[#64748B] uppercase tracking-wider">
+                    <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                       <th className="py-2.5 px-4">Date</th>
                       <th className="py-2.5 px-4 text-center">Status</th>
                       <th className="py-2.5 px-4">Check In</th>
@@ -727,33 +723,33 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                       <th className="py-2.5 px-4">Total Hours</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5E7EB] text-sm">
+                  <tbody className="divide-y divide-[var(--border-light)] text-sm">
                     {attendanceList.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-6 text-center text-[#64748B]">
+                        <td colSpan={5} className="py-6 text-center text-[var(--text-muted)]">
                           No attendance logs found for this month.
                         </td>
                       </tr>
                     ) : (
                       attendanceList.map((log: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-[#F9FAFB]">
-                          <td className="py-2.5 px-4 font-medium text-[#374151]">{log.attendance_date}</td>
+                        <tr key={idx} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                          <td className="py-2.5 px-4 font-medium text-[var(--text-body)]">{log.attendance_date}</td>
                           <td className="py-2.5 px-4 text-center">
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                                 log.status === "present"
-                                  ? "bg-[#DCFCE7] text-[#15803D]"
+                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/30"
                                   : log.status === "half_day"
-                                  ? "bg-[#FFF7ED] text-[#D97706]"
-                                  : "bg-[#FEE2E2] text-[#DC2626]"
+                                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/30"
+                                  : "bg-red-500/10 text-red-500 border border-red-500/30"
                               }`}
                             >
                               {log.status}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 font-mono text-xs">{log.check_in || "—"}</td>
-                          <td className="py-2.5 px-4 font-mono text-xs">{log.check_out || "—"}</td>
-                          <td className="py-2.5 px-4 text-[#64748B] text-xs">{log.total_hours || "—"}</td>
+                          <td className="py-2.5 px-4 font-mono text-xs text-[var(--text-body)]">{log.check_in || "—"}</td>
+                          <td className="py-2.5 px-4 font-mono text-xs text-[var(--text-body)]">{log.check_out || "—"}</td>
+                          <td className="py-2.5 px-4 text-[var(--text-muted)] text-xs">{log.total_hours || "—"}</td>
                         </tr>
                       ))
                     )}
@@ -765,42 +761,42 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
         </TabsContent>
 
         {/* DOCUMENTS TAB */}
-        <TabsContent value="documents" className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-sm outline-none">
+        <TabsContent value="documents" className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 sm:p-5 shadow-[var(--shadow-sm)] outline-none">
           <CardSectionHeader variant="info" title="Documents & Identification" />
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {/* List */}
             <div className="space-y-3.5">
-              <h4 className="text-xs font-bold text-[#374151] uppercase tracking-wider pb-1.5 border-b border-[#F3F4F6]">
+              <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider pb-1.5 border-b border-[var(--border-light)]">
                 Uploaded Files
               </h4>
 
               {documents.length === 0 ? (
-                <div className="py-8 text-center text-sm text-[#94A3B8]">
+                <div className="py-8 text-center text-sm text-[var(--text-faint)]">
                   No verification documents uploaded.
                 </div>
               ) : (
-                <div className="divide-y divide-[#F3F4F6]">
+                <div className="divide-y divide-[var(--border-light)]">
                   {documents.map((doc: any) => (
                     <div key={doc.id} className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-[#6366F1] shrink-0" />
-                        <div>
-                          <span className="text-sm font-semibold text-[#374151] block truncate max-w-[260px]">
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <FileText className="h-5 w-5 text-[var(--primary)] shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-[var(--text-body)] block truncate max-w-[260px]">
                             {doc.file_name || "Attachment"}
                           </span>
-                          <span className="text-[10px] text-[#94A3B8] capitalize mt-0.5 block">
+                          <span className="text-[10px] text-[var(--text-faint)] capitalize mt-0.5 block">
                             Type: {doc.doc_type} | Size: {doc.file_size_bytes ? `${Math.round(doc.file_size_bytes / 1024)} KB` : "—"}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <a
                           href={doc.file_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-8 h-8 rounded border border-[#E5E7EB] flex items-center justify-center text-[#64748B] hover:text-[#6366F1] hover:bg-[#F9FAFB] transition-colors"
+                          className="w-8 h-8 rounded border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--table-row-hover)] transition-colors"
                         >
                           <Download size={14} />
                         </a>
@@ -811,7 +807,7 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
                               deleteDocMutation.mutate(doc.id);
                             }
                           }}
-                          className="w-8 h-8 rounded border border-[#E5E7EB] flex items-center justify-center text-[#64748B] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          className="w-8 h-8 rounded border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -823,16 +819,16 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
             </div>
 
             {/* Upload Zone */}
-            <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#D1D5DB] rounded-xl p-8 hover:border-[#6366F1] transition-colors bg-[#F9FAFB]">
-              <FileText className="h-10 w-10 text-[#94A3B8] mb-3" />
-              <span className="text-sm font-semibold text-[#374151] mb-1">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-[var(--border)] rounded-xl p-6 sm:p-8 hover:border-[var(--primary)] transition-colors bg-[var(--page-bg)]">
+              <FileText className="h-10 w-10 text-[var(--text-faint)] mb-3" />
+              <span className="text-sm font-semibold text-[var(--text-body)] mb-1">
                 {uploadingDoc ? "Uploading..." : "Upload Worker ID verification"}
               </span>
-              <p className="text-xs text-[#94A3B8] mb-4 text-center">
+              <p className="text-xs text-[var(--text-faint)] mb-4 text-center">
                 Aadhaar card scan, PAN card copy or Bank Passbook front page (PDF, PNG, JPG)
               </p>
 
-              <label className="bg-white border border-[#E5E7EB] hover:bg-[#F9FAFB] text-[#374151] font-bold text-xs px-4 py-2 rounded-lg transition-all cursor-pointer shadow-sm">
+              <label className="bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--text-body)] font-bold text-xs px-4 py-2 rounded-lg transition-all cursor-pointer shadow-[var(--shadow-sm)]">
                 Select File
                 <input
                   type="file"
@@ -845,6 +841,9 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
           </div>
         </TabsContent>
       </Tabs>
+          </>
+        )}
+      </PageState>
     </div>
   );
 }

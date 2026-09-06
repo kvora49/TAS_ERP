@@ -19,6 +19,8 @@ import Link from "next/link";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import FilterPills from "@/components/reports/filters/FilterPills";
 import InlineDrillDownPanel, { DrillDownItem } from "@/components/reports/InlineDrillDownPanel";
+import ReportTabs from "@/components/reports/ReportTabs";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 
 // ─── Main Tabs ────────────────────────────────────────────────────────────────
 
@@ -306,7 +308,8 @@ export default function ProductionReportsPage() {
   ];
 
   return (
-    <ReportShell
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
+      <ReportShell
       title="Production & Workers"
       infoTooltip="Track all production lots, stage progress, output, rework, damage, production cost, worker performance and job-work charges."
       breadcrumbs={["Reports", "Production & Workers", activeMainTab === "overview" ? "Production Overview" : "Worker Job Work"]}
@@ -363,26 +366,16 @@ export default function ProductionReportsPage() {
       }
     >
       {/* ── Top Main Tabs (Overview vs Worker Job Work) ── */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] pb-0 -mt-2">
-        {MAIN_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveMainTab(tab.id);
-              setExpandedLotId(null);
-              setExpandedJobId(null);
-            }}
-            className={cn(
-              "flex items-center gap-2 px-5 py-3 text-xs font-extrabold whitespace-nowrap transition-all border-b-2 cursor-pointer",
-              activeMainTab === tab.id
-                ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--table-header-bg)] rounded-t-lg"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-body)]"
-            )}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="-mt-1 mb-2 print:hidden">
+        <ReportTabs
+          tabs={MAIN_TABS}
+          activeTab={activeMainTab}
+          onChange={(id) => {
+            setActiveMainTab(id as ProdMainTab);
+            setExpandedLotId(null);
+            setExpandedJobId(null);
+          }}
+        />
       </div>
 
       <PageState
@@ -400,7 +393,7 @@ export default function ProductionReportsPage() {
         {activeMainTab === "overview" && pData && (
           <div className="space-y-5 pt-2">
             {/* ── Row 1 KPIs (7 Cards) ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
               <ReportKPICard
                 label="Total Lots"
                 value={pData.summary?.totalLots}
@@ -459,7 +452,7 @@ export default function ProductionReportsPage() {
             </div>
 
             {/* ── Row 2 Secondary KPIs (4 Metrics Strip) ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-[var(--shadow-sm)]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
                   <RotateCcw size={18} />
@@ -506,21 +499,13 @@ export default function ProductionReportsPage() {
             </div>
 
             {/* ── Sub Tabs Bar ── */}
-            <div className="flex items-center gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none pb-1">
-              {OVERVIEW_SUB_TABS.map((st) => (
-                <button
-                  key={st.id}
-                  onClick={() => setOverviewSubTab(st.id)}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer",
-                    overviewSubTab === st.id
-                      ? "bg-[var(--primary)] text-white shadow-sm"
-                      : "text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] hover:text-[var(--text-body)]"
-                  )}
-                >
-                  {st.label}
-                </button>
-              ))}
+            <div className="pt-1 pb-2">
+              <ReportTabs
+                tabs={OVERVIEW_SUB_TABS}
+                activeTab={overviewSubTab}
+                onChange={(id) => setOverviewSubTab(id as OverviewSubTab)}
+                size="sm"
+              />
             </div>
 
             {/* ── Main Production Grid ── */}
@@ -538,7 +523,7 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(pData.lots ?? []).length} lots</span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -628,6 +613,97 @@ export default function ProductionReportsPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Lot Cards */}
+                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    {(pData.lots ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-[var(--text-muted)]">No production lots found.</div>
+                    ) : (
+                      (pData.lots ?? []).map((l: any) => (
+                        <div
+                          key={l.id}
+                          onClick={() => setExpandedLotId(expandedLotId === l.id ? null : l.id)}
+                          className={cn(
+                            "p-3.5 space-y-2 cursor-pointer transition-colors active:bg-[var(--table-row-hover)]",
+                            expandedLotId === l.id && "bg-[var(--table-row-hover)]"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                href={`/production/lots/${l.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-mono font-bold text-xs text-[var(--primary)] hover:underline"
+                              >
+                                {l.lot_number}
+                              </Link>
+                              <span className="text-[10px] text-[var(--text-faint)]">·</span>
+                              <span className="text-[10px] text-[var(--text-muted)]">{fmtDate(l.created_at)}</span>
+                            </div>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize",
+                              l.status === "completed" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                              l.status === "in_progress" || l.status === "in_process" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                              "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                            )}>
+                              {l.status?.replace(/_/g, " ")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-[var(--text-primary)] truncate max-w-[65%]">{l.design_name}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--table-header-bg)] text-[var(--text-muted)] border border-[var(--border)]">{l.brand}</span>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1 text-center bg-[var(--table-header-bg)] rounded-lg p-2 border border-[var(--border)] text-xs">
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Input</p>
+                              <p className="font-mono font-bold text-[var(--text-primary)]">{fmtNum(l.input_qty)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Output</p>
+                              <p className="font-mono font-bold text-emerald-600">{l.good_output > 0 ? fmtNum(l.good_output) : "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Stage</p>
+                              <p className="font-medium text-[11px] text-[var(--text-body)] truncate px-0.5">{l.current_stage}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Efficiency</p>
+                              <p className="font-mono font-bold text-[var(--primary)]">{l.efficiency ? `${l.efficiency.toFixed(1)}%` : "—"}</p>
+                            </div>
+                          </div>
+
+                          {(l.rework_qty > 0 || l.damage_qty > 0) && (
+                            <div className="flex items-center justify-between text-[11px] px-1 text-[var(--text-muted)]">
+                              {l.rework_qty > 0 && <span className="text-amber-600">Rework: <strong>{fmtNum(l.rework_qty)}</strong></span>}
+                              {l.damage_qty > 0 && <span className="text-rose-600">Damage: <strong>{fmtNum(l.damage_qty)}</strong></span>}
+                            </div>
+                          )}
+
+                          <AnimatePresence>
+                            {expandedLotId === l.id && (
+                              <div className="pt-2" onClick={(e) => e.stopPropagation()}>
+                                <InlineDrillDownPanel
+                                  id={l.id}
+                                  title={`Lot ${l.lot_number} — Detail`}
+                                  subtitle={`${l.design_name} · ${l.brand}`}
+                                  totalAmount={l.good_output}
+                                  amountType="neutral"
+                                  items={getLotDrillItems(l)}
+                                  moduleLink={{
+                                    label: "Open Lot Production Record",
+                                    href: `/production/lots/${l.id}`,
+                                  }}
+                                  onClose={() => setExpandedLotId(null)}
+                                />
+                              </div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -988,7 +1064,7 @@ export default function ProductionReportsPage() {
         {activeMainTab === "worker_job_work" && wData && (
           <div className="space-y-5 pt-2">
             {/* 8 KPI Cards Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 sm:gap-3">
               <ReportKPICard
                 label="Total Workers"
                 value={wData.summary?.totalWorkers}
@@ -1053,21 +1129,13 @@ export default function ProductionReportsPage() {
             </div>
 
             {/* Sub Tabs Bar */}
-            <div className="flex items-center gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none pb-1">
-              {WORKER_SUB_TABS.map((st) => (
-                <button
-                  key={st.id}
-                  onClick={() => setWorkerSubTab(st.id)}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer",
-                    workerSubTab === st.id
-                      ? "bg-[var(--primary)] text-white shadow-sm"
-                      : "text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] hover:text-[var(--text-body)]"
-                  )}
-                >
-                  {st.label}
-                </button>
-              ))}
+            <div className="pt-1 pb-2">
+              <ReportTabs
+                tabs={WORKER_SUB_TABS}
+                activeTab={workerSubTab}
+                onChange={(id) => setWorkerSubTab(id as WorkerSubTab)}
+                size="sm"
+              />
             </div>
 
             {/* Main Worker Grid */}
@@ -1084,7 +1152,7 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(wData.workers ?? []).length} workers</span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1133,6 +1201,43 @@ export default function ProductionReportsPage() {
                       </tfoot>
                     </table>
                   </div>
+
+                  {/* Mobile Worker Summary Cards */}
+                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    {(wData.workers ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-[var(--text-muted)]">No worker records found.</div>
+                    ) : (
+                      (wData.workers ?? []).map((w: any) => (
+                        <div key={w.id} className="p-3.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-[var(--text-primary)]">{w.name}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--primary)] border border-[var(--border)]">
+                              {w.efficiency.toFixed(1)}% Eff.
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[var(--text-muted)] truncate">{w.stages || "All stages"}</p>
+                          <div className="grid grid-cols-3 gap-1 text-center bg-[var(--table-header-bg)] rounded-lg p-2 border border-[var(--border)] text-xs">
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Jobs</p>
+                              <p className="font-mono font-bold text-[var(--text-primary)]">{w.jobs}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Qty Out</p>
+                              <p className="font-mono font-bold text-emerald-600">{fmtNum(w.qty_out)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Due</p>
+                              <p className="font-mono font-bold text-[var(--text-primary)]">{fmtINR(w.amount_due)}</p>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center text-xs pt-0.5">
+                            <span className="text-[var(--text-muted)]">Paid: <strong className="text-emerald-600 font-mono">{fmtINR(w.amount_paid)}</strong></span>
+                            <span className="font-mono font-black text-rose-600">Pending: {fmtINR(w.outstanding)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
                 )}
 
@@ -1146,7 +1251,7 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(wData.jobWiseRegister ?? []).length} job entries</span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
@@ -1192,6 +1297,45 @@ export default function ProductionReportsPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Job Wise Cards */}
+                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    {(wData.jobWiseRegister ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-[var(--text-muted)]">No job entries found.</div>
+                    ) : (
+                      (wData.jobWiseRegister ?? []).map((j: any) => (
+                        <div key={j.id} className="p-3.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-xs text-[var(--text-primary)]">{j.job_no}</span>
+                              <span className="text-[10px] text-[var(--text-faint)]">·</span>
+                              <span className="text-[10px] text-[var(--text-muted)]">{fmtDate(j.date)}</span>
+                            </div>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize",
+                              j.status === "Paid" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                              j.status === "Part Paid" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                              "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                            )}>
+                              {j.status}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-[var(--text-primary)]">{j.worker}</span>
+                            <span className="font-mono text-[11px] text-[var(--primary)]">{j.lot_no}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs text-[var(--text-muted)]">
+                            <span>{j.stage} · {j.production_type}</span>
+                            <span>{fmtNum(j.qty)} pcs @ {fmtINR(j.rate)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-[var(--border-light)] text-xs font-bold">
+                            <span className="text-[var(--text-muted)]">Total: <strong className="text-[var(--text-primary)] font-mono">{fmtINR(j.amount)}</strong></span>
+                            <span className="font-mono text-rose-600">Due: {fmtINR(j.outstanding)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
                 )}
@@ -1398,6 +1542,7 @@ export default function ProductionReportsPage() {
           </div>
         )}
       </PageState>
-    </ReportShell>
+      </ReportShell>
+    </PullToRefresh>
   );
 }

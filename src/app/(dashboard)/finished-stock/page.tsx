@@ -29,6 +29,7 @@ import {
   Tooltip,
 } from "recharts";
 import ColourDot from "@/components/shared/ColourDot";
+import { PullToRefresh } from "@/components/shared/PullToRefresh";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -112,7 +113,8 @@ export default function FinishedStockOverviewPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <PullToRefresh onRefresh={async () => { await fetchStats(gradeFilter); }}>
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
@@ -422,18 +424,21 @@ export default function FinishedStockOverviewPage() {
           </Link>
         </div>
 
-        {/* ── MOBILE: design cards ── */}
-        <div className="md:hidden divide-y divide-[var(--border-light)]">
+        {/* ── MOBILE: design cards with proper spacing ── */}
+        <div className="md:hidden p-3.5 space-y-3">
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="p-4 animate-pulse space-y-2">
+              <div key={i} className="p-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-2xl animate-pulse space-y-2">
                 <div className="h-4 bg-[var(--skeleton-base)] rounded w-1/3" />
                 <div className="h-3 bg-[var(--skeleton-base)] rounded w-1/2" />
               </div>
             ))
           ) : stats?.top_designs && stats.top_designs.length > 0 ? (
             stats.top_designs.map((design, idx) => (
-              <div key={design.design_id} className="p-3.5 sm:p-4 hover:bg-[var(--table-row-hover)]/40 transition-colors">
+              <div
+                key={design.design_id}
+                className="p-4 bg-[var(--page-bg)] border border-[var(--border)] rounded-2xl shadow-xs hover:border-[var(--border)] transition-all"
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="w-5 h-5 rounded-full bg-[var(--page-bg)] border border-[var(--border)] flex items-center justify-center text-[10px] font-black text-[var(--text-faint)] shrink-0">
@@ -656,5 +661,6 @@ export default function FinishedStockOverviewPage() {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   );
 }
