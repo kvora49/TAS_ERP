@@ -36,23 +36,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "TAS ERP",
-    startupImage: [
-      {
-        url: "/icons/icon-512x512.png",
-        media: "(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)",
-      },
-      {
-        url: "/icons/icon-512x512.png",
-        media: "(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)",
-      },
-      {
-        url: "/icons/icon-512x512.png",
-        media: "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
-      },
-      {
-        url: "/icons/icon-512x512.png",
-      },
-    ],
   },
   formatDetection: {
     telephone: false,
@@ -87,6 +70,20 @@ export default function RootLayout({
                   document.documentElement.setAttribute('data-theme', resolved);
                   if (resolved === 'dark') {
                     document.documentElement.classList.add('dark');
+                  }
+
+                  // Synchronous PWA splash check to prevent content flash before animation
+                  var isSplashTest = new URLSearchParams(window.location.search).get('splash') === '1';
+                  var isPWA = isSplashTest ||
+                              window.matchMedia('(display-mode: standalone)').matches ||
+                              window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+                              window.matchMedia('(display-mode: fullscreen)').matches ||
+                              window.matchMedia('(display-mode: minimal-ui)').matches ||
+                              navigator.standalone === true ||
+                              document.referrer.indexOf('android-app://') !== -1;
+
+                  if (isSplashTest || (isPWA && !sessionStorage.getItem('tas-splash-shown'))) {
+                    document.documentElement.classList.add('tas-pwa-splash');
                   }
                 } catch (e) {}
               })();
