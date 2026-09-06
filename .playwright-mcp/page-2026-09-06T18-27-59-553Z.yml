@@ -1,0 +1,6 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - button "Toggle Theme (LIGHT)" [ref=f4e6] [cursor=pointer]
+    - status "Syncing ERP workspace" [ref=f4e8]:
+      - generic [ref=f4e9]: Syncing ERP Workspace...
+  - region "Notifications alt+T"

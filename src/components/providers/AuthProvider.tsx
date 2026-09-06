@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2 } from "lucide-react";
+import { TASFabricLoader } from "@/components/experience";
 
 import { useNotifications } from "@/hooks/useNotifications";
 
@@ -138,11 +138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--page-bg)] text-[var(--text-body)] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 text-[var(--primary)] animate-spin" />
-        <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-          Syncing ERP Workspace...
-        </span>
+      <div 
+        className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center select-none px-4"
+        role="status"
+        aria-label="Loading workspace"
+      >
+        <TASFabricLoader showText={true} />
       </div>
     );
   }

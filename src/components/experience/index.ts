@@ -10,3 +10,4 @@ export * from './state/EmptyState';
 export * from './state/PermissionState';
 export * from './state/OfflineState';
 export * from './state/ReadOnlyState';
+export { default as TASFabricLoader } from './TASFabricLoader';

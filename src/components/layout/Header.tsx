@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Menu, User, Calendar, LogOut, Sliders, Search } from "lucide-react";
+import { Bell, Menu, User, Calendar, LogOut, Sliders } from "lucide-react";
 import { useAppStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -225,22 +225,6 @@ export default function Header() {
             </MobileFilterField>
           </MobileFilterSheet>
         </div>
-
-        {/* Quick Command Palette Trigger (Ctrl/⌘ + K) */}
-        <button
-          type="button"
-          onClick={() => {
-            window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
-          }}
-          className="h-8 sm:h-9 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs text-[var(--text-muted)] flex items-center gap-2 transition-colors cursor-pointer"
-          title="Search or execute command (Ctrl+K)"
-        >
-          <Search size={14} className="text-[var(--text-faint)]" />
-          <span className="hidden xl:inline text-xs font-medium">Search...</span>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-bold text-[var(--text-muted)] bg-[var(--page-bg)] border border-[var(--border)] rounded">
-            ⌘K
-          </kbd>
-        </button>
 
         {/* Brand Filter (Desktop/Tablet) */}
         <div className="hidden sm:block">

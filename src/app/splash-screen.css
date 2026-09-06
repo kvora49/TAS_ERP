@@ -25,7 +25,7 @@ html.tas-pwa-splash #main-content {
   z-index: 99999;
   align-items: center;
   justify-content: center;
-  background: #F8FAFC;
+  background: #F7F8FA;
   will-change: opacity;
   overflow: hidden;
   user-select: none;
@@ -37,7 +37,7 @@ html.tas-pwa-splash .tas-splash-overlay {
   display: flex;
 }
 
-/* Dark-mode background — matched to app's dark page-bg */
+/* Dark-mode background — matched to app's dark page-bg (UNCHANGED) */
 html[data-theme="dark"] .tas-splash-overlay,
 html.dark .tas-splash-overlay {
   background: #0F172A;
@@ -89,6 +89,14 @@ html.dark .tas-splash-overlay {
   will-change: opacity, transform;
   /* Never crop the logo or its drop shadow */
   border-radius: 0;
+  /* Subtle separation in light mode so white parts of logo cleanly contrast against #F7F8FA */
+  filter: drop-shadow(0 8px 24px rgba(15, 23, 42, 0.08));
+}
+
+/* In dark mode, maintain the approved zero-filter display */
+html[data-theme="dark"] .tas-splash-logo,
+html.dark .tas-splash-logo {
+  filter: none;
 }
 
 /* Logo reveal + subtle physical settle */
