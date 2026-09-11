@@ -1,4 +1,4 @@
-const CACHE_NAME = "tas-erp-pwa-v9";
+const CACHE_NAME = "tas-erp-pwa-v10";
 const MAX_CACHE_ITEMS = 60;
 const STATIC_ASSETS = [
   "/manifest.json",
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   "/offline",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
+  "/tas-splash-logo.png",
 ];
 
 /**
