@@ -21,7 +21,125 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ accounts });
+    if (!accounts || accounts.length === 0) {
+      return NextResponse.json({ accounts: [] });
+    }
+
+    // Parallel fetch of all transaction sources to compute live balances
+    const [
+      paymentsRes,
+      expensesRes,
+      incomeRes,
+      salaryRes,
+      chequesRes,
+      purchasePaymentsRes,
+      jobWorkPaymentsRes,
+    ] = await Promise.all([
+      supabase
+        .from("payments")
+        .select("bank_account_id, amount, direction")
+        .eq("business_id", businessId)
+        .neq("status", "cancelled"),
+
+      supabase
+        .from("expenses")
+        .select("paid_from_account_id, amount")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("misc_income")
+        .select("received_in_account_id, amount")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("salary_entries")
+        .select("bank_account_id, net_salary")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("cheques")
+        .select("received_account_id, amount, direction")
+        .eq("status", "cleared")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("purchase_payments")
+        .select("bank_account_id, upi_id, paid_amount")
+        .eq("business_id", businessId),
+
+      supabase
+        .from("job_work_payments")
+        .select("bank_account_id, upi_id, paid_amount")
+        .eq("business_id", businessId),
+    ]);
+
+    const netMap: Record<string, number> = {};
+
+    const addDelta = (accId: string | null | undefined, delta: number) => {
+      if (!accId) return;
+      netMap[accId] = (netMap[accId] || 0) + delta;
+    };
+
+    (paymentsRes.data || []).forEach((p: any) => {
+      const amt = Number(p.amount || 0);
+      addDelta(p.bank_account_id, p.direction === "received" ? amt : -amt);
+    });
+
+    (expensesRes.data || []).forEach((e: any) => {
+      addDelta(e.paid_from_account_id, -Number(e.amount || 0));
+    });
+
+    (incomeRes.data || []).forEach((inc: any) => {
+      addDelta(inc.received_in_account_id, Number(inc.amount || 0));
+    });
+
+    (salaryRes.data || []).forEach((s: any) => {
+      addDelta(s.bank_account_id, -Number(s.net_salary || 0));
+    });
+
+    (chequesRes.data || []).forEach((chq: any) => {
+      const amt = Number(chq.amount || 0);
+      addDelta(chq.received_account_id, chq.direction === "received" ? amt : -amt);
+    });
+
+    (purchasePaymentsRes.data || []).forEach((p: any) => {
+      const amt = Number(p.paid_amount || 0);
+      addDelta(p.bank_account_id || p.upi_id, -amt);
+    });
+
+    (jobWorkPaymentsRes.data || []).forEach((jw: any) => {
+      const amt = Number(jw.paid_amount || 0);
+      addDelta(jw.bank_account_id || jw.upi_id, -amt);
+    });
+
+    const accountsWithBalance = accounts.map((acc: any) => {
+      const liveCurrentBalance = Number(acc.opening_balance || 0) + (netMap[acc.id] || 0);
+      return {
+        ...acc,
+        current_balance: liveCurrentBalance,
+      };
+    });
+
+    // Auto-heal any balance drift in the database so RPCs always see fresh balance
+    const driftsToSync = accounts.filter((acc: any) => {
+      const live = Number(acc.opening_balance || 0) + (netMap[acc.id] || 0);
+      return Number(acc.current_balance) !== live;
+    });
+
+    if (driftsToSync.length > 0) {
+      Promise.all(
+        driftsToSync.map((acc: any) => {
+          const live = Number(acc.opening_balance || 0) + (netMap[acc.id] || 0);
+          return supabase
+            .from("bank_accounts")
+            .update({ current_balance: live, updated_at: new Date().toISOString() })
+            .eq("id", acc.id)
+            .eq("business_id", businessId);
+        })
+      ).catch(() => {});
+    }
+
+    return NextResponse.json({ accounts: accountsWithBalance });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -106,6 +224,7 @@ export async function POST(request: Request) {
         upi_provider: type === "upi" ? upi_provider : null,
         is_default: !!is_default,
         opening_balance: Number(opening_balance || 0),
+        current_balance: Number(opening_balance || 0),
         is_active: is_active !== false,
       })
       .select()

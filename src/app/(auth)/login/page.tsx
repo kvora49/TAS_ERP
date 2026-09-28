@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Loader2, Lock, Mail, Eye, EyeOff, ShieldCheck, Sun, Moon } from "lucide-react";
+import { Loader2, Lock, Mail, Eye, EyeOff, ShieldCheck, Sun, Moon, AlertCircle, ExternalLink, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -35,10 +35,17 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const registered = searchParams.get("registered") === "true";
+  const initialEmail = searchParams.get("email") || "";
+
+  const isUnconfirmedParam = searchParams.get("unconfirmed") === "true";
+
   const [loading, setLoading] = useState(false);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState(isUnconfirmedParam ? initialEmail : "");
+  const [isResending, setIsResending] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("auth-theme") as "light" | "dark" | null;
@@ -55,13 +62,16 @@ function LoginContent() {
     if (error || errorCode || errorDescription) {
       let msg = "An authentication error occurred.";
       if (errorCode === "otp_expired" || (errorDescription && errorDescription.toLowerCase().includes("expired"))) {
-        msg = "The password recovery link has expired or has already been used. Please request a new link.";
+        msg = "The confirmation or recovery link has expired. Please enter your email and click 'Resend Link' below to receive a fresh link.";
+        if (initialEmail) {
+          setUnconfirmedEmail(initialEmail);
+        }
       } else if (errorDescription) {
         msg = errorDescription;
       }
-      toast.error(msg, { duration: 6000 });
+      toast.error(msg, { duration: 7000 });
     }
-  }, [searchParams]);
+  }, [searchParams, initialEmail]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -72,13 +82,50 @@ function LoginContent() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
+      email: initialEmail,
       rememberMe: false,
     },
   });
+
+  const currentEmail = watch("email") || unconfirmedEmail || initialEmail;
+
+  const handleResendVerification = async () => {
+    const targetEmail = currentEmail.trim();
+    if (!targetEmail) {
+      toast.error("Please enter your email address to resend the verification link.");
+      return;
+    }
+    setIsResending(true);
+    try {
+      const supabase = createClient();
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: targetEmail,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+      if (error) {
+        if (error.message.toLowerCase().includes("rate limit")) {
+          toast.info("A verification email was already sent recently. Please check your Inbox and Spam/Promotions folder, or wait a minute before requesting another.");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.success(`Verification link sent to ${targetEmail}! Check your inbox and spam folder.`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resend verification email");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const onSubmit = async (values: LoginValues) => {
     setLoading(true);
@@ -90,7 +137,21 @@ function LoginContent() {
       });
 
       if (error) {
-        toast.error(error.message);
+        const errorLower = error.message.toLowerCase();
+        if (
+          errorLower.includes("email not confirmed") ||
+          errorLower.includes("not confirmed")
+        ) {
+          setUnconfirmedEmail(values.email);
+          toast.error("Your email is not verified yet. Please check your inbox or click Resend Link below.");
+        } else if (errorLower.includes("invalid login credentials")) {
+          // Supabase masks unconfirmed emails as "invalid login credentials" by default to prevent account enumeration.
+          // We expose the unconfirmed email banner so any user whose email is not yet confirmed can immediately resend.
+          setUnconfirmedEmail(values.email);
+          toast.error("Invalid login credentials. If you haven't verified your email yet, please check your inbox or click Resend Verification below.");
+        } else {
+          toast.error(error.message);
+        }
         setLoading(false);
         return;
       }
@@ -292,6 +353,69 @@ function LoginContent() {
             Sign in to access TAS ERP
           </p>
 
+          {registered && !unconfirmedEmail && (
+            <div className="mb-6 p-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs flex items-start gap-3">
+              <Mail className="size-5 text-indigo-400 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-left">
+                <p className="font-bold text-indigo-300">Account Created Successfully!</p>
+                <p className="text-[#94A3B8] leading-relaxed">
+                  Please verify your account by clicking the confirmation link sent to your email before signing in.
+                </p>
+                <div className="flex items-center gap-3 pt-1">
+                  <a
+                    href="https://mail.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-indigo-400 hover:underline font-semibold inline-flex items-center gap-1"
+                  >
+                    Open Gmail <ExternalLink className="size-3" />
+                  </a>
+                  <span className="text-[#64748B]">•</span>
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={isResending}
+                    className="text-[#94A3B8] hover:text-white font-medium underline cursor-pointer"
+                  >
+                    {isResending ? "Resending..." : "Resend Link"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {unconfirmedEmail && (
+            <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs space-y-2 text-left">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="size-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-amber-300">Email Verification Required</p>
+                  <p className="text-[#94A3B8] leading-relaxed">
+                    Your account is registered, but your email has not been confirmed yet. Please click the activation link in your inbox.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pt-1 pl-8">
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={isResending}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isResending ? "Resending..." : "Resend Verification Email"}
+                </button>
+                <a
+                  href="https://mail.google.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-amber-400 hover:underline font-semibold inline-flex items-center gap-1"
+                >
+                  Open Gmail <ExternalLink className="size-3" />
+                </a>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Email Address */}
             <div className="space-y-1.5">
@@ -426,6 +550,27 @@ function LoginContent() {
               )}
             </button>
           </form>
+
+          {/* Resend Verification Helper */}
+          <div className="text-center pt-4">
+            <p className={cn(
+              "text-xs",
+              theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
+            )}>
+              Didn&apos;t receive verification email?{" "}
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={isResending}
+                className={cn(
+                  "font-semibold hover:underline cursor-pointer disabled:opacity-50",
+                  theme === "dark" ? "text-[#818CF8]" : "text-[#6366F1]"
+                )}
+              >
+                {isResending ? "Resending..." : "Resend Link"}
+              </button>
+            </p>
+          </div>
 
           {/* Footer note */}
           <p className={cn(

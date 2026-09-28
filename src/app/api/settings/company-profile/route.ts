@@ -31,7 +31,19 @@ export async function GET(request: Request) {
       brandConfig = cfg;
     }
 
-    return NextResponse.json({ business, brand, brandConfig });
+    const { getEInvoiceAdapter } = await import("@/lib/einvoice");
+    const adapter = getEInvoiceAdapter();
+    const isLiveIris = adapter.providerName === "IRIS_IRP";
+
+    return NextResponse.json({
+      business,
+      brand,
+      brandConfig,
+      einvoiceAdapter: {
+        providerName: adapter.providerName,
+        isLive: isLiveIris,
+      },
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
@@ -62,6 +74,10 @@ export async function PUT(request: Request) {
       logo_url,
       financial_year_start,
       currency,
+      einvoice_applicability,
+      aato_bracket,
+      irp_api_username,
+      irp_client_id,
     } = body;
 
     if (!name || !address || !phone || !email) {
@@ -71,21 +87,34 @@ export async function PUT(request: Request) {
       );
     }
 
+    const updatePayload: Record<string, any> = {
+      name: name.trim(),
+      gstin: gstin?.trim() || null,
+      pan: pan?.trim() || null,
+      address: address.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      website: website?.trim() || null,
+      logo_url: logo_url || null,
+      financial_year_start: financial_year_start || "2026-04-01",
+      currency: currency || "INR",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (einvoice_applicability !== undefined) {
+      updatePayload.einvoice_applicability = einvoice_applicability;
+    }
+    if (aato_bracket !== undefined) {
+      updatePayload.aato_bracket = aato_bracket;
+    }
+    const effectiveApiUser = irp_api_username !== undefined ? irp_api_username : irp_client_id;
+    if (effectiveApiUser !== undefined) {
+      updatePayload.irp_client_id = effectiveApiUser?.trim() || null;
+    }
+
     const { error } = await supabase
       .from("businesses")
-      .update({
-        name: name.trim(),
-        gstin: gstin?.trim() || null,
-        pan: pan?.trim() || null,
-        address: address.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        website: website?.trim() || null,
-        logo_url: logo_url || null,
-        financial_year_start: financial_year_start || "2026-04-01",
-        currency: currency || "INR",
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", businessId);
 
     if (error) {

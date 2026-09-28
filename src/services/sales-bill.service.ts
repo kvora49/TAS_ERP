@@ -1,5 +1,6 @@
 import { SalesBillRepository } from "../repositories/sales-bill.repository";
 import { CreateSaleBillSchema, UpdateSaleBillSchema } from "@/lib/schemas/sales";
+import { isInterstateTransaction } from "@/lib/gst-utils";
 
 export class SalesBillService {
   constructor(private repository: SalesBillRepository) {}
@@ -177,7 +178,7 @@ export class SalesBillService {
             .is("deleted_at", null);
 
           if (colorId) {
-            stockQuery = stockQuery.eq("colour_id", colorId);
+            stockQuery = stockQuery.or(`colour_id.eq.${colorId},colour_id.is.null`);
           }
 
           const { data: stockRows } = await stockQuery;
@@ -203,18 +204,21 @@ export class SalesBillService {
       }
     }
 
-    let isInterstate = false;
-    if (rest.gstin && rest.gstin.length >= 2) {
-      const { data: biz } = await this.repository.supabase
-        .from("businesses")
-        .select("gstin")
-        .eq("id", businessId)
-        .maybeSingle();
+    // Determine Place of Supply for CGST+SGST vs IGST
+    // If consignee/ship-to is different from bill-to, use consignee state
+    const { data: biz } = await this.repository.supabase
+      .from("businesses")
+      .select("gstin")
+      .eq("id", businessId)
+      .maybeSingle();
 
-      if (biz?.gstin && biz.gstin.trim().substring(0, 2) !== rest.gstin.trim().substring(0, 2)) {
-        isInterstate = true;
-      }
-    }
+    const isInterstate = isInterstateTransaction({
+      businessGstin: biz?.gstin,
+      partyGstin: rest.gstin,
+      consigneeGstin: rest.consignee_gstin,
+      consigneeStateCode: rest.consignee_state_code,
+      shipToSameAsBillTo: rest.ship_to_same_as_bill_to !== false,
+    });
 
     // Generate next sequential bill number
     const now = new Date();
@@ -278,18 +282,34 @@ export class SalesBillService {
 
     const { items, charges, ...rest } = parsed.data;
 
-    let isInterstate = false;
-    if (rest.gstin && rest.gstin.length >= 2) {
-      const { data: biz } = await this.repository.supabase
-        .from("businesses")
-        .select("gstin")
-        .eq("id", businessId)
-        .maybeSingle();
+    // Immutability lock check: If invoice is registered with an IRN, core updates are legally prohibited
+    const { data: existingBill } = await this.repository.supabase
+      .from("sale_bills")
+      .select("locked_for_edit, irn_status, irn")
+      .eq("id", billId)
+      .eq("business_id", businessId)
+      .maybeSingle();
 
-      if (biz?.gstin && biz.gstin.trim().substring(0, 2) !== rest.gstin.trim().substring(0, 2)) {
-        isInterstate = true;
-      }
+    if (existingBill?.locked_for_edit || existingBill?.irn_status === "registered") {
+      throw new Error(
+        `This invoice is legally registered with an IRN (${existingBill?.irn?.substring(0, 16)}...) and is locked against modifications. Issue a Credit or Debit Note for statutory adjustments.`
+      );
     }
+
+    // Determine Place of Supply for CGST+SGST vs IGST
+    const { data: biz } = await this.repository.supabase
+      .from("businesses")
+      .select("gstin")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    const isInterstate = isInterstateTransaction({
+      businessGstin: biz?.gstin,
+      partyGstin: rest.gstin,
+      consigneeGstin: rest.consignee_gstin,
+      consigneeStateCode: rest.consignee_state_code,
+      shipToSameAsBillTo: rest.ship_to_same_as_bill_to !== false,
+    });
 
     const calculated = this.calculateTotals({
       items: items ?? [],

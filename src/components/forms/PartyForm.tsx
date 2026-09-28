@@ -17,6 +17,7 @@ import { AddressSection } from "./PartyForm/AddressSection";
 import { ContactSection } from "./PartyForm/ContactSection";
 import { MobileStickyFormBar } from "@/components/forms/MobileStickyFormBar";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { validateGSTINInput } from "@/lib/gst-utils";
 
 interface PartyFormProps {
   initialData?: any;
@@ -114,6 +115,8 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const watchBillingCity = watch("billing_city");
   const watchBillingState = watch("billing_state");
   const watchBillingPincode = watch("billing_pincode");
+  const watchGstin = (watch("gstin") || "").trim().toUpperCase();
+  const gstinValidation = validateGSTINInput(watchGstin);
 
   // Fetch godowns list
   useEffect(() => {
@@ -409,14 +412,54 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
             </h2>
             <div className="space-y-4">
               <div>
-                <label htmlFor="gstin" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">GSTIN</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="gstin" className="block text-xs font-semibold text-[var(--text-muted)]">
+                    GSTIN
+                  </label>
+                  <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                    {watchGstin.length}/15
+                  </span>
+                </div>
                 <input
                   id="gstin"
                   type="text"
-                  placeholder="15-digit GSTIN"
-                  {...register("gstin")}
-                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
+                  maxLength={15}
+                  placeholder="15-digit GSTIN (e.g. 24ABCDE1234F1Z5)"
+                  {...register("gstin", {
+                    onChange: (e) => {
+                      const val = (e.target.value || "").toUpperCase().slice(0, 15);
+                      setValue("gstin", val, { shouldValidate: true });
+                      const check = validateGSTINInput(val);
+                      if (check.stateName && !watchBillingState) {
+                        setValue("billing_state", check.stateName);
+                      }
+                      if (val.length >= 12 && !watch("pan")) {
+                        const extractedPan = val.substring(2, 12);
+                        if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
+                          setValue("pan", extractedPan);
+                        }
+                      }
+                    },
+                  })}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm font-mono uppercase transition-colors bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent ${
+                    errors.gstin || (watchGstin && !gstinValidation.isValid)
+                      ? "border-red-500 focus:ring-red-500"
+                      : "border-[var(--input-border)]"
+                  }`}
                 />
+                {errors.gstin ? (
+                  <p className="text-xs text-red-500 mt-1 font-medium">{errors.gstin.message}</p>
+                ) : watchGstin && !gstinValidation.isValid ? (
+                  <p className="text-xs text-red-500 mt-1 font-medium">{gstinValidation.errorMessage}</p>
+                ) : watchGstin && gstinValidation.isValid ? (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium flex items-center gap-1">
+                    ✓ Valid State: {gstinValidation.stateName} ({gstinValidation.stateCode})
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-[var(--text-faint)] mt-1">
+                    Optional for unregistered parties. If entered, must be 15 characters.
+                  </p>
+                )}
               </div>
 
               <div>

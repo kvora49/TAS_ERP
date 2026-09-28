@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Eye } from "lucide-react";
+import { isInterstateTransaction } from "@/lib/gst-utils";
 import { Button } from "@/components/ui/button";
 import { useSalesBill } from "@/hooks/useSalesBill";
 import { CustomerSection } from "./CustomerSection";
@@ -157,24 +158,31 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   const designs = designsData || [];
   const salesmen = (salesmenData || []).filter((u: any) => u.role === "staff" || u.role === "admin" || u.role === "owner");
 
-  // Determine interstate GST rules
+  // Determine interstate GST using Place of Supply logic
+  // If consignee/ship-to is in a different state → IGST
+  const bizGstinRef = useRef<string | null>(null);
   useEffect(() => {
     const checkInterstate = async () => {
-      if (state.gstin && state.gstin.length >= 2) {
-        // Fetch current business GSTIN to compare state codes
+      // Fetch business GSTIN once (or use cached)
+      if (!bizGstinRef.current) {
         const res = await fetch("/api/settings/general");
         if (res.ok) {
           const biz = (await res.json()).business;
-          if (biz?.gstin && biz.gstin.trim().substring(0, 2) !== state.gstin.trim().substring(0, 2)) {
-            state.setIsInterstate(true);
-            return;
-          }
+          bizGstinRef.current = biz?.gstin || null;
         }
       }
-      state.setIsInterstate(false);
+
+      const interstate = isInterstateTransaction({
+        businessGstin: bizGstinRef.current,
+        partyGstin: state.gstin,
+        consigneeGstin: state.consigneeGstin,
+        consigneeStateCode: state.consigneeStateCode,
+        shipToSameAsBillTo: state.shipToSameAsBillTo,
+      });
+      state.setIsInterstate(interstate);
     };
     checkInterstate();
-  }, [state.gstin]);
+  }, [state.gstin, state.consigneeGstin, state.consigneeStateCode, state.shipToSameAsBillTo]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -395,6 +403,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
     igst: totals.igst,
     round_off: totals.round_off,
     grand_total: totals.grand_total,
+    remarks: state.remarks || null,
     party: {
       name: selectedParty?.name || "",
       company_name: selectedParty?.company_name,
@@ -577,6 +586,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                         <th className="py-2 px-3">Item</th>
                         <th className="py-2 px-3">Details</th>
                         <th className="py-2 px-3">Size</th>
+                        {effectiveType === "pakka" && <th className="py-2 px-3 text-center">HSN/SAC</th>}
                         <th className="py-2 px-3 text-right">Qty</th>
                         <th className="py-2 px-3 text-right">Rate</th>
                         <th className="py-2 px-3 text-right">Dis %</th>
@@ -615,6 +625,11 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                             </td>
                             <td className="py-2 px-3 text-[var(--text-secondary)]">{detailsDisplay}</td>
                             <td className="py-2 px-3 font-mono">{it.size || (isFabric ? "Meters" : "Pcs")}</td>
+                            {effectiveType === "pakka" && (
+                              <td className="py-2 px-3 text-center font-mono text-[11px] font-bold text-[var(--text-secondary)]">
+                                {it.hsn_sac || "—"}
+                              </td>
+                            )}
                             <td className="py-2 px-3 text-right font-mono">{it.quantity} {it.unit || (isFabric ? "MTR" : "PCS")}</td>
                             <td className="py-2 px-3 text-right font-mono">₹{it.rate}</td>
                             <td className="py-2 px-3 text-right font-mono">{it.discount_percent || 0}%</td>
@@ -659,6 +674,25 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
                     <span className="text-sm font-black text-indigo-700 dark:text-indigo-300 font-mono">₹{totals.grand_total.toFixed(2)}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Remarks Overview & Quick Edit */}
+              <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[var(--text-primary)] block">
+                    Invoice Remarks / Notes
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                    Printed on invoice footer
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="No remarks entered. Type here to add terms, delivery instructions, or notes..."
+                  value={state.remarks}
+                  onChange={(e) => state.setRemarks(e.target.value)}
+                  className="w-full p-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors resize-none"
+                />
               </div>
 
               {/* Print Display Options */}

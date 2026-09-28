@@ -110,12 +110,12 @@ const purchaseItemSchema = z.object({
   hsn_sac: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
   quantity: z.coerce.number().min(0.001, "Quantity must be greater than 0"),
-  rate: z.coerce.number().min(0, "Rate must be 0 or greater"),
-  discount_percent: z.coerce.number().min(0).max(100),
-  taxable_value: z.coerce.number(),
-  gst_percent: z.coerce.number().min(0).max(100),
-  gst_amount: z.coerce.number(),
-  amount: z.coerce.number(),
+  rate: z.coerce.number().min(0, "Rate must be 0 or greater").default(0),
+  discount_percent: z.coerce.number().min(0).max(100).default(0),
+  taxable_value: z.coerce.number().default(0),
+  gst_percent: z.coerce.number().min(0).max(100).default(0),
+  gst_amount: z.coerce.number().default(0),
+  amount: z.coerce.number().default(0),
   item_type: z.enum(["fabric", "accessory", "finished_goods", "others"]).default("fabric"),
   rolls: z.array(purchaseRollSchema).optional().default([]),
 });
@@ -1014,12 +1014,50 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
 
   const onSubmit = async (values: PurchaseFormValues) => {
     try {
-      // Validate that all fabric items have Grade filled
+      // Validate items explicitly before submission
       for (let i = 0; i < values.items.length; i++) {
         const it = values.items[i];
-        if ((it.item_type || "fabric") === "fabric" && !it.grade?.trim()) {
-          toast.error(`Please enter Grade for Item #${i + 1} (e.g. Fresh / Grade A)`);
-          return;
+        const type = it.item_type || "fabric";
+        if (type === "fabric") {
+          if (!it.material_type_id) {
+            toast.error(`Please select Raw Material Type for Item #${i + 1}`);
+            return;
+          }
+          if (!it.grade?.trim()) {
+            toast.error(`Please enter Grade for Item #${i + 1} (e.g. Fresh / Grade A)`);
+            return;
+          }
+        } else if (type === "finished_goods") {
+          if (!it.design_id) {
+            toast.error(`Please select Design Code for Item #${i + 1}`);
+            return;
+          }
+          if (!it.colour_id) {
+            toast.error(`Please select Color for Item #${i + 1}`);
+            return;
+          }
+          if (!it.quantity || it.quantity <= 0) {
+            toast.error(`Please enter size breakdown quantities for Item #${i + 1}`);
+            return;
+          }
+        } else if (type === "accessory") {
+          if (!it.material_type_id) {
+            toast.error(`Please select Accessory Type for Item #${i + 1}`);
+            return;
+          }
+          if (!it.quantity || it.quantity <= 0) {
+            toast.error(`Please enter valid Quantity for Item #${i + 1}`);
+            return;
+          }
+        } else if (type === "others") {
+          if (!it.other_item_name?.trim()) {
+            toast.error(`Please enter Item / Expense Description for Item #${i + 1}`);
+            return;
+          }
+          if (!it.quantity || it.quantity <= 0) {
+            toast.error(`Please enter valid Qty for Item #${i + 1}`);
+            return;
+          }
         }
       }
 
@@ -1066,7 +1104,29 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
     } else if (errors.invoice_date) {
       toast.error("Please select the Invoice Date");
     } else if (errors.items) {
-      toast.error("Please check line items (ensure material/item selected and quantity > 0)");
+      if (Array.isArray(errors.items)) {
+        for (let i = 0; i < errors.items.length; i++) {
+          const itemErr = errors.items[i];
+          if (itemErr) {
+            for (const [field, err] of Object.entries(itemErr)) {
+              const msg = (err as any)?.message;
+              const fieldLabel =
+                field === "quantity"
+                  ? "Quantity must be greater than 0"
+                  : field === "unit"
+                  ? "Unit is required"
+                  : field === "rate"
+                  ? "Rate must be 0 or greater"
+                  : field === "rolls"
+                  ? "Roll details incomplete"
+                  : field;
+              toast.error(`Item #${i + 1}: ${msg || fieldLabel}`);
+              return;
+            }
+          }
+        }
+      }
+      toast.error("Please check line items (ensure all items have valid quantities > 0 and required fields filled)");
     } else {
       const firstKey = Object.keys(errors)[0];
       const msg = errors[firstKey]?.message || "Please fill in all required fields";
@@ -1843,23 +1903,53 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   if (checked && selectedDes?.design_colours?.length) {
                                     const allColours = selectedDes.design_colours;
                                     const currentItem = watchItems[index];
-                                    // Add remaining colours for this design with same size quantities
+                                    const total = Object.values(currentSizeQs).reduce((a, b) => Number(a) + Number(b), 0);
+                                    const rate = Number(currentItem?.rate || 0);
+                                    const disc = Number(currentItem?.discount_percent || 0);
+                                    const gstPct = Number(currentItem?.gst_percent || 0);
+                                    const taxable = Number((total * rate * (1 - disc / 100)).toFixed(2));
+                                    const gstAmt = watchGstType === "with_gst" ? Number(((taxable * gstPct) / 100).toFixed(2)) : 0;
+                                    const amt = Number((taxable + gstAmt).toFixed(2));
+
+                                    // Add or update remaining colours for this design with calculated values
                                     allColours.forEach((col: any) => {
                                       if (col.id !== currentItem.colour_id) {
-                                        const total = Object.values(currentSizeQs).reduce((a, b) => Number(a) + Number(b), 0);
-                                        append({
-                                          item_type: "finished_goods",
-                                          design_id: currentItem.design_id,
-                                          colour_id: col.id,
-                                          size_quantities: { ...currentSizeQs },
-                                          quantity: total,
-                                          rate: currentItem.rate || 0,
-                                          amount: total * (currentItem.rate || 0),
-                                          hsn_sac: currentItem.hsn_sac || "",
-                                          unit: "Pcs",
-                                          discount_percent: currentItem.discount_percent || 0,
-                                          gst_percent: currentItem.gst_percent || 0,
-                                        } as any);
+                                        const existingIdx = watchItems.findIndex(
+                                          (it, idx) => idx !== index && it.item_type === "finished_goods" && it.design_id === currentItem.design_id && it.colour_id === col.id
+                                        );
+                                        if (existingIdx >= 0) {
+                                          setValue(`items.${existingIdx}.size_quantities`, { ...currentSizeQs });
+                                          setValue(`items.${existingIdx}.quantity`, total);
+                                          setValue(`items.${existingIdx}.rate`, rate);
+                                          setValue(`items.${existingIdx}.discount_percent`, disc);
+                                          setValue(`items.${existingIdx}.gst_percent`, gstPct);
+                                          setValue(`items.${existingIdx}.taxable_value`, taxable);
+                                          setValue(`items.${existingIdx}.gst_amount`, gstAmt);
+                                          setValue(`items.${existingIdx}.amount`, amt);
+                                        } else {
+                                          append({
+                                            item_type: "finished_goods",
+                                            design_id: currentItem.design_id,
+                                            colour_id: col.id,
+                                            size_quantities: { ...currentSizeQs },
+                                            quantity: total,
+                                            rate,
+                                            unit: currentItem.unit || "Pcs",
+                                            discount_percent: disc,
+                                            taxable_value: taxable,
+                                            gst_percent: gstPct,
+                                            gst_amount: gstAmt,
+                                            amount: amt,
+                                            hsn_sac: currentItem.hsn_sac || "",
+                                            rolls: [],
+                                            grade: "Fresh",
+                                            material_type_id: "",
+                                            design_name: "",
+                                            other_item_name: "",
+                                            other_category: "office_expense",
+                                            asset_tag: "",
+                                          });
+                                        }
                                       }
                                     });
                                     toast.success(`Applied size breakdown to all ${allColours.length} colours of design`);
@@ -1870,6 +1960,22 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                   const total = Object.values(updated).reduce((a, b) => Number(a) + Number(b), 0);
                                   setValue(`items.${index}.quantity`, total);
                                   recalcItem(index);
+
+                                  // If apply_all_colors is checked, sync with other colour rows of this design
+                                  if ((watchItems[index] as any)?.apply_all_colors && selectedDes?.design_colours?.length) {
+                                    const currentItem = watchItems[index];
+                                    watchItems.forEach((otherItem, otherIdx) => {
+                                      if (
+                                        otherIdx !== index &&
+                                        otherItem.item_type === "finished_goods" &&
+                                        otherItem.design_id === currentItem.design_id
+                                      ) {
+                                        setValue(`items.${otherIdx}.size_quantities`, { ...updated });
+                                        setValue(`items.${otherIdx}.quantity`, total);
+                                        recalcItem(otherIdx);
+                                      }
+                                    });
+                                  }
                                 }}
                               />
                             );
@@ -1955,26 +2061,25 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                                     />
                                   </div>
 
-                                  {/* Weight Unit */}
-                                  <div className="md:col-span-1 space-y-1">
-                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Wt Unit</label>
-                                    <select
-                                      className="w-full h-9 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-xs font-bold cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
-                                      {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
-                                    >
-                                      <option value="gsm">GSM</option>
-                                      <option value="oz">Oz</option>
-                                    </select>
-                                  </div>
-
-                                  {/* Weight Value */}
-                                  <div className="md:col-span-2 space-y-1">
-                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Wt Value</label>
-                                    <NumericInput
-                                      placeholder="Value"
-                                      className="w-full h-9 px-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
-                                      {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
-                                    />
+                                  {/* Fabric Weight (Value + Unit) */}
+                                  <div className="md:col-span-3 space-y-1">
+                                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                                      Fabric Weight
+                                    </label>
+                                    <div className="flex h-9 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] focus-within:ring-1 focus-within:ring-[var(--input-focus)] focus-within:border-transparent transition-all overflow-hidden">
+                                      <NumericInput
+                                        placeholder="e.g. 350"
+                                        className="flex-1 h-full px-2.5 bg-transparent border-none text-[var(--text-primary)] placeholder:text-[var(--text-faint)] text-xs text-right font-mono font-semibold focus:outline-none shadow-none"
+                                        {...register(`items.${index}.rolls.${rollIndex}.weight_value` as const)}
+                                      />
+                                      <select
+                                        className="h-full px-2.5 bg-[var(--page-bg)] border-l border-[var(--input-border)] text-[var(--text-primary)] text-xs font-bold cursor-pointer focus:outline-none uppercase shrink-0 min-w-[70px] select-none"
+                                        {...register(`items.${index}.rolls.${rollIndex}.weight_unit` as const)}
+                                      >
+                                        <option value="gsm">GSM</option>
+                                        <option value="oz">Oz</option>
+                                      </select>
+                                    </div>
                                   </div>
 
                                   {/* Remove Roll Button */}

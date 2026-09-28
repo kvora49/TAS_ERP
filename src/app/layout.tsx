@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F1F5F9" },
+    { media: "(prefers-color-scheme: light)", color: "#F7F8FA" },
     { media: "(prefers-color-scheme: dark)", color: "#0F172A" },
   ],
 };
@@ -26,7 +26,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "TAS ERP - Garment Manufacturing Intelligence Platform",
   description: "Garment Manufacturing Intelligence Platform",
-  manifest: "/manifest.json",
   icons: {
     icon: "/icon.png",
     shortcut: "/favicon.ico",
@@ -50,6 +49,18 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        <link
+          rel="manifest"
+          href="/manifest-light.json"
+          media="(prefers-color-scheme: light)"
+          data-pwa-manifest="light"
+        />
+        <link
+          rel="manifest"
+          href="/manifest-dark.json"
+          media="(prefers-color-scheme: dark)"
+          data-pwa-manifest="dark"
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -70,6 +81,14 @@ export default function RootLayout({
                   document.documentElement.setAttribute('data-theme', resolved);
                   if (resolved === 'dark') {
                     document.documentElement.classList.add('dark');
+                  }
+
+                  // Select the theme-specific PWA manifest before the app renders.
+                  var manifestLinks = document.querySelectorAll('link[data-pwa-manifest]');
+                  for (var i = 0; i < manifestLinks.length; i++) {
+                    var link = manifestLinks[i];
+                    var isMatchingTheme = link.getAttribute('data-pwa-manifest') === resolved;
+                    link.setAttribute('media', isMatchingTheme ? 'all' : 'not all');
                   }
 
                   // Synchronous PWA splash check to prevent content flash before animation

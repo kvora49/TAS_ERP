@@ -38,6 +38,8 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PakkaBillTemplate } from "@/components/sales/PakkaBillTemplate";
 import { KachaBillTemplate } from "@/components/sales/KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+import { GenerateEInvoiceButton } from "@/components/sales/GenerateEInvoiceButton";
+import { EInvoiceSuccessCard } from "@/components/sales/EInvoiceSuccessCard";
 
 interface BillItem {
   id: string;
@@ -131,6 +133,18 @@ interface SaleBill {
 
   status: "draft" | "active" | "cancelled";
   is_temporary?: boolean;
+  irn?: string | null;
+  irn_status?: "not_applicable" | "pending" | "registered" | "cancelled" | "failed" | null;
+  ack_no?: string | null;
+  ack_date?: string | null;
+  signed_qr_data?: string | null;
+  signed_invoice_json?: any;
+  irn_cancel_reason?: string | null;
+  irn_cancelled_at?: string | null;
+  ewb_no?: string | null;
+  ewb_date?: string | null;
+  ewb_valid_till?: string | null;
+  locked_for_edit?: boolean;
   party: {
     name: string;
     company_name: string | null;
@@ -362,13 +376,33 @@ export default function SaleBillDetailPage() {
             ><CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span>Convert</span></button>
           )}
 
+          {/* Generate E-Invoice Button for qualifying Pakka Bills */}
+          {bill.bill_type === "pakka" && bill.status !== "cancelled" && (
+            <GenerateEInvoiceButton
+              billId={bill.id}
+              billType={bill.bill_type}
+              irnStatus={bill.irn_status}
+              onSuccess={refetch}
+            />
+          )}
+
           {bill.status !== "cancelled" && (
-            <Link href={`/sales/bills/${bill.id}/edit`}
-              className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <Edit2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>Edit</span>
-            </Link>
+            bill.locked_for_edit ? (
+              <div
+                className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-[var(--text-faint)] bg-[var(--page-bg)] border border-[var(--border)] flex items-center gap-1.5 cursor-not-allowed select-none opacity-80"
+                title="This invoice is registered with an IRN and locked against modifications."
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-500" />
+                <span>Locked</span>
+              </div>
+            ) : (
+              <Link href={`/sales/bills/${bill.id}/edit`}
+                className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Edit2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Edit</span>
+              </Link>
+            )
           )}
 
           <button onClick={handleNativeShare}
@@ -388,12 +422,18 @@ export default function SaleBillDetailPage() {
           ><Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">Print</span></button>
 
           {bill.status !== "cancelled" && (
-            <button disabled={cancelling} onClick={handleCancelBill}
+            <button
+              disabled={cancelling || bill.irn_status === "registered"}
+              onClick={handleCancelBill}
               className="h-8 sm:h-9 px-2.5 sm:px-3.5 border border-rose-500/30 rounded-lg text-xs font-semibold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              title={bill.irn_status === "registered" ? "Cancel government IRN first before cancelling bill" : "Cancel bill"}
             ><Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /><span className="hidden sm:inline">Cancel</span></button>
           )}
         </div>
       </div>
+
+      {/* ── E-INVOICE REGISTRATION & QR CODE CARD ── */}
+      <EInvoiceSuccessCard bill={bill} onRefetch={refetch} />
 
       {/* ── HERO SUMMARY CARD (Mobile & Desktop) ── */}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-sm)] space-y-3">

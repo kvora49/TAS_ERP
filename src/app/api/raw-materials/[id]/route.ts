@@ -34,6 +34,24 @@ export async function PUT(
       lastKnownUpdatedAt: body.updated_at,
     });
 
+    // HSN ↔ GST Rates sync: enrich gst_rates.description with material category/name when empty
+    if (body.hsn_code && body.hsn_code.trim()) {
+      const { data: existingRate } = await supabase
+        .from("gst_rates")
+        .select("id, description")
+        .eq("business_id", businessId)
+        .ilike("hsn_code", body.hsn_code.trim())
+        .maybeSingle();
+
+      if (existingRate && (!existingRate.description || existingRate.description.trim() === "")) {
+        const autoDescription = [body.category, body.name].filter(Boolean).join(" – ");
+        await supabase
+          .from("gst_rates")
+          .update({ description: autoDescription })
+          .eq("id", existingRate.id);
+      }
+    }
+
     return NextResponse.json({ materialType });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "An unexpected error occurred";

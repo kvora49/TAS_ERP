@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { validateGSTINInput } from "@/lib/gst-utils";
 
 export const partySchema = z.object({
   name: z.string().min(2, "Party Name must be at least 2 characters"),
@@ -9,7 +10,18 @@ export const partySchema = z.object({
   company_name: z.string().optional(),
   email: z.string().email("Invalid email format").or(z.literal("")),
   website: z.string().url("Invalid website URL").or(z.literal("")),
-  gstin: z.string().optional(),
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .optional()
+    .refine((val) => {
+      if (!val || val === "URP") return true;
+      const res = validateGSTINInput(val);
+      return res.isValid;
+    }, {
+      message: "GSTIN must be exactly 15 characters (e.g. 24ABCDE1234F1Z5) with a valid state code",
+    }),
   pan: z.string().optional(),
   aadhar: z.string().optional(),
   msme_number: z.string().optional(),

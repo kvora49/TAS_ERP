@@ -14,9 +14,18 @@ export interface CompanyProfileResponse {
     financial_year_start: string;
     currency: string;
     updated_at: string;
+    einvoice_applicability?: "mandatory" | "voluntary_enabled" | "not_enabled";
+    aato_bracket?: "below_5cr" | "5cr_to_10cr" | "10cr_and_above";
+    irp_client_id?: string | null;
+    irp_onboarding_status?: string | null;
+    irp_token_expiry?: string | null;
   } | null;
   brand?: any;
   brandConfig?: any;
+  einvoiceAdapter?: {
+    providerName: string;
+    isLive: boolean;
+  };
 }
 
 export function useCompanyProfile() {

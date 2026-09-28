@@ -1,4 +1,5 @@
 import React from "react";
+import { validateGSTINInput } from "@/lib/gst-utils";
 
 interface CustomerSectionProps {
   state: any;
@@ -8,6 +9,9 @@ interface CustomerSectionProps {
 
 export function CustomerSection({ state, parties, salesmen }: CustomerSectionProps) {
   const selectedParty = parties.find((x) => x.id === state.partyId);
+  const partyGstinCheck = selectedParty?.gstin && selectedParty.gstin !== "URP" 
+    ? validateGSTINInput(selectedParty.gstin) 
+    : null;
 
   const calculateDueDate = (baseDateStr: string, terms: string) => {
     if (!baseDateStr) return "";
@@ -120,7 +124,15 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
                 <span className="text-[var(--text-muted)]">📞 {selectedParty.phone}</span>
               )}
               {selectedParty.gstin && selectedParty.gstin !== "URP" && (
-                <span className="font-mono text-[var(--text-muted)]">GSTIN: {selectedParty.gstin}</span>
+                partyGstinCheck && !partyGstinCheck.isValid ? (
+                  <span className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 font-bold text-[11px] flex items-center gap-1">
+                    ⚠️ Invalid Party GSTIN ({selectedParty.gstin.length}/15 chars): {partyGstinCheck.errorMessage}
+                  </span>
+                ) : (
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25">
+                    ✓ GSTIN: {selectedParty.gstin} {partyGstinCheck?.stateName ? `(${partyGstinCheck.stateName})` : ""}
+                  </span>
+                )
               )}
               {Number(selectedParty.credit_limit || 0) > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-[var(--input-bg)] border border-[var(--border)] font-bold text-[var(--text-secondary)] text-[11px]">
@@ -252,6 +264,23 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Invoice Remarks / Notes */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            Invoice Remarks / Notes
+          </label>
+          <span className="text-[10px] text-[var(--text-faint)]">Optional • Printed on invoice</span>
+        </div>
+        <textarea
+          rows={2}
+          placeholder="e.g. Special delivery instructions, payment conditions, or buyer notes..."
+          value={state.remarks}
+          onChange={(e) => state.setRemarks(e.target.value)}
+          className={`${inputClass} w-full p-3 h-auto resize-none`}
+        />
       </div>
     </div>
   );

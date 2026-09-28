@@ -35,6 +35,7 @@ async function resolveAuthAndClient(request: Request, body?: any) {
  * Read-only watchdog health inspection.
  */
 export async function GET(request: Request) {
+  const __startTime = performance.now();
   const { supabase, businessId } = await resolveAuthAndClient(request);
   if (!businessId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,6 +49,8 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
+  } finally {
+    console.log(`[PERF_TIMING] GET /api/cron/stock-integrity - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }
 
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
  * Full reconciliation + watchdog fix + audit log recording.
  */
 export async function POST(request: Request) {
+  const __startTime = performance.now();
   const body = await request.json().catch(() => ({}));
   const { supabase, businessId } = await resolveAuthAndClient(request, body);
   if (!businessId) {
@@ -119,5 +123,7 @@ export async function POST(request: Request) {
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
+  } finally {
+    console.log(`[PERF_TIMING] POST /api/cron/stock-integrity - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
+  const __startTime = performance.now();
   const supabase = createClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -379,5 +380,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("[reports/financial/balance]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    console.log(`[PERF_TIMING] GET /api/reports/financial/balance - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }

@@ -132,6 +132,8 @@ export async function POST(request: Request) {
       custom_field_values,
       attachments,
       accessories, // optional: [{ lot_accessory_id, issued_qty }]
+      worker_mode,
+      worker_allocations,
     } = body;
 
     if (!lot_id || !lot_stage_id || !entry_date || qty_in === undefined || qty_out === undefined) {
@@ -225,78 +227,80 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = createAdminClient();
 
-    // Safely resolve worker_id to a valid workers.id UUID or null to prevent FK constraint errors
-    let finalWorkerId: string | null = null;
-    let worker_type: string | null = null;
+    // Safely resolve worker helper
+    const resolveWorker = async (wId: string | null | undefined): Promise<{ finalWorkerId: string | null; worker_type: string | null }> => {
+      let finalWorkerId: string | null = null;
+      let worker_type: string | null = null;
 
-    if (worker_id && typeof worker_id === "string" && worker_id.trim() !== "") {
-      // 1. Try finding worker in workers table by id or worker_id
-      let matchedWorker: any = null;
+      if (wId && typeof wId === "string" && wId.trim() !== "") {
+        let matchedWorker: any = null;
 
-      const { data: wRecord } = await supabaseAdmin
-        .from("workers")
-        .select("id, worker_id, name, type, phone, address, remarks, is_active")
-        .eq("id", worker_id)
-        .maybeSingle();
-
-      if (wRecord) {
-        matchedWorker = wRecord;
-      } else {
-        const { data: wCodeRecord } = await supabaseAdmin
+        const { data: wRecord } = await supabaseAdmin
           .from("workers")
           .select("id, worker_id, name, type, phone, address, remarks, is_active")
-          .eq("worker_id", worker_id)
+          .eq("id", wId)
           .maybeSingle();
 
-        if (wCodeRecord) {
-          matchedWorker = wCodeRecord;
+        if (wRecord) {
+          matchedWorker = wRecord;
         } else {
-          // 2. Query parties table
-          const { data: partyWorker } = await supabaseAdmin
-            .from("parties")
-            .select("id, code, name, type, phone, billing_address_line1, remarks, is_active")
-            .eq("id", worker_id)
+          const { data: wCodeRecord } = await supabaseAdmin
+            .from("workers")
+            .select("id, worker_id, name, type, phone, address, remarks, is_active")
+            .eq("worker_id", wId)
             .maybeSingle();
 
-          if (partyWorker) {
-            matchedWorker = {
-              id: partyWorker.id,
-              worker_id: partyWorker.code,
-              name: partyWorker.name,
-              type: Array.isArray(partyWorker.type) ? partyWorker.type[0] : "job_worker",
-              phone: partyWorker.phone,
-              address: partyWorker.billing_address_line1,
-              remarks: partyWorker.remarks,
-              is_active: partyWorker.is_active !== false,
-            };
+          if (wCodeRecord) {
+            matchedWorker = wCodeRecord;
+          } else {
+            const { data: partyWorker } = await supabaseAdmin
+              .from("parties")
+              .select("id, code, name, type, phone, billing_address_line1, remarks, is_active")
+              .eq("id", wId)
+              .maybeSingle();
+
+            if (partyWorker) {
+              matchedWorker = {
+                id: partyWorker.id,
+                worker_id: partyWorker.code,
+                name: partyWorker.name,
+                type: Array.isArray(partyWorker.type) ? partyWorker.type[0] : "job_worker",
+                phone: partyWorker.phone,
+                address: partyWorker.billing_address_line1,
+                remarks: partyWorker.remarks,
+                is_active: partyWorker.is_active !== false,
+              };
+            }
           }
         }
+
+        if (matchedWorker) {
+          finalWorkerId = matchedWorker.id;
+          worker_type = (matchedWorker.type === "permanent" || matchedWorker.type === "in_house") ? "permanent" : "job_worker";
+          const uniqueCode = `${matchedWorker.worker_id || "WRK"}_${matchedWorker.id.substring(0, 6)}`;
+
+          try {
+            await supabaseAdmin.from("workers").upsert(
+              {
+                id: matchedWorker.id,
+                business_id: businessId,
+                name: matchedWorker.name || "Worker",
+                worker_id: uniqueCode,
+                type: worker_type,
+                phone: matchedWorker.phone || null,
+                address: matchedWorker.address || null,
+                remarks: matchedWorker.remarks || null,
+                is_active: matchedWorker.is_active !== false,
+                created_by: userId,
+              },
+              { onConflict: "id" }
+            );
+          } catch (_ignore) {}
+        }
       }
-
-      if (matchedWorker) {
-        finalWorkerId = matchedWorker.id;
-        worker_type = (matchedWorker.type === "permanent" || matchedWorker.type === "in_house") ? "permanent" : "job_worker";
-        const uniqueCode = `${matchedWorker.worker_id || 'WRK'}_${matchedWorker.id.substring(0, 6)}`;
-
-        // 1. Ensure worker exists in `workers` table
-        try {
-          await supabaseAdmin.from("workers").upsert({
-            id: matchedWorker.id,
-            business_id: businessId,
-            name: matchedWorker.name || "Worker",
-            worker_id: uniqueCode,
-            type: worker_type,
-            phone: matchedWorker.phone || null,
-            address: matchedWorker.address || null,
-            remarks: matchedWorker.remarks || null,
-            is_active: matchedWorker.is_active !== false,
-            created_by: userId,
-          }, { onConflict: "id" });
-        } catch (_ignore) {}
-
-
-      }
+      return { finalWorkerId, worker_type };
     }
+
     // Validate required custom_fields against master production_stages definition if present
     if (lot_stage_id) {
       const { data: lotStageRecord } = await supabase
@@ -329,43 +333,131 @@ export async function POST(request: Request) {
       }
     }
 
-    // 1. Create the Stage Entry using supabaseAdmin to bypass RLS policies
-    const { data: entry, error: entryError } = await supabaseAdmin
-      .from("stage_entries")
-      .insert({
-        business_id: businessId,
-        entry_number: entryNumber,
-        lot_id,
-        lot_stage_id,
-        entry_date,
-        shift: shift || "day",
-        qty_in: parseInt(qty_in, 10),
-        qty_out: parseInt(qty_out, 10),
-        wastage_qty: wQty,
-        wastage_percent: wPercent,
-        qty_balance: qtyBalance,
-        job_work_type: job_work_type || null,
-        job_work_rate: jRate,
-        total_job_work_amount: totalJobWorkAmount,
-        payment_type: payment_type || "piece_rate",
-        worker_id: finalWorkerId,
-        worker_type,
-        no_of_workers: parseInt(no_of_workers, 10) || 1,
-        total_labor_cost: totalLaborCost,
-        remarks: remarks || null,
-        custom_field_values: {
-          ...(custom_field_values || {}),
-          ...(colour_id ? { colour_id } : {}),
-        },
-        attachments: attachments || [],
-        status: "completed", // once logged, it is completed
-        created_by: userId,
-      })
-      .select("*")
-      .single();
+    // 1. Create the Stage Entry (Single or Multi-Worker Team Split)
+    let entry: any = null;
+    let primaryWorkerId: string | null = null;
+    const createdEntries: any[] = [];
 
-    if (entryError) {
-      return NextResponse.json({ error: entryError.message }, { status: 400 });
+    const isMultiWorker =
+      worker_mode === "multiple" &&
+      Array.isArray(worker_allocations) &&
+      worker_allocations.length > 0;
+
+    if (isMultiWorker) {
+      const batchGroupId = `GRP-${Date.now()}`;
+      const parsedQtyIn = parseInt(qty_in, 10) || 0;
+      const parsedQtyOut = parseInt(qty_out, 10) || 0;
+
+      for (let idx = 0; idx < worker_allocations.length; idx++) {
+        const wAlloc = worker_allocations[idx];
+        const subEntryNumber = `${entryNumber}-${String.fromCharCode(65 + idx)}`;
+        const wPieces = parseInt(wAlloc.qty_out, 10) || 0;
+        const wRate = parseFloat(wAlloc.rate) || 0;
+        const wAmount = Number((wPieces * wRate).toFixed(2));
+        const wQtyIn = parsedQtyOut > 0 ? Math.round(parsedQtyIn * (wPieces / parsedQtyOut)) : 0;
+        const isFirst = idx === 0;
+
+        const { finalWorkerId: subWorkerId, worker_type: subWorkerType } = await resolveWorker(wAlloc.worker_id);
+        if (isFirst) {
+          primaryWorkerId = subWorkerId;
+        }
+
+        const subRemarks = remarks
+          ? `${remarks} · [Team: ${wAlloc.name || "Worker"} ${wPieces}/${parsedQtyOut} Pcs]`
+          : `[Team Split: ${wAlloc.name || "Worker"} ${wPieces}/${parsedQtyOut} Pcs]`;
+
+        const { data: subEntry, error: subError } = await supabaseAdmin
+          .from("stage_entries")
+          .insert({
+            business_id: businessId,
+            entry_number: subEntryNumber,
+            lot_id,
+            lot_stage_id,
+            entry_date,
+            shift: shift || "day",
+            qty_in: wQtyIn,
+            qty_out: wPieces,
+            wastage_qty: isFirst ? wQty : 0,
+            wastage_percent: isFirst ? wPercent : 0,
+            qty_balance: wQtyIn - wPieces - (isFirst ? wQty : 0),
+            job_work_type: job_work_type || null,
+            job_work_rate: wRate,
+            total_job_work_amount: wAmount,
+            payment_type: payment_type || "piece_rate",
+            worker_id: subWorkerId,
+            worker_type: subWorkerType,
+            no_of_workers: worker_allocations.length,
+            total_labor_cost: wAmount,
+            remarks: subRemarks,
+            custom_field_values: {
+              ...(custom_field_values || {}),
+              ...(colour_id ? { colour_id } : {}),
+              batch_group_id: batchGroupId,
+              batch_base_number: entryNumber,
+              team_worker_count: worker_allocations.length,
+              team_total_qty: parsedQtyOut,
+              worker_piece_share: wPieces,
+            },
+            attachments: attachments || [],
+            status: "completed",
+            created_by: userId,
+          })
+          .select("*")
+          .single();
+
+        if (subError) {
+          return NextResponse.json({ error: subError.message }, { status: 400 });
+        }
+
+        createdEntries.push(subEntry);
+        if (isFirst) {
+          entry = subEntry;
+        }
+      }
+    } else {
+      const { finalWorkerId, worker_type } = await resolveWorker(worker_id);
+      primaryWorkerId = finalWorkerId;
+
+      const { data: singleEntry, error: entryError } = await supabaseAdmin
+        .from("stage_entries")
+        .insert({
+          business_id: businessId,
+          entry_number: entryNumber,
+          lot_id,
+          lot_stage_id,
+          entry_date,
+          shift: shift || "day",
+          qty_in: parseInt(qty_in, 10),
+          qty_out: parseInt(qty_out, 10),
+          wastage_qty: wQty,
+          wastage_percent: wPercent,
+          qty_balance: qtyBalance,
+          job_work_type: job_work_type || null,
+          job_work_rate: jRate,
+          total_job_work_amount: totalJobWorkAmount,
+          payment_type: payment_type || "piece_rate",
+          worker_id: finalWorkerId,
+          worker_type,
+          no_of_workers: parseInt(no_of_workers, 10) || 1,
+          total_labor_cost: totalLaborCost,
+          remarks: remarks || null,
+          custom_field_values: {
+            ...(custom_field_values || {}),
+            ...(colour_id ? { colour_id } : {}),
+          },
+          attachments: attachments || [],
+          status: "completed",
+          created_by: userId,
+        })
+        .select("*")
+        .single();
+
+      if (entryError) {
+        return NextResponse.json({ error: entryError.message }, { status: 400 });
+      }
+
+      entry = singleEntry;
+      createdEntries.push(singleEntry);
     }
 
     // 1b. Process wastage size allocations (Approach 2) if wastage_qty > 0
@@ -430,7 +522,7 @@ export async function POST(request: Request) {
               size_quantities: flatSizes,
               colour_id: targetColourId,
               detected_at_stage_id: lot_stage_id,
-              responsible_worker_id: finalWorkerId || null,
+              responsible_worker_id: primaryWorkerId || null,
               responsible_stage_id: lot_stage_id,
               status: "written_off",
               description: `Stage wastage of ${colWastageQty} pcs logged during stage entry ${entryNumber}`,
@@ -645,7 +737,7 @@ export async function POST(request: Request) {
           stage_entry_id: entry.id,
           lot_accessory_id,
           lot_id,
-          worker_id: finalWorkerId,
+          worker_id: entry?.worker_id || null,
           item_name: lotAcc.item_name,
           unit: lotAcc.unit,
           godown_id: lotAcc.godown_id,
@@ -682,7 +774,12 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ entry, ...(reworkWarning ? { warning: reworkWarning } : {}) });
+    return NextResponse.json({
+      entry,
+      entries: createdEntries,
+      batch_entry_number: isMultiWorker ? entryNumber : undefined,
+      ...(reworkWarning ? { warning: reworkWarning } : {}),
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

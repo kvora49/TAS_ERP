@@ -112,7 +112,7 @@ export const SETTINGS_NAV: NavItem[] = [
   { label: "Audit Logs", href: "/settings/audit-logs" },
   { label: "Backup & Restore", href: "/settings/backup-restore" },
   { label: "Import Data", href: "/settings/import" },
-  { label: "Bill Builder", href: "/settings/bill-builder" },
+  { label: "Bill & Invoice Settings", href: "/settings/bill-invoice-settings" },
 ];
 
 export const REPORTS_NAV: NavItem[] = [

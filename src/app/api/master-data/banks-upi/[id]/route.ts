@@ -249,6 +249,19 @@ export async function PUT(
         .eq("business_id", businessId);
     }
 
+    // Fetch existing account to compute opening balance difference
+    const { data: existingAccount } = await supabase
+      .from("bank_accounts")
+      .select("opening_balance, current_balance")
+      .eq("id", accountId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    const oldOpening = Number(existingAccount?.opening_balance || 0);
+    const newOpening = Number(opening_balance || 0);
+    const openingDiff = newOpening - oldOpening;
+    const newCurrentBalance = Number(existingAccount?.current_balance || 0) + openingDiff;
+
     // Optimistic locking update query
     const { data: updatedAccount, error } = await supabase
       .from("bank_accounts")
@@ -264,7 +277,8 @@ export async function PUT(
         upi_id: type === "upi" ? upi_id : null,
         upi_provider: type === "upi" ? upi_provider : null,
         is_default: !!is_default,
-        opening_balance: Number(opening_balance || 0),
+        opening_balance: newOpening,
+        current_balance: newCurrentBalance,
         is_active: is_active !== false,
       })
       .eq("id", accountId)

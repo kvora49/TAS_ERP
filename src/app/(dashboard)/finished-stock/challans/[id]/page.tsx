@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,11 +16,14 @@ import {
   User,
   ArrowDownLeft,
   ArrowUpRight,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
 import PageState from "@/components/shared/PageState";
 import AsyncButton from "@/components/shared/AsyncButton";
+import { Modal } from "@/components/shared/Modal";
+import { format } from "date-fns";
 
 interface ChallanItem {
   id: string;
@@ -42,6 +45,8 @@ interface Challan {
   transporter?: string;
   lr_awb_no?: string;
   eway_bill_no?: string;
+  ewb_date?: string;
+  ewb_valid_till?: string;
   total_quantity: number;
   total_value: number;
   status: "pending" | "in_transit" | "dispatched" | "received" | "completed" | "cancelled";
@@ -102,6 +107,39 @@ export default function ChallanDetailPage({
     },
     onError: (err: any) => {
       toast.error(err.message || "Could not update status");
+    },
+  });
+
+  const [isEwbModalOpen, setIsEwbModalOpen] = useState(false);
+  const [vehicleNo, setVehicleNo] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [transporterId, setTransporterId] = useState("");
+  const [distanceKm, setDistanceKm] = useState(50);
+
+  const generateEwbMutation = useMutation({
+    mutationFn: async (payload: {
+      vehicle_no?: string;
+      transporter_name?: string;
+      transporter_id?: string;
+      distance_km?: number;
+    }) => {
+      const res = await fetch(`/api/finished-stock/challans/${id}/eway/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to generate E-Way bill");
+      return resData;
+    },
+    onSuccess: (resData) => {
+      toast.success(resData.message || `E-Way Bill #${resData.ewbNo} generated!`);
+      queryClient.invalidateQueries({ queryKey: ["stock-challan", id] });
+      refetch();
+      setIsEwbModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to generate E-Way bill");
     },
   });
 
@@ -193,21 +231,49 @@ export default function ChallanDetailPage({
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/finished-stock/operations?tab=challans"
-          className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer text-[var(--text-muted)] active:scale-95"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">
-            {challan?.challan_number || "Challan Detail"}
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--text-muted)] truncate">
-            Reference: <strong className="text-[var(--text-primary)]">{challan?.reference_no || "N/A"}</strong>
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/finished-stock/operations?tab=challans"
+            className="p-2 bg-[var(--card-bg)] hover:bg-[var(--table-row-hover)] border border-[var(--border)] rounded-xl transition-all cursor-pointer text-[var(--text-muted)] active:scale-95"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">
+              {challan?.challan_number || "Challan Detail"}
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] truncate">
+              Reference: <strong className="text-[var(--text-primary)]">{challan?.reference_no || "N/A"}</strong>
+            </p>
+          </div>
         </div>
+
+        {/* E-Way Bill Action / Badge */}
+        {challan && challan.challan_type === "outward" && (
+          <div className="flex items-center gap-2 shrink-0">
+            {challan.eway_bill_no ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-xs">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>E-Way Bill: {challan.eway_bill_no}</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setVehicleNo(challan.transporter || "");
+                  setTransporterName(challan.transporter || "Road Transport");
+                  setIsEwbModalOpen(true);
+                }}
+                disabled={["cancelled"].includes(challan.status)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl bg-[var(--primary)] hover:opacity-90 text-white shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Truck className="h-4 w-4" />
+                <span>Generate E-Way Bill</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <PageState
@@ -274,8 +340,58 @@ export default function ChallanDetailPage({
                     <p className="font-bold text-[var(--text-primary)] font-mono">{challan.lr_awb_no || "None Listed"}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-[var(--text-muted)] mb-0.5">E-Way Bill Number:</p>
-                    <p className="font-bold text-[var(--text-primary)] font-mono">{challan.eway_bill_no || "None Listed"}</p>
+                    <p className="text-[var(--text-muted)] mb-1">E-Way Bill Details:</p>
+                    {challan.eway_bill_no ? (
+                      <div className="bg-[var(--page-bg)] border border-emerald-500/30 rounded-xl p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                            {challan.eway_bill_no}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(challan.eway_bill_no || "");
+                              toast.success("E-Way Bill Number copied to clipboard");
+                            }}
+                            className="p-1 rounded-md hover:bg-[var(--table-row-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                            title="Copy E-Way Bill Number"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-[var(--border-light)] text-[var(--text-muted)]">
+                          <div>
+                            <span>Generated: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">
+                              {challan.ewb_date ? format(new Date(challan.ewb_date), "dd MMM yyyy, hh:mm a") : "—"}
+                            </span>
+                          </div>
+                          <div>
+                            <span>Valid Till: </span>
+                            <span className="font-semibold text-[var(--text-primary)]">
+                              {challan.ewb_valid_till ? format(new Date(challan.ewb_valid_till), "dd MMM yyyy, hh:mm a") : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="font-medium text-[var(--text-faint)]">Not generated yet</p>
+                        {challan.challan_type === "outward" && !["cancelled"].includes(challan.status) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVehicleNo(challan.transporter || "");
+                              setTransporterName(challan.transporter || "Road Transport");
+                              setIsEwbModalOpen(true);
+                            }}
+                            className="text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer"
+                          >
+                            + Generate Now
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -489,6 +605,120 @@ export default function ChallanDetailPage({
           </div>
         )}
       </PageState>
+
+      {/* Generate E-Way Bill Modal */}
+      <Modal
+        open={isEwbModalOpen}
+        onOpenChange={setIsEwbModalOpen}
+        title="Generate E-Way Bill (NIC / IRIS Portal)"
+        description={`Generate official government E-Way Bill for outward delivery challan #${challan?.challan_number}`}
+        maxWidth="max-w-lg"
+      >
+        <div className="space-y-4 pt-2 text-left">
+          <div className="bg-[var(--page-bg)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text-muted)] flex items-center justify-between">
+            <span>
+              Consignee:{" "}
+              <strong className="text-[var(--text-primary)]">
+                {challan?.to_party?.company_name || challan?.to_party?.name || "Recipient"}
+              </strong>
+            </span>
+            <span>
+              Total Value:{" "}
+              <strong className="text-emerald-500 font-mono">
+                {formatCurrency(challan?.total_value || 0)}
+              </strong>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-primary)] block mb-1">
+                Vehicle Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={vehicleNo}
+                onChange={(e) => setVehicleNo(e.target.value.toUpperCase())}
+                placeholder="e.g. MH01AB1234"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors uppercase font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-primary)] block mb-1">
+                Transporter Name
+              </label>
+              <input
+                type="text"
+                value={transporterName}
+                onChange={(e) => setTransporterName(e.target.value)}
+                placeholder="e.g. VRL Logistics"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-primary)] block mb-1">
+                Transporter ID / GSTIN
+              </label>
+              <input
+                type="text"
+                value={transporterId}
+                onChange={(e) => setTransporterId(e.target.value.toUpperCase())}
+                placeholder="Transporter GSTIN"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors uppercase font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-primary)] block mb-1">
+                Approx. Distance (KM) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={distanceKm}
+                onChange={(e) => setDistanceKm(Number(e.target.value))}
+                min={1}
+                max={4000}
+                placeholder="50"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors font-mono"
+              />
+            </div>
+          </div>
+
+          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Note: As per GST E-Way Bill regulations, movement of goods exceeding ₹50,000 requires Part A &amp; Part B generation before transit begins.
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-light)]">
+            <button
+              type="button"
+              onClick={() => setIsEwbModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--table-row-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <AsyncButton
+              onClick={async () => {
+                if (!vehicleNo.trim()) {
+                  toast.error("Please enter a vehicle number for Part-B transit.");
+                  return;
+                }
+                await generateEwbMutation.mutateAsync({
+                  vehicle_no: vehicleNo.trim(),
+                  transporter_name: transporterName.trim(),
+                  transporter_id: transporterId.trim() || undefined,
+                  distance_km: distanceKm || 50,
+                });
+              }}
+              variant="primary"
+              className="text-xs font-bold"
+            >
+              Generate E-Way Bill
+            </AsyncButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { MobileFilterSheet, MobileFilterField } from "@/components/shared/MobileFilterSheet";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { CommandPalette } from "@/components/shared/CommandPalette";
+import { useLogout } from "@/hooks/useLogout";
 
 // Header component with collapsible sidebar support
 
@@ -74,6 +75,11 @@ const ROUTE_LABELS: Record<string, string> = {
   "banks-upi": "Banks & UPI",
   "production-stages": "Production Stages",
   templates: "Workflow Templates",
+  finance: "Finance",
+  cheques: "Cheques / PDC",
+  "bill-invoice-settings": "Bill & Invoice Settings",
+  "bill-builder": "Bill & Invoice Settings",
+  "einvoice-operations": "E-Invoice Operations",
 };
 
 export default function Header() {
@@ -112,13 +118,7 @@ export default function Header() {
     fetchBrands();
   }, [user, user?.businessId]);
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    setUser(null);
-    toast.success("Logged out");
-    window.location.href = "/login";
-  };
+  const { logout: handleLogout } = useLogout();
 
   const getBreadcrumbs = () => {
     if (!pathname) return ["Dashboard"];

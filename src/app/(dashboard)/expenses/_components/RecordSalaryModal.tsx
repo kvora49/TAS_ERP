@@ -12,7 +12,7 @@ const MONTHS = [
 ];
 
 interface Worker { id: string; name: string }
-interface BankAccount { id: string; account_name: string; bank_name: string }
+interface BankAccount { id: string; name?: string; account_name?: string; bank_name?: string; type?: string; account_category?: string }
 
 interface RecordSalaryModalProps {
   open: boolean;
@@ -89,37 +89,61 @@ export default function RecordSalaryModal({ open, onOpenChange }: RecordSalaryMo
 
   const netSalary = Number(baseSalary) + Number(allowances || 0) - Number(deductions || 0);
 
+  const isCash = paymentMode === "cash";
+  const isCheque = paymentMode === "cheque";
+  const isUpi = paymentMode === "upi";
+  const isBankTransfer = paymentMode === "bank_transfer";
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title="Record Worker Salary"
-      maxWidth="max-w-lg"
+      title="Record Worker Salary & Payroll"
+      description="Calculate net salary with allowances and deductions, and disburse via cash, bank transfer, or cheque."
+      maxWidth="max-w-2xl"
     >
-      <div className="space-y-4 text-xs font-semibold">
-        {/* Select Worker */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[var(--text-muted)]">Select Worker *</label>
-          <select
-            value={workerId}
-            onChange={(e) => setWorkerId(e.target.value)}
-            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
-          >
-            <option value="">Select Worker</option>
-            {workers.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
+      <div className="space-y-5 pt-1 text-xs font-semibold">
+        {/* Row 1: Worker + Payment Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Select Worker *
+            </label>
+            <select
+              value={workerId}
+              onChange={(e) => setWorkerId(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
+            >
+              <option value="">Select Worker</option>
+              {workers.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Disbursement Date *
+            </label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors"
+            />
+          </div>
         </div>
 
-        {/* Salary Month & Year */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Row 2: Salary Month & Year */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Salary Month *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Salary Month *
+            </label>
             <select
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
             >
               {MONTHS.map((m, i) => (
                 <option key={i + 1} value={i + 1}>{m}</option>
@@ -128,142 +152,198 @@ export default function RecordSalaryModal({ open, onOpenChange }: RecordSalaryMo
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Salary Year *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Salary Year *
+            </label>
             <input
               type="number"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono transition-colors"
             />
           </div>
         </div>
 
-        {/* Base Salary, Allowances, Deductions */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Row 3: Base Salary, Allowances, Deductions */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Base Salary (₹) *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Base Salary (₹) *
+            </label>
             <input
               type="number"
               min="0"
+              step="0.01"
               value={baseSalary || ""}
               onChange={(e) => setBaseSalary(Number(e.target.value))}
               placeholder="0.00"
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs font-mono transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono font-bold transition-colors"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Allowances (+)</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Allowances (+) (₹)
+            </label>
             <input
               type="number"
               min="0"
+              step="0.01"
               value={allowances || ""}
               onChange={(e) => setAllowances(Number(e.target.value))}
               placeholder="0.00"
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs font-mono transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono font-bold transition-colors"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Deductions (-)</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+              Deductions (-) (₹)
+            </label>
             <input
               type="number"
               min="0"
+              step="0.01"
               value={deductions || ""}
               onChange={(e) => setDeductions(Number(e.target.value))}
               placeholder="0.00"
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs font-mono transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono font-bold transition-colors"
             />
           </div>
         </div>
 
-        {/* Net Salary Summary Banner */}
-        <div className="p-3 bg-[var(--page-bg)] border border-[var(--border)] rounded-lg flex items-center justify-between">
-          <span className="text-[var(--text-muted)] font-medium">Net Payable Salary:</span>
-          <span className="font-bold text-[var(--primary)] text-sm">
-            ₹{netSalary > 0 ? netSalary.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
-          </span>
+        {/* Dynamic Net Salary Summary Banner */}
+        <div className="p-3.5 bg-[var(--page-bg)] border border-[var(--border)] rounded-xl flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--text-muted)] text-xs">
+              Formula: Base (₹{baseSalary || 0}) + Bonus (₹{allowances || 0}) - Deductions (₹{deductions || 0})
+            </span>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] mr-2">Net Payable:</span>
+            <span className="font-black text-[var(--primary)] text-base font-mono">
+              ₹{netSalary > 0 ? netSalary.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}
+            </span>
+          </div>
         </div>
 
-        {/* Payment Mode & Paid Date */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Row 4: Payment Mode (Auto-Adjusts downstream fields) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Payment Mode</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Payment Mode *
+            </label>
             <select
               value={paymentMode}
               onChange={(e) => setPaymentMode(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
             >
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cash">Cash</option>
-              <option value="cheque">Cheque</option>
-              <option value="upi">UPI</option>
+              <option value="bank_transfer">🏦 Bank Transfer (NEFT / RTGS / IMPS)</option>
+              <option value="cash">💵 Cash / Petty Cash Register</option>
+              <option value="cheque">📝 Bank Cheque</option>
+              <option value="upi">📱 UPI Payout</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Paid Date *</label>
-            <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
-            />
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                {isCash ? "Cash Account / Drawer" : isCheque ? "Issuing Bank Account *" : "Disbursement Account *"}
+              </label>
+              {isCash && (
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                  Cash Register
+                </span>
+              )}
+              {isBankTransfer && (
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                  Corporate Bank
+                </span>
+              )}
+              {isCheque && (
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                  Cheque Book Account
+                </span>
+              )}
+              {isUpi && (
+                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                  Linked UPI
+                </span>
+              )}
+            </div>
+            <select
+              value={bankAccountId}
+              onChange={(e) => setBankAccountId(e.target.value)}
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
+            >
+              <option value="">{isCash ? "Main Cash Register (Default)" : "Select Account"}</option>
+              {bankAccounts.map((b) => {
+                const typeLabel = b.type === "bank" ? "Bank" : b.type === "upi" ? "UPI" : "Cash";
+                const catLabel = b.account_category ? b.account_category.toUpperCase() : "";
+                const prefix = catLabel ? `[${typeLabel} · ${catLabel}] ` : `[${typeLabel}] `;
+                return (
+                  <option key={b.id} value={b.id}>
+                    {prefix}{b.name || b.account_name} {b.bank_name ? `(${b.bank_name})` : ""}
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
 
-        {/* Bank Account Selection */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[var(--text-muted)]">Bank Account (if non-cash)</label>
-          <select
-            value={bankAccountId}
-            onChange={(e) => setBankAccountId(e.target.value)}
-            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
-          >
-            <option value="">Select Account</option>
-            {bankAccounts.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.account_name || b.bank_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Reference & Remarks */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Row 5: Reference & Remarks (Auto-Adjusted Labels & Placeholders) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Reference / UTR #</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              {isCheque
+                ? "Cheque Leaf Number *"
+                : isUpi
+                ? "UPI Transaction ID *"
+                : isBankTransfer
+                ? "Bank UTR / Ref Number *"
+                : "Receipt / Voucher # (Optional)"}
+            </label>
             <input
               type="text"
               value={referenceNo}
               onChange={(e) => setReferenceNo(e.target.value)}
-              placeholder="Transaction ID"
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
+              placeholder={
+                isCheque
+                  ? "e.g. 000451"
+                  : isUpi
+                  ? "e.g. UPI/123456789"
+                  : isBankTransfer
+                  ? "e.g. UTR12345678"
+                  : "e.g. CASH-SLIP-01"
+              }
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono transition-colors"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Remarks</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Internal Payroll Remarks
+            </label>
             <input
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Notes..."
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
+              placeholder="e.g. Monthly salary with overtime incentive"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors"
             />
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="px-4 h-9 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors"
+            className="px-4 h-10 border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
           >
             Cancel
           </button>
-          <AsyncButton onClick={handleSubmit} variant="primary" className="h-9 px-4 text-xs font-bold">
+          <AsyncButton onClick={handleSubmit} variant="primary" className="h-10 px-6 text-xs font-bold">
             Record Salary
           </AsyncButton>
         </div>

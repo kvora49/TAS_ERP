@@ -7,6 +7,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(request: Request) {
+  const __startTime = performance.now();
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret") || request.headers.get("authorization")?.replace("Bearer ", "");
   const cronSecret = process.env.CRON_SECRET;
@@ -192,6 +193,8 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     return handleApiError(err);
+  } finally {
+    console.log(`[PERF_TIMING] GET /api/cron/notifications - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }
 

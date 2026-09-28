@@ -70,25 +70,27 @@ export default function ReverseWriteOffModal({ writeOffId, onOpenChange }: Rever
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[var(--text-muted)]">Reversal Reason *</label>
+          <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            Reversal Reason *
+          </label>
           <input
             type="text"
             value={reversalReason}
             onChange={(e) => setReversalReason(e.target.value)}
-            placeholder="e.g. Payment recovered, Error in adjustment..."
-            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
+            placeholder="e.g. Payment recovered, Error in adjustment entry..."
+            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="px-4 h-9 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors"
+            className="px-4 h-10 border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
           >
             Cancel
           </button>
-          <AsyncButton onClick={handleSubmit} variant="destructive" className="h-9 px-4 text-xs font-bold">
+          <AsyncButton onClick={handleSubmit} variant="destructive" className="h-10 px-5 text-xs font-bold">
             Reverse Write-off
           </AsyncButton>
         </div>

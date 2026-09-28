@@ -308,7 +308,21 @@ export async function POST(
         colourTotalQty += item.quantity;
       });
 
-      const actualColourId = colId === "default" ? (lot.colour_id || null) : colId;
+      let actualColourId = colId === "default" ? (lot.colour_id || null) : colId;
+      if (!actualColourId && lot.design_id) {
+        const { data: dc } = await supabase
+          .from("design_colours")
+          .select("id")
+          .eq("design_id", lot.design_id)
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (dc?.id) {
+          actualColourId = dc.id;
+        }
+      }
       const totalVal = colourTotalQty * costPerPiece;
 
       // Insert finished_stock

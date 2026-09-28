@@ -160,6 +160,8 @@ export default function ReceivePaymentView({
       toast.success("Incoming payment recorded successfully!");
       queryClient.invalidateQueries({ queryKey: ["payments-list-overview"] });
       queryClient.invalidateQueries({ queryKey: ["outstanding-bills-receive"] });
+      queryClient.invalidateQueries({ queryKey: ["master-data", "banks-upi"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail"] });
       if (onSuccess) onSuccess();
     },
     onError: (err: any) => {
@@ -271,7 +273,20 @@ export default function ReceivePaymentView({
               <label className="text-xs font-semibold text-[var(--text-secondary)]">Payment Mode *</label>
               <select
                 value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value)}
+                onChange={(e) => {
+                  const newMode = e.target.value;
+                  setPaymentMode(newMode);
+                  if (newMode === "cash") {
+                    const cashAcc = bankAccounts.find((b) => b.type === "cash");
+                    if (cashAcc) setBankAccountId(cashAcc.id);
+                  } else if (newMode === "upi") {
+                    const upiAcc = bankAccounts.find((b) => b.type === "upi") || bankAccounts.find((b) => b.is_default);
+                    if (upiAcc) setBankAccountId(upiAcc.id);
+                  } else {
+                    const bankAcc = bankAccounts.find((b) => b.type === "bank") || bankAccounts.find((b) => b.is_default);
+                    if (bankAcc) setBankAccountId(bankAcc.id);
+                  }
+                }}
                 className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
               >
                 <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
@@ -295,27 +310,40 @@ export default function ReceivePaymentView({
               />
             </div>
 
-            {/* Bank Account */}
-            {paymentMode !== "cash" && (
-              <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-semibold text-[var(--text-secondary)]">Bank Account *</label>
-                <select
-                  value={bankAccountId}
-                  onChange={(e) => setBankAccountId(e.target.value)}
-                  className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
-                >
-                  {bankAccounts.map((b) => {
+            {/* Account Selector (Cash Register / Bank / UPI) */}
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">
+                {paymentMode === "cash"
+                  ? "Deposit Into Cash Register *"
+                  : paymentMode === "upi"
+                  ? "Receive In UPI Handle *"
+                  : "Receive In Bank Account *"}
+              </label>
+              <select
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent rounded-lg px-3 h-10 text-sm transition-colors"
+              >
+                {(() => {
+                  const sorted = paymentMode === "cash"
+                    ? [...bankAccounts.filter((b) => b.type === "cash"), ...bankAccounts.filter((b) => b.type !== "cash")]
+                    : paymentMode === "upi"
+                    ? [...bankAccounts.filter((b) => b.type === "upi"), ...bankAccounts.filter((b) => b.type !== "upi")]
+                    : [...bankAccounts.filter((b) => b.type === "bank"), ...bankAccounts.filter((b) => b.type !== "bank")];
+
+                  return sorted.map((b) => {
                     const cat = b.account_category || (b.type === "cash" ? "kacha" : "pakka");
                     const catLabel = cat === "pakka" ? "🏷️ Pakka" : cat === "kacha" ? "📝 Kaccha" : "🔄 Both";
+                    const typeLabel = b.type === "cash" ? "💵 Cash" : b.type === "upi" ? "📱 UPI" : "🏦 Bank";
                     return (
                       <option key={b.id} value={b.id}>
-                        [{catLabel}] {b.account_name || b.name} ({b.bank_name})
+                        [{typeLabel} · {catLabel}] {b.account_name || b.name} {b.bank_name ? `(${b.bank_name})` : ""}
                       </option>
                     );
-                  })}
-                </select>
-              </div>
-            )}
+                  });
+                })()}
+              </select>
+            </div>
 
             {/* UTR / Reference No */}
             <div className={paymentMode === "cash" ? "space-y-1 sm:col-span-2" : "space-y-1"}>

@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+  const __startTime = performance.now();
   const supabase = createClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) {
@@ -156,5 +157,7 @@ export async function POST(request: Request) {
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Bulk import failed" }, { status: 500 });
+  } finally {
+    console.log(`[PERF_TIMING] POST /api/settings/import - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }

@@ -5,6 +5,7 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const __startTime = performance.now();
   const supabase = createClient();
   const businessId = await getSessionBusinessId();
   if (!businessId) {
@@ -52,6 +53,7 @@ export async function GET(
       jobWorkPaymentsResult,
       salaryAdvancesResult,
       salaryEntriesResult,
+      pendingChequesResult,
     ] = await Promise.all([
       supabase
         .from("parties")
@@ -128,6 +130,12 @@ export async function GET(
         .select("id, salary_month, salary_year, net_salary, payment_mode, payment_date, reference_no, remarks")
         .or(`worker_id.eq.${id},party_id.eq.${id}`)
         .eq("business_id", businessId),
+      supabase
+        .from("cheques")
+        .select("id, cheque_number, direction, bank_name, account_no, cheque_date, due_date, amount, status, settlement_type, remarks")
+        .eq("party_id", id)
+        .eq("business_id", businessId)
+        .in("status", ["pending", "deposited"]),
     ]);
 
     let party: any = partyResult.data;
@@ -555,11 +563,18 @@ export async function GET(
     
     const remainingAdvance = advanceData?.reduce((sum, curr) => sum + Number(curr.remaining_amount), 0) || 0;
 
-    return NextResponse.json({ party, ledger, remainingAdvance });
+    return NextResponse.json({
+      party,
+      ledger,
+      remainingAdvance,
+      pendingCheques: pendingChequesResult?.data || []
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },
       { status: 500 }
     );
+  } finally {
+    console.log(`[PERF_TIMING] GET /api/parties/${params.id}/ledger - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }
 }

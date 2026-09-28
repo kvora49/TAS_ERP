@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp, Plus, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp, Plus, ExternalLink, Landmark } from "lucide-react";
 import Link from "next/link";
 import { useERPQuery } from "@/hooks/useERPQuery";
 import { formatDate, cn } from "@/lib/utils";
@@ -75,6 +75,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
   const { data: ledgerResponse, isLoading: ledgerLoading, refetch: refetchLedger } = useERPQuery<{
     ledger: LedgerEntry[];
     remainingAdvance: number;
+    pendingCheques?: any[];
   }>(
     ["ledger", id, activeBillTab],
     async () => {
@@ -92,6 +93,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
   const party = partyData || null;
   const rawLedger = ledgerResponse?.ledger || [];
   const remainingAdvance = ledgerResponse?.remainingAdvance || 0;
+  const pendingCheques = ledgerResponse?.pendingCheques || [];
   const loading = partyLoading || ledgerLoading;
 
   const toggleRow = (rowId: string) => {
@@ -226,6 +228,37 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
           </button>
         </div>
       </div>
+
+      {/* Uncleared PDCs Banner */}
+      {pendingCheques.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Landmark className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-[var(--text-primary)]">
+                  Uncleared Cheques / PDCs in Hand ({pendingCheques.length})
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  Awaiting Bank Clearance
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                Total Value: <strong className="font-mono text-[var(--text-primary)]">{formatCurrency(pendingCheques.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0))}</strong> · These will credit/debit the ledger balance once cleared through the Cheques & PDC Manager.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/finance/cheques"
+            className="px-3.5 py-1.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-xs font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5 transition-all self-start sm:self-auto shrink-0 shadow-2xs"
+          >
+            <span>View Cheques</span>
+            <ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+          </Link>
+        </div>
+      )}
 
       {/* PRIMARY TAB CONTROLS & VOUCHER FILTER */}
       <div className="flex items-center justify-between gap-4 flex-wrap bg-[var(--card-bg)] border border-[var(--border)] p-3 rounded-xl shadow-[var(--shadow-sm)]">

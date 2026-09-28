@@ -490,6 +490,22 @@ export async function POST(request: Request) {
       }
     }
 
+    let finalColourId = colour_id || null;
+    if (!finalColourId && design_id) {
+      const { data: dc } = await supabase
+        .from("design_colours")
+        .select("id")
+        .eq("design_id", design_id)
+        .eq("business_id", businessId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (dc?.id) {
+        finalColourId = dc.id;
+      }
+    }
+
     // 1. Create the production lot
     const { data: lot, error: lotError } = await supabase
       .from("production_lots")
@@ -498,7 +514,7 @@ export async function POST(request: Request) {
         lot_number: finalLotNumber.toLowerCase(),
         brand_id,
         design_id,
-        colour_id: colour_id || null,
+        colour_id: finalColourId,
         size_set_id: finalSizeSetId,
         lot_date,
         season: season || null,
@@ -544,7 +560,7 @@ export async function POST(request: Request) {
         lot_id: lot.id,
         size: s.size,
         quantity: parseInt(s.quantity, 10) || 0,
-        colour_id: s.colour_id || null,
+        colour_id: s.colour_id || finalColourId || null,
       }));
 
       const { error: sizesError } = await supabase

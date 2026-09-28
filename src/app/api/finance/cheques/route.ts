@@ -12,11 +12,16 @@ export async function GET(request: Request) {
   const search = searchParams.get("search") || "";
   const direction = searchParams.get("direction") || "";
   const status = searchParams.get("status") || "";
+  const maturity = searchParams.get("maturity") || ""; // 'due_7_days' | 'due_today' | 'stale'
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "10", 10);
   const offset = (page - 1) * limit;
 
   try {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
     let query = supabase
       .from("cheques")
       .select(`
@@ -32,6 +37,23 @@ export async function GET(request: Request) {
     if (status) {
       query = query.eq("status", status);
     }
+
+    // Maturity Filters
+    if (maturity === "due_today") {
+      query = query
+        .in("status", ["pending", "deposited"])
+        .eq("due_date", todayStr);
+    } else if (maturity === "due_7_days") {
+      query = query
+        .in("status", ["pending", "deposited"])
+        .gte("due_date", todayStr)
+        .lte("due_date", sevenDaysLater);
+    } else if (maturity === "stale") {
+      query = query
+        .in("status", ["pending", "deposited"])
+        .lte("cheque_date", sixtyDaysAgo);
+    }
+
     if (search.trim()) {
       query = query.or(`cheque_number.ilike.%${search}%,bank_name.ilike.%${search}%`);
     }
@@ -45,17 +67,41 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Server-side stats calculation for current direction
-    const { data: statsData } = await supabase
+    // Server-side enriched stats calculation for current direction
+    let statsQuery = supabase
       .from("cheques")
-      .select("amount, status")
-      .eq("business_id", businessId)
-      .eq("direction", direction);
+      .select("amount, status, due_date, cheque_date")
+      .eq("business_id", businessId);
+
+    if (direction) {
+      statsQuery = statsQuery.eq("direction", direction);
+    }
+
+    const { data: statsData } = await statsQuery;
+
+    const pendingCheques = statsData?.filter((c: any) => c.status === "pending" || c.status === "deposited") || [];
+    const clearedCheques = statsData?.filter((c: any) => c.status === "cleared") || [];
+    const bouncedCheques = statsData?.filter((c: any) => c.status === "bounced") || [];
+
+    const dueThisWeekCheques = pendingCheques.filter((c: any) => {
+      const d = c.due_date || c.cheque_date;
+      return d && d >= todayStr && d <= sevenDaysLater;
+    });
+
+    const staleCheques = pendingCheques.filter((c: any) => {
+      return c.cheque_date && c.cheque_date <= sixtyDaysAgo;
+    });
 
     const stats = {
-      pendingValue: statsData?.filter((c: any) => c.status === "pending" || c.status === "deposited").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
-      clearedValue: statsData?.filter((c: any) => c.status === "cleared").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
-      bouncedValue: statsData?.filter((c: any) => c.status === "bounced").reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0,
+      pendingCount: pendingCheques.length,
+      pendingValue: pendingCheques.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0),
+      clearedCount: clearedCheques.length,
+      clearedValue: clearedCheques.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0),
+      bouncedCount: bouncedCheques.length,
+      bouncedValue: bouncedCheques.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0),
+      dueThisWeekCount: dueThisWeekCheques.length,
+      dueThisWeekValue: dueThisWeekCheques.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0),
+      staleCount: staleCheques.length,
     };
 
     return NextResponse.json({
@@ -98,7 +144,9 @@ export async function POST(request: Request) {
       amount,
       received_account_id,
       remarks,
-      cheque_image_url
+      cheque_image_url,
+      settlement_type,
+      allocations,
     } = body;
 
     // Validation
@@ -118,6 +166,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Amount must be greater than 0" }, { status: 400 });
     }
 
+    const cleanAllocations = Array.isArray(allocations) ? allocations : [];
+    const validSettlementType = settlement_type === "bill_wise" ? "bill_wise" : "on_account";
+
     const { data: cheque, error } = await supabase
       .from("cheques")
       .insert({
@@ -134,11 +185,14 @@ export async function POST(request: Request) {
         received_account_id: received_account_id || null,
         remarks: remarks || null,
         cheque_image_url: cheque_image_url || null,
+        settlement_type: validSettlementType,
+        allocations: cleanAllocations,
         created_by: userId
       })
       .select(`
         *,
-        party:parties(*)
+        party:parties(*),
+        received_account:bank_accounts(*)
       `)
       .single();
 

@@ -23,8 +23,21 @@ export async function GET(request: Request) {
     }
   }
 
-  // If auth fails, redirect to login with error details
+  // If auth fails, forward error details so the login page can guide the user
+  const authError = searchParams.get("error");
+  const errorCode = searchParams.get("error_code");
+  const errorDescription = searchParams.get("error_description");
+
+  const redirectParams = new URLSearchParams();
+  if (authError) redirectParams.set("error", authError);
+  if (errorCode) redirectParams.set("error_code", errorCode);
+  if (errorDescription) redirectParams.set("error_description", errorDescription);
+
+  if (!authError && !errorCode) {
+    redirectParams.set("error", "auth-callback-failed");
+  }
+
   return NextResponse.redirect(
-    `${origin}/login?error=auth-callback-failed`
+    `${origin}/login?${redirectParams.toString()}`
   );
 }

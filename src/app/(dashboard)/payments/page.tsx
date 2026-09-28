@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -34,6 +34,14 @@ function PaymentsContent() {
   const currentTab = searchParams.get("tab") || "history";
   const [activeTab, setActiveTab] = useState<string>(currentTab);
 
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab") || "history";
+    setActiveTab(tabFromUrl);
+  }, [searchParams]);
+
+  const validTabs = ["history", "advances", "direct-link"];
+  const safeActiveTab = validTabs.includes(activeTab) ? activeTab : "history";
+
   // Filters for History Tab
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [page, setPage] = useState<number>(1);
@@ -57,7 +65,7 @@ function PaymentsContent() {
       if (!res.ok) throw new Error("Failed to load payments history");
       return res.json();
     },
-    enabled: activeTab === "history",
+    enabled: safeActiveTab === "history",
   });
 
   const payments = data?.payments || [];
@@ -150,13 +158,13 @@ function PaymentsContent() {
           { id: "advances", label: "Advances & Credit Notes", icon: <Clock size={14} /> },
           { id: "direct-link", label: "Direct Payment Linking", icon: <LinkIcon size={14} /> },
         ]}
-        activeTab={activeTab}
+        activeTab={safeActiveTab}
         onChange={handleTabChange}
         layoutIdPrefix="payments-workspace-tab"
       />
 
       {/* TAB 1: Payment History */}
-      {activeTab === "history" && (
+      {safeActiveTab === "history" && (
         <div className="space-y-4 sm:space-y-6">
           {/* Responsive 3-Column KPI Stats Grid */}
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
@@ -244,14 +252,22 @@ function PaymentsContent() {
             <div className="text-xs text-[var(--text-muted)]">Showing {payments.length} of {totalCount} records</div>
           </div>{/* end desktop filter bar */}
 
-          {/* ── MOBILE: High-Density Compact Payment Row List ── */}
-          <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
-            {payments.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[var(--text-muted)] italic">
-                No payment vouchers found.
-              </div>
-            ) : (
-              payments.map((p) => {
+          {/* ── UNIFIED TABLE / MOBILE LIST STATE ── */}
+          <PageState
+            isLoading={isLoading}
+            isError={!!error}
+            error={error?.message}
+            onRetry={refetch}
+            isEmpty={payments.length === 0}
+            skeletonVariant="table"
+            skeletonRows={8}
+            skeletonColumns={9}
+            emptyTitle="No Payments Found"
+            emptyMessage="There are no payment vouchers matching the selected filter criteria."
+          >
+            {/* ── MOBILE: High-Density Compact Payment Row List ── */}
+            <div className="md:hidden bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-xs divide-y divide-[var(--border-light)]">
+              {payments.map((p) => {
                 const isReceived = p.direction === "received";
                 const isContra = p.direction === "contra";
 
@@ -298,29 +314,16 @@ function PaymentsContent() {
                     }}
                   />
                 );
-              })
-            )}
-            {hasMoreMobile && (
-              <div ref={sentinelRef} className="py-3 flex justify-center items-center text-xs text-[var(--text-muted)] font-medium">
-                <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse mr-2" />
-                Loading more payment vouchers...
-              </div>
-            )}
-          </div>
+              })}
+              {hasMoreMobile && (
+                <div ref={sentinelRef} className="py-3 flex justify-center items-center text-xs text-[var(--text-muted)] font-medium">
+                  <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse mr-2" />
+                  Loading more payment vouchers...
+                </div>
+              )}
+            </div>
 
-          {/* ── DESKTOP: existing table ── */}
-          <PageState
-            isLoading={isLoading}
-            isError={!!error}
-            error={error?.message}
-            onRetry={refetch}
-            isEmpty={payments.length === 0}
-            skeletonVariant="table"
-            skeletonRows={8}
-            skeletonColumns={9}
-            emptyTitle="No Payments Found"
-            emptyMessage="There are no payment vouchers matching the selected filter criteria."
-          >
+            {/* ── DESKTOP: existing table ── */}
             <div className="hidden md:block bg-[var(--card-bg)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -442,10 +445,10 @@ function PaymentsContent() {
       )}
 
       {/* TAB 2: Advances & Credit Notes */}
-      {activeTab === "advances" && <AdvancesCreditNotesTab />}
+      {safeActiveTab === "advances" && <AdvancesCreditNotesTab />}
 
       {/* TAB 3: Direct Contra Linking */}
-      {activeTab === "direct-link" && <DirectLinkingTab />}
+      {safeActiveTab === "direct-link" && <DirectLinkingTab />}
     </div>
     </PullToRefresh>
   );

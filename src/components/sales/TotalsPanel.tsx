@@ -135,6 +135,23 @@ export function TotalsPanel({ state, totals }: TotalsPanelProps) {
             </table>
           </div>
         )}
+
+        {/* Bill Remarks / Notes */}
+        <div className="bg-[var(--card-bg)] p-5 rounded-xl border border-[var(--border)] space-y-2 shadow-[var(--shadow-sm)]">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)]">
+              Bill Remarks / Terms / Notes
+            </h4>
+            <span className="text-[10px] text-[var(--text-muted)] font-medium">Printed on invoice</span>
+          </div>
+          <textarea
+            rows={3}
+            placeholder="Add invoice remarks, delivery terms, payment conditions, or special notes for customer..."
+            value={state.remarks}
+            onChange={(e) => state.setRemarks(e.target.value)}
+            className="w-full p-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-colors resize-none"
+          />
+        </div>
       </div>
 
       {/* Totals Summary Panel */}

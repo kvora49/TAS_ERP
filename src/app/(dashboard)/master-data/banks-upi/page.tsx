@@ -72,7 +72,7 @@ export default function BanksUpiPage() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "bank" | "upi">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "bank" | "upi" | "cash">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "pakka" | "kacha">("all");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -129,13 +129,13 @@ export default function BanksUpiPage() {
     fetchAccounts();
   }, []);
 
-  const handleOpenAdd = (type: "bank" | "upi") => {
+  const handleOpenAdd = (type: "bank" | "upi" | "cash") => {
     setEditingAccount(null);
     reset({
       type,
-      name: "",
-      account_category: "pakka",
-      sub_label: "",
+      name: type === "cash" ? "Cash in Hand" : "",
+      account_category: type === "cash" ? "kacha" : "pakka",
+      sub_label: type === "cash" ? "Main Cash Register" : "",
       bank_name: "",
       account_number: "",
       ifsc: "",
@@ -176,9 +176,25 @@ export default function BanksUpiPage() {
 
   const onSubmit = async (data: AccountFormValues) => {
     try {
+      if (data.type === "bank" && (!data.account_number || !data.ifsc)) {
+        toast.error("Account Number and IFSC Code are required for bank accounts");
+        return;
+      }
+      if (data.type === "upi" && !data.upi_id) {
+        toast.error("UPI ID is required for UPI accounts");
+        return;
+      }
+
       const payload = {
         ...data,
+        bank_name: data.type === "bank" ? data.bank_name : null,
+        account_number: data.type === "bank" ? data.account_number : null,
+        ifsc: data.type === "bank" ? data.ifsc : null,
+        branch: data.type === "bank" ? data.branch : null,
+        upi_id: data.type === "upi" ? data.upi_id : null,
+        upi_provider: data.type === "upi" ? data.upi_provider : null,
         opening_balance: parseFloat(data.opening_balance || "0"),
+        updated_at: editingAccount ? editingAccount.updated_at : undefined,
       };
 
       if (editingAccount) {
@@ -238,6 +254,7 @@ export default function BanksUpiPage() {
   // Tab counts
   const bankCount = accounts.filter((a) => a.type === "bank").length;
   const upiCount = accounts.filter((a) => a.type === "upi").length;
+  const cashCount = accounts.filter((a) => a.type === "cash").length;
 
   const columns: DataTableColumn<BankAccount>[] = [
     {
@@ -425,7 +442,7 @@ export default function BanksUpiPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <button
             onClick={() => handleOpenAdd("bank")}
             className="flex-1 sm:flex-initial h-10 px-3.5 sm:px-4 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-[var(--primary)] text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
@@ -439,6 +456,13 @@ export default function BanksUpiPage() {
           >
             <Smartphone size={15} />
             <span>+ Add UPI</span>
+          </button>
+          <button
+            onClick={() => handleOpenAdd("cash")}
+            className="flex-1 sm:flex-initial h-10 px-3.5 sm:px-4 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] hover:bg-[var(--table-row-hover)] text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <Wallet size={15} />
+            <span>+ Add Cash</span>
           </button>
         </div>
       </div>
@@ -486,6 +510,20 @@ export default function BanksUpiPage() {
             <span>UPI IDs</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--input-bg)] text-[var(--text-muted)]">
               {upiCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("cash")}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${
+              activeTab === "cash"
+                ? "bg-[var(--card-bg)] text-emerald-600 dark:text-emerald-400 shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <Wallet size={13} />
+            <span>Cash</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--input-bg)] text-[var(--text-muted)]">
+              {cashCount}
             </span>
           </button>
         </div>
@@ -744,33 +782,61 @@ export default function BanksUpiPage() {
               <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Account Type
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   disabled={!!editingAccount}
                   onClick={() => setValue("type", "bank")}
-                  className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  className={`h-10 rounded-lg text-xs sm:text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     selectedType === "bank"
                       ? "bg-[var(--primary-light)] border-[var(--primary)] text-[var(--primary)] font-bold"
                       : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
                   } disabled:opacity-70`}
                 >
-                  <Building2 size={16} /> Bank Account
+                  <Building2 size={15} /> Bank
                 </button>
                 <button
                   type="button"
                   disabled={!!editingAccount}
                   onClick={() => setValue("type", "upi")}
-                  className={`h-10 rounded-lg text-sm font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  className={`h-10 rounded-lg text-xs sm:text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     selectedType === "upi"
                       ? "bg-purple-500/15 border-purple-500 text-purple-600 dark:text-purple-400 font-bold"
                       : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
                   } disabled:opacity-70`}
                 >
-                  <Smartphone size={16} /> UPI ID
+                  <Smartphone size={15} /> UPI ID
+                </button>
+                <button
+                  type="button"
+                  disabled={!!editingAccount}
+                  onClick={() => {
+                    setValue("type", "cash");
+                    if (!watch("account_category")) setValue("account_category", "kacha");
+                  }}
+                  className={`h-10 rounded-lg text-xs sm:text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    selectedType === "cash"
+                      ? "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold"
+                      : "bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-body)] hover:bg-[var(--table-row-hover)]"
+                  } disabled:opacity-70`}
+                >
+                  <Wallet size={15} /> Cash
                 </button>
               </div>
             </div>
+
+            {/* Cash Info Callout */}
+            {selectedType === "cash" && (
+              <div className="sm:col-span-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
+                <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Physical Cash Account / Register</p>
+                  <p className="text-[11px] opacity-90 mt-0.5">
+                    Used for shop counter cash, petty cash drawers, and cash payment/receipt vouchers. No bank account number or IFSC is needed.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Account Category / Nature (Pakka vs Kaccha) */}
             <div className="sm:col-span-2 space-y-1.5">

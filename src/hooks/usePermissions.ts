@@ -59,6 +59,7 @@ export function usePermissions() {
 
   return {
     ...query,
+    role,
     permissions: permissionsList,
     getModulePermission,
     canView: (moduleName: string) => {

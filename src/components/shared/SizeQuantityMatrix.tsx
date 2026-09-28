@@ -16,6 +16,8 @@ interface SizeQuantityMatrixProps {
   sizeSetName?: string;
   className?: string;
   readOnly?: boolean;
+  availableStock?: Record<string, number>;
+  allowNegativeStock?: boolean;
 }
 
 export function SizeQuantityMatrix({
@@ -29,11 +31,20 @@ export function SizeQuantityMatrix({
   sizeSetName,
   className = "",
   readOnly = false,
+  availableStock,
+  allowNegativeStock = true,
 }: SizeQuantityMatrixProps) {
   if (!sizes || sizes.length === 0) return null;
 
   const handleSizeChange = (size: string, val: number) => {
-    const qtyVal = Math.max(0, val);
+    let qtyVal = Math.max(0, val);
+    if (allowNegativeStock === false && availableStock && availableStock[size] !== undefined) {
+      const maxAvail = Math.max(0, availableStock[size]);
+      if (qtyVal > maxAvail) {
+        qtyVal = maxAvail;
+        toast.warning(`Cannot exceed available stock of ${maxAvail} Pcs for size ${size}`);
+      }
+    }
     const updated = { ...sizeQuantities, [size]: qtyVal };
     onChange(updated);
   };
@@ -43,16 +54,24 @@ export function SizeQuantityMatrix({
     const fillValue = Number(sizeQuantities[firstSize] || 0);
     const updated: Record<string, number> = {};
     sizes.forEach((s) => {
-      updated[s] = Math.max(0, fillValue);
+      let val = Math.max(0, fillValue);
+      if (allowNegativeStock === false && availableStock && availableStock[s] !== undefined) {
+        val = Math.min(val, Math.max(0, availableStock[s]));
+      }
+      updated[s] = val;
     });
     onChange(updated);
-    toast.info(`Auto-filled all sizes with ${fillValue} Pcs`);
+    toast.info(`Auto-filled sizes with up to ${fillValue} Pcs`);
   };
 
   const totalPcs = Object.values(sizeQuantities).reduce(
     (sum, val) => sum + (Number(val) || 0),
     0
   );
+
+  const totalAvailPcs = availableStock
+    ? Object.values(availableStock).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    : null;
 
   return (
     <div
@@ -105,6 +124,12 @@ export function SizeQuantityMatrix({
             </span>
           )}
 
+          {totalAvailPcs !== null && (
+            <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+              Stock Avail: {totalAvailPcs} Pcs
+            </span>
+          )}
+
           <span className="text-[10px] font-mono font-bold text-[var(--text-primary)] bg-[var(--page-bg)] px-2.5 py-0.5 rounded border border-[var(--border)]">
             {autoFillAllColors && colourCount && colourCount > 1 ? (
               <>
@@ -122,21 +147,44 @@ export function SizeQuantityMatrix({
 
       {/* Grid of size input boxes */}
       <div className="p-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 bg-[var(--card-bg)]">
-        {sizes.map((sz) => (
-          <div key={sz} className="space-y-1">
-            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase block text-center bg-[var(--page-bg)] py-0.5 rounded border border-[var(--border)]">
-              {sz}
-            </label>
-            <NumericInput
-              min="0"
-              placeholder="0"
-              readOnly={readOnly}
-              value={sizeQuantities[sz] !== undefined ? sizeQuantities[sz] : ""}
-              onChange={(e) => handleSizeChange(sz, Number(e.target.value || 0))}
-              className="w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded text-xs text-center font-bold text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--input-focus)]"
-            />
-          </div>
-        ))}
+        {sizes.map((sz) => {
+          const hasAvail = availableStock && availableStock[sz] !== undefined;
+          const avail = hasAvail ? availableStock![sz] : undefined;
+          const isOutOfStock = allowNegativeStock === false && hasAvail && (avail ?? 0) <= 0;
+
+          return (
+            <div key={sz} className="space-y-1">
+              <div className="flex flex-col items-center bg-[var(--page-bg)] py-1 px-1 rounded border border-[var(--border)]">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">
+                  {sz}
+                </span>
+                {hasAvail && (
+                  <span
+                    className={`text-[9px] font-semibold font-mono tracking-tight leading-none mt-0.5 ${
+                      (avail ?? 0) > 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-rose-500 dark:text-rose-400"
+                    }`}
+                  >
+                    {(avail ?? 0) > 0 ? `Avail: ${avail}` : "0 avail"}
+                  </span>
+                )}
+              </div>
+              <NumericInput
+                min="0"
+                max={allowNegativeStock === false && hasAvail ? Math.max(0, avail ?? 0) : undefined}
+                placeholder="0"
+                readOnly={readOnly}
+                disabled={readOnly || isOutOfStock}
+                value={sizeQuantities[sz] !== undefined ? sizeQuantities[sz] : ""}
+                onChange={(e) => handleSizeChange(sz, Number(e.target.value || 0))}
+                className={`w-full h-8 px-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded text-xs text-center font-bold text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--input-focus)] ${
+                  isOutOfStock ? "opacity-50 cursor-not-allowed bg-[var(--page-bg)]" : ""
+                }`}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

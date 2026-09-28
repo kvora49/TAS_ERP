@@ -16,18 +16,23 @@ export interface SelectedRollInfo {
   material_type_id: string;
   material_name: string;
   rate?: number;
+  hsn_sac?: string;
 }
 
 interface SelectFabricRollsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (selectedRolls: SelectedRollInfo[]) => void;
+  existingItems?: any[];
+  allowNegativeStock?: boolean;
 }
 
 export function SelectFabricRollsModal({
   open,
   onOpenChange,
   onConfirm,
+  existingItems,
+  allowNegativeStock = true,
 }: SelectFabricRollsModalProps) {
   const [loading, setLoading] = useState(false);
   const [rolls, setRolls] = useState<any[]>([]);
@@ -53,6 +58,16 @@ export function SelectFabricRollsModal({
     }
   }, [open]);
 
+  const getStagedMeters = (rollId: string) => {
+    if (!existingItems || existingItems.length === 0) return 0;
+    return existingItems
+      .filter((it: any) => it.rolls && Array.isArray(it.rolls))
+      .reduce((sum: number, it: any) => {
+        const found = it.rolls.find((r: any) => r.purchase_roll_id === rollId || r.id === rollId);
+        return sum + Number(found?.meters || 0);
+      }, 0);
+  };
+
   const filteredRolls = rolls.filter((r) => {
     if (!search) return true;
     const term = search.toLowerCase();
@@ -64,13 +79,20 @@ export function SelectFabricRollsModal({
   });
 
   const toggleSelect = (roll: any) => {
+    const stagedMeters = getStagedMeters(roll.id);
+    const effectiveAvail = Math.max(0, Number(roll.remaining_meters || 0) - stagedMeters);
+    if (allowNegativeStock === false && effectiveAvail <= 0 && !selectedMap[roll.id]) {
+      toast.warning(`Roll #${roll.roll_number} is already fully allocated in this bill.`);
+      return;
+    }
+
     setSelectedMap((prev) => {
       const next = { ...prev };
       if (next[roll.id]) {
         delete next[roll.id];
       } else {
         next[roll.id] = {
-          meters: Number(roll.remaining_meters || 0),
+          meters: effectiveAvail > 0 ? effectiveAvail : Number(roll.remaining_meters || 0),
           roll,
         };
       }
@@ -79,7 +101,12 @@ export function SelectFabricRollsModal({
   };
 
   const handleMetersChange = (rollId: string, meters: number, maxMeters: number) => {
-    const validMeters = Math.max(0.01, Math.min(meters, maxMeters));
+    const validMeters = allowNegativeStock === false
+      ? Math.max(0.01, Math.min(meters, maxMeters))
+      : Math.max(0.01, meters);
+    if (allowNegativeStock === false && meters > maxMeters) {
+      toast.warning(`Cannot exceed available length of ${maxMeters}m for Roll #${rollId}`);
+    }
     setSelectedMap((prev) => {
       if (!prev[rollId]) return prev;
       return {
@@ -110,6 +137,7 @@ export function SelectFabricRollsModal({
       material_type_id: roll.item?.material_type?.id || "",
       material_name: roll.item?.material_type?.name || "Fabric",
       rate: roll.item?.rate || 0,
+      hsn_sac: roll.item?.hsn_sac || roll.item?.material_type?.hsn_code || undefined,
     }));
 
     onConfirm(formatted);
@@ -154,8 +182,11 @@ export function SelectFabricRollsModal({
         ) : (
           <div className="max-h-[350px] overflow-y-auto border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]">
             {filteredRolls.map((roll) => {
+              const stagedMeters = getStagedMeters(roll.id);
+              const effectiveAvail = Math.max(0, Number(roll.remaining_meters || 0) - stagedMeters);
+              const isExhausted = allowNegativeStock === false && effectiveAvail <= 0;
               const isSelected = !!selectedMap[roll.id];
-              const selMeters = selectedMap[roll.id]?.meters ?? Number(roll.remaining_meters || 0);
+              const selMeters = selectedMap[roll.id]?.meters ?? effectiveAvail;
               const gradeVal = roll.grade || roll.item?.grade;
               const designVal = roll.design_name || roll.item?.design_name;
 
@@ -163,10 +194,13 @@ export function SelectFabricRollsModal({
                 <div
                   key={roll.id}
                   className={`p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-                    isSelected ? "bg-[var(--primary-light)]" : "hover:bg-[var(--table-row-hover)]"
+                    isSelected ? "bg-[var(--primary-light)]" : isExhausted ? "opacity-60 bg-[var(--page-bg)]" : "hover:bg-[var(--table-row-hover)]"
                   }`}
                 >
-                  <div className="flex items-start gap-3 cursor-pointer" onClick={() => toggleSelect(roll)}>
+                  <div
+                    className={`flex items-start gap-3 ${isExhausted && !isSelected ? "cursor-not-allowed" : "cursor-pointer"}`}
+                    onClick={() => toggleSelect(roll)}
+                  >
                     <div
                       className={`h-5 w-5 rounded border flex items-center justify-center mt-0.5 transition-colors ${
                         isSelected
@@ -194,11 +228,39 @@ export function SelectFabricRollsModal({
                             Shade: {roll.shade}
                           </span>
                         )}
+                        {isExhausted && (
+                          <span className="px-1.5 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[10px] rounded font-bold">
+                            Fully in Bill
+                          </span>
+                        )}
                       </div>
-                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5 font-medium">
-                        {roll.item?.material_type?.name || "Raw Material"} • Avail:{" "}
-                        <strong className="text-[var(--text-primary)] font-mono">{roll.remaining_meters}m</strong>
-                        {roll.item?.purchase?.godown?.name && ` • Godown: ${roll.item.purchase.godown.name}`}
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5 font-medium flex items-center flex-wrap gap-1.5">
+                        <span>{roll.item?.material_type?.name || "Raw Material"}</span>
+                        <span>•</span>
+                        <span>
+                          Avail: <strong className="text-[var(--text-primary)] font-mono">{effectiveAvail.toFixed(2)}m</strong>
+                        </span>
+                        {stagedMeters > 0 && (
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                            ({stagedMeters.toFixed(2)}m in bill)
+                          </span>
+                        )}
+                        {roll.item?.purchase?.godown?.name && (
+                          <>
+                            <span>•</span>
+                            <span>Godown: {roll.item.purchase.godown.name}</span>
+                          </>
+                        )}
+                        {(roll.item?.hsn_sac || roll.item?.material_type?.hsn_code) && (
+                          <span className="font-mono text-[10px] bg-[var(--page-bg)] px-1.5 py-0.5 rounded border border-[var(--border)] font-bold text-[var(--primary)]">
+                            HSN: {roll.item?.hsn_sac || roll.item?.material_type?.hsn_code}
+                          </span>
+                        )}
+                        {roll.item?.purchase?.purchase_number && (
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            (Bill #{roll.item.purchase.purchase_number})
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -211,18 +273,18 @@ export function SelectFabricRollsModal({
                         type="number"
                         step="0.01"
                         min="0.01"
-                        max={roll.remaining_meters}
+                        max={allowNegativeStock === false ? effectiveAvail : undefined}
                         value={selMeters}
                         onChange={(e) =>
                           handleMetersChange(
                             roll.id,
                             parseFloat(e.target.value) || 0,
-                            Number(roll.remaining_meters)
+                            effectiveAvail
                           )
                         }
                         className="w-24 h-8 px-2 rounded border border-[var(--input-focus)] bg-[var(--input-bg)] text-xs font-mono font-bold text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                       />
-                      <span className="text-xs text-[var(--text-muted)] font-mono">/ {roll.remaining_meters}m</span>
+                      <span className="text-xs text-[var(--text-muted)] font-mono">/ {effectiveAvail.toFixed(2)}m</span>
                     </div>
                   )}
                 </div>

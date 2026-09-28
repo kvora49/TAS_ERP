@@ -9,7 +9,8 @@ import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
-import { Pencil, Trash2, Plus, RefreshCw, AlertTriangle, Package } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, AlertTriangle, Package, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -85,6 +86,8 @@ export default function RawMaterialsPage() {
   });
 
   const imageUrl = watch("image_url");
+  const watchHsn = watch("hsn_code");
+  const resolvedGstForMaterial = lookupGst(watchHsn, 0);
 
   const { data: materialsData, isLoading: loading } = useERPQuery<RawMaterialType[]>(["raw-materials-list"], async () => {
     const res = await fetch("/api/raw-materials");
@@ -532,6 +535,31 @@ export default function RawMaterialsPage() {
                   </option>
                 ))}
               </datalist>
+              {/* Live GST feedback */}
+              {resolvedGstForMaterial && watchHsn && watchHsn.trim().length > 0 && (
+                <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--primary)] font-semibold">
+                  <span>GST Rate: {resolvedGstForMaterial.gstPercent}%</span>
+                  {resolvedGstForMaterial.isAutoTier && (
+                    <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                      (Auto-tier: ≤ ₹{resolvedGstForMaterial.matchedRate?.tier_threshold ?? 1000} → {resolvedGstForMaterial.matchedRate?.tier_low_gst ?? 5}%, &gt; ₹{resolvedGstForMaterial.matchedRate?.tier_threshold ?? 1000} → {resolvedGstForMaterial.matchedRate?.tier_high_gst ?? 12}%)
+                    </span>
+                  )}
+                </div>
+              )}
+              {!resolvedGstForMaterial && watchHsn && watchHsn.trim().length > 0 && (
+                <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-500 font-medium">
+                  <AlertTriangle size={11} className="shrink-0" />
+                  <span>HSN not in GST Rates master.</span>
+                  <Link
+                    href={`/master-data/gst-rates?search=${watchHsn.trim()}`}
+                    target="_blank"
+                    className="underline underline-offset-2 hover:text-amber-700 flex items-center gap-0.5 transition-colors"
+                  >
+                    Add it <ExternalLink size={9} />
+                  </Link>
+                </div>
+              )}
+
             </div>
 
             {/* GST Percent */}

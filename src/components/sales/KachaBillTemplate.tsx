@@ -666,6 +666,16 @@ export function KachaBillTemplate({ bill, company, config, exclusions = {}, logo
             </td>
           </tr>
 
+          {/* ═══ REMARKS ═══ */}
+          {bill.remarks && (
+            <tr className="border-t border-black">
+              <td colSpan={2} className="px-2.5 py-1.5 text-[8.5px]">
+                <span className="font-bold">Remarks / Notes : </span>
+                <span className="text-gray-800">{bill.remarks}</span>
+              </td>
+            </tr>
+          )}
+
           {/* ═══ DECLARATION ═══ */}
           {showDeclaration && (
             <tr className="border-t border-black">

@@ -23,14 +23,23 @@ export async function GET(request: Request) {
           .is("deleted_at", null),
         supabase
           .from("bank_accounts")
-          .select("id, account_name, bank_name")
+          .select("id, name, bank_name, type, account_category")
           .eq("business_id", businessId)
           .is("deleted_at", null)
       ]);
 
+      const formattedBanks = (banksResult.data || []).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        account_name: b.name || b.bank_name || "Account",
+        bank_name: b.bank_name || "",
+        type: b.type,
+        account_category: b.account_category,
+      }));
+
       return NextResponse.json({
         expenseTypes: typesResult.data || [],
-        bankAccounts: banksResult.data || [],
+        bankAccounts: formattedBanks,
       });
     }
 

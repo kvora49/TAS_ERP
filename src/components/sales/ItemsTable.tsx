@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Trash2, Layers, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -8,6 +8,8 @@ import { SelectFabricRollsModal, SelectedRollInfo } from "./SelectFabricRollsMod
 import { SizeQuantityMatrix } from "@/components/shared/SizeQuantityMatrix";
 import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 import { useBGradeStock, BGradeStockItem } from "@/hooks/queries/useDefects";
+import { useGeneralSettings } from "@/hooks/useGeneralSettings";
+import { useQuery } from "@tanstack/react-query";
 
 interface ItemsTableProps {
   state: any;
@@ -17,12 +19,26 @@ interface ItemsTableProps {
 export function ItemsTable({ state, designs }: ItemsTableProps) {
   const isKacha = state.type === "kacha" || state.gstTreatment === "exempt" || state.isKacha;
   const { lookupGst, hsnOptions } = useGstRateLookup();
+  const { allowNegativeStock } = useGeneralSettings();
   const [selectedDesignId, setSelectedDesignId] = useState("");
   const [selectedColourId, setSelectedColourId] = useState("");
   const [rate, setRate] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(5);
   const [hsnCode, setHsnCode] = useState<string>("6204");
+
+  // Query live finished stock ledger for the selected design to derive available quantities
+  const { data: stockData } = useQuery({
+    queryKey: ["finished-stock-design", selectedDesignId],
+    queryFn: async () => {
+      if (!selectedDesignId) return null;
+      const res = await fetch(`/api/finished-stock/designs/${selectedDesignId}`);
+      if (!res.ok) throw new Error("Failed to fetch design stock");
+      return res.json();
+    },
+    enabled: !!selectedDesignId,
+    staleTime: 30 * 1000,
+  });
 
   // Size quantity matrix state: { "28": 10, "30": 15, "32": 20 }
   const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({});
@@ -81,7 +97,9 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
 
       // Match raw material type to obtain accurate HSN and GST rate
       const matchedMat = rawMaterials.find((m) => m.id === matId);
-      const fabricHsn = matchedMat?.hsn_code || "5208";
+      // Prioritize HSN code from the purchase bill roll, fallback to raw material type master, fallback to "5208"
+      const rollHsn = rollList.find((r) => r.hsn_sac)?.hsn_sac;
+      const fabricHsn = rollHsn || matchedMat?.hsn_code || "5208";
       const resolvedGst = lookupGst(fabricHsn, avgRate, matchedMat?.gst_percent ?? 5);
       const taxPct = isKacha ? 0 : (resolvedGst ? resolvedGst.gstPercent : 5);
 
@@ -312,6 +330,92 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
     setSizeQuantities(next);
   };
 
+  // 1. Calculate physical stock for a given colour ID and size from stockData
+  const getPhysicalStockForColourAndSize = useCallback(
+    (colourId: string | null, sz: string): number => {
+      if (!stockData?.matrix) return 0;
+      let qty = 0;
+      const cKey = colourId || "default";
+
+      if (stockData.matrix[cKey]) {
+        Object.values(stockData.matrix[cKey]).forEach((godownSizes: any) => {
+          qty += Number(godownSizes?.[sz] || 0);
+        });
+      }
+
+      // If specific colour has no entries or only 1 colour exists, check "default"
+      if (cKey !== "default" && (colours.length <= 1 || !colours.some((c: any) => c.id === cKey))) {
+        if (stockData.matrix["default"]) {
+          Object.values(stockData.matrix["default"]).forEach((godownSizes: any) => {
+            qty += Number(godownSizes?.[sz] || 0);
+          });
+        }
+      } else if (cKey === "default" && stockData.matrix["default"]) {
+        Object.values(stockData.matrix["default"]).forEach((godownSizes: any) => {
+          qty += Number(godownSizes?.[sz] || 0);
+        });
+      }
+
+      return qty;
+    },
+    [stockData, colours]
+  );
+
+  // 2. Derive available uncommitted stock per size for the currently selected colour
+  const availableStockBySize = useMemo(() => {
+    if (!selectedDesignId || !sizes || sizes.length === 0) return {};
+    const res: Record<string, number> = {};
+    const targetColour = selectedColourId || null;
+
+    sizes.forEach((sz) => {
+      const physical = getPhysicalStockForColourAndSize(targetColour, sz);
+      // Deduct items already staged in invoice
+      const staged = state.items
+        .filter((it: any) => {
+          if (it.design_id !== selectedDesignId) return false;
+          if (String(it.size || "").trim().toLowerCase() !== String(sz).trim().toLowerCase()) return false;
+          if (it.colour_id && targetColour && it.colour_id === targetColour) return true;
+          if (!it.colour_id && !targetColour) return true;
+          if (it.colour_id === targetColour) return true;
+          return false;
+        })
+        .reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+
+      res[sz] = Math.max(0, physical - staged);
+    });
+
+    return res;
+  }, [selectedDesignId, sizes, selectedColourId, getPhysicalStockForColourAndSize, state.items]);
+
+  // 3. For non-sized designs (single quantity)
+  const availableSingleQty = useMemo(() => {
+    if (!selectedDesignId) return 0;
+    const targetColour = selectedColourId || "default";
+    let physical = 0;
+
+    if (stockData?.matrix?.[targetColour]) {
+      Object.values(stockData.matrix[targetColour]).forEach((godownSizes: any) => {
+        Object.values(godownSizes).forEach((q: any) => {
+          physical += Number(q || 0);
+        });
+      });
+    } else if (stockData?.matrix?.["default"]) {
+      Object.values(stockData.matrix["default"]).forEach((godownSizes: any) => {
+        Object.values(godownSizes).forEach((q: any) => {
+          physical += Number(q || 0);
+        });
+      });
+    } else {
+      physical = Number(stockData?.totalDesignStockQty || 0);
+    }
+
+    const staged = state.items
+      .filter((it: any) => it.design_id === selectedDesignId && (it.colour_id === selectedColourId || !it.colour_id))
+      .reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+
+    return Math.max(0, physical - staged);
+  }, [selectedDesignId, selectedColourId, stockData, state.items]);
+
   // Calculate total pieces from matrix
   const totalMatrixQty = sizes.length > 0
     ? Object.values(sizeQuantities).reduce((acc, qty) => acc + (Number(qty) || 0), 0)
@@ -335,6 +439,46 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
     const targetColoursList = autoFillAllColors && colours.length > 0
       ? colours
       : [colours.find((c: any) => c.id === selectedColourId) || { id: selectedColourId || null, colour_name: "Default" }];
+
+    // If allowNegativeStock is false, validate available stock per size & colour
+    if (allowNegativeStock === false) {
+      for (const colObj of targetColoursList) {
+        const cId = colObj.id || null;
+        const cName = colObj.colour_name || "Default";
+
+        if (sizes.length > 0) {
+          for (const sz of sizes) {
+            const reqQty = Number(sizeQuantities[sz] || 0);
+            if (reqQty <= 0) continue;
+
+            const physical = getPhysicalStockForColourAndSize(cId, sz);
+            const staged = state.items
+              .filter((it: any) => 
+                it.design_id === selectedDesignId &&
+                ((it.colour_id && it.colour_id === cId) || (!it.colour_id && !cId)) &&
+                String(it.size || "").trim().toLowerCase() === String(sz).trim().toLowerCase()
+              )
+              .reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+
+            const maxAllowed = Math.max(0, physical - staged);
+            if (reqQty > maxAllowed) {
+              toast.error(
+                `Colour "${cName}", Size ${sz}: cannot add ${reqQty} pcs. Only ${maxAllowed} available in stock.`
+              );
+              return;
+            }
+          }
+        } else {
+          const reqQty = Number(singleQty || 0);
+          if (reqQty > availableSingleQty) {
+            toast.error(
+              `Insufficient stock for "${designName}". Available: ${availableSingleQty} Pcs, Requested: ${reqQty} Pcs.`
+            );
+            return;
+          }
+        }
+      }
+    }
 
     const newItems: any[] = [];
 
@@ -440,14 +584,74 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
   };
 
   const handleItemQtyChange = (index: number, newQty: number) => {
-    const qty = Math.max(1, newQty);
+    let qty = Math.max(0.01, newQty);
+    const target = state.items[index];
+    if (!target) return;
+
+    if (allowNegativeStock === false) {
+      // 1. If fabric roll item, clamp to total meters of its rolls
+      if (target.item_type === "fabric" && target.rolls && Array.isArray(target.rolls)) {
+        const totalRollMeters = target.rolls.reduce((sum: number, r: any) => sum + Number(r.meters || 0), 0);
+        if (totalRollMeters > 0 && qty > totalRollMeters) {
+          qty = totalRollMeters;
+          toast.warning(`Cannot exceed total roll meters of ${totalRollMeters.toFixed(2)}m`);
+        }
+      }
+      // 2. If finished stock item and stockData is loaded for that design
+      else if (target.design_id && stockData && target.design_id === selectedDesignId) {
+        const sz = target.size;
+        const cId = target.colour_id || null;
+        if (sz && sz !== "—") {
+          const physical = getPhysicalStockForColourAndSize(cId, sz);
+          const otherStaged = state.items
+            .filter((it: any, i: number) => 
+              i !== index &&
+              it.design_id === target.design_id &&
+              ((it.colour_id && it.colour_id === cId) || (!it.colour_id && !cId)) &&
+              String(it.size || "").trim().toLowerCase() === String(sz).trim().toLowerCase()
+            )
+            .reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+
+          const maxAllowed = Math.max(0, physical - otherStaged);
+          if (qty > maxAllowed) {
+            qty = maxAllowed;
+            toast.warning(`Cannot exceed available stock of ${maxAllowed} Pcs for Size ${sz}`);
+          }
+        }
+      }
+    }
+
+    state.setItems((prev: any[]) => {
+      const next = [...prev];
+      const cur = next[index];
+      if (!cur) return prev;
+      const discountFactor = 1 - Number(cur.discount_percent || 0) / 100;
+      const amount = qty * Number(cur.rate || 0) * discountFactor;
+      next[index] = { ...cur, quantity: qty, amount };
+      return next;
+    });
+  };
+
+  const handleItemHsnChange = (index: number, newHsn: string) => {
     state.setItems((prev: any[]) => {
       const next = [...prev];
       const target = next[index];
       if (!target) return prev;
-      const discountFactor = 1 - Number(target.discount_percent || 0) / 100;
-      const amount = qty * Number(target.rate || 0) * discountFactor;
-      next[index] = { ...target, quantity: qty, amount };
+
+      let taxPercentVal = target.tax_percent;
+      if (!isKacha && newHsn) {
+        const resolved = lookupGst(newHsn, Number(target.rate || 0), target.tax_percent);
+        if (resolved) {
+          taxPercentVal = resolved.gstPercent;
+        }
+      }
+
+      next[index] = {
+        ...target,
+        hsn_sac: newHsn,
+        tax_percent: taxPercentVal,
+        gst_percent: taxPercentVal,
+      };
       return next;
     });
   };
@@ -920,15 +1124,30 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                 onAutoFillAllColorsChange={setAutoFillAllColors}
                 showAllColorsOption={true}
                 sizeSetName={selectedDesign?.size_set?.name}
+                availableStock={availableStockBySize}
+                allowNegativeStock={allowNegativeStock}
               />
             ) : (
               <div className="bg-[var(--card-bg)] p-3 rounded-lg border border-[var(--border)] flex items-center justify-between gap-4">
-                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Quantity (Pcs)</span>
+                <div>
+                  <span className="text-xs font-bold text-[var(--text-secondary)] uppercase block">Quantity (Pcs)</span>
+                  <span className={`text-[10px] font-mono font-semibold ${availableSingleQty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
+                    {availableSingleQty > 0 ? `Available in Stock: ${availableSingleQty} Pcs` : "0 Pcs available in stock"}
+                  </span>
+                </div>
                 <input
                   type="number"
                   min="1"
+                  max={allowNegativeStock === false ? Math.max(0, availableSingleQty) : undefined}
                   value={singleQty}
-                  onChange={(e) => setSingleQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  onChange={(e) => {
+                    let val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    if (allowNegativeStock === false && val > availableSingleQty) {
+                      val = Math.max(1, availableSingleQty);
+                      toast.warning(`Cannot exceed available stock of ${availableSingleQty} Pcs`);
+                    }
+                    setSingleQty(val);
+                  }}
                   className="w-24 h-9 px-3 border border-[var(--input-border)] bg-[var(--input-bg)] rounded-md text-xs font-bold text-center text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                 />
               </div>
@@ -948,8 +1167,8 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                   <Button
                     type="button"
                     onClick={handleAddItem}
-                    disabled={!selectedDesignId || totalMatrixQty <= 0 || rate < 0}
-                    className="bg-[#6366F1] hover:bg-[#4F46E5] text-white flex items-center justify-center gap-1.5 h-10 px-5 font-bold shadow-md shadow-indigo-600/10 cursor-pointer"
+                    disabled={!selectedDesignId || totalMatrixQty <= 0 || rate < 0 || (allowNegativeStock === false && sizes.length === 0 && availableSingleQty <= 0)}
+                    className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center gap-1.5 h-10 px-5 font-bold shadow-md shadow-indigo-600/10 cursor-pointer"
                   >
                     <Plus size={16} />
                     <span>Add Items to Invoice</span>
@@ -1060,8 +1279,8 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                   </button>
                 </div>
 
-                {/* Qty & Rate Inputs (Mobile Touch-Friendly) */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                {/* Qty, Rate & HSN Inputs (Mobile Touch-Friendly) */}
+                <div className={`grid ${isKacha ? "grid-cols-2" : "grid-cols-3"} gap-2 pt-1`}>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
                       Quantity ({isFabric ? "Mtr" : "Pcs"})
@@ -1072,8 +1291,8 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                       step="0.01"
                       value={it.quantity}
                       onFocus={(e) => e.target.select()}
-                      onChange={(e) => handleItemQtyChange(index, parseFloat(e.target.value) || 1)}
-                      className="w-full h-9 px-2.5 text-sm font-bold text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                      onChange={(e) => handleItemQtyChange(index, parseFloat(e.target.value) || 0.01)}
+                      className="w-full h-9 px-2 text-xs font-bold text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1087,9 +1306,25 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                       value={it.rate}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleItemRateChange(index, parseFloat(e.target.value) || 0)}
-                      className="w-full h-9 px-2.5 text-sm font-bold text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                      className="w-full h-9 px-2 text-xs font-bold text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
                     />
                   </div>
+                  {!isKacha && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">
+                        HSN / SAC
+                      </label>
+                      <input
+                        type="text"
+                        list="sales-hsn-datalist"
+                        value={it.hsn_sac || ""}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleItemHsnChange(index, e.target.value)}
+                        placeholder="HSN"
+                        className="w-full h-9 px-1.5 text-xs font-mono font-bold text-center border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)]"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Subtotal & Taxes Footer */}
@@ -1133,6 +1368,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                 <th className="p-3.5">Design Name</th>
                 <th className="p-3.5">Colour</th>
                 <th className="p-3.5">Size</th>
+                {!isKacha && <th className="p-3.5 text-center">HSN/SAC</th>}
                 <th className="p-3.5 text-right">Qty</th>
                 <th className="p-3.5 text-right">Rate</th>
                 <th className="p-3.5 text-right">Disc %</th>
@@ -1208,6 +1444,19 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
                         {isFabric ? "Meters" : it.size || "Pcs"}
                       </span>
                     </td>
+                    {!isKacha && (
+                      <td className="p-2 text-center">
+                        <input
+                          type="text"
+                          list="sales-hsn-datalist"
+                          value={it.hsn_sac || ""}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleItemHsnChange(index, e.target.value)}
+                          placeholder="HSN"
+                          className="w-20 h-8 px-2 text-center border border-[var(--input-border)] rounded font-mono font-bold text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] bg-[var(--input-bg)]"
+                        />
+                      </td>
+                    )}
                     <td className="p-2 text-right">
                       <input
                         type="number"
@@ -1248,7 +1497,7 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
               })}
               {state.items.length === 0 && (
                 <tr>
-                  <td colSpan={isKacha ? 9 : 10} className="p-8 text-center text-[var(--text-faint)] italic">
+                  <td colSpan={isKacha ? 9 : 11} className="p-8 text-center text-[var(--text-faint)] italic">
                     No items added yet. Select a design or click &quot;+ Sell Fabric Rolls&quot; above to add invoice items.
                   </td>
                 </tr>
@@ -1263,6 +1512,8 @@ export function ItemsTable({ state, designs }: ItemsTableProps) {
         open={rollModalOpen}
         onOpenChange={setRollModalOpen}
         onConfirm={handleAddFabricRolls}
+        existingItems={state.items}
+        allowNegativeStock={allowNegativeStock}
       />
     </div>
   );

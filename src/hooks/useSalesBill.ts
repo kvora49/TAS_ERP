@@ -120,6 +120,7 @@ export function useSalesBill(id?: string) {
         unit: it.unit || "Pcs",
         discount_percent: Number(it.discount_percent || 0),
         tax_percent: Number(it.tax_percent || 0),
+        hsn_sac: it.hsn_sac || it.design?.hsn_code || it.material_type?.hsn_code || it.design?.hsn_sac || null,
         rate: Number(it.rate || 0),
         quantity: Number(it.quantity || 0),
         amount: Number(it.amount || (it.quantity * it.rate * (1 - (it.discount_percent || 0) / 100))),

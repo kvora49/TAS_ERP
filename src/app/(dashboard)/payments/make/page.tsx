@@ -13,12 +13,20 @@ function MakePaymentContent() {
     searchParams.get("worker_id") ||
     "";
 
+  const handleCancel = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/payments");
+    }
+  };
+
   return (
     <div className="p-2.5 sm:p-6 space-y-4 max-w-7xl mx-auto">
       <MakePaymentView
         initialPartyId={initialPartyId}
         onSuccess={() => router.push("/payments")}
-        onCancel={() => router.push("/payments")}
+        onCancel={handleCancel}
       />
     </div>
   );

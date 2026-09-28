@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { numberToWords } from "@/lib/utils/numberToWords";
+import QRCode from "qrcode";
 
 // ── GSTIN State Code Lookup ───────────────────────────────────────────
 const GSTIN_STATES: Record<string, string> = {
@@ -127,6 +128,15 @@ export interface PakkaBillData {
   igst: number;
   round_off?: number;
   grand_total: number;
+  remarks?: string | null;
+  irn?: string | null;
+  irn_status?: string | null;
+  ack_no?: string | null;
+  ack_date?: string | null;
+  signed_qr_data?: string | null;
+  ewb_no?: string | null;
+  ewb_date?: string | null;
+  ewb_valid_till?: string | null;
   party?: { name?: string; company_name?: string | null; gstin?: string | null; phone?: string | null; billing_address_line1?: string | null; state?: string | null; billing_state?: string | null };
   items?: PakkaBillItem[];
   charges?: PakkaBillCharge[];
@@ -568,6 +578,21 @@ interface PakkaBillTemplateProps {
 }
 
 export function PakkaBillTemplate({ bill, company, config, exclusions = {}, logoUrl }: PakkaBillTemplateProps) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const qrSource = bill.signed_qr_data || bill.irn;
+    if (qrSource) {
+      QRCode.toDataURL(qrSource, {
+        width: 120,
+        margin: 1,
+        color: { dark: "#000000", light: "#FFFFFF" },
+      })
+        .then(setQrDataUrl)
+        .catch((err) => console.error("QR Code generation error:", err));
+    }
+  }, [bill.signed_qr_data, bill.irn]);
+
   const itemList = (bill.items && bill.items.length > 0)
     ? bill.items
     : (bill as any).sale_bill_items || (bill as any).items_data || [];
@@ -682,6 +707,44 @@ export function PakkaBillTemplate({ bill, company, config, exclusions = {}, logo
       {/* ═══ HEADER ═══ */}
       <table className="w-full border-collapse border-2 border-black">
         <tbody>
+          {/* ═══ E-INVOICE STATUTORY BANNER (IF IRN PRESENT) ═══ */}
+          {bill.irn && (
+            <tr className="border-b-2 border-black bg-gray-50">
+              <td colSpan={2} className="p-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-black text-white px-1.5 py-0.5 rounded-sm">
+                        e-Invoice
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-800">
+                        Ack No: <span className="font-mono">{bill.ack_no || "-"}</span> | Ack Date:{" "}
+                        <span className="font-mono">
+                          {bill.ack_date ? new Date(bill.ack_date).toLocaleDateString("en-IN") : "-"}
+                        </span>
+                      </span>
+                      {bill.ewb_no && (
+                        <span className="text-[9px] font-bold text-gray-900 border-l border-gray-400 pl-2">
+                          E-Way Bill: <span className="font-mono font-black">{bill.ewb_no}</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[8.5px] leading-tight text-gray-900">
+                      <span className="font-bold">IRN: </span>
+                      <span className="font-mono font-bold select-all break-all">{bill.irn}</span>
+                    </div>
+                  </div>
+
+                  {qrDataUrl && (
+                    <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-gray-400">
+                      <img src={qrDataUrl} alt="Signed GST QR Code" className="w-[64px] h-[64px] object-contain" />
+                    </div>
+                  )}
+                </div>
+              </td>
+            </tr>
+          )}
+
           <tr className="border-b-2 border-black">
             {/* Company info + Header Title (Top-Left & Middle 67%) */}
             <td className="border-r-2 border-black p-2.5 align-top w-[67%]">
@@ -702,7 +765,7 @@ export function PakkaBillTemplate({ bill, company, config, exclusions = {}, logo
 
                 {/* TAX INVOICE Header Title (Centered in Top Header) */}
                 <div className="text-center text-[18px] font-black tracking-wide uppercase whitespace-nowrap pt-1">
-                  TAX INVOICE
+                  {bill.irn ? "TAX INVOICE (e-Invoice)" : "TAX INVOICE"}
                 </div>
               </div>
 
@@ -1108,6 +1171,16 @@ export function PakkaBillTemplate({ bill, company, config, exclusions = {}, logo
               </table>
             </td>
           </tr>
+
+          {/* ═══ REMARKS ═══ */}
+          {bill.remarks && (
+            <tr className="border-t border-gray-400">
+              <td colSpan={2} className="px-2.5 py-1.5 text-[8.5px]">
+                <span className="font-bold">Remarks / Notes : </span>
+                <span className="text-gray-800">{bill.remarks}</span>
+              </td>
+            </tr>
+          )}
 
           {/* ═══ DECLARATION ═══ */}
           {showDeclaration && (

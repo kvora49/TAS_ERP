@@ -27,7 +27,7 @@ interface ModuleGuardProps {
 
 export function ModuleGuard({ children }: ModuleGuardProps) {
   const pathname = usePathname();
-  const { canView, isLoading } = usePermissions();
+  const { canView, isLoading, role } = usePermissions();
 
   const moduleName = getModuleFromPath(pathname);
 
@@ -36,9 +36,9 @@ export function ModuleGuard({ children }: ModuleGuardProps) {
     return <>{children}</>;
   }
 
-  // If permissions are loading
-  if (isLoading) {
-    return <>{children}</>;
+  // If permissions are loading or user has no authenticated role (e.g. during logout or session init)
+  if (isLoading || !role) {
+    return null;
   }
 
   // Check permission

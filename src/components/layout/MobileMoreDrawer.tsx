@@ -100,6 +100,7 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   "Production": Factory,
   "Notifications": Bell,
   "Backup & Restore": HardDrive,
+  "Bill & Invoice Settings": FileText,
   "Bill Builder": FileText,
   "Audit Logs": ShieldCheck,
 };

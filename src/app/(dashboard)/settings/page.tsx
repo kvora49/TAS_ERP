@@ -13,6 +13,7 @@ import {
   Upload,
   HardDrive,
   Database,
+  ShieldCheck,
 } from "lucide-react";
 import { ModuleHubPage } from "@/components/shared/ModuleHubPage";
 
@@ -49,7 +50,8 @@ export default function SettingsPage() {
         {
           title: "Tools & Data",
           items: [
-            { label: "Bill Builder", href: "/settings/bill-builder", icon: FileText, accent: "text-indigo-500" },
+            { label: "Bill & Invoice Settings", href: "/settings/bill-invoice-settings", icon: FileText, accent: "text-indigo-500" },
+            { label: "E-Invoice Operations", href: "/settings/einvoice-operations", icon: ShieldCheck, accent: "text-purple-500" },
             { label: "Import Data", href: "/settings/import", icon: Upload, accent: "text-green-500" },
             { label: "Backup & Restore", href: "/settings/backup-restore", icon: HardDrive, accent: "text-slate-500" },
             { label: "Audit Logs", href: "/settings/audit-logs", icon: Database, accent: "text-violet-500" },

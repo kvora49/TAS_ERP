@@ -220,6 +220,25 @@ export async function POST(request: Request) {
       }
     }
 
+    // HSN ↔ GST Rates sync: when a design is saved with a known HSN code, enrich
+    // the gst_rates.description with design category info (only if description is currently empty).
+    if (hsn_code && hsn_code.trim()) {
+      const { data: existingRate } = await supabase
+        .from("gst_rates")
+        .select("id, description")
+        .eq("business_id", businessId)
+        .ilike("hsn_code", hsn_code.trim())
+        .maybeSingle();
+
+      if (existingRate && (!existingRate.description || existingRate.description.trim() === "")) {
+        const autoDescription = [category, name].filter(Boolean).join(" – ");
+        await supabase
+          .from("gst_rates")
+          .update({ description: autoDescription })
+          .eq("id", existingRate.id);
+      }
+    }
+
     // Re-fetch created design with full relations (brand, size_set, design_colours)
     const { data: fullDesign } = await supabase
       .from("designs")

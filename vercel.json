@@ -18,6 +18,10 @@
     {
       "path": "/api/admin/backup/sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/einvoice-reconcile",
+      "schedule": "0 22 * * *"
     }
   ]
 }

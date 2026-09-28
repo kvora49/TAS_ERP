@@ -11,7 +11,7 @@ interface ThemeToggleProps {
 }
 
 export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
-  const { theme, setTheme, initTheme } = useThemeStore();
+  const { theme, resolvedTheme, setTheme, initTheme } = useThemeStore();
 
   useEffect(() => {
     initTheme();
@@ -40,9 +40,17 @@ export default function ThemeToggle({ compact = false }: ThemeToggleProps) {
         metaThemeColor.setAttribute("name", "theme-color");
         document.head.appendChild(metaThemeColor);
       }
-      metaThemeColor.setAttribute("content", isDark ? "#0F172A" : "#F1F5F9");
+      metaThemeColor.setAttribute("content", isDark ? "#0F172A" : "#F7F8FA");
+
+      const manifestLinks = document.querySelectorAll<HTMLLinkElement>(
+        'link[data-pwa-manifest]'
+      );
+      manifestLinks.forEach((link) => {
+        const linkTheme = link.dataset.pwaManifest;
+        link.media = linkTheme === (isDark ? "dark" : "light") ? "all" : "not all";
+      });
     }
-  }, [theme]);
+  }, [theme, resolvedTheme]);
 
   const handleSelect = (t: Theme) => {
     triggerHaptic("selection");

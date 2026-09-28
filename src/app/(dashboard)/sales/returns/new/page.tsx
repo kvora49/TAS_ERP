@@ -98,6 +98,7 @@ export default function RecordSalesReturnPage() {
   const [returnReason, setReturnReason] = useState("");
   const [remarks, setRemarks] = useState("");
   const [billType, setBillType] = useState<"pakka" | "kacha">("pakka");
+  const [isInterstate, setIsInterstate] = useState(false);
 
   // Line items state
   const [lineItems, setLineItems] = useState<ReturnLineItem[]>([]);
@@ -185,8 +186,10 @@ export default function RecordSalesReturnPage() {
         const res = await fetch(`/api/sales/bills/${selectedBillId}`);
         if (res.ok) {
           const data = await res.json();
-          const billData: SaleBill = data.bill || data;
+          const billData: any = data.bill || data;
           setBillType(billData.bill_number?.startsWith("KB-") ? "kacha" : "pakka");
+          const isInter = Number(billData.igst || 0) > 0;
+          setIsInterstate(isInter);
 
           const rawItems: SaleBillItem[] = billData.items || [];
           const lines: ReturnLineItem[] = rawItems.map((item, idx) => {
@@ -273,9 +276,21 @@ export default function RecordSalesReturnPage() {
     return billType === "kacha" ? 0 : lineItems.reduce((sum, line) => sum + Number(line.gst_amount || 0), 0);
   }, [lineItems, billType]);
 
-  const cgst = useMemo(() => (billType === "kacha" ? 0 : Number((totalGstAmount / 2).toFixed(2))), [totalGstAmount, billType]);
-  const sgst = useMemo(() => (billType === "kacha" ? 0 : Number((totalGstAmount / 2).toFixed(2))), [totalGstAmount, billType]);
-  const igst = 0;
+  const isPakka = billType === "pakka";
+  const igst = useMemo(() => {
+    if (!isPakka || !isInterstate) return 0;
+    return totalGstAmount;
+  }, [isPakka, isInterstate, totalGstAmount]);
+
+  const cgst = useMemo(() => {
+    if (!isPakka || isInterstate) return 0;
+    return Number((totalGstAmount / 2).toFixed(2));
+  }, [isPakka, isInterstate, totalGstAmount]);
+
+  const sgst = useMemo(() => {
+    if (!isPakka || isInterstate) return 0;
+    return Number((totalGstAmount / 2).toFixed(2));
+  }, [isPakka, isInterstate, totalGstAmount]);
 
   const rawGrandTotal = totalTaxableAmount + totalGstAmount;
   const grandTotal = Math.round(rawGrandTotal);
@@ -759,8 +774,12 @@ export default function RecordSalesReturnPage() {
 
             {billType === "pakka" && (
               <div>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">CGST + SGST</span>
-                <span className="text-sm font-semibold text-[var(--text-body)] font-mono">{formatCurrency(cgst + sgst)}</span>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                  {isInterstate ? "IGST (Inter-State)" : "CGST + SGST"}
+                </span>
+                <span className="text-sm font-semibold text-[var(--text-body)] font-mono">
+                  {formatCurrency(isInterstate ? igst : cgst + sgst)}
+                </span>
               </div>
             )}
 

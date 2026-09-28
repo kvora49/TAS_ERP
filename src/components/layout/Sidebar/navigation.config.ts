@@ -258,7 +258,7 @@ export const navItems: NavItem[] = [
       { name: "Production", href: "/settings/production" },
       { name: "Notifications", href: "/settings/notifications" },
       { name: "Backup & Restore", href: "/settings/backup-restore" },
-      { name: "Bill Builder", href: "/settings/bill-builder" },
+      { name: "Bill & Invoice Settings", href: "/settings/bill-invoice-settings" },
       { name: "Audit Logs", href: "/settings/audit-logs" },
     ],
   },

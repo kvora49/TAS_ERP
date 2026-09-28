@@ -10,7 +10,7 @@ import { ImageUpload } from "@/components/forms/ImageUpload";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/shared/Badge";
 import { Modal } from "@/components/shared/Modal";
-import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown, Calculator, Calendar } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCw, X, Image as ImageIcon, Star, HelpCircle, Palette, Eye, Boxes, Layers, LayoutGrid, Filter, Search, Tag, ChevronDown, Calculator, Calendar, ExternalLink } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -921,9 +921,16 @@ export default function DesignsPage() {
                     </div>
                   )}
                   {!resolvedGst && watchHsn && watchHsn.trim().length > 0 && (
-                    <p className="text-[10px] text-amber-500 mt-1">
-                      HSN code not found in GST Rates master (will use default billing rate).
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-500 font-medium">
+                      <span>HSN not in GST Rates master (will use default billing rate).</span>
+                      <Link
+                        href={`/master-data/gst-rates?search=${watchHsn.trim()}`}
+                        target="_blank"
+                        className="underline underline-offset-2 hover:text-amber-700 flex items-center gap-0.5 transition-colors"
+                      >
+                        Add it <ExternalLink size={9} />
+                      </Link>
+                    </div>
                   )}
                 </div>
 

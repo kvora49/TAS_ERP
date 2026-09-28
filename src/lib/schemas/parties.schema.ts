@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateGSTINInput } from "@/lib/gst-utils";
 
 export const CreatePartySchema = z.object({
   name: z.string().trim().min(2, "Party name must be at least 2 characters").max(120),
@@ -6,7 +7,18 @@ export const CreatePartySchema = z.object({
   phone: z.string().trim().max(25).optional().nullable(),
   email: z.string().trim().email("Invalid email address").max(120).optional().nullable().or(z.literal("")),
   type: z.array(z.string()).min(1, "At least one party type is required"),
-  gstin: z.string().trim().max(20).optional().nullable(),
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .optional()
+    .nullable()
+    .refine((val) => {
+      if (!val || val === "URP") return true;
+      return validateGSTINInput(val).isValid;
+    }, {
+      message: "GSTIN must be exactly 15 characters (e.g. 24ABCDE1234F1Z5) with a valid state code",
+    }),
   billing_address: z.string().trim().max(300).optional().nullable(),
   shipping_address: z.string().trim().max(300).optional().nullable(),
   state: z.string().trim().max(50).optional().nullable(),

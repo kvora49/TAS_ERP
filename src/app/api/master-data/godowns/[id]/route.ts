@@ -496,6 +496,23 @@ export async function PUT(
       ? code.trim().toUpperCase()
       : `GDN-${name.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10) || "001"}`;
 
+    // Duplicate check for godown code within this business
+    const { data: existingGodowns } = await supabase
+      .from("godowns")
+      .select("id, name")
+      .eq("business_id", businessId)
+      .eq("code", finalCode)
+      .neq("id", id)
+      .is("deleted_at", null)
+      .limit(1);
+
+    if (existingGodowns && existingGodowns.length > 0) {
+      return NextResponse.json(
+        { error: `Godown code '${finalCode}' is already in use by '${existingGodowns[0].name}'. Please choose a unique code.` },
+        { status: 400 }
+      );
+    }
+
     if (is_primary) {
       await supabase
         .from("godowns")

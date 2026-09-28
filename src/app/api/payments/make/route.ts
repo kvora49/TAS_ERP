@@ -212,6 +212,23 @@ export async function POST(request: Request) {
       allocations,
     } = valResult.data;
 
+    let targetBankAccountId = bank_account_id || null;
+    if (payment_mode === "cash" && !targetBankAccountId) {
+      const { data: defaultCash } = await supabase
+        .from("bank_accounts")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("type", "cash")
+        .is("deleted_at", null)
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (defaultCash?.id) {
+        targetBankAccountId = defaultCash.id;
+      }
+    }
+
     // Call record_payment database RPC function for direction: 'paid'
     const { data: paymentId, error } = await supabase.rpc("record_payment", {
       p_business_id: businessId,
@@ -220,7 +237,7 @@ export async function POST(request: Request) {
       p_payment_date: payment_date,
       p_payment_mode: payment_mode,
       p_reference_no: reference_no || "",
-      p_bank_account_id: bank_account_id || null,
+      p_bank_account_id: targetBankAccountId,
       p_amount: Number(amount),
       p_remarks: remarks || "",
       p_allocations: allocations || [],

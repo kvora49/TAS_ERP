@@ -24,10 +24,14 @@ import {
   Users,
   BarChart2,
   CheckCircle,
+  CheckCircle2,
   Sun,
   Moon,
   Eye,
   EyeOff,
+  ExternalLink,
+  RefreshCw,
+  Info,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -101,6 +105,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [isVerificationPending, setIsVerificationPending] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("auth-theme") as "light" | "dark" | null;
@@ -109,10 +117,49 @@ export default function RegisterPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
     localStorage.setItem("auth-theme", nextTheme);
+  };
+
+  const handleResendVerification = async () => {
+    if (!registeredEmail) return;
+    setIsResending(true);
+    try {
+      const supabase = createClient();
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: registeredEmail,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+      if (error) {
+        if (error.message.toLowerCase().includes("rate limit")) {
+          toast.info("A verification email was already sent recently. Please check your Inbox and Spam/Promotions folder, or wait a minute before requesting another.");
+          setResendCooldown(60);
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.success(`Verification link resent to ${registeredEmail}! Check your inbox and spam folder.`);
+        setResendCooldown(60);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resend verification email");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const {
@@ -131,10 +178,12 @@ export default function RegisterPage() {
     const supabase = createClient();
     try {
       // 1. Sign up user via Supabase Auth
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
         options: {
+          emailRedirectTo: redirectUrl,
           data: {
             full_name: values.fullName,
           },
@@ -142,6 +191,14 @@ export default function RegisterPage() {
       });
 
       if (authError) {
+        if (authError.message.toLowerCase().includes("rate limit")) {
+          setRegisteredEmail(values.email);
+          setIsVerificationPending(true);
+          setLoading(false);
+          setIsWorkspaceLoading(false);
+          toast.info("An activation email was already sent recently to this address. Please check your inbox or spam folder.");
+          return;
+        }
         toast.error(authError.message);
         setLoading(false);
         return;
@@ -150,6 +207,16 @@ export default function RegisterPage() {
       if (!authData.user) {
         toast.error("Auth registration failed. Please try again.");
         setLoading(false);
+        return;
+      }
+
+      // If user already exists in auth (Supabase returns 0 identities with email enumeration protection)
+      if (authData.user.identities && authData.user.identities.length === 0) {
+        setRegisteredEmail(values.email);
+        setIsVerificationPending(true);
+        setLoading(false);
+        setIsWorkspaceLoading(false);
+        toast.info("This email is already registered. If you haven't verified it yet, click 'Resend Verification Email' below to get a fresh activation link.");
         return;
       }
 
@@ -173,6 +240,28 @@ export default function RegisterPage() {
         return;
       }
 
+      // 3. Check if email verification is required by Supabase
+      const isEmailConfirmed = Boolean(
+        authData.user?.email_confirmed_at || 
+        authData.user?.confirmed_at
+      );
+
+      // If email is not confirmed OR there is no active session -> email verification MUST be completed!
+      if (!isEmailConfirmed || !authData.session) {
+        // Clear any partial unconfirmed session from browser client
+        try {
+          await supabase.auth.signOut();
+        } catch (_) {}
+
+        setRegisteredEmail(values.email);
+        setIsVerificationPending(true);
+        setLoading(false);
+        setIsWorkspaceLoading(false);
+        toast.success("Account created! Please check your email to activate your account.");
+        return;
+      }
+
+      // Only navigate into workspace if email is already confirmed with an active session
       setIsWorkspaceLoading(true);
       router.push("/");
       router.refresh();
@@ -334,20 +423,130 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <h2 className={cn(
-            "text-xl sm:text-2xl font-bold text-center tracking-tight",
-            theme === "dark" ? "text-white" : "text-[#0F172A]"
-          )}>
-            Create Your Account
-          </h2>
-          <p className={cn(
-            "text-xs sm:text-sm text-center mt-1 mb-6 sm:mb-8",
-            theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
-          )}>
-            Join TAS ERP and grow your business smarter
-          </p>
+          {isVerificationPending ? (
+            <div className="space-y-6 text-center py-2">
+              {/* Mail Badge */}
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-3xl bg-indigo-500/10 border-2 border-indigo-500/30 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/10 animate-pulse">
+                    <Mail className="w-10 h-10" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div>
+                <h2 className={cn(
+                  "text-2xl font-extrabold tracking-tight",
+                  theme === "dark" ? "text-white" : "text-[#0F172A]"
+                )}>
+                  Verify Your Email
+                </h2>
+                <p className={cn(
+                  "text-sm mt-2 max-w-sm mx-auto leading-relaxed",
+                  theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
+                )}>
+                  We sent an account activation link to:
+                </p>
+                <div className={cn(
+                  "inline-block mt-2 px-3.5 py-1.5 rounded-full font-mono text-xs font-bold border",
+                  theme === "dark"
+                    ? "bg-[#1E293B] border-[#334155] text-indigo-400"
+                    : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                )}>
+                  {registeredEmail}
+                </div>
+              </div>
+
+              <div className={cn(
+                "p-4 rounded-xl text-xs text-left border space-y-2.5",
+                theme === "dark"
+                  ? "bg-[#0F172A] border-[#1E293B] text-[#94A3B8]"
+                  : "bg-slate-50 border-[#E2E8F0] text-[#64748B]"
+              )}>
+                <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-[#6366F1]">
+                  <Info className="size-3.5" />
+                  <span>Important Next Steps</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 leading-relaxed">
+                  <li>Check your inbox and look for the verification email from TAS ERP.</li>
+                  <li>Click the confirmation link to activate your account.</li>
+                  <li>Once confirmed, sign in to launch your workspace.</li>
+                </ol>
+                <div className="border-t border-[#1E293B]/20 pt-2 text-[11px] text-[#94A3B8]">
+                  💡 <strong>Tip:</strong> If you don&apos;t see the email within 1–2 minutes, please check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder.
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3 pt-2">
+                {/* Open Gmail button */}
+                <a
+                  href="https://mail.google.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] hover:opacity-95 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#6366F1]/20 transition-all cursor-pointer"
+                >
+                  <span>Open Gmail</span>
+                  <ExternalLink className="size-4" />
+                </a>
+
+                {/* Resend button */}
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resendCooldown > 0 || isResending}
+                  className={cn(
+                    "w-full h-11 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50",
+                    theme === "dark"
+                      ? "border-[#334155] text-white hover:bg-[#1E293B]"
+                      : "border-[#D1D5DB] text-[#0F172A] hover:bg-gray-100"
+                  )}
+                >
+                  {isResending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Sending email...</span>
+                    </>
+                  ) : resendCooldown > 0 ? (
+                    <span>Resend email in {resendCooldown}s</span>
+                  ) : (
+                    <>
+                      <RefreshCw className="size-3.5" />
+                      <span>Resend Verification Email</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Proceed to Login */}
+                <div className="pt-2">
+                  <Link
+                    href={`/login?registered=true&email=${encodeURIComponent(registeredEmail)}`}
+                    className="inline-flex items-center justify-center text-xs text-[#6366F1] hover:underline font-semibold"
+                  >
+                    Proceed to Sign In →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 className={cn(
+                "text-xl sm:text-2xl font-bold text-center tracking-tight",
+                theme === "dark" ? "text-white" : "text-[#0F172A]"
+              )}>
+                Create Your Account
+              </h2>
+              <p className={cn(
+                "text-xs sm:text-sm text-center mt-1 mb-6 sm:mb-8",
+                theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
+              )}>
+                Join TAS ERP and grow your business smarter
+              </p>
+
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Input Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Full Name */}
@@ -679,22 +878,24 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          {/* Footer note */}
-          <p className={cn(
-            "text-center text-xs mt-6",
-            theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
-          )}>
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className={cn(
-                "font-semibold hover:underline",
-                theme === "dark" ? "text-[#818CF8] hover:text-[#A5B4FC]" : "text-[#6366F1]"
-              )}
-            >
-              Sign In
-            </Link>
-          </p>
+              {/* Footer note */}
+              <p className={cn(
+                "text-center text-xs mt-6",
+                theme === "dark" ? "text-[#94A3B8]" : "text-[#64748B]"
+              )}>
+                Already have an account?{" "}
+                <Link
+                  href="/login"
+                  className={cn(
+                    "font-semibold hover:underline",
+                    theme === "dark" ? "text-[#818CF8] hover:text-[#A5B4FC]" : "text-[#6366F1]"
+                  )}
+                >
+                  Sign In
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

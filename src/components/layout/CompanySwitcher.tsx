@@ -10,7 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Check, ChevronDown, Building2, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Building2, Loader2, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { RoleBadge } from "@/components/shared/RoleBadge";
 
@@ -24,7 +25,7 @@ export function CompanySwitcher() {
   } = useCompany();
 
   const logoUrl = activeCompany?.logo_url;
-  const companyName = activeCompany?.name || "TAS ERP";
+  const companyName = activeCompany?.name || "";
   const activeRole = activeCompany?.role || "staff";
 
   // Single-company view: Plain static branding (no dropdown, no caret, zero clutter)
@@ -33,16 +34,20 @@ export function CompanySwitcher() {
       <div className="flex items-center gap-2 select-none min-w-0">
         <img
           src={logoUrl || "/logo.png"}
-          alt={companyName}
+          alt={companyName || "TAS ERP"}
           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain bg-[var(--card-bg)] border border-[var(--border)] p-0.5 shadow-xs shrink-0"
         />
         <div className="flex flex-col justify-center leading-tight min-w-0">
           <span className="font-extrabold text-[var(--text-primary)] tracking-wide text-xs sm:text-sm leading-none truncate">
             TAS ERP
           </span>
-          {companyName && (
+          {companyName ? (
             <span className="text-[9px] sm:text-[10px] font-bold text-[var(--primary)] tracking-wider uppercase leading-tight mt-0.5 truncate hidden sm:inline-block max-w-[120px] md:max-w-[180px]">
               {companyName}
+            </span>
+          ) : (
+            <span className="text-[9px] sm:text-[10px] font-medium text-[var(--text-muted)] tracking-wider uppercase leading-tight mt-0.5 truncate hidden sm:inline-block max-w-[120px] md:max-w-[180px]">
+              Garment ERP
             </span>
           )}
         </div>
@@ -83,7 +88,7 @@ export function CompanySwitcher() {
               className="text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-transform duration-200 group-data-[state=open]:rotate-180 shrink-0"
             />
           </div>
-          <span className="text-[9px] sm:text-[10px] font-bold text-[var(--primary)] tracking-wider uppercase leading-tight mt-0.5 truncate hidden sm:inline-block max-w-[110px] md:max-w-[160px]">
+          <span className="text-[10px] font-bold text-[var(--primary)] tracking-wider uppercase leading-tight mt-0.5 truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px]">
             {companyName}
           </span>
         </div>
@@ -91,7 +96,7 @@ export function CompanySwitcher() {
 
       <DropdownMenuContent
         align="start"
-        className="w-64 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-lg mt-1 p-1.5 z-50 animate-in fade-in-80 duration-150"
+        className="w-68 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-lg mt-1 p-1.5 z-50 animate-in fade-in-80 duration-150"
       >
         <DropdownMenuLabel className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
           <span>Switch Company</span>
@@ -128,7 +133,7 @@ export function CompanySwitcher() {
                     )}
                   </div>
                   <div className="flex flex-col min-w-0 text-left">
-                    <span className="font-semibold text-xs text-[var(--text-primary)] truncate max-w-[130px]">
+                    <span className="font-semibold text-xs text-[var(--text-primary)] truncate max-w-[140px]">
                       {company.name}
                     </span>
                     <span className="text-[10px] text-[var(--text-muted)] capitalize">
@@ -144,6 +149,15 @@ export function CompanySwitcher() {
             );
           })}
         </div>
+
+        <DropdownMenuSeparator className="bg-[var(--border)] my-1" />
+        <Link
+          href="/settings/companies"
+          className="flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-[var(--primary)] hover:bg-[var(--primary-light)]/40 rounded-lg transition-colors"
+        >
+          <span>Manage All {companies.length} Companies</span>
+          <ArrowRight size={13} />
+        </Link>
       </DropdownMenuContent>
     </DropdownMenu>
   );

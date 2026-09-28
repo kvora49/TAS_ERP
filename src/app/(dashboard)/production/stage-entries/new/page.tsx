@@ -16,6 +16,10 @@ import {
   Save,
   CheckCircle,
   Lightbulb,
+  Zap,
+  Trash2,
+  UserPlus,
+  AlertTriangle,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -53,6 +57,32 @@ interface LotStage {
   status: string;
 }
 
+interface WorkerAllocation {
+  worker_id: string;
+  name: string;
+  worker_code?: string;
+  worker_type?: string;
+  qty_out: number;
+  rate: number;
+  total_amount: number;
+}
+
+function splitPiecesEqually(totalPieces: number, allocations: WorkerAllocation[]): WorkerAllocation[] {
+  if (allocations.length === 0) return [];
+  const count = allocations.length;
+  const baseQty = Math.floor(totalPieces / count);
+  const remainder = totalPieces % count;
+
+  return allocations.map((alloc, idx) => {
+    const pieces = Math.max(0, baseQty + (idx < remainder ? 1 : 0));
+    return {
+      ...alloc,
+      qty_out: pieces,
+      total_amount: Number((pieces * alloc.rate).toFixed(2)),
+    };
+  });
+}
+
 export default function NewStageEntryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +105,9 @@ export default function NewStageEntryPage() {
   const [paymentType, setPaymentType] = useState("piece_rate");
   const [workerId, setWorkerId] = useState("");
   const [noOfWorkers, setNoOfWorkers] = useState(1);
+  const [workerMode, setWorkerMode] = useState<"single" | "multiple">("single");
+  const [workerAllocations, setWorkerAllocations] = useState<WorkerAllocation[]>([]);
+  const [selectedAddWorkerId, setSelectedAddWorkerId] = useState("");
   const [remarks, setRemarks] = useState("");
   
   // Photo attachments state and hook
@@ -86,7 +119,17 @@ export default function NewStageEntryPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const isFormDirty = !submitting && Boolean(selectedLotId || stageId || qtyIn > 0 || qtyOut > 0 || workerId || remarks);
+  const isFormDirty =
+    !submitting &&
+    Boolean(
+      selectedLotId ||
+      stageId ||
+      qtyIn > 0 ||
+      qtyOut > 0 ||
+      workerId ||
+      workerAllocations.length > 0 ||
+      remarks
+    );
   useUnsavedChangesGuard(isFormDirty);
 
   // Section 5: Accessory Assignment (Optional)
@@ -378,10 +421,36 @@ export default function NewStageEntryPage() {
         .map((sw: any) => sw.worker)
         .filter(Boolean);
 
-      if (assignedStageWorkers.length > 0 && assignedStageWorkers[0]) {
+      if (assignedStageWorkers.length > 1) {
+        // Multi-worker team pre-assigned on lot stage!
+        const initialAllocations: WorkerAllocation[] = assignedStageWorkers.map((sw: any) => {
+          const matched = workers.find((w) => w.id === sw.id || w.worker_id === sw.worker_id || w.id === sw.worker_id);
+          const resolved = matched || sw;
+          const rate = Number(resolved.wage_rate ?? resolved.default_rate ?? 0);
+          return {
+            worker_id: resolved.id,
+            name: resolved.name,
+            worker_code: resolved.worker_id || "WRK",
+            worker_type: resolved.type || "job_worker",
+            qty_out: 0,
+            rate,
+            total_amount: 0,
+          };
+        });
+
+        const splitAllocs = splitPiecesEqually(stageAvailability.availableQty, initialAllocations);
+        setWorkerAllocations(splitAllocs);
+        setWorkerMode("multiple");
+        setWorkerId(splitAllocs[0]?.worker_id || "");
+        if (splitAllocs[0]?.rate) {
+          setJobWorkRate(splitAllocs[0].rate);
+        }
+      } else if (assignedStageWorkers.length === 1 && assignedStageWorkers[0]) {
         const sw = assignedStageWorkers[0];
         const matched = workers.find((w) => w.id === sw.id || w.worker_id === sw.worker_id || w.id === sw.worker_id);
         const resolvedWorker = matched || sw;
+        setWorkerMode("single");
+        setWorkerAllocations([]);
         setWorkerId(resolvedWorker.id);
         const initialRate = Number(resolvedWorker.wage_rate ?? resolvedWorker.default_rate ?? 0);
         setJobWorkRate(initialRate);
@@ -389,15 +458,17 @@ export default function NewStageEntryPage() {
           setPaymentType(resolvedWorker.wage_type);
         }
       } else {
+        setWorkerMode("single");
+        setWorkerAllocations([]);
         setWorkerId("");
         setJobWorkRate(0);
       }
     }
   }, [stageId, selectedColourId, stageAvailability.availableQty, selectedLotStage, activeLot, stageWorkers, workers]);
 
-  // Sync worker default rate when worker changes or when workers data arrives
+  // Sync worker default rate when worker changes or when workers data arrives (single mode)
   useEffect(() => {
-    if (workerId) {
+    if (workerId && workerMode === "single") {
       const selectedWorker = workers.find((w) => w.id === workerId);
       const rate = (selectedWorker as any)?.wage_rate ?? selectedWorker?.default_rate;
       if (rate !== undefined && rate !== null && Number(rate) > 0) {
@@ -407,7 +478,7 @@ export default function NewStageEntryPage() {
         }
       }
     }
-  }, [workerId, workers]);
+  }, [workerId, workers, workerMode]);
 
   // Auto-calculate wastage when qtyOut changes
   useEffect(() => {
@@ -469,6 +540,17 @@ export default function NewStageEntryPage() {
   const totalJobWorkAmount = qtyOut * jobWorkRate;
   const totalLaborCost = totalJobWorkAmount;
 
+  // Multi-worker team piece and cost totals
+  const totalAllocatedWorkerQty = useMemo(() => {
+    return workerAllocations.reduce((sum, w) => sum + (Number(w.qty_out) || 0), 0);
+  }, [workerAllocations]);
+
+  const totalTeamLaborCost = useMemo(() => {
+    return workerAllocations.reduce((sum, w) => sum + (Number(w.total_amount) || 0), 0);
+  }, [workerAllocations]);
+
+  const effectiveTotalLaborCost = workerMode === "multiple" ? totalTeamLaborCost : totalLaborCost;
+
   // Determine assigned workers for option list sorting and highlighting
   const assignedStageWorkers = stageWorkers
     .filter((sw: any) => sw.lot_stage_id === stageId)
@@ -483,6 +565,77 @@ export default function NewStageEntryPage() {
     ...workers.filter((w) => !assignedWorkerIds.has(w.id)),
   ];
 
+  // Handlers for Multi-Worker Team
+  const handleSplitEqually = () => {
+    if (workerAllocations.length === 0) return;
+    setWorkerAllocations((prev) => splitPiecesEqually(qtyOut, prev));
+    toast.success(`Split ${qtyOut} pieces equally among ${workerAllocations.length} workers`);
+  };
+
+  const handleWorkerQtyChange = (wId: string, val: string) => {
+    const parsed = parseInt(val, 10);
+    const qty = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    setWorkerAllocations((prev) =>
+      prev.map((w) =>
+        w.worker_id === wId
+          ? { ...w, qty_out: qty, total_amount: Number((qty * w.rate).toFixed(2)) }
+          : w
+      )
+    );
+  };
+
+  const handleWorkerRateChange = (wId: string, val: string) => {
+    const parsed = parseFloat(val);
+    const rate = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    setWorkerAllocations((prev) =>
+      prev.map((w) =>
+        w.worker_id === wId
+          ? { ...w, rate, total_amount: Number((w.qty_out * rate).toFixed(2)) }
+          : w
+      )
+    );
+  };
+
+  const handleAddWorkerToTeam = (wId: string) => {
+    if (!wId) return;
+    const existing = workerAllocations.find((w) => w.worker_id === wId);
+    if (existing) {
+      toast.error("This worker is already added to the team list.");
+      setSelectedAddWorkerId("");
+      return;
+    }
+
+    const matched = workers.find((w) => w.id === wId || w.worker_id === wId);
+    const swMatched = assignedStageWorkers.find((sw: any) => sw.id === wId || sw.worker_id === wId);
+    const resolved = matched || swMatched;
+    if (!resolved) return;
+
+    const rate = Number(resolved.wage_rate ?? resolved.default_rate ?? jobWorkRate ?? 0);
+    const unallocatedPieces = Math.max(0, qtyOut - totalAllocatedWorkerQty);
+
+    const newAlloc: WorkerAllocation = {
+      worker_id: resolved.id,
+      name: resolved.name,
+      worker_code: resolved.worker_id || "WRK",
+      worker_type: resolved.type || "job_worker",
+      qty_out: unallocatedPieces,
+      rate,
+      total_amount: Number((unallocatedPieces * rate).toFixed(2)),
+    };
+
+    setWorkerAllocations((prev) => [...prev, newAlloc]);
+    setSelectedAddWorkerId("");
+    toast.success(`Added ${resolved.name} to team`);
+  };
+
+  const handleRemoveWorkerFromTeam = (wId: string) => {
+    if (workerAllocations.length <= 1) {
+      toast.error("Team must have at least one worker. Switch to 'Single Worker' mode if only one worker is needed.");
+      return;
+    }
+    setWorkerAllocations((prev) => prev.filter((w) => w.worker_id !== wId));
+  };
+
   const handleSaveEntry = async () => {
     if (!selectedLotId || !stageId || !entryDate || qtyOut <= 0) {
       toast.error("Please fill in all required fields and complete quantity details");
@@ -495,6 +648,25 @@ export default function NewStageEntryPage() {
         `Please allocate all ${wastageQty} wasted pieces across sizes before saving. Currently allocated: ${totalAllocatedWastage} Pcs.`
       );
       return;
+    }
+
+    // Validate Multi-Worker Team Split
+    if (workerMode === "multiple") {
+      if (workerAllocations.length === 0) {
+        toast.error("Please add at least one worker to the team.");
+        return;
+      }
+      if (totalAllocatedWorkerQty !== qtyOut) {
+        toast.error(
+          `Total pieces allocated to workers (${totalAllocatedWorkerQty} Pcs) does not match total output (${qtyOut} Pcs). Please balance piece division or click 'Split Pieces Equally'.`
+        );
+        return;
+      }
+      const hasZero = workerAllocations.some((w) => w.qty_out <= 0);
+      if (hasZero) {
+        toast.error("Every worker in the team must be allocated at least 1 piece.");
+        return;
+      }
     }
 
     // Validate Required Custom Fields
@@ -521,10 +693,12 @@ export default function NewStageEntryPage() {
         wastage_qty: wastageQty,
         wastage_size_allocations: wastageSizeAllocations,
         job_work_type: jobWorkType,
-        job_work_rate: jobWorkRate,
+        job_work_rate: workerMode === "multiple" && qtyOut > 0 ? Number((totalTeamLaborCost / qtyOut).toFixed(2)) : jobWorkRate,
         payment_type: paymentType,
-        worker_id: workerId || null,
-        no_of_workers: noOfWorkers,
+        worker_id: workerMode === "multiple" ? (workerAllocations[0]?.worker_id || null) : (workerId || null),
+        no_of_workers: workerMode === "multiple" ? workerAllocations.length : noOfWorkers,
+        worker_mode: workerMode,
+        worker_allocations: workerMode === "multiple" ? workerAllocations : undefined,
         remarks,
         custom_field_values: customFieldValues,
         attachments,
@@ -543,7 +717,11 @@ export default function NewStageEntryPage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to save entry");
 
-      toast.success("Stage entry logged successfully");
+      if (result.batch_entry_number) {
+        toast.success(`Stage entries created for ${workerAllocations.length} workers (${result.batch_entry_number})`);
+      } else {
+        toast.success("Stage entry logged successfully");
+      }
       router.push(`/production/lots/${selectedLotId}`);
       router.refresh();
     } catch (err: any) {
@@ -598,11 +776,18 @@ export default function NewStageEntryPage() {
       ]
     : [];
 
-  const financialSummaryItems = [
-    { label: "Rate (Per Pc)", value: `₹${jobWorkRate.toFixed(2)}` },
-    { label: "Total Job Work Amount", value: formatCurrency(totalJobWorkAmount), isQuantity: true },
-    { label: "Labor Cost", value: formatCurrency(totalLaborCost) },
-  ];
+  const financialSummaryItems = workerMode === "multiple"
+    ? [
+        { label: "Worker Allocation Mode", value: `Team (${workerAllocations.length} Workers)` },
+        { label: "Pieces Allocated", value: `${totalAllocatedWorkerQty} / ${qtyOut} Pcs` },
+        { label: "Avg Rate (Per Pc)", value: qtyOut > 0 ? `₹${(totalTeamLaborCost / qtyOut).toFixed(2)}` : "₹0.00" },
+        { label: "Total Team Labor Cost", value: formatCurrency(totalTeamLaborCost), isQuantity: true },
+      ]
+    : [
+        { label: "Rate (Per Pc)", value: `₹${jobWorkRate.toFixed(2)}` },
+        { label: "Total Job Work Amount", value: formatCurrency(totalJobWorkAmount), isQuantity: true },
+        { label: "Labor Cost", value: formatCurrency(totalLaborCost) },
+      ];
 
   function formatCurrency(val: number) {
     return new Intl.NumberFormat("en-IN", {
@@ -1118,16 +1303,26 @@ export default function NewStageEntryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
-                  Rate (Per Pc)
+                  Rate (Per Pc) {workerMode === "multiple" && <span className="text-[10px] text-[var(--primary)] font-normal">(Avg)</span>}
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)] font-semibold">₹</span>
-                  <NumericInput
-                    step="0.01"
-                    value={jobWorkRate}
-                    onChange={(e) => setJobWorkRate(parseFloat(e.target.value) || 0)}
-                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] pl-7 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                  />
+                  {workerMode === "multiple" ? (
+                    <input
+                      type="text"
+                      disabled
+                      value={qtyOut > 0 ? (totalTeamLaborCost / qtyOut).toFixed(2) : "0.00"}
+                      title="Rate is configured individually per worker in Section 4"
+                      className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] text-[var(--text-muted)] pl-7 pr-3 text-sm font-semibold cursor-not-allowed"
+                    />
+                  ) : (
+                    <NumericInput
+                      step="0.01"
+                      value={jobWorkRate}
+                      onChange={(e) => setJobWorkRate(parseFloat(e.target.value) || 0)}
+                      className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] pl-7 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1137,7 +1332,7 @@ export default function NewStageEntryPage() {
                 </label>
                 <input
                   type="text"
-                  value={formatCurrency(totalJobWorkAmount)}
+                  value={formatCurrency(workerMode === "multiple" ? totalTeamLaborCost : totalJobWorkAmount)}
                   disabled
                   className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] px-3 text-sm font-bold text-[var(--text-primary)]"
                 />
@@ -1158,95 +1353,399 @@ export default function NewStageEntryPage() {
             </div>
           </div>
 
-          {/* Section 4: Worker Assignment */}
+          {/* Section 4: Worker Assignment & Piece Division */}
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center border border-[var(--primary)]/20">
-                4
-              </span>
-              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
-                Worker Assignment
-              </h3>
-            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="w-6 h-6 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center border border-[var(--primary)]/20">
+                  4
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-2">
+                    Worker Assignment & Piece Division
+                  </h3>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    {workerMode === "single"
+                      ? "Assign an individual worker or job-worker for this stage entry"
+                      : `Assign multiple workers and divide ${qtyOut} pieces among the team`}
+                  </p>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
-                  Assign Worker <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={workerId}
-                  onChange={(e) => {
-                    const nextId = e.target.value;
-                    setWorkerId(nextId);
-                    if (nextId) {
-                      const selectedWorker = workers.find((w) => w.id === nextId);
-                      if (selectedWorker) {
-                        const rate = (selectedWorker as any).wage_rate ?? selectedWorker.default_rate ?? 0;
-                        setJobWorkRate(rate);
-                        if ((selectedWorker as any).wage_type) {
-                          setPaymentType((selectedWorker as any).wage_type);
-                        }
+              {/* Mode Toggle: Single Worker vs Multiple Workers (Team Split) */}
+              <div className="inline-flex items-center p-1 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (workerMode === "multiple" && workerAllocations.length > 0 && !workerId) {
+                      setWorkerId(workerAllocations[0].worker_id);
+                      setJobWorkRate(workerAllocations[0].rate);
+                    }
+                    setWorkerMode("single");
+                  }}
+                  className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                    workerMode === "single"
+                      ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm font-bold border border-[var(--border)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  <Users size={13} />
+                  Single Worker
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWorkerMode("multiple");
+                    if (workerAllocations.length === 0) {
+                      if (assignedStageWorkers.length > 1) {
+                        const initialAllocs: WorkerAllocation[] = assignedStageWorkers.map((sw: any) => {
+                          const matched = workers.find((w) => w.id === sw.id || w.worker_id === sw.worker_id || w.id === sw.worker_id);
+                          const resolved = matched || sw;
+                          const rate = Number(resolved.wage_rate ?? resolved.default_rate ?? jobWorkRate ?? 0);
+                          return {
+                            worker_id: resolved.id,
+                            name: resolved.name,
+                            worker_code: resolved.worker_id || "WRK",
+                            worker_type: resolved.type || "job_worker",
+                            qty_out: 0,
+                            rate,
+                            total_amount: 0,
+                          };
+                        });
+                        setWorkerAllocations(splitPiecesEqually(qtyOut, initialAllocs));
+                      } else if (workerId) {
+                        const matched = workers.find((w) => w.id === workerId);
+                        const rate = Number(matched ? (matched.wage_rate ?? matched.default_rate ?? jobWorkRate) : jobWorkRate);
+                        setWorkerAllocations([
+                          {
+                            worker_id: workerId,
+                            name: matched?.name || "Selected Worker",
+                            worker_code: matched?.worker_id || "WRK",
+                            worker_type: matched?.type || "job_worker",
+                            qty_out: qtyOut,
+                            rate,
+                            total_amount: Number((qtyOut * rate).toFixed(2)),
+                          },
+                        ]);
                       }
-                    } else {
-                      setJobWorkRate(0);
                     }
                   }}
-                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] pl-3 pr-8 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] truncate"
+                  className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                    workerMode === "multiple"
+                      ? "bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm font-bold border border-[var(--border)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
                 >
-                  <option value="">Select Worker</option>
-                  {sortedWorkers.map((w) => {
-                    const isAssigned = assignedWorkerIds.has(w.id);
-                    const rate = (w as any).wage_rate ?? w.default_rate;
-                    return (
-                      <option
-                        key={w.id}
-                        value={w.id}
-                        className={isAssigned ? "font-bold text-[var(--primary)]" : ""}
-                      >
-                        {isAssigned ? "⭐ " : ""}{w.name} ({w.worker_id}) {rate ? `· ₹${rate}/pc` : ""}{isAssigned ? " [Assigned]" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">Worker Type</label>
-                <input
-                  type="text"
-                  value={
-                    workerId
-                      ? workers.find((w) => w.id === workerId)?.type?.replace("_", " ") || "—"
-                      : "—"
-                  }
-                  disabled
-                  className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] px-3 text-sm capitalize text-[var(--text-muted)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">No. of Workers</label>
-                <NumericInput
-                  min="1"
-                  value={noOfWorkers}
-                  onChange={(e) => setNoOfWorkers(parseInt(e.target.value, 10) || 1)}
-                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
-                  Total Labor Cost
-                </label>
-                <input
-                  type="text"
-                  value={formatCurrency(totalLaborCost)}
-                  disabled
-                  className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] px-3 text-sm font-bold text-[var(--text-primary)]"
-                />
+                  <Users size={13} className="text-[var(--primary)]" />
+                  Multiple Workers (Team Split)
+                  {workerAllocations.length > 1 && (
+                    <span className="w-4 h-4 rounded-full bg-[var(--primary)] text-white text-[10px] flex items-center justify-center font-bold">
+                      {workerAllocations.length}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
+
+            {/* Single Worker Form Mode */}
+            {workerMode === "single" && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-muted)] mb-1.5 uppercase">
+                    Assign Worker <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={workerId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setWorkerId(nextId);
+                      if (nextId) {
+                        const selectedWorker = workers.find((w) => w.id === nextId);
+                        if (selectedWorker) {
+                          const rate = (selectedWorker as any).wage_rate ?? selectedWorker.default_rate ?? 0;
+                          setJobWorkRate(rate);
+                          if ((selectedWorker as any).wage_type) {
+                            setPaymentType((selectedWorker as any).wage_type);
+                          }
+                        }
+                      } else {
+                        setJobWorkRate(0);
+                      }
+                    }}
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] pl-3 pr-8 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] truncate"
+                  >
+                    <option value="">Select Worker</option>
+                    {sortedWorkers.map((w) => {
+                      const isAssigned = assignedWorkerIds.has(w.id);
+                      const rate = (w as any).wage_rate ?? w.default_rate;
+                      return (
+                        <option
+                          key={w.id}
+                          value={w.id}
+                          className={isAssigned ? "font-bold text-[var(--primary)]" : ""}
+                        >
+                          {isAssigned ? "⭐ " : ""}{w.name} ({w.worker_id}) {rate ? `· ₹${rate}/pc` : ""}{isAssigned ? " [Assigned]" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">Worker Type</label>
+                  <input
+                    type="text"
+                    value={
+                      workerId
+                        ? workers.find((w) => w.id === workerId)?.type?.replace("_", " ") || "—"
+                        : "—"
+                    }
+                    disabled
+                    className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] px-3 text-sm capitalize text-[var(--text-muted)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">No. of Workers</label>
+                  <NumericInput
+                    min="1"
+                    value={noOfWorkers}
+                    onChange={(e) => setNoOfWorkers(parseInt(e.target.value, 10) || 1)}
+                    className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
+                    Total Labor Cost
+                  </label>
+                  <input
+                    type="text"
+                    value={formatCurrency(totalLaborCost)}
+                    disabled
+                    className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--page-bg)] px-3 text-sm font-bold text-[var(--text-primary)]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Multiple Workers (Team Split) Mode */}
+            {workerMode === "multiple" && (
+              <div className="space-y-4 pt-1">
+                {/* Allocation Status Bar & Quick Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg border border-[var(--border)] bg-[var(--page-bg)]">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {totalAllocatedWorkerQty === qtyOut && qtyOut > 0 ? (
+                      <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold text-xs flex items-center gap-1.5">
+                        <CheckCircle size={14} className="text-emerald-500" />
+                        All {qtyOut} Pieces Allocated (Balanced)
+                      </span>
+                    ) : totalAllocatedWorkerQty < qtyOut ? (
+                      <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold text-xs flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-amber-500" />
+                        {totalAllocatedWorkerQty} / {qtyOut} Pcs Allocated ({qtyOut - totalAllocatedWorkerQty} Remaining)
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 font-bold text-xs flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-red-500" />
+                        Overallocated by {totalAllocatedWorkerQty - qtyOut} Pcs ({totalAllocatedWorkerQty} / {qtyOut})
+                      </span>
+                    )}
+
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      {workerAllocations.length} Worker{workerAllocations.length !== 1 ? "s" : ""} in Team
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSplitEqually}
+                      disabled={workerAllocations.length === 0 || qtyOut <= 0}
+                      title="Evenly divide the total processed pieces among all workers in the team"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-bold disabled:opacity-40 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    >
+                      <Zap size={13} className="fill-current" />
+                      Split Pieces Equally
+                    </button>
+                  </div>
+                </div>
+
+                {/* Team Workers Breakdown Table */}
+                {workerAllocations.length === 0 ? (
+                  <div className="py-8 text-center border border-dashed border-[var(--border)] rounded-xl bg-[var(--page-bg)]">
+                    <Users size={28} className="mx-auto text-[var(--text-muted)] mb-2" />
+                    <p className="text-xs font-bold text-[var(--text-primary)]">No workers assigned to this team yet</p>
+                    <p className="text-[11px] text-[var(--text-muted)] mt-1">Select a worker from the dropdown below to begin dividing pieces.</p>
+                  </div>
+                ) : (
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden shadow-sm">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] uppercase text-[10px] font-bold">
+                          <th className="p-2.5 text-left">Worker Name & Details</th>
+                          <th className="p-2.5 text-left w-28">Type</th>
+                          <th className="p-2.5 text-center w-36">Pieces Completed</th>
+                          <th className="p-2.5 text-center w-28">Piece Rate</th>
+                          <th className="p-2.5 text-right w-32">Total Wage</th>
+                          <th className="p-2.5 text-center w-12">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)] bg-[var(--card-bg)]">
+                        {workerAllocations.map((alloc) => {
+                          const isAssigned = assignedWorkerIds.has(alloc.worker_id);
+                          return (
+                            <tr key={alloc.worker_id} className="hover:bg-[var(--table-row-hover)] transition-colors">
+                              {/* Worker info */}
+                              <td className="p-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-[var(--primary-light)] text-[var(--primary)] font-bold text-xs flex items-center justify-center shrink-0 border border-[var(--primary)]/20">
+                                    {alloc.name ? alloc.name.charAt(0).toUpperCase() : "W"}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-semibold text-[var(--text-primary)]">{alloc.name}</span>
+                                      {isAssigned && (
+                                        <span className="text-[9px] font-bold text-[var(--primary)] bg-[var(--primary-light)] border border-[var(--primary)]/20 px-1.5 py-0.2 rounded">
+                                          ⭐ Assigned
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-[var(--text-muted)] font-mono">{alloc.worker_code}</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Worker Type */}
+                              <td className="p-2.5">
+                                <span className="capitalize text-[11px] text-[var(--text-secondary)]">
+                                  {alloc.worker_type?.replace("_", " ") || "job worker"}
+                                </span>
+                              </td>
+
+                              {/* Pieces Completed (Manual or Auto-divided) */}
+                              <td className="p-2.5 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWorkerQtyChange(alloc.worker_id, String(Math.max(0, alloc.qty_out - 1)))}
+                                    disabled={alloc.qty_out <= 0}
+                                    className="w-6 h-7 rounded border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-secondary)] font-bold text-xs hover:bg-[var(--page-bg)] disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={qtyOut}
+                                    value={alloc.qty_out > 0 ? alloc.qty_out : ""}
+                                    placeholder="0"
+                                    onChange={(e) => handleWorkerQtyChange(alloc.worker_id, e.target.value)}
+                                    className="w-16 h-7 rounded border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] text-center text-xs font-bold transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWorkerQtyChange(alloc.worker_id, String(alloc.qty_out + 1))}
+                                    className="w-6 h-7 rounded border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-secondary)] font-bold text-xs hover:bg-[var(--page-bg)] flex items-center justify-center transition-colors cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Worker Piece Rate */}
+                              <td className="p-2.5 text-center">
+                                <div className="relative inline-flex items-center">
+                                  <span className="absolute left-2 text-[10px] text-[var(--text-muted)] font-semibold">₹</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={alloc.rate > 0 ? alloc.rate : ""}
+                                    placeholder="0.00"
+                                    onChange={(e) => handleWorkerRateChange(alloc.worker_id, e.target.value)}
+                                    className="w-20 h-7 pl-4 pr-1.5 text-right rounded border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--input-focus)] text-xs font-semibold transition-colors"
+                                  />
+                                </div>
+                              </td>
+
+                              {/* Worker Total Wage */}
+                              <td className="p-2.5 text-right font-bold text-[var(--text-primary)] font-mono text-xs">
+                                {formatCurrency(alloc.total_amount)}
+                              </td>
+
+                              {/* Remove Worker */}
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveWorkerFromTeam(alloc.worker_id)}
+                                  title="Remove from team"
+                                  className="w-7 h-7 mx-auto rounded flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-[var(--table-header-bg)] border-t border-[var(--border)] font-bold text-xs text-[var(--text-primary)]">
+                          <td className="p-2.5" colSpan={2}>
+                            Team Total ({workerAllocations.length} Worker{workerAllocations.length !== 1 ? "s" : ""})
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <span className={totalAllocatedWorkerQty === qtyOut ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+                              {totalAllocatedWorkerQty} / {qtyOut} Pcs
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center text-[10px] text-[var(--text-muted)] font-normal">
+                            Avg ₹{qtyOut > 0 ? (totalTeamLaborCost / qtyOut).toFixed(2) : "0.00"}/pc
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-[var(--primary)]">
+                            {formatCurrency(totalTeamLaborCost)}
+                          </td>
+                          <td className="p-2.5"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+
+                {/* Add Worker to Team Control */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <div className="flex-1 min-w-[240px]">
+                    <select
+                      value={selectedAddWorkerId}
+                      onChange={(e) => handleAddWorkerToTeam(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)]"
+                    >
+                      <option value="">+ Add Another Worker to Team...</option>
+                      {sortedWorkers
+                        .filter((w) => !workerAllocations.some((a) => a.worker_id === w.id))
+                        .map((w) => {
+                          const isAssigned = assignedWorkerIds.has(w.id);
+                          const rate = (w as any).wage_rate ?? w.default_rate;
+                          return (
+                            <option key={w.id} value={w.id}>
+                              {isAssigned ? "⭐ " : ""}{w.name} ({w.worker_id}) {rate ? `· ₹${rate}/pc` : ""}{isAssigned ? " [Assigned to Stage]" : ""}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Helpful Tip */}
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[var(--page-bg)] border border-[var(--border)] text-[11px] text-[var(--text-muted)]">
+                  <Lightbulb size={14} className="text-amber-500 shrink-0" />
+                  <span>
+                    TAS ERP logs an individual linked stage entry for each team worker, automatically dividing pieces and crediting wages into their respective ledgers.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ───────────────────────────────────────────────────── */}
@@ -1307,9 +1806,17 @@ export default function NewStageEntryPage() {
                 ) : (
                   <div className="mt-4 space-y-3">
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      Issue accessories to <span className="font-bold text-[var(--text-primary)]">
-                        {workerId ? (workers.find(w => w.id === workerId)?.name || "selected worker") : "worker (select in Section 4)"}
-                      </span>. Leave qty as 0 to skip.
+                      Issue accessories to{" "}
+                      <span className="font-bold text-[var(--text-primary)]">
+                        {workerMode === "multiple"
+                          ? workerAllocations.length > 0
+                            ? `${workerAllocations[0].name}${workerAllocations.length > 1 ? ` (Primary · +${workerAllocations.length - 1} team members)` : ""}`
+                            : "team worker"
+                          : workerId
+                          ? workers.find((w) => w.id === workerId)?.name || "selected worker"
+                          : "worker (select in Section 4)"}
+                      </span>
+                      . Leave qty as 0 to skip.
                     </p>
                     <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                       <table className="w-full text-xs">

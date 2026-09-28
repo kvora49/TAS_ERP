@@ -99,6 +99,24 @@ export async function PUT(
       }
     }
 
+    // HSN ↔ GST Rates sync: enrich gst_rates.description when empty
+    if (hsn_code && hsn_code.trim()) {
+      const { data: existingRate } = await supabase
+        .from("gst_rates")
+        .select("id, description")
+        .eq("business_id", businessId)
+        .ilike("hsn_code", hsn_code.trim())
+        .maybeSingle();
+
+      if (existingRate && (!existingRate.description || existingRate.description.trim() === "")) {
+        const autoDescription = [category, name].filter(Boolean).join(" – ");
+        await supabase
+          .from("gst_rates")
+          .update({ description: autoDescription })
+          .eq("id", existingRate.id);
+      }
+    }
+
     return NextResponse.json({ design: updatedDesign[0] });
   } catch (err: any) {
     return NextResponse.json(

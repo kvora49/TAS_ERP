@@ -22,7 +22,8 @@ export async function GET(request: Request) {
           rate,
           grade,
           design_name,
-          material_type:raw_material_types (id, name, category, unit),
+          hsn_sac,
+          material_type:raw_material_types (id, name, category, unit, hsn_code),
           purchase:raw_material_purchases (
             id,
             godown_id,

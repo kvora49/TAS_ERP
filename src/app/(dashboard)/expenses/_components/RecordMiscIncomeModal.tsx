@@ -7,7 +7,7 @@ import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
 
 interface Party { id: string; name: string; company_name: string | null }
-interface BankAccount { id: string; account_name: string; bank_name: string }
+interface BankAccount { id: string; name?: string; account_name?: string; bank_name?: string; type?: string; account_category?: string }
 
 interface RecordMiscIncomeModalProps {
   open: boolean;
@@ -83,81 +83,121 @@ export default function RecordMiscIncomeModal({ open, onOpenChange }: RecordMisc
     });
   };
 
+  const selectedAccount = bankAccounts.find((b) => b.id === bankAccountId);
+  const isBank = selectedAccount?.type === "bank";
+  const isUpi = selectedAccount?.type === "upi";
+  const isCash = selectedAccount?.type === "cash" || !bankAccountId;
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="Record Miscellaneous Income"
-      maxWidth="max-w-lg"
+      description="Record ancillary receipts, scrap sales, commission, or rental revenue with multi-account tracking."
+      maxWidth="max-w-2xl"
     >
-      <div className="space-y-4 text-xs font-semibold">
-        {/* Income Type & Date */}
-        <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-5 pt-1 text-xs font-semibold">
+        {/* Row 1: Income Type & Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Income Type *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Income Type *
+            </label>
             <select
               value={incomeType}
               onChange={(e) => setIncomeType(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
             >
-              <option value="scrap_sale">Scrap Sale</option>
-              <option value="machinery_rental">Machinery Rental</option>
-              <option value="commission">Commission</option>
-              <option value="other">Other Income</option>
+              <option value="scrap_sale">📦 Scrap Sale (Fabric / Metal Waste)</option>
+              <option value="machinery_rental">🚜 Machinery Rental / Leasing</option>
+              <option value="commission">🤝 Agent / Brokerage Commission</option>
+              <option value="interest">📈 Bank Interest / Dividends</option>
+              <option value="other">✨ Other Miscellaneous Income</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Income Date *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Receipt Date *
+            </label>
             <input
               type="date"
               value={incomeDate}
               onChange={(e) => setIncomeDate(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors"
             />
           </div>
         </div>
 
-        {/* Amount & Deposited Account */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Row 2: Amount & Deposited Account (Auto-Adjusts layout & hints) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Income Amount (₹) *</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Income Amount (₹) *
+            </label>
             <input
               type="number"
               min="0"
+              step="0.01"
               value={amount || ""}
               onChange={(e) => setAmount(Number(e.target.value))}
               placeholder="0.00"
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg px-3 h-10 text-xs font-mono transition-colors"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs font-mono font-bold transition-colors"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[var(--text-muted)]">Deposited In Account</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Deposited In Account
+              </label>
+              {isBank && (
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                  🏦 Direct Bank Deposit
+                </span>
+              )}
+              {isUpi && (
+                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                  📱 UPI QR Inward
+                </span>
+              )}
+              {isCash && (
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                  💵 Physical Cash
+                </span>
+              )}
+            </div>
             <select
               value={bankAccountId}
               onChange={(e) => setBankAccountId(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
+              className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
             >
-              <option value="">Cash</option>
-              {bankAccounts.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.account_name || b.bank_name}
-                </option>
-              ))}
+              <option value="">Cash Register / Drawer</option>
+              {bankAccounts.map((b) => {
+                const typeLabel = b.type === "bank" ? "Bank" : b.type === "upi" ? "UPI" : "Cash";
+                const catLabel = b.account_category ? b.account_category.toUpperCase() : "";
+                const prefix = catLabel ? `[${typeLabel} · ${catLabel}] ` : `[${typeLabel}] `;
+                return (
+                  <option key={b.id} value={b.id}>
+                    {prefix}{b.name || b.account_name} {b.bank_name ? `(${b.bank_name})` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
 
-        {/* Received From (Party) */}
+        {/* Row 3: Received From (Party) */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[var(--text-muted)]">Received From (Party / Customer - Optional)</label>
+          <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            Received From (Party / Customer - Optional)
+          </label>
           <select
             value={partyId}
             onChange={(e) => setPartyId(e.target.value)}
-            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg pl-3 pr-8 h-10 text-xs transition-colors cursor-pointer"
+            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl px-3.5 h-11 text-xs transition-colors cursor-pointer"
           >
-            <option value="">None / Walk-in Customer</option>
+            <option value="">None / Walk-in Scrap Buyer / Anonymous</option>
             {parties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} {p.company_name ? `(${p.company_name})` : ""}
@@ -166,28 +206,30 @@ export default function RecordMiscIncomeModal({ open, onOpenChange }: RecordMisc
           </select>
         </div>
 
-        {/* Notes */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[var(--text-muted)]">Notes / Description</label>
+        {/* Row 4: Notes */}
+        <div className="flex flex-col gap-1.5 pb-2">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            Notes / Description
+          </label>
           <textarea
-            rows={3}
+            rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Details about the income source..."
-            className="bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-lg p-3 text-xs transition-colors"
+            placeholder="Details about the income source, item specifications, or quantity sold..."
+            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] rounded-xl p-3 text-xs transition-colors"
           />
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="px-4 h-9 border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors"
+            className="px-4 h-10 border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:bg-[var(--page-bg)] transition-colors cursor-pointer"
           >
             Cancel
           </button>
-          <AsyncButton onClick={handleSubmit} variant="primary" className="h-9 px-4 text-xs font-bold">
+          <AsyncButton onClick={handleSubmit} variant="primary" className="h-10 px-6 text-xs font-bold">
             Record Income
           </AsyncButton>
         </div>

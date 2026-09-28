@@ -124,7 +124,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) {
         setUser(null);
-        routerRef.current.replace("/login");
+        setLoading(true);
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.startsWith("/login") &&
+          !window.location.pathname.startsWith("/register") &&
+          !window.location.pathname.startsWith("/forgot-password")
+        ) {
+          window.location.replace("/login");
+        }
       }
     });
 

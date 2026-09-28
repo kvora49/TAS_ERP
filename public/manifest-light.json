@@ -1,0 +1,38 @@
+{
+  "id": "/tas-erp-pwa",
+  "name": "TAS ERP - Garment Manufacturing Intelligence Platform",
+  "short_name": "TAS ERP",
+  "description": "Enterprise garment manufacturing intelligence platform for inventory, sales, purchases, production, and accounting.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en-IN",
+  "background_color": "#F7F8FA",
+  "theme_color": "#F7F8FA",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/tas-splash-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/tas-splash-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Scan QR / Barcode", "short_name": "Scan", "url": "/scan" },
+    { "name": "New Sale Bill", "short_name": "Sale Bill", "url": "/sales/bills/new" },
+    { "name": "New Purchase", "short_name": "Purchase", "url": "/purchases/new" },
+    { "name": "New Production Lot", "short_name": "New Lot", "url": "/production/lots/new" }
+  ],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": "auto" }
+}
