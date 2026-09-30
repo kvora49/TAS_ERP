@@ -54,7 +54,9 @@ export default function NewRawMaterialTransferPage() {
   // Masters & Stock
   const [godowns, setGodowns] = useState<Godown[]>([]);
   const [materials, setMaterials] = useState<MaterialType[]>([]);
-  const [stockMap, setStockMap] = useState<Record<string, number>>({}); // key: `${godownId}_${materialId}`
+  const [stockMap, setStockMap] = useState<
+    Record<string, { current_stock: number; unit_cost: number; unit: string }>
+  >({}); // key: material_type_id -> stock details
 
   // Line items state
   const [items, setItems] = useState<TransferItemRow[]>([
@@ -75,7 +77,14 @@ export default function NewRawMaterialTransferPage() {
     fetch("/api/master-data/godowns")
       .then((res) => res.json())
       .then((data) => {
-        if (data.godowns) setGodowns(data.godowns);
+        if (data.godowns && data.godowns.length > 0) {
+          setGodowns(data.godowns);
+          setFromGodownId((prev) => {
+            if (prev) return prev;
+            const primary = data.godowns.find((g: any) => g.is_primary) || data.godowns[0];
+            return primary.id;
+          });
+        }
       })
       .catch((err) => console.error(err));
 
@@ -99,18 +108,33 @@ export default function NewRawMaterialTransferPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.stock) {
-          const map: Record<string, number> = {};
+          const map: Record<
+            string,
+            { current_stock: number; unit_cost: number; unit: string }
+          > = {};
           data.stock.forEach((st: any) => {
-            map[st.material_type_id] = Number(st.current_stock || 0);
+            map[st.material_type_id] = {
+              current_stock: Number(st.current_stock || 0),
+              unit_cost: Number(st.unit_cost || 0),
+              unit: st.material_type?.unit || st.unit || "meter",
+            };
           });
           setStockMap(map);
 
-          // Update available stock for current items
+          // Update available stock and rate for current items
           setItems((prev) =>
-            prev.map((it) => ({
-              ...it,
-              available_stock: map[it.material_type_id] || 0,
-            }))
+            prev.map((it) => {
+              const info = map[it.material_type_id];
+              const avail = info ? info.current_stock : 0;
+              const unitCost = it.unit_cost > 0 ? it.unit_cost : (info?.unit_cost || 0);
+              return {
+                ...it,
+                available_stock: avail,
+                unit: info?.unit || it.unit,
+                unit_cost: unitCost,
+                total_value: (it.quantity || 0) * unitCost,
+              };
+            })
           );
         }
       })
@@ -142,17 +166,22 @@ export default function NewRawMaterialTransferPage() {
 
   const handleMaterialChange = (key: string, materialId: string) => {
     const selectedMat = materials.find((m) => m.id === materialId);
-    const avail = stockMap[materialId] || 0;
+    const stockInfo = stockMap[materialId];
+    const avail = stockInfo ? stockInfo.current_stock : 0;
+    const unit = stockInfo?.unit || selectedMat?.unit || "meter";
+    const defaultCost = stockInfo?.unit_cost || 0;
 
     setItems((prev) =>
       prev.map((it) => {
         if (it.key !== key) return it;
+        const finalCost = it.unit_cost > 0 ? it.unit_cost : defaultCost;
         return {
           ...it,
           material_type_id: materialId,
-          unit: selectedMat?.unit || "meter",
+          unit,
           available_stock: avail,
-          total_value: it.quantity * it.unit_cost,
+          unit_cost: finalCost,
+          total_value: (it.quantity || 0) * finalCost,
         };
       })
     );
@@ -451,15 +480,21 @@ export default function NewRawMaterialTransferPage() {
                           className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs outline-none"
                         >
                           <option value="">Select Material / Accessory...</option>
-                          {materials.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} ({m.category})
-                            </option>
-                          ))}
+                          {materials.map((m) => {
+                            const avail = stockMap[m.id]?.current_stock ?? 0;
+                            return (
+                              <option key={m.id} value={m.id}>
+                                {m.name} ({m.category}) {avail > 0 ? `— Avail: ${avail} ${stockMap[m.id]?.unit || m.unit}` : "— (0 Avail)"}
+                              </option>
+                            );
+                          })}
                         </select>
                       </td>
-                      <td className="py-3 px-2 text-center bg-slate-50/30 dark:bg-slate-900/20 text-[var(--text-primary)] font-bold">
-                        {it.available_stock.toLocaleString()} <span className="text-[10px] text-[var(--text-muted)] font-normal">{it.unit}</span>
+                      <td className="py-3 px-2 text-center bg-slate-50/30 dark:bg-slate-900/20 font-bold">
+                        <span className={it.available_stock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--text-muted)]"}>
+                          {it.available_stock.toLocaleString()}
+                        </span>{" "}
+                        <span className="text-[10px] text-[var(--text-muted)] font-normal">{it.unit}</span>
                       </td>
                       <td className="py-3 px-2">
                         <input

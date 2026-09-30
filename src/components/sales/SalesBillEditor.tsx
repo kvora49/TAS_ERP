@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Eye } from "lucide-react";
-import { isInterstateTransaction } from "@/lib/gst-utils";
+import { isInterstateTransaction, getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
 import { Button } from "@/components/ui/button";
 import { useSalesBill } from "@/hooks/useSalesBill";
 import { CustomerSection } from "./CustomerSection";
@@ -339,12 +339,14 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
   // Billing party info for consignee pre-fill
   const selectedParty = parties.find((p: any) => p.id === state.partyId);
+  const partyState = (selectedParty as any)?.billing_state || (selectedParty as any)?.state || getStateNameFromGSTIN(state.gstin) || "";
+  const partyStateCode = getStateCodeFromGSTIN(state.gstin) || "";
   const billingParty = selectedParty ? {
     name: selectedParty.company_name || selectedParty.name,
     address: state.billingAddress,
     gstin: state.gstin,
-    state: "",
-    state_code: "",
+    state: partyState,
+    state_code: partyStateCode,
   } : undefined;
 
   // Print exclusion toggles definition

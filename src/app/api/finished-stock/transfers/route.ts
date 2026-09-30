@@ -84,19 +84,73 @@ export async function POST(request: Request) {
     if (!serverSettings.allow_negative_stock) {
       for (const item of items) {
         if (!item.design_id || !item.quantity || Number(item.quantity) <= 0) continue;
-        const { data: stockRow } = await supabase
+
+        let stockQuery = supabase
           .from("finished_stock")
-          .select("quantity")
+          .select("total_quantity, size_quantities")
           .eq("business_id", businessId)
           .eq("godown_id", from_godown_id)
           .eq("design_id", item.design_id)
-          .maybeSingle();
+          .is("deleted_at", null);
 
-        const currentQty = Number(stockRow?.quantity || 0);
+        if (item.colour_id) {
+          stockQuery = stockQuery.eq("colour_id", item.colour_id);
+        }
+
+        let { data: stockRows } = await stockQuery;
+
+        let availableQty = 0;
+        if (stockRows && stockRows.length > 0) {
+          for (const row of stockRows) {
+            if (item.size && row.size_quantities && typeof row.size_quantities === "object") {
+              availableQty += Number(row.size_quantities[item.size] || 0);
+            } else {
+              availableQty += Number(row.total_quantity || 0);
+            }
+          }
+        }
+
         const reqQty = Number(item.quantity);
-        if (currentQty < reqQty) {
+
+        // If insufficient, run a targeted ground-truth reconciliation once in case stock was desynced
+        if (availableQty < reqQty) {
+          try {
+            const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+            await reconcileFinishedStock(supabase, businessId, item.design_id);
+
+            let retryQuery = supabase
+              .from("finished_stock")
+              .select("total_quantity, size_quantities")
+              .eq("business_id", businessId)
+              .eq("godown_id", from_godown_id)
+              .eq("design_id", item.design_id)
+              .is("deleted_at", null);
+
+            if (item.colour_id) {
+              retryQuery = retryQuery.eq("colour_id", item.colour_id);
+            }
+
+            const { data: refreshedRows } = await retryQuery;
+            availableQty = 0;
+            if (refreshedRows && refreshedRows.length > 0) {
+              for (const row of refreshedRows) {
+                if (item.size && row.size_quantities && typeof row.size_quantities === "object") {
+                  availableQty += Number(row.size_quantities[item.size] || 0);
+                } else {
+                  availableQty += Number(row.total_quantity || 0);
+                }
+              }
+            }
+          } catch (recErr) {
+            console.error("Reconciliation fallback error:", recErr);
+          }
+        }
+
+        if (availableQty < reqQty) {
           return NextResponse.json(
-            { error: `Insufficient stock in source godown. Available: ${currentQty}, Required: ${reqQty}` },
+            {
+              error: `Insufficient stock in source godown for ${item.size ? `size ${item.size}` : "item"}. Available: ${availableQty}, Required: ${reqQty}`,
+            },
             { status: 400 }
           );
         }

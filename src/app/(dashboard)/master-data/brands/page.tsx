@@ -19,6 +19,7 @@ import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBrandsList } from "@/hooks/queries/useMasterData";
 import { toast } from "sonner";
+import { GSTIN_STATES, getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
 const brandSchema = z.object({
   name: z.string().min(2, "Brand Name must be at least 2 characters"),
   gstin: z.string().optional(),
@@ -83,6 +84,8 @@ export default function BrandsPage() {
   });
 
   const logoUrl = watch("logo_url");
+  const watchedGstin = watch("gstin");
+  const watchedState = watch("state");
 
   const handleOpenAdd = () => {
     setEditingBrand(null);
@@ -106,12 +109,14 @@ export default function BrandsPage() {
 
   const handleOpenEdit = (brand: Brand) => {
     setEditingBrand(brand);
+    const resolvedState = brand.state || getStateNameFromGSTIN(brand.gstin) || "";
+    const resolvedStateCode = brand.state_code || getStateCodeFromGSTIN(brand.gstin) || "";
     reset({
       name: brand.name,
       gstin: brand.gstin || "",
       address: brand.address || "",
-      state: brand.state || "",
-      state_code: brand.state_code || "",
+      state: resolvedState,
+      state_code: resolvedStateCode,
       logo_url: brand.logo_url || "",
       bill_prefix_pakka: brand.bill_prefix_pakka || "",
       bill_prefix_kacha: brand.bill_prefix_kacha || "",
@@ -393,28 +398,74 @@ export default function BrandsPage() {
 
                 {/* GSTIN */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    GST Number
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      GST Number
+                    </label>
+                    {watchedGstin && getStateNameFromGSTIN(watchedGstin) && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        State: {getStateNameFromGSTIN(watchedGstin)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder="15-character GSTIN"
-                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono"
+                    maxLength={15}
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono uppercase"
                     {...register("gstin")}
+                    onChange={(e) => {
+                      e.target.value = e.target.value.toUpperCase();
+                      register("gstin").onChange(e);
+                      const val = e.target.value.trim().toUpperCase();
+                      const detectedState = getStateNameFromGSTIN(val);
+                      const detectedCode = getStateCodeFromGSTIN(val);
+                      if (detectedState) {
+                        setValue("state", detectedState, { shouldValidate: true, shouldDirty: true });
+                      }
+                      if (detectedCode) {
+                        setValue("state_code", detectedCode, { shouldValidate: true, shouldDirty: true });
+                      }
+                    }}
                   />
                 </div>
 
                 {/* State & State Code */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    State
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      State
+                    </label>
+                    {watchedState && watchedGstin && getStateNameFromGSTIN(watchedGstin) === watchedState && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Auto-detected
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
+                    list="brand-indian-states-list"
                     placeholder="e.g. Maharashtra"
                     className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
                     {...register("state")}
+                    onChange={(e) => {
+                      register("state").onChange(e);
+                      const val = e.target.value.trim().toLowerCase();
+                      const match = Object.entries(GSTIN_STATES).find(
+                        ([, name]) => name.toLowerCase() === val
+                      );
+                      if (match) {
+                        setValue("state_code", match[0], { shouldValidate: true, shouldDirty: true });
+                      }
+                    }}
                   />
+                  <datalist id="brand-indian-states-list">
+                    {Object.entries(GSTIN_STATES).map(([code, name]) => (
+                      <option key={code} value={name}>
+                        {name} ({code})
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-1.5">
@@ -424,7 +475,7 @@ export default function BrandsPage() {
                   <input
                     type="text"
                     placeholder="e.g. 27"
-                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all"
+                    className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] transition-all font-mono"
                     {...register("state_code")}
                   />
                 </div>

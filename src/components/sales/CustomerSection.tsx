@@ -1,5 +1,5 @@
 import React from "react";
-import { validateGSTINInput } from "@/lib/gst-utils";
+import { validateGSTINInput, getStateNameFromGSTIN } from "@/lib/gst-utils";
 
 interface CustomerSectionProps {
   state: any;
@@ -57,12 +57,13 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
     state.setPartyId(id);
     const p = parties.find((x) => x.id === id);
     if (p) {
+      const stateName = p.billing_state || getStateNameFromGSTIN(p.gstin) || "";
       state.setBillingAddress(
         [
           p.billing_address_line1,
           p.billing_address_line2,
           p.billing_city,
-          p.billing_state,
+          stateName,
           p.billing_pincode,
         ]
           .filter(Boolean)

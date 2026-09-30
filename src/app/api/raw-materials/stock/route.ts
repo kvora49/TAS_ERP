@@ -51,10 +51,41 @@ export async function GET(request: Request) {
         query = query.eq("godown_id", godownId);
       }
 
-      const { data: stock, error } = await query;
+      let { data: stock, error } = await query;
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // If no stock rows exist for this business, initialize/reconcile once from ground truth
+      if (!stock || stock.length === 0) {
+        const { count } = await supabase
+          .from("raw_material_current_stock")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", businessId);
+
+        if (!count || count === 0) {
+          try {
+            const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+            await reconcileRawMaterialStock(supabase, businessId);
+
+            let retryQuery = supabase
+              .from("raw_material_current_stock")
+              .select("*, material_type:raw_material_types(name, category, unit, reorder_level, deleted_at), godown:godowns(name)")
+              .eq("business_id", businessId);
+
+            if (godownId) {
+              retryQuery = retryQuery.eq("godown_id", godownId);
+            }
+
+            const retryRes = await retryQuery;
+            if (retryRes.data) {
+              stock = retryRes.data;
+            }
+          } catch (recErr) {
+            console.error("Auto-reconcile stock warning:", recErr);
+          }
+        }
       }
 
       // Filter out soft-deleted materials & orphan rows

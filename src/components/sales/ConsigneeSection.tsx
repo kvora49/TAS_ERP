@@ -1,4 +1,5 @@
 import React from "react";
+import { GSTIN_STATES, getStateCodeFromGSTIN } from "@/lib/gst-utils";
 
 interface ConsigneeSectionProps {
   state: any;
@@ -111,7 +112,15 @@ export function ConsigneeSection({ state, billingParty }: ConsigneeSectionProps)
                   className={`${inputClass} font-mono uppercase`}
                   placeholder="e.g. 09EAGPK3831M1ZB"
                   value={state.consigneeGstin}
-                  onChange={(e) => state.setConsigneeGstin(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase().slice(0, 15);
+                    state.setConsigneeGstin(val);
+                    const code = getStateCodeFromGSTIN(val);
+                    if (code && GSTIN_STATES[code]) {
+                      state.setConsigneeState(GSTIN_STATES[code]);
+                      state.setConsigneeStateCode(code);
+                    }
+                  }}
                   maxLength={15}
                 />
               </div>
@@ -133,10 +142,21 @@ export function ConsigneeSection({ state, billingParty }: ConsigneeSectionProps)
                 <label className={labelClass}>State</label>
                 <input
                   type="text"
+                  list="consignee-indian-states-list"
                   className={inputClass}
                   placeholder="e.g. Uttar Pradesh"
                   value={state.consigneeState}
-                  onChange={(e) => state.setConsigneeState(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    state.setConsigneeState(val);
+                    // If matched to a known state name, auto-fill state code too
+                    const entry = Object.entries(GSTIN_STATES).find(
+                      ([, sName]) => sName.toLowerCase() === val.trim().toLowerCase()
+                    );
+                    if (entry) {
+                      state.setConsigneeStateCode(entry[0]);
+                    }
+                  }}
                 />
               </div>
               <div>
@@ -146,11 +166,25 @@ export function ConsigneeSection({ state, billingParty }: ConsigneeSectionProps)
                   className={`${inputClass} font-mono`}
                   placeholder="e.g. 09"
                   value={state.consigneeStateCode}
-                  onChange={(e) => state.setConsigneeStateCode(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    state.setConsigneeStateCode(val);
+                    if (GSTIN_STATES[val]) {
+                      state.setConsigneeState(GSTIN_STATES[val]);
+                    }
+                  }}
                   maxLength={2}
                 />
               </div>
             </div>
+
+            <datalist id="consignee-indian-states-list">
+              {Object.entries(GSTIN_STATES).map(([code, name]) => (
+                <option key={code} value={name}>
+                  {name} ({code})
+                </option>
+              ))}
+            </datalist>
           </div>
         )}
       </div>

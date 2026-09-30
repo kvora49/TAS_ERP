@@ -46,6 +46,15 @@ export function getStateName(stateCode: string): string {
 }
 
 /**
+ * Convenience helper: Extract the State or Union Territory name directly from a GSTIN.
+ * Returns null if GSTIN is missing, too short, or has an invalid state code.
+ */
+export function getStateNameFromGSTIN(gstin?: string | null): string | null {
+  const code = getStateCodeFromGSTIN(gstin);
+  return code ? GSTIN_STATES[code] || null : null;
+}
+
+/**
  * Derive state details from available data sources, in priority order:
  *   1. Explicit state + code (already resolved)
  *   2. GSTIN prefix → state code lookup

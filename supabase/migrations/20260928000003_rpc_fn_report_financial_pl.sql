@@ -39,6 +39,7 @@ DECLARE
   v_purch_fg numeric := 0;
   v_purch_accessory numeric := 0;
   v_purch_others numeric := 0;
+  v_purch_grand_total numeric := 0;
   v_rcm_purchases numeric := 0;
   v_normal_purchases numeric := 0;
 
@@ -162,11 +163,11 @@ BEGIN
       END AS portion_amt
     FROM bills_base bb
     LEFT JOIN (
-      SELECT sale_bill_id, SUM(amount) AS total_items_amt
+      SELECT bill_id, SUM(amount) AS total_items_amt
       FROM public.sale_bill_items
-      GROUP BY sale_bill_id
-    ) sbi_sum ON sbi_sum.sale_bill_id = bb.id
-    LEFT JOIN public.sale_bill_items sbi ON sbi.sale_bill_id = bb.id
+      GROUP BY bill_id
+    ) sbi_sum ON sbi_sum.bill_id = bb.id
+    LEFT JOIN public.sale_bill_items sbi ON sbi.bill_id = bb.id
   )
   SELECT
     COALESCE(SUM(grand_total), 0),
@@ -227,7 +228,7 @@ BEGIN
   INTO v_sales_drill
   FROM public.sale_bills sb
   LEFT JOIN public.parties p ON p.id = sb.party_id
-  LEFT JOIN public.sale_bill_items sbi ON sbi.sale_bill_id = sb.id
+  LEFT JOIN public.sale_bill_items sbi ON sbi.bill_id = sb.id
   WHERE sb.business_id = p_business_id
     AND sb.status = 'active'
     AND sb.deleted_at IS NULL
@@ -280,13 +281,14 @@ BEGIN
     LEFT JOIN public.raw_material_purchase_items rmpi ON rmpi.purchase_id = pb.id
   )
   SELECT
+    COALESCE(SUM(grand_total), 0),
     COALESCE(SUM(portion_amt) FILTER (WHERE item_type = 'fabric'), 0),
     COALESCE(SUM(portion_amt) FILTER (WHERE item_type = 'finished_goods'), 0),
     COALESCE(SUM(portion_amt) FILTER (WHERE item_type = 'accessory'), 0),
     COALESCE(SUM(portion_amt) FILTER (WHERE item_type NOT IN ('fabric', 'finished_goods', 'accessory') AND other_category != 'capital_asset'), 0),
     COALESCE(SUM(grand_total) FILTER (WHERE gst_type = 'reverse_charge'), 0),
     COALESCE(SUM(grand_total) FILTER (WHERE gst_type != 'reverse_charge'), 0)
-  INTO v_purch_fabric, v_purch_fg, v_purch_accessory, v_purch_others, v_rcm_purchases, v_normal_purchases
+  INTO v_purch_grand_total, v_purch_fabric, v_purch_fg, v_purch_accessory, v_purch_others, v_rcm_purchases, v_normal_purchases
   FROM (
     SELECT DISTINCT id, grand_total, gst_type FROM purch_base
   ) pb_uniq
@@ -295,7 +297,7 @@ BEGIN
   ) lat_pi ON true;
 
   IF (v_purch_fabric + v_purch_fg + v_purch_accessory + v_purch_others) = 0 THEN
-    SELECT COALESCE(SUM(grand_total), 0) INTO v_purch_fabric FROM purch_base;
+    v_purch_fabric := v_purch_grand_total;
   END IF;
 
   -- Purchases drilldown records
@@ -424,10 +426,10 @@ BEGIN
   SELECT COALESCE(jsonb_agg(
     jsonb_build_object(
       'id', se.id,
-      'doc_number', 'SAL-' || se.month::text || '/' || se.year::text,
+      'doc_number', 'SAL-' || se.salary_month::text || '/' || se.salary_year::text,
       'date', se.payment_date,
-      'party_name', 'Employee #' || COALESCE(SUBSTRING(se.employee_id::text, 1, 6), 'Staff'),
-      'description', 'Monthly Salary payout for ' || se.month::text || '/' || se.year::text,
+      'party_name', COALESCE(p.name, p.company_name, 'Staff'),
+      'description', 'Monthly Salary payout for ' || se.salary_month::text || '/' || se.salary_year::text,
       'amount', se.net_salary,
       'badge', 'Salary',
       'badge_color', 'emerald',
@@ -436,6 +438,7 @@ BEGIN
   ), '[]'::jsonb)
   INTO v_salary_drill
   FROM public.salary_entries se
+  LEFT JOIN public.parties p ON p.id = se.worker_id
   WHERE se.business_id = p_business_id
     AND se.payment_date BETWEEN v_from AND v_to;
 
@@ -469,7 +472,7 @@ BEGIN
       'doc_number', COALESCE(mi.income_number, 'INC-' || SUBSTRING(mi.id::text, 1, 6)),
       'date', mi.income_date,
       'party_name', COALESCE(mi.income_type, 'Other Income'),
-      'description', COALESCE(mi.description, 'Miscellaneous Income'),
+      'description', COALESCE(mi.notes, 'Miscellaneous Income'),
       'amount', mi.amount,
       'badge', COALESCE(mi.income_type, 'Other Income'),
       'badge_color', 'blue',

@@ -42,9 +42,34 @@ interface TransferMatrixRow {
   colour_id: string;
   size_quantities: Record<string, number>;
   stock_matrix: Record<string, number>; // available stock per size in source godown
+  design_matrix?: Record<string, Record<string, Record<string, number>>>; // full matrix: [colour_id][godown_id][size]
   unit_cost: number;
   coloursList: Colour[];
   sizesList: string[];
+}
+
+function computeStockMatrix(
+  designMatrix: Record<string, Record<string, Record<string, number>>> | undefined,
+  colourId: string,
+  godownId: string,
+  sizesList: string[]
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  sizesList.forEach((sz) => (map[sz] = 0));
+  if (!designMatrix || !godownId) return map;
+
+  // Try matching specified colourId, fallback to 'default', or first available colour key in matrix
+  const colMatrix =
+    designMatrix[colourId] ||
+    designMatrix["default"] ||
+    (Object.keys(designMatrix).length > 0 ? Object.values(designMatrix)[0] : undefined);
+
+  if (colMatrix && colMatrix[godownId]) {
+    sizesList.forEach((sz) => {
+      map[sz] = Number(colMatrix[godownId][sz] || 0);
+    });
+  }
+  return map;
 }
 
 export default function NewTransferPage() {
@@ -83,8 +108,13 @@ export default function NewTransferPage() {
     fetch("/api/master-data/godowns")
       .then((res) => res.json())
       .then((data) => {
-        if (data.godowns) {
+        if (data.godowns && data.godowns.length > 0) {
           setGodowns(data.godowns);
+          setFromGodownId((prev) => {
+            if (prev) return prev;
+            const primary = data.godowns.find((g: any) => g.is_primary) || data.godowns[0];
+            return primary.id;
+          });
         } else {
           setGodowns([
             { id: "g1", name: "Main Godown" },
@@ -108,6 +138,16 @@ export default function NewTransferPage() {
       })
       .catch((err) => console.error("Error loading designs:", err));
   }, []);
+
+  const handleFromGodownChange = (newGodownId: string) => {
+    setFromGodownId(newGodownId);
+    setRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        stock_matrix: computeStockMatrix(row.design_matrix, row.colour_id, newGodownId, row.sizesList),
+      }))
+    );
+  };
 
   const handleAddRow = () => {
     setRows((prev) => [
@@ -151,6 +191,7 @@ export default function NewTransferPage() {
           sizesList: sizes,
           size_quantities: initialSizes,
           stock_matrix: {},
+          design_matrix: undefined,
           unit_cost: defaultUnitCost,
           coloursList: [],
         };
@@ -159,58 +200,48 @@ export default function NewTransferPage() {
 
     if (!designId) return;
 
-    // Load design colours and average cost fallback
+    // Load design colours, full stock matrix, and average cost
     try {
       const res = await fetch(`/api/finished-stock/designs/${designId}`);
       const data = await res.json();
       if (res.ok) {
         const fetchedCost = Number(data.overallAvgCost || 0) > 0 ? Number(data.overallAvgCost) : defaultUnitCost;
+        const fetchedColours: Colour[] = data.colours || [];
+        const initialColourId = fetchedColours.length > 0 ? fetchedColours[0].id : "";
+        const matrix = data.matrix || {};
+
         setRows((prev) =>
           prev.map((row) => {
             if (row.key !== key) return row;
+            const liveStock = computeStockMatrix(matrix, initialColourId, fromGodownId, sizes);
             return {
               ...row,
-              coloursList: data.colours || [],
+              coloursList: fetchedColours,
+              colour_id: initialColourId,
+              design_matrix: matrix,
+              stock_matrix: liveStock,
               unit_cost: row.unit_cost > 0 ? row.unit_cost : fetchedCost,
             };
           })
         );
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error loading design details:", err);
     }
   };
 
-  const handleColourChange = async (key: string, colourId: string) => {
-    const row = rows.find((r) => r.key === key);
-    if (!row) return;
-
+  const handleColourChange = (key: string, colourId: string) => {
     setRows((prev) =>
-      prev.map((r) => (r.key === key ? { ...r, colour_id: colourId, stock_matrix: {} } : r))
+      prev.map((row) => {
+        if (row.key !== key) return row;
+        const liveStock = computeStockMatrix(row.design_matrix, colourId, fromGodownId, row.sizesList);
+        return {
+          ...row,
+          colour_id: colourId,
+          stock_matrix: liveStock,
+        };
+      })
     );
-
-    if (!colourId || !row.design_id || !fromGodownId) return;
-
-    // Fetch live stock matrix for fromGodownId + designId + colourId
-    try {
-      const res = await fetch(`/api/finished-stock/designs/${row.design_id}`);
-      const json = await res.json();
-      if (res.ok && json.matrix) {
-        const availableMap: Record<string, number> = {};
-        row.sizesList.forEach((sz) => {
-          availableMap[sz] = json.matrix[colourId]?.[fromGodownId]?.[sz] || 0;
-        });
-
-        setRows((prev) =>
-          prev.map((r) => {
-            if (r.key !== key) return r;
-            return { ...r, stock_matrix: availableMap };
-          })
-        );
-      }
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   const handleSizeQuantitiesChange = (key: string, updatedQuantities: Record<string, number>) => {
@@ -414,13 +445,7 @@ export default function NewTransferPage() {
                 <select
                   required
                   value={fromGodownId}
-                  onChange={(e) => {
-                    setFromGodownId(e.target.value);
-                    // Refresh stock matrix for all rows
-                    rows.forEach((r) => {
-                      if (r.key && r.colour_id) handleColourChange(r.key, r.colour_id);
-                    });
-                  }}
+                  onChange={(e) => handleFromGodownChange(e.target.value)}
                   className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--input-focus)] outline-none"
                 >
                   <option value="">Select Source...</option>
@@ -648,6 +673,7 @@ export default function NewTransferPage() {
                     <SizeQuantityMatrix
                       sizes={row.sizesList}
                       sizeQuantities={row.size_quantities}
+                      availableStock={row.stock_matrix}
                       onChange={(updated) => handleSizeQuantitiesChange(row.key, updated)}
                     />
                   )}

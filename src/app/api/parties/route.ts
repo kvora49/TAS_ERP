@@ -2,6 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { handleApiError, validateRequestBody } from "@/lib/api-response";
 import { CreatePartySchema } from "@/lib/schemas/parties.schema";
+import { getStateNameFromGSTIN } from "@/lib/gst-utils";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -124,6 +125,14 @@ export async function POST(request: Request) {
     const finalPhone = (phone && phone.trim()) || (whatsapp_number && whatsapp_number.trim()) || null;
     const finalWhatsApp = (whatsapp_number && whatsapp_number.trim()) || (phone && phone.trim()) || null;
 
+    const finalGstin = gstin && gstin.trim() ? gstin.trim() : "URP";
+    const autoState = finalGstin !== "URP" ? getStateNameFromGSTIN(finalGstin) : null;
+    const finalBillingState = billing_state?.trim() || autoState || null;
+    const finalShippingState = shipping_state?.trim() || finalBillingState || null;
+    const finalPan = pan && pan.trim() && pan.trim() !== "N/A"
+      ? pan.trim()
+      : (finalGstin !== "URP" && finalGstin.length >= 12 ? finalGstin.substring(2, 12) : (pan?.trim() || "N/A"));
+
     // Insert party
     const { data: party, error: partyError } = await supabase
       .from("parties")
@@ -136,8 +145,8 @@ export async function POST(request: Request) {
         company_name: company_name || null,
         email: email || null,
         website: website || null,
-        gstin: gstin && gstin.trim() ? gstin.trim() : "URP",
-        pan: pan && pan.trim() ? pan.trim() : "N/A",
+        gstin: finalGstin,
+        pan: finalPan,
         aadhar: aadhar || null,
         msme_number: msme_number || null,
         tan: tan || null,
@@ -145,12 +154,12 @@ export async function POST(request: Request) {
         billing_address_line1: billing_address_line1 || null,
         billing_address_line2: billing_address_line2 || null,
         billing_city: billing_city || null,
-        billing_state: billing_state || null,
+        billing_state: finalBillingState,
         billing_pincode: billing_pincode || null,
         shipping_address_line1: shipping_address_line1 || null,
         shipping_address_line2: shipping_address_line2 || null,
         shipping_city: shipping_city || null,
-        shipping_state: shipping_state || null,
+        shipping_state: finalShippingState,
         shipping_pincode: shipping_pincode || null,
         payment_terms: payment_terms || '30_days',
         credit_limit: credit_limit ? Number(credit_limit) : 0,

@@ -27,6 +27,7 @@ const SizeQuantityMatrix = dynamic(
 );
 import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { getStateNameFromGSTIN, getStateCodeFromGSTIN, GSTIN_STATES } from "@/lib/gst-utils";
 
 // Helper function to convert number to Indian currency words
 function numberToWords(num: number): string {
@@ -558,6 +559,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
   const [newSupplierPhone, setNewSupplierPhone] = useState("");
   const [newSupplierGstin, setNewSupplierGstin] = useState("");
   const [newSupplierPan, setNewSupplierPan] = useState("");
+  const [newSupplierState, setNewSupplierState] = useState("");
   const [savingNewSupplier, setSavingNewSupplier] = useState(false);
 
   const handleCreateSupplier = async () => {
@@ -580,6 +582,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
           phone: newSupplierPhone,
           gstin: newSupplierGstin,
           pan: newSupplierPan,
+          billing_state: newSupplierState.trim() || getStateNameFromGSTIN(newSupplierGstin) || null,
           type: ["supplier"],
           code,
           contact_numbers: newSupplierPhone ? [{ label: "Main", number: newSupplierPhone, is_primary: true }] : [],
@@ -603,6 +606,7 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
       setNewSupplierPhone("");
       setNewSupplierGstin("");
       setNewSupplierPan("");
+      setNewSupplierState("");
       setNewSupplierModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Something went wrong");
@@ -1194,6 +1198,10 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                     }
                     if (selectedSup?.payment_terms) {
                       setValue("payment_terms", selectedSup.payment_terms);
+                      const supState = (selectedSup as any).billing_state || getStateNameFromGSTIN((selectedSup as any).gstin);
+                      if (supState) {
+                        setValue("place_of_supply", supState);
+                      }
                       const invDate = watch("invoice_date");
                       if (invDate) {
                         const daysMap: Record<string, number> = {
@@ -1301,6 +1309,24 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                   <option value="without_gst">Without GST (Kacha)</option>
                   <option value="reverse_charge">Reverse Charge (RCM)</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5">Place of Supply (State)</label>
+                <input
+                  type="text"
+                  list="purchase-indian-states-list"
+                  placeholder="Auto from supplier"
+                  {...register("place_of_supply")}
+                  className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm"
+                />
+                <datalist id="purchase-indian-states-list">
+                  {Object.entries(GSTIN_STATES).map(([code, name]) => (
+                    <option key={code} value={name}>
+                      {name} ({code})
+                    </option>
+                  ))}
+                </datalist>
               </div>
             </div>
           </div>
@@ -2423,10 +2449,24 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 </label>
                 <input
                   type="text"
-                  placeholder="Defaults to URP"
+                  maxLength={15}
+                  placeholder="15-digit GSTIN (or URP)"
                   value={newSupplierGstin}
-                  onChange={(e) => setNewSupplierGstin(e.target.value)}
-                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase"
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase().slice(0, 15);
+                    setNewSupplierGstin(val);
+                    const stateName = getStateNameFromGSTIN(val);
+                    if (stateName) {
+                      setNewSupplierState(stateName);
+                    }
+                    if (val.length >= 12 && !newSupplierPan) {
+                      const extractedPan = val.substring(2, 12);
+                      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
+                        setNewSupplierPan(extractedPan);
+                      }
+                    }
+                  }}
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase font-mono"
                 />
               </div>
 
@@ -2436,12 +2476,42 @@ export function PurchaseForm({ initialData, id }: PurchaseFormProps) {
                 </label>
                 <input
                   type="text"
+                  maxLength={10}
                   placeholder="Defaults to N/A"
                   value={newSupplierPan}
-                  onChange={(e) => setNewSupplierPan(e.target.value)}
-                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase"
+                  onChange={(e) => setNewSupplierPan(e.target.value.toUpperCase())}
+                  className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)] uppercase font-mono"
                 />
               </div>
+            </div>
+
+            {/* State / Union Territory */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  State / Union Territory
+                </label>
+                {getStateNameFromGSTIN(newSupplierGstin) && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                    ✓ Auto-detected from GSTIN
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                list="quick-supplier-indian-states-list"
+                placeholder="e.g. Maharashtra"
+                value={newSupplierState}
+                onChange={(e) => setNewSupplierState(e.target.value)}
+                className="w-full h-10 px-3 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-all font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
+              />
+              <datalist id="quick-supplier-indian-states-list">
+                {Object.entries(GSTIN_STATES).map(([code, name]) => (
+                  <option key={code} value={name}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </datalist>
             </div>
 
             <DialogFooter className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">

@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
 
 export async function GET(
   request: Request,
@@ -136,6 +137,9 @@ export async function PUT(
         .eq("business_id", businessId);
     }
 
+    const resolvedState = state || getStateNameFromGSTIN(gstin) || null;
+    const resolvedStateCode = state_code || getStateCodeFromGSTIN(gstin) || null;
+
     const { data: brand, error } = await supabase
       .from("brands")
       .update({
@@ -143,8 +147,8 @@ export async function PUT(
         logo_url: logo_url || null,
         gstin: gstin || null,
         address: address || null,
-        state: state || null,
-        state_code: state_code || null,
+        state: resolvedState,
+        state_code: resolvedStateCode,
         bill_prefix_pakka: bill_prefix_pakka || null,
         bill_prefix_kacha: bill_prefix_kacha || null,
         design_prefix: design_prefix || null,

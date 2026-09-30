@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       for (const item of items) {
         if (!item.material_type_id || !item.quantity || Number(item.quantity) <= 0) continue;
 
-        const { data: stockRow } = await supabase
+        let { data: stockRow } = await supabase
           .from("raw_material_current_stock")
           .select("current_stock")
           .eq("business_id", businessId)
@@ -74,8 +74,29 @@ export async function POST(request: Request) {
           .eq("material_type_id", item.material_type_id)
           .maybeSingle();
 
-        const currentQty = Number(stockRow?.current_stock || 0);
+        let currentQty = Number(stockRow?.current_stock || 0);
         const reqQty = Number(item.quantity);
+
+        // If insufficient, run a targeted ground-truth reconciliation once in case cache was out of sync
+        if (currentQty < reqQty) {
+          try {
+            const { reconcileRawMaterialStock } = await import("@/lib/stock-reconciliation");
+            await reconcileRawMaterialStock(supabase, businessId);
+
+            const { data: refreshedRow } = await supabase
+              .from("raw_material_current_stock")
+              .select("current_stock")
+              .eq("business_id", businessId)
+              .eq("godown_id", from_godown_id)
+              .eq("material_type_id", item.material_type_id)
+              .maybeSingle();
+
+            currentQty = Number(refreshedRow?.current_stock || 0);
+          } catch (recErr) {
+            console.error("RM reconciliation fallback error:", recErr);
+          }
+        }
+
         if (currentQty < reqQty) {
           return NextResponse.json(
             { error: `Insufficient stock in source godown. Available: ${currentQty}, Required: ${reqQty}` },

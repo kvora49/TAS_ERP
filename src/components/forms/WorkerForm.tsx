@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { getStateNameFromGSTIN, GSTIN_STATES } from "@/lib/gst-utils";
 
 const workerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -95,6 +96,18 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
   useUnsavedChangesGuard(isDirty);
 
   const workerType = watch("type");
+  const watchGstin = watch("gstin");
+  const watchState = watch("state");
+
+  // Auto-fill state from GSTIN if state is empty
+  useEffect(() => {
+    if (watchGstin && !watchState) {
+      const stateName = getStateNameFromGSTIN(watchGstin);
+      if (stateName) {
+        setValue("state", stateName);
+      }
+    }
+  }, [watchGstin, watchState, setValue]);
 
   // Fetch production stages
   useEffect(() => {
@@ -308,14 +321,37 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 uppercase">
-                  GSTIN
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase">
+                    GSTIN
+                  </label>
+                  {getStateNameFromGSTIN(watchGstin) && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      ✓ State: {getStateNameFromGSTIN(watchGstin)}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
-                  {...register("gstin")}
-                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
-                  placeholder="Optional"
+                  maxLength={15}
+                  {...register("gstin", {
+                    onChange: (e) => {
+                      const val = (e.target.value || "").toUpperCase().slice(0, 15);
+                      setValue("gstin", val, { shouldDirty: true });
+                      const stateName = getStateNameFromGSTIN(val);
+                      if (stateName) {
+                        setValue("state", stateName, { shouldDirty: true });
+                      }
+                      if (val.length >= 12 && !watch("pan")) {
+                        const extractedPan = val.substring(2, 12);
+                        if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
+                          setValue("pan", extractedPan, { shouldDirty: true });
+                        }
+                      }
+                    },
+                  })}
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase font-mono"
+                  placeholder="15-digit GSTIN (Optional)"
                 />
               </div>
 
@@ -325,8 +361,9 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                 </label>
                 <input
                   type="text"
+                  maxLength={10}
                   {...register("pan")}
-                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase"
+                  className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors uppercase font-mono"
                   placeholder="Optional"
                 />
               </div>
@@ -337,6 +374,7 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                 </label>
                 <input
                   type="text"
+                  maxLength={12}
                   {...register("aadhaar")}
                   className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                   placeholder="e.g. 1234 5678 9012"
@@ -376,10 +414,18 @@ export function WorkerForm({ initialData, id }: WorkerFormProps) {
                   </label>
                   <input
                     type="text"
+                    list="worker-indian-states-list"
                     {...register("state")}
                     className="w-full h-10 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
                     placeholder="e.g. Tamil Nadu"
                   />
+                  <datalist id="worker-indian-states-list">
+                    {Object.entries(GSTIN_STATES).map(([code, name]) => (
+                      <option key={code} value={name}>
+                        {name} ({code})
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </div>

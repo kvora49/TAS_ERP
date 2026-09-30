@@ -174,6 +174,14 @@ export async function PUT(
       }
     }
 
+    // Reconcile finished stock ground-truth after status change
+    try {
+      const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
+      await reconcileFinishedStock(supabase, businessId);
+    } catch (recErr) {
+      console.warn("Reconcile on transfer status update warning:", recErr);
+    }
+
     return NextResponse.json({ transfer: updatedTransfer });
   } catch (err: any) {
     return NextResponse.json(

@@ -17,7 +17,7 @@ import { AddressSection } from "./PartyForm/AddressSection";
 import { ContactSection } from "./PartyForm/ContactSection";
 import { MobileStickyFormBar } from "@/components/forms/MobileStickyFormBar";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
-import { validateGSTINInput } from "@/lib/gst-utils";
+import { validateGSTINInput, getStateNameFromGSTIN } from "@/lib/gst-utils";
 
 interface PartyFormProps {
   initialData?: any;
@@ -117,6 +117,16 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
   const watchBillingPincode = watch("billing_pincode");
   const watchGstin = (watch("gstin") || "").trim().toUpperCase();
   const gstinValidation = validateGSTINInput(watchGstin);
+
+  // Auto-fill state from GSTIN if state is empty
+  useEffect(() => {
+    if (watchGstin && !watchBillingState) {
+      const stateName = getStateNameFromGSTIN(watchGstin);
+      if (stateName) {
+        setValue("billing_state", stateName);
+      }
+    }
+  }, [watchGstin, watchBillingState, setValue]);
 
   // Fetch godowns list
   useEffect(() => {
@@ -428,15 +438,18 @@ export function PartyForm({ initialData, id }: PartyFormProps) {
                   {...register("gstin", {
                     onChange: (e) => {
                       const val = (e.target.value || "").toUpperCase().slice(0, 15);
-                      setValue("gstin", val, { shouldValidate: true });
-                      const check = validateGSTINInput(val);
-                      if (check.stateName && !watchBillingState) {
-                        setValue("billing_state", check.stateName);
+                      setValue("gstin", val, { shouldValidate: true, shouldDirty: true });
+                      const stateName = getStateNameFromGSTIN(val);
+                      if (stateName) {
+                        setValue("billing_state", stateName, { shouldDirty: true });
+                        if (sameAsBilling || !watch("shipping_state")) {
+                          setValue("shipping_state", stateName, { shouldDirty: true });
+                        }
                       }
                       if (val.length >= 12 && !watch("pan")) {
                         const extractedPan = val.substring(2, 12);
                         if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
-                          setValue("pan", extractedPan);
+                          setValue("pan", extractedPan, { shouldDirty: true });
                         }
                       }
                     },

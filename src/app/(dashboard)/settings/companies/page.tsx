@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
 
 export default function CompaniesSettingsPage() {
   const {
@@ -366,13 +367,29 @@ export default function CompaniesSettingsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-                GSTIN (Optional)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+                  GSTIN (Optional)
+                </label>
+                {newCompanyGstin && getStateNameFromGSTIN(newCompanyGstin) && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    ✓ {getStateNameFromGSTIN(newCompanyGstin)} ({getStateCodeFromGSTIN(newCompanyGstin)})
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 value={newCompanyGstin}
-                onChange={(e) => setNewCompanyGstin(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setNewCompanyGstin(val);
+                  if (val.length >= 12 && (!newCompanyPan || newCompanyPan.length !== 10)) {
+                    const extractedPan = val.substring(2, 12);
+                    if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
+                      setNewCompanyPan(extractedPan);
+                    }
+                  }
+                }}
                 placeholder="24ABCDE1234F1Z5"
                 maxLength={15}
                 className={inputClass}

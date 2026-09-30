@@ -1,6 +1,7 @@
 import React from "react";
 import { UseFormRegister, UseFormWatch } from "react-hook-form";
 import { PartyFormValues } from "./party.schema";
+import { GSTIN_STATES } from "@/lib/gst-utils";
 
 interface AddressSectionProps {
   register: UseFormRegister<PartyFormValues>;
@@ -60,6 +61,7 @@ export function AddressSection({
               <input
                 id="billing-state"
                 type="text"
+                list="party-indian-states-list"
                 placeholder="State"
                 {...register("billing_state")}
                 className="w-full px-3 py-2 border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] rounded-lg text-sm focus:ring-2 focus:ring-[var(--input-focus)] focus:border-transparent transition-colors"
@@ -132,6 +134,7 @@ export function AddressSection({
               <input
                 id="shipping-state"
                 type="text"
+                list="party-indian-states-list"
                 placeholder="State"
                 disabled={sameAsBilling}
                 {...register("shipping_state")}
@@ -153,6 +156,15 @@ export function AddressSection({
           </div>
         </div>
       </div>
+
+      {/* Datalist of Indian States & UTs for quick autocomplete */}
+      <datalist id="party-indian-states-list">
+        {Object.entries(GSTIN_STATES).map(([code, name]) => (
+          <option key={code} value={name}>
+            {name} ({code})
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 }
