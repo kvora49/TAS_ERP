@@ -594,7 +594,7 @@ export default function CompaniesSettingsPage() {
                 <li>Make the workspace active again and visible in the switcher.</li>
                 <li>Restore your owner access immediately.</li>
                 <li>
-                  <strong>Not</strong> automatically reinstate previously revoked members — you'll need to
+                  <strong>Not</strong> automatically reinstate previously revoked members — you&apos;ll need to
                   re-invite them manually from Users & Roles.
                 </li>
               </ul>

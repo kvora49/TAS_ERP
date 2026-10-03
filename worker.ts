@@ -1,3 +1,4 @@
+// @ts-ignore - Generated at build time by @opennextjs/cloudflare
 import openNextHandler from "./.open-next/worker.js";
 import { runBackupJob } from "./src/lib/cron/backup";
 import { runCalendarRemindersJob } from "./src/lib/cron/calendar-reminders";
@@ -7,6 +8,7 @@ import { runScheduledStockIntegrityJob } from "./src/lib/cron/stock-integrity";
 
 import { runReportSubscriptionsJob } from "./src/lib/cron/report-subscriptions";
 
+// @ts-ignore - Generated at build time by @opennextjs/cloudflare
 export * from "./.open-next/worker.js";
 
 export default {
