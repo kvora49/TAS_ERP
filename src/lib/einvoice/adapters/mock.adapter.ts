@@ -23,7 +23,7 @@ export class MockEInvoiceAdapter implements EInvoiceAdapter {
   readonly providerName = "IRIS_SANDBOX_MOCK";
 
   async authenticate(credentials: TenantIRPCredentials): Promise<IRPAuthToken> {
-    const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
+    const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "mock_client";
     if (!credentials.gstin) {
       throw new Error("Invalid credentials: GSTIN is required.");
     }
@@ -33,12 +33,13 @@ export class MockEInvoiceAdapter implements EInvoiceAdapter {
       throw new Error(`[Mock IRP] GSTIN validation failed: ${gstinVal.errorMessage || "Must be 15-character valid GSTIN"}`);
     }
 
-    if (!credentials.userName || !credentials.userName.trim()) {
-      throw new Error("[Mock IRP] GSP API Username is required.");
-    }
-
-    if (!credentials.password || !credentials.password.trim()) {
-      throw new Error("[Mock IRP] GSP API Password is required.");
+    if (credentials.authToken) {
+      return {
+        token: credentials.authToken,
+        expiresAt: credentials.tokenExpiry || new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        tokenType: "Bearer",
+        sessionId: `IRIS-SESS-${Date.now()}`,
+      };
     }
 
     const token = crypto.randomBytes(32).toString("hex");

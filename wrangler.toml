@@ -1,0 +1,40 @@
+name = "app"
+main = "worker.ts"
+compatibility_date = "2026-10-02"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+
+[triggers]
+crons = [
+  "0 * * * *",     # 1. notifications & dynamic user-schedule backups (every hour)
+  "0 8 * * *",     # 2. calendar-reminders (08:00 UTC daily)
+  "0 22 * * *",    # 3. einvoice-reconcile (22:00 UTC daily)
+  "0 4 * * *"      # 4. stock-integrity (04:00 UTC daily)
+]
+
+[vars]
+EINVOICE_ADAPTER = "mock"
+IRIS_IRP_PROD_URL = "https://api.irisirp.com"
+IRIS_IRP_SANDBOX_URL = "https://sandbox.irisirp.com"
+NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyAKrXH5Vv-obrIyf75T53KN4RsOfjB6U1M"
+NEXT_PUBLIC_FIREBASE_APP_ID = "1:438606426821:web:18d85ed9603b15acc576ac"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "tas-erp-cdcb2.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "438606426821"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = "tas-erp-cdcb2"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "tas-erp-cdcb2.firebasestorage.app"
+NEXT_PUBLIC_FIREBASE_VAPID_KEY = "BCNwdWkU7Htt4F7ziaCwjsEfuu9OcVo9msEBuTaGGxRhbMXfzCOeKQcB3bJBy0Gn90kIvXqdbhMFoQYFDZ83DAI"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4ZWtlaXR4dmZrdWt1anNlbHhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMjQ1NjYsImV4cCI6MjA5NzYwMDU2Nn0.UkOLvClPdWbk4yYYSLUPQrO3DmXpMHaAQVolhIToErQ"
+NEXT_PUBLIC_SUPABASE_URL = "https://cxekeitxvfkukujselxr.supabase.co"
+R2_ACCOUNT_ID = "ca58a233793c3ea3717e262837715ae2"
+R2_BACKUP_ACCOUNT_ID = "ca58a233793c3ea3717e262837715ae2"
+R2_BACKUP_BUCKET_NAME = "garment-erp-backup"
+R2_BACKUP_PUBLIC_URL = "https://pub-backup-placeholder.r2.dev"
+R2_BUCKET_NAME = "garment-erp-files"
+R2_PUBLIC_URL = "https://pub-placeholder.r2.dev"
+

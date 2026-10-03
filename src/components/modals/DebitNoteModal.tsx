@@ -3,6 +3,7 @@
 import React from "react";
 import { X, Printer, FileText } from "lucide-react";
 import { numberToWords } from "@/lib/utils/numberToWords";
+import { deriveStateDetails, isInterstateTransaction } from "@/lib/gst-utils";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function fmt(v: number, decimals = 2) {
@@ -196,8 +197,12 @@ export function DebitNoteModal({
   const handlePrint = () => window.print();
 
   const debitNoteNumber = `DB-${new Date(pReturn.return_date || Date.now()).getFullYear()}-${pReturn.return_number.slice(-4)}`;
-  const companyState = stateFromGstin(company?.gstin);
-  const supplierState = stateFromGstin(pReturn.supplier?.gstin);
+  const companyState = deriveStateDetails(company?.address, company?.gstin, company?.state, company?.state_code);
+  const supplierState = deriveStateDetails(
+    pReturn.supplier?.billing_address_line1,
+    pReturn.supplier?.gstin,
+    (pReturn.supplier as any)?.billing_state || (pReturn.supplier as any)?.state
+  );
   const checkedReasons = matchReason(pReturn.reason);
 
   // Bank details
@@ -232,7 +237,13 @@ export function DebitNoteModal({
   const grandTot = pReturn.grand_total || 0;
   const rawTaxDiff = Math.max(0, grandTot - taxableVal);
 
-  const isInterstate = companyState.code && supplierState.code && companyState.code !== supplierState.code;
+  const isInterstate = isInterstateTransaction({
+    businessGstin: company?.gstin,
+    businessAddress: company?.address,
+    partyGstin: pReturn.supplier?.gstin,
+    partyState: (pReturn.supplier as any)?.billing_state || (pReturn.supplier as any)?.state,
+    billingAddress: pReturn.supplier?.billing_address_line1,
+  });
 
   let cgstVal = pReturn.cgst ?? 0;
   let sgstVal = pReturn.sgst ?? 0;

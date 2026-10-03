@@ -33,7 +33,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification?.body || payload.data?.body || "New update in workspace.",
     icon: payload.notification?.icon || "/icons/icon-192x192.png",
-    badge: "/favicon.ico",
+    badge: "/icons/badge-72x72.png",
     tag: payload.data?.tag || "tas-erp-lockscreen-alert",
     renotify: true,
     requireInteraction: true,

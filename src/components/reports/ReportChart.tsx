@@ -1,26 +1,12 @@
 "use client";
 
 import React from "react";
-import dynamic from "next/dynamic";
+import {
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
+} from "recharts";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import { fmtINR, fmtNum } from "@/lib/report-export";
-
-// Dynamic Recharts code-splitting for high-speed page transition (<100ms)
-const ResponsiveContainer = dynamic(() => import("recharts").then((m) => m.ResponsiveContainer), { ssr: false });
-const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), { ssr: false });
-const Line = dynamic(() => import("recharts").then((m) => m.Line), { ssr: false });
-const BarChart = dynamic(() => import("recharts").then((m) => m.BarChart), { ssr: false });
-const Bar = dynamic(() => import("recharts").then((m) => m.Bar), { ssr: false });
-const PieChart = dynamic(() => import("recharts").then((m) => m.PieChart), { ssr: false });
-const Pie = dynamic(() => import("recharts").then((m) => m.Pie), { ssr: false });
-const Cell = dynamic(() => import("recharts").then((m) => m.Cell), { ssr: false });
-const AreaChart = dynamic(() => import("recharts").then((m) => m.AreaChart), { ssr: false });
-const Area = dynamic(() => import("recharts").then((m) => m.Area), { ssr: false });
-const CartesianGrid = dynamic(() => import("recharts").then((m) => m.CartesianGrid), { ssr: false });
-const XAxis = dynamic(() => import("recharts").then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import("recharts").then((m) => m.YAxis), { ssr: false });
-const Tooltip = dynamic(() => import("recharts").then((m) => m.Tooltip), { ssr: false });
-const Legend = dynamic(() => import("recharts").then((m) => m.Legend), { ssr: false });
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
@@ -238,28 +224,29 @@ export function ReportDonutChart({
   legendPosition = "bottom",
 }: DonutChartProps) {
   const ct = useChartTheme();
-  const total = data.reduce((s, d) => s + d.value, 0);
+  const total = data.reduce((s, d) => s + Math.max(0, Number(d.value) || 0), 0);
+  const slices = data.filter(d => Number(d.value) > 0);
 
   return (
-    <div style={{ overflow: "visible", position: "relative" }}>
+    <div className="report-donut" data-legend-position={legendPosition}>
       <ResponsiveContainer width="100%" height={height}>
         <PieChart
-          margin={{ top: 15, right: 15, bottom: 15, left: 15 }}
-          style={{ overflow: "visible" }}
+          margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
         >
           <Pie
-            data={data}
+            data={slices}
             cx="50%"
-            cy={legendPosition === "bottom" ? "42%" : "50%"}
+            cy="50%"
             innerRadius={innerRadius}
             outerRadius={outerRadius}
             paddingAngle={3}
             dataKey="value"
           >
-            {data.map((entry, i) => (
-              <Cell key={entry.name} fill={entry.color ?? CHART_COLORS[i % CHART_COLORS.length]} />
+            {slices.map((entry) => (
+              <Cell key={entry.name} fill={entry.color ?? CHART_COLORS[data.indexOf(entry) % CHART_COLORS.length]} />
             ))}
           </Pie>
+          {(centerLabel || centerValue) && <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill={ct.text} fontSize={11}>{centerValue || centerLabel}</text>}
           <Tooltip
             contentStyle={{
               background: ct.tooltipBg,
@@ -273,20 +260,14 @@ export function ReportDonutChart({
               String(name || ""),
             ]}
           />
-          <Legend
-            layout={legendPosition === "bottom" ? "horizontal" : "vertical"}
-            align={legendPosition === "bottom" ? "center" : "right"}
-            verticalAlign={legendPosition === "bottom" ? "bottom" : "middle"}
-            iconType="circle"
-            iconSize={8}
-            wrapperStyle={{ fontSize: 10, color: ct.axisText, paddingTop: legendPosition === "bottom" ? 8 : 0 }}
-            formatter={(value, entry: any) => {
-              const pct = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : "0";
-              return `${value} (${pct}%)`;
-            }}
-          />
         </PieChart>
       </ResponsiveContainer>
+      <div className="report-donut-legend" aria-label="Chart legend">
+        {data.map((entry, i) => <div key={`${entry.name}-${i}`} className="report-donut-legend-item">
+          <span className="report-donut-swatch" style={{ backgroundColor: entry.color ?? CHART_COLORS[i % CHART_COLORS.length] }} />
+          <span>{entry.name} ({total ? (Math.max(0, Number(entry.value) || 0) / total * 100).toFixed(1) : "0.0"}%)</span>
+        </div>)}
+      </div>
     </div>
   );
 }

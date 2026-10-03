@@ -58,8 +58,8 @@ export async function POST(request: Request) {
     }
 
     // Layer 1: Platform credentials identifying TAS to IRIS (stored strictly on server)
-    const platformClientId = process.env.IRIS_CLIENT_ID || "tas_iris_client";
-    const platformClientSecret = process.env.IRIS_CLIENT_SECRET || "tas_iris_secret";
+    const platformClientId = process.env.IRIS_CLIENT_ID;
+    const platformClientSecret = process.env.IRIS_CLIENT_SECRET;
 
     const adapter = getEInvoiceAdapter();
     const isLiveIris = adapter.providerName === "IRIS_IRP";

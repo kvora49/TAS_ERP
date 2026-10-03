@@ -11,7 +11,7 @@ Before switching traffic from the sandbox adapter to live IRIS IRP production:
 |---|---|---|
 | **1. Sandbox Sign-Off** | Submit required sandbox test cases to IRIS review team | Run `npx tsx scripts/test-einvoice-e2e.ts` and `npx tsx scripts/test-einvoice-engine.ts`. Capture logs and generate test JSON payloads as required by IRIS. |
 | **2. Production Credentials** | Obtain production Client ID / Client Secret and API-User credentials | Generated from the IRIS IRP developer portal upon test case approval. |
-| **3. Configuration Switch** | Zero code changes — Environment variable switch only | Set `EINVOICE_ADAPTER=iris`, `IRIS_API_URL=https://api.irisgst.com/einvoice/v1`, and set live production credentials in tenant settings. |
+| **3. Configuration Switch** | Zero code changes — Environment variable switch only | Set `EINVOICE_ADAPTER=iris`, `IRIS_IRP_PROD_URL=https://api.irisirp.com` (deprecating legacy `IRIS_API_URL`), and set live production credentials in tenant settings. |
 | **4. Pilot Tenant Launch** | Enable for one high-volume pilot tenant | Monitor closely for one complete billing cycle (30 days). |
 | **5. Full Tenant Rollout** | Roll out to all eligible/opted-in tenants | In Settings > Company Profile, activate "Mandatory" or "Voluntary". |
 | **6. Commercial Terms** | Written confirmation of tier limits | Confirm in writing with IRIS whether the free Basic tier has any hard invoice caps at production volume. |
@@ -86,7 +86,7 @@ Before switching traffic from the sandbox adapter to live IRIS IRP production:
 ### 5.1. Two-Layer Credential Model
 | Layer | Scope | Where Configured | Secret Visibility |
 |---|---|---|---|
-| **Layer 1: TAS ↔ IRIS Platform Credentials** | Identifies **TAS the application** to IRIS IRP across sandbox & production. | Server `.env.local` / production environment: `IRIS_CLIENT_ID`, `IRIS_CLIENT_SECRET`, `IRIS_API_URL`. | **Server Only**. Never touches the browser, never displayed to tenants, never stored in client state. |
+| **Layer 1: TAS ↔ IRIS Platform Credentials** | Identifies **TAS the application** to IRIS IRP across sandbox & production. | Server `.env.local` / production environment: `IRIS_CLIENT_ID`, `IRIS_CLIENT_SECRET`, `IRIS_IRP_PROD_URL` / `IRIS_IRP_SANDBOX_URL`. | **Server Only**. Never touches the browser, never displayed to tenants, never stored in client state. |
 | **Layer 2: GSTIN ↔ Government Authorization** | Legal taxpayer consent authorizing IRIS to act as the taxpayer's GSP. | Created by taxpayer on `einvoice1.gst.gov.in` under *API Registration → Through GSP*. Linked in TAS Settings > Company Profile. | Handshake relayed server-to-server. Passwords encrypted at rest, masked, and never echoed back in GET requests. |
 
 ### 5.2. Tenant Step-by-Step Onboarding Guide (For Business Owners / Garment Manufacturers)

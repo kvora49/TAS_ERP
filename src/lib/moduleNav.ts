@@ -37,6 +37,7 @@ export interface NavItem {
 
 export const SALES_NAV: NavItem[] = [
   { label: "Bills & Invoices", href: "/sales/bills", icon: FileText },
+  { label: "Delivery Challans", href: "/sales/delivery-challans", icon: Truck },
   { label: "Orders / Bookings", href: "/sales/orders", icon: ClipboardList },
   { label: "Sales Returns", href: "/sales/returns", icon: ArrowLeftRight },
 ];
@@ -130,4 +131,5 @@ export const REPORTS_NAV: NavItem[] = [
   { label: "GST Summary", href: "/reports/gst-summary" },
   { label: "Valuation", href: "/reports/stock-valuation" },
   { label: "Executive", href: "/reports/analysis" },
+  { label: "Opening Balances", href: "/reports/opening-balances" },
 ];

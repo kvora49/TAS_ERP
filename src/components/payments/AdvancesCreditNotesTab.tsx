@@ -1,4 +1,6 @@
 "use client";
+import { invalidateReports } from "@/lib/report-cache";
+
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -109,6 +111,7 @@ export default function AdvancesCreditNotesTab({ showBackButton = false }: Advan
       return data;
     },
     onSuccess: () => {
+      void invalidateReports(queryClient);
       toast.success("Advance settled against bills successfully!");
       setSelectedAdvance(null);
       setMultiAllocations([]);

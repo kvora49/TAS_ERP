@@ -125,7 +125,7 @@ export function usePWAWebPush() {
     const notifOptions = {
       body: options?.body || "",
       icon: "/icons/icon-192x192.png",
-      badge: "/favicon.ico",
+      badge: "/icons/badge-72x72.png",
       data: { url: options?.link_url || "/" },
       requireInteraction: true,
       vibrate: [200, 100, 200, 100, 200],

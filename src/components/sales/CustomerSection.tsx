@@ -135,6 +135,18 @@ export function CustomerSection({ state, parties, salesmen }: CustomerSectionPro
                   </span>
                 )
               )}
+              {(!selectedParty.gstin || selectedParty.gstin === "URP") && (
+                <span className="font-mono text-sky-600 dark:text-sky-400 font-semibold text-[11px] px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25">
+                  URP (Unregistered){selectedParty.billing_state ? ` • ${selectedParty.billing_state}` : ""}
+                </span>
+              )}
+              <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] border ${
+                state.isInterstate
+                  ? "bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400"
+                  : "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+              }`}>
+                {state.isInterstate ? "IGST (Inter-State)" : "CGST + SGST (Intra-State)"}
+              </span>
               {Number(selectedParty.credit_limit || 0) > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-[var(--input-bg)] border border-[var(--border)] font-bold text-[var(--text-secondary)] text-[11px]">
                   Credit Limit: ₹{Number(selectedParty.credit_limit).toLocaleString("en-IN")}

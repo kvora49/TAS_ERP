@@ -4,6 +4,7 @@ import React from "react";
 import { X, Printer, FileText } from "lucide-react";
 import { numberToWords } from "@/lib/utils/numberToWords";
 import { getPartyPhone } from "@/lib/utils/whatsapp";
+import { deriveStateDetails, isInterstateTransaction } from "@/lib/gst-utils";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function fmt(v: number, decimals = 2) {
@@ -199,8 +200,12 @@ export function CreditNoteModal({
 
   const handlePrint = () => window.print();
 
-  const companyState = stateFromGstin(company?.gstin);
-  const partyState = stateFromGstin(creditNote.party?.gstin);
+  const companyState = deriveStateDetails(company?.address, company?.gstin, company?.state, company?.state_code);
+  const partyState = deriveStateDetails(
+    creditNote.party?.billing_address_line1,
+    creditNote.party?.gstin,
+    creditNote.party?.billing_state || (creditNote.party as any)?.state
+  );
   const checkedReasons = matchReason(creditNote.reason);
 
   // Bank details
@@ -299,7 +304,13 @@ export function CreditNoteModal({
   const grandTot = creditNote.amount || 0;
   const rawTaxDiff = Math.max(0, grandTot - taxableVal);
 
-  const isInterstate = companyState.code && partyState.code && companyState.code !== partyState.code;
+  const isInterstate = isInterstateTransaction({
+    businessGstin: company?.gstin,
+    businessAddress: company?.address,
+    partyGstin: creditNote.party?.gstin,
+    partyState: creditNote.party?.billing_state || (creditNote.party as any)?.state,
+    billingAddress: creditNote.party?.billing_address_line1,
+  });
 
   let cgstVal = creditNote.cgst ?? 0;
   let sgstVal = creditNote.sgst ?? 0;

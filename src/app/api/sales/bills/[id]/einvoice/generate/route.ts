@@ -5,9 +5,10 @@ import {
   validateInvoiceForEInvoice,
   getEInvoiceAdapter,
   IRPInvoicePayload,
+  IRPPartyDetails,
   IRPTransportDetails,
 } from "@/lib/einvoice";
-import { deriveStateDetails } from "@/lib/gst-utils";
+import { deriveStateDetails, getPlaceOfSupplyCode } from "@/lib/gst-utils";
 import { logAudit } from "@/lib/audit";
 
 export async function POST(
@@ -96,21 +97,98 @@ export async function POST(
 
     const buyerTradeName = (bill.party?.company_name || bill.party?.name || "Customer").trim();
 
-    // 3. Format Line Items
+    // Determine Place of Supply
+    const posCode = getPlaceOfSupplyCode({
+      businessGstin: business.gstin,
+      businessStateCode: sellerState.code,
+      businessState: business.state,
+      businessAddress: business.address,
+      partyGstin: buyerGstin,
+      partyState: bill.billing_state || bill.party?.billing_state || bill.party?.state,
+      billingState: bill.billing_state || bill.party?.billing_state,
+      billingAddress: buyerAddress,
+      consigneeGstin: bill.consignee_gstin,
+      consigneeStateCode: bill.consignee_state_code,
+      consigneeState: bill.consignee_state,
+      consigneeAddress: bill.consignee_address,
+      shipToSameAsBillTo: bill.ship_to_same_as_bill_to !== false,
+    });
+
+    // 3. Format Line Items with accurate tax and discount apportionment
     const rawItems: any[] = bill.items || [];
     const isInterstate = Number(bill.igst || 0) > 0;
 
+    const itemTotalAfterDiscount = rawItems.reduce(
+      (sum, it) => sum + Number(it.rate || 0) * Number(it.quantity || 0) * (1 - Number(it.discount_percent || 0) / 100),
+      0
+    );
+    const billDiscount = Number(bill.discount_amount || 0);
+    const taxableAmountTotal = Number(bill.taxable_amount || 0);
+    const taxableCharges = Math.max(0, taxableAmountTotal - Math.max(0, itemTotalAfterDiscount - billDiscount));
+
+    let accumulatedTaxable = 0;
+    let accumulatedIgst = 0;
+    let accumulatedCgst = 0;
+    let accumulatedSgst = 0;
+
     const itemList = rawItems.map((it, idx) => {
+      const isLast = idx === rawItems.length - 1;
       const qty = Number(it.quantity || 0);
       const rate = Number(it.rate || 0);
       const discPercent = Number(it.discount_percent || 0);
-      const grossAmt = qty * rate;
-      const discAmt = grossAmt * (discPercent / 100);
-      const taxable = grossAmt - discAmt;
-      const gstRate = Number(it.tax_percent || 0);
-      const lineTax = taxable * (gstRate / 100);
+      const grossAmt = Math.round(qty * rate * 100) / 100;
+      const lineDiscAmt = Math.round(grossAmt * (discPercent / 100) * 100) / 100;
+      const lineBase = grossAmt - lineDiscAmt;
 
-      const hsn = (it.hsn_sac || "").toString().trim().replace(/[^0-9]/g, "") || "620412";
+      const share = itemTotalAfterDiscount > 0 ? lineBase / itemTotalAfterDiscount : 0;
+      const itemShareOfSubtotal = lineBase + (taxableCharges * share);
+      let lineTaxable = Math.round(Math.max(0, itemShareOfSubtotal - (billDiscount * share)) * 100) / 100;
+
+      // Adjust rounding on the last line item so that sum(taxableValue) === bill.taxable_amount exactly
+      if (isLast) {
+        lineTaxable = Math.round((taxableAmountTotal - accumulatedTaxable) * 100) / 100;
+      } else {
+        accumulatedTaxable += lineTaxable;
+      }
+
+      const gstRate = Number(it.tax_percent || 0);
+      const calculatedLineTax = Math.round((lineTaxable * (gstRate / 100)) * 100) / 100;
+
+      let lineIgst = 0;
+      let lineCgst = 0;
+      let lineSgst = 0;
+
+      if (isInterstate) {
+        if (isLast) {
+          lineIgst = Math.round((Number(bill.igst || 0) - accumulatedIgst) * 100) / 100;
+        } else {
+          lineIgst = calculatedLineTax;
+          accumulatedIgst += lineIgst;
+        }
+      } else {
+        if (isLast) {
+          lineCgst = Math.round((Number(bill.cgst || 0) - accumulatedCgst) * 100) / 100;
+          lineSgst = Math.round((Number(bill.sgst || 0) - accumulatedSgst) * 100) / 100;
+        } else {
+          lineCgst = Math.round((calculatedLineTax / 2) * 100) / 100;
+          lineSgst = lineCgst;
+          accumulatedCgst += lineCgst;
+          accumulatedSgst += lineSgst;
+        }
+      }
+
+      const totalItemValue = Math.round((lineTaxable + lineIgst + lineCgst + lineSgst) * 100) / 100;
+
+      const resolvedHsn = (
+        it.hsn_sac ||
+        it.hsn_code ||
+        it.design?.hsn_code ||
+        it.design?.hsn_sac ||
+        it.material_type?.hsn_code ||
+        it.material_type?.hsn_sac ||
+        ""
+      ).toString().trim().replace(/[^0-9]/g, "");
+      const hsn = resolvedHsn || "620412";
       const desc = it.item_name || it.description || it.design?.name || it.design?.design_number || `Item ${idx + 1}`;
 
       return {
@@ -121,19 +199,44 @@ export async function POST(
         quantity: qty,
         unit: (it.unit || "PCS").toUpperCase().substring(0, 8),
         unitPrice: rate,
-        grossAmount: Math.round(grossAmt * 100) / 100,
-        discountAmount: Math.round(discAmt * 100) / 100,
-        preTaxValue: Math.round(taxable * 100) / 100,
-        taxableValue: Math.round(taxable * 100) / 100,
+        grossAmount: grossAmt,
+        discountAmount: lineDiscAmt,
+        preTaxValue: lineTaxable,
+        taxableValue: lineTaxable,
         gstRate,
-        igstAmount: isInterstate ? Math.round(lineTax * 100) / 100 : 0,
-        cgstAmount: !isInterstate ? Math.round((lineTax / 2) * 100) / 100 : 0,
-        sgstAmount: !isInterstate ? Math.round((lineTax / 2) * 100) / 100 : 0,
-        totalItemValue: Math.round((taxable + lineTax) * 100) / 100,
+        igstAmount: lineIgst,
+        cgstAmount: lineCgst,
+        sgstAmount: lineSgst,
+        totalItemValue,
       };
     });
 
-    // 4. Construct Transport Details if present
+    // 4. Construct Consignee / Ship-To Details if different from bill-to
+    let shipToDetails: IRPPartyDetails | undefined;
+    if (bill.ship_to_same_as_bill_to === false && (bill.consignee_name || bill.consignee_address || bill.consignee_state_code)) {
+      const shipState = deriveStateDetails(
+        bill.consignee_address,
+        bill.consignee_gstin,
+        bill.consignee_state,
+        bill.consignee_state_code
+      );
+      const shipPin =
+        bill.consignee_pincode ||
+        (bill.consignee_address?.match(/\b[1-9][0-9]{5}\b/) || [])[0] ||
+        buyerPin;
+
+      shipToDetails = {
+        gstin: bill.consignee_gstin || buyerGstin,
+        legalName: (bill.consignee_name || buyerTradeName).trim(),
+        tradeName: (bill.consignee_name || buyerTradeName).trim(),
+        addressLine1: bill.consignee_address?.substring(0, 100) || buyerAddress.substring(0, 100) || "Shipping Address",
+        location: bill.consignee_city || bill.billing_city || "City",
+        pinCode: shipPin,
+        stateCode: shipState.code || buyerState.code,
+      };
+    }
+
+    // 5. Construct Transport Details if present
     let transportDetails: IRPTransportDetails | undefined;
     const transporter = bill.eway_transporter || bill.transporter_name || bill.dispatched_through;
     const vehicle = bill.eway_vehicle_no || bill.vehicle_no;
@@ -147,7 +250,7 @@ export async function POST(
       };
     }
 
-    // 5. Construct Normalized Payload
+    // 6. Construct Normalized Payload conforming to IRP INV-01 Schema
     const invoicePayload: IRPInvoicePayload = {
       version: "1.1",
       docDetails: {
@@ -178,7 +281,9 @@ export async function POST(
         location: bill.billing_city || "City",
         pinCode: buyerPin,
         stateCode: buyerState.code,
+        placeOfSupply: posCode || buyerState.code,
       },
+      shipToDetails,
       itemList,
       valueSummary: {
         totalTaxableAmount: Number(bill.taxable_amount || 0),
@@ -186,21 +291,23 @@ export async function POST(
         totalSgstAmount: Number(bill.sgst || 0),
         totalIgstAmount: Number(bill.igst || 0),
         totalCessAmount: 0,
-        discountAmount: Number(bill.discount_amount || 0),
-        otherCharges: Number(bill.charges_total || 0),
+        discountAmount: 0, // Apportioned into line items
+        otherCharges: Math.round(Math.max(0, Number(bill.charges_total || 0) - taxableCharges) * 100) / 100, // Non-taxable charges
         roundOffAmount: Number(bill.round_off || 0),
         totalInvoiceValue: Number(bill.grand_total || 0),
       },
       transportDetails,
     };
 
-    // 6. Invoke Adapter
+    // 7. Invoke Adapter with layer 1 and layer 2 credentials
     const adapter = getEInvoiceAdapter();
     const credentials = {
       gstin: business.gstin,
-      clientId: process.env.IRIS_CLIENT_ID || "tas_iris_client",
-      clientSecret: process.env.IRIS_CLIENT_SECRET || "tas_iris_secret",
+      clientId: process.env.IRIS_CLIENT_ID,
+      clientSecret: process.env.IRIS_CLIENT_SECRET,
       userName: business.irp_client_id || undefined,
+      authToken: business.irp_auth_token || undefined,
+      tokenExpiry: business.irp_token_expiry || undefined,
     };
 
     const result = await adapter.generateIRN(invoicePayload, credentials, transportDetails);

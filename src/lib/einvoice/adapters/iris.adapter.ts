@@ -36,32 +36,59 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
         : process.env.IRIS_IRP_PROD_URL || "https://api.irisirp.com");
   }
 
+  private getEffectiveCredentials(credentials?: TenantIRPCredentials): { effectiveClientId: string; effectiveClientSecret: string } {
+    const effectiveClientId = credentials?.clientId || process.env.IRIS_CLIENT_ID;
+    const effectiveClientSecret = credentials?.clientSecret || process.env.IRIS_CLIENT_SECRET;
+
+    if (!effectiveClientId || !effectiveClientSecret) {
+      throw new Error(
+        "[IRIS IRP] Configuration Error: IRIS_CLIENT_ID and IRIS_CLIENT_SECRET are missing. Configure them in environment variables or provide them in credentials."
+      );
+    }
+
+    return { effectiveClientId, effectiveClientSecret };
+  }
+
   /**
    * Authenticate tenant or intermediary with IRIS IRP
    */
   async authenticate(credentials: TenantIRPCredentials): Promise<IRPAuthToken> {
-    const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
-    const effectiveClientSecret = credentials.clientSecret || process.env.IRIS_CLIENT_SECRET || "tas_iris_secret";
+    const { effectiveClientId, effectiveClientSecret } = this.getEffectiveCredentials(credentials);
 
     const gstinVal = validateGSTINInput(credentials.gstin);
     if (!gstinVal.isValid) {
       throw new Error(`[IRIS IRP] Invalid Company GSTIN: ${gstinVal.errorMessage || "Must be 15-character valid GSTIN"}`);
     }
 
-    if (!credentials.userName || !credentials.userName.trim()) {
-      throw new Error("[IRIS IRP] GSP API Username is required.");
-    }
-
-    if (!credentials.password || !credentials.password.trim()) {
-      throw new Error("[IRIS IRP] GSP API Password is required.");
-    }
-
     const cacheKey = `${credentials.gstin}_${effectiveClientId}`;
     const cached = this.tokenCache.get(cacheKey);
 
-    // Reuse cached token if valid for at least 15 more minutes
-    if (cached && new Date(cached.expiresAt).getTime() - Date.now() > 15 * 60 * 1000) {
+    // 1. Reuse in-memory cached token if valid for at least 5 more minutes
+    if (cached && new Date(cached.expiresAt).getTime() - Date.now() > 5 * 60 * 1000) {
       return cached;
+    }
+
+    // 2. Reuse session auth token from database if valid
+    if (credentials.authToken) {
+      const expiry = credentials.tokenExpiry ? new Date(credentials.tokenExpiry).getTime() : 0;
+      if (!credentials.tokenExpiry || expiry - Date.now() > 5 * 60 * 1000) {
+        const authToken: IRPAuthToken = {
+          token: credentials.authToken,
+          expiresAt: credentials.tokenExpiry || new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        };
+        this.tokenCache.set(cacheKey, authToken);
+        return authToken;
+      }
+    }
+
+    if (!credentials.userName || !credentials.userName.trim()) {
+      throw new Error("[IRIS IRP] GSP API Username is required. Please configure it in Settings > Company Profile.");
+    }
+
+    if (!credentials.password || !credentials.password.trim()) {
+      throw new Error(
+        "[IRIS IRP] Session expired or not connected. Please verify your IRP connection in Settings > Company Profile."
+      );
     }
 
     try {
@@ -116,7 +143,7 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
       // Format payload according to IRP INV-01 Schema
       const irpPayload = this.formatIRPPayload(payload, transportDetails);
 
-      const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
+      const { effectiveClientId } = this.getEffectiveCredentials(credentials);
       const response = await fetch(`${this.baseUrl}/einv/v1/invoice/generate`, {
         method: "POST",
         headers: {
@@ -182,7 +209,7 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
     try {
       const auth = await this.authenticate(credentials);
 
-      const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
+      const { effectiveClientId } = this.getEffectiveCredentials(credentials);
       const response = await fetch(`${this.baseUrl}/einv/v1/invoice/cancel`, {
         method: "POST",
         headers: {
@@ -243,7 +270,7 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
       url.searchParams.set("docNo", docDetails.docNo);
       url.searchParams.set("docDate", docDetails.docDate);
 
-      const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
+      const { effectiveClientId } = this.getEffectiveCredentials(credentials);
       const response = await fetch(url.toString(), {
         method: "GET",
         headers: {
@@ -298,7 +325,7 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
     try {
       const auth = await this.authenticate(credentials);
 
-      const effectiveClientId = credentials.clientId || process.env.IRIS_CLIENT_ID || "tas_iris_client";
+      const { effectiveClientId } = this.getEffectiveCredentials(credentials);
       const response = await fetch(`${this.baseUrl}/ewb/v1/generate`, {
         method: "POST",
         headers: {
@@ -412,7 +439,7 @@ export class IrisEInvoiceAdapter implements EInvoiceAdapter {
         Gstin: payload.buyerDetails.gstin,
         LglNm: payload.buyerDetails.legalName,
         TrdNm: payload.buyerDetails.tradeName || payload.buyerDetails.legalName,
-        Pos: payload.buyerDetails.stateCode,
+        Pos: payload.buyerDetails.placeOfSupply || payload.buyerDetails.stateCode,
         Addr1: payload.buyerDetails.addressLine1,
         Addr2: payload.buyerDetails.addressLine2 || "",
         Loc: payload.buyerDetails.location || "City",

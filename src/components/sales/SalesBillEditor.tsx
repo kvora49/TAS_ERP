@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Eye } from "lucide-react";
-import { isInterstateTransaction, getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
+import {
+  isInterstateTransaction,
+  getStateNameFromGSTIN,
+  getStateCodeFromGSTIN,
+  getStateCodeFromName,
+  deriveStateDetails,
+} from "@/lib/gst-utils";
 import { Button } from "@/components/ui/button";
 import { useSalesBill } from "@/hooks/useSalesBill";
 import { CustomerSection } from "./CustomerSection";
@@ -159,8 +165,11 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   const salesmen = (salesmenData || []).filter((u: any) => u.role === "staff" || u.role === "admin" || u.role === "owner");
 
   // Determine interstate GST using Place of Supply logic
-  // If consignee/ship-to is in a different state → IGST
+  // If registered party is out-of-state → IGST (irrespective of shipping address)
+  // If party is URP → tax is fetched based on billing address / billing state
   const bizGstinRef = useRef<string | null>(null);
+  const bizAddressRef = useRef<string | null>(null);
+
   useEffect(() => {
     const checkInterstate = async () => {
       // Fetch business GSTIN once (or use cached)
@@ -169,20 +178,39 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         if (res.ok) {
           const biz = (await res.json()).business;
           bizGstinRef.current = biz?.gstin || null;
+          bizAddressRef.current = biz?.address || null;
         }
       }
 
+      const selectedParty = parties.find((p: any) => p.id === state.partyId);
+
       const interstate = isInterstateTransaction({
         businessGstin: bizGstinRef.current,
+        businessAddress: bizAddressRef.current,
         partyGstin: state.gstin,
+        partyState: (selectedParty as any)?.billing_state || (selectedParty as any)?.state,
+        billingState: (selectedParty as any)?.billing_state || (selectedParty as any)?.state,
+        billingAddress: state.billingAddress,
         consigneeGstin: state.consigneeGstin,
         consigneeStateCode: state.consigneeStateCode,
+        consigneeState: state.consigneeState,
+        consigneeAddress: state.consigneeAddress,
         shipToSameAsBillTo: state.shipToSameAsBillTo,
       });
       state.setIsInterstate(interstate);
     };
     checkInterstate();
-  }, [state.gstin, state.consigneeGstin, state.consigneeStateCode, state.shipToSameAsBillTo]);
+  }, [
+    state.partyId,
+    state.gstin,
+    state.billingAddress,
+    state.consigneeGstin,
+    state.consigneeStateCode,
+    state.consigneeState,
+    state.consigneeAddress,
+    state.shipToSameAsBillTo,
+    parties,
+  ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -339,8 +367,8 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
   // Billing party info for consignee pre-fill
   const selectedParty = parties.find((p: any) => p.id === state.partyId);
-  const partyState = (selectedParty as any)?.billing_state || (selectedParty as any)?.state || getStateNameFromGSTIN(state.gstin) || "";
-  const partyStateCode = getStateCodeFromGSTIN(state.gstin) || "";
+  const partyState = (selectedParty as any)?.billing_state || (selectedParty as any)?.state || getStateNameFromGSTIN(state.gstin) || deriveStateDetails(state.billingAddress).name || "";
+  const partyStateCode = getStateCodeFromGSTIN(state.gstin) || getStateCodeFromName(partyState) || deriveStateDetails(state.billingAddress).code || "";
   const billingParty = selectedParty ? {
     name: selectedParty.company_name || selectedParty.name,
     address: state.billingAddress,

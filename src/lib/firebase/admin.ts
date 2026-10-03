@@ -96,7 +96,7 @@ export async function sendLockScreenPushNotification(payload: LockScreenPushPayl
           requireInteraction: true, // Keeps visible on lock screen until swiped/clicked
           vibrate: [200, 100, 200, 100, 200],
           icon: "/icons/icon-192x192.png",
-          badge: "/favicon.ico",
+          badge: "/icons/badge-72x72.png",
         },
         fcmOptions: {
           link: payload.url || "/",

@@ -1,3 +1,4 @@
+import { validReportRequest } from "@/lib/report-request";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
+  if (!validReportRequest(searchParams)) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
   const from = searchParams.get("from") ?? null;
   const to = searchParams.get("to") ?? null;
   const tab = searchParams.get("tab") ?? "receivables";
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
   const partyId = searchParams.get("party_id") && searchParams.get("party_id") !== "all" ? searchParams.get("party_id") : null;
   const agingBucket = searchParams.get("aging_bucket") ?? null;
   const accountId = searchParams.get("account_id") && searchParams.get("account_id") !== "all" ? searchParams.get("account_id") : null;
-  const direction = searchParams.get("direction") ?? null;
+  const direction = searchParams.get("direction") === "all" ? null : searchParams.get("direction");
   const accountCategory = searchParams.get("account_category") ?? null;
 
   try {
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("[reports/payments RPC error]", error);
-      return NextResponse.json({ error: error.message || "Failed to fetch payments report" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch payments report" }, { status: 500 });
     }
 
     return NextResponse.json(data);

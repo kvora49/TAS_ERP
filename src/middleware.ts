@@ -187,11 +187,13 @@ export async function middleware(request: NextRequest) {
       requestHeaders.set("x-user-id", user.id);
       requestHeaders.set("x-business-id", activeCompanyId);
 
+      const existingCookies = supabaseResponse.cookies.getAll();
       supabaseResponse = NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       });
+      existingCookies.forEach((c) => supabaseResponse.cookies.set(c.name, c.value, c));
     }
   }
 

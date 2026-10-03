@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useReportQuery } from "@/hooks/useReportQuery";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateReports } from "@/lib/report-cache";
+import RecordedTaxFields, { emptyRecordedTax, taxInputPayload } from "@/components/forms/RecordedTaxFields";
 import { Modal } from "@/components/shared/Modal";
 import AsyncButton from "@/components/shared/AsyncButton";
 import { toast } from "sonner";
@@ -47,32 +51,22 @@ export function ManualNoteModal({
   const [reasonCategory, setReasonCategory] = useState<string>(REASON_CATEGORIES[0]);
   const [remarks, setRemarks] = useState<string>("");
 
-  const [parties, setParties] = useState<Party[]>([]);
-  const [loadingParties, setLoadingParties] = useState(false);
+  const queryClient = useQueryClient();
+  const [tax, setTax] = useState(emptyRecordedTax);
+  const { data: parties = [], isLoading: loadingParties } = useReportQuery<Party[]>({
+    queryKey: ["manual-note-parties", partyType], enabled: open,
+    queryFn: async () => { const response = await fetch(`/api/parties?type=${partyType}`); if (!response.ok) throw new Error("Failed to load parties"); return (await response.json()).parties || []; },
+  });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       setNoteType(initialType);
+      setTax(emptyRecordedTax);
       if (initialPartyId) setSelectedPartyId(initialPartyId);
       if (initialPartyType) setPartyType(initialPartyType);
     }
   }, [open, initialType, initialPartyId, initialPartyType]);
-
-  // Load parties list based on partyType filter
-  useEffect(() => {
-    if (!open) return;
-    setLoadingParties(true);
-    fetch(`/api/parties?type=${partyType}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setParties(data.parties || []);
-      })
-      .catch(() => {
-        toast.error("Failed to load parties");
-      })
-      .finally(() => setLoadingParties(false));
-  }, [open, partyType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +93,7 @@ export function ManualNoteModal({
           dn_date: date,
           cn_date: date,
           amount: numAmount,
+          ...taxInputPayload(tax),
           reason: `${reasonCategory}${remarks ? ": " + remarks : ""}`,
           is_manual: true,
         }),
@@ -112,6 +107,7 @@ export function ManualNoteModal({
       const noteName = noteType === "credit_note" ? "Credit Note" : "Debit Note";
       toast.success(`${noteName} of ₹${numAmount.toLocaleString("en-IN")} issued successfully!`);
       
+      void invalidateReports(queryClient);
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -138,7 +134,7 @@ export function ManualNoteModal({
             onClick={() => setNoteType("credit_note")}
             className={`py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               isCredit
-                ? "bg-rose-600 text-white shadow-sm"
+                ? "bg-[var(--primary)] text-[var(--text-on-primary)] shadow-sm"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
@@ -149,7 +145,7 @@ export function ManualNoteModal({
             onClick={() => setNoteType("debit_note")}
             className={`py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               !isCredit
-                ? "bg-amber-600 text-white shadow-sm"
+                ? "bg-[var(--primary)] text-[var(--text-on-primary)] shadow-sm"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
@@ -254,6 +250,8 @@ export function ManualNoteModal({
           </div>
         </div>
 
+        <RecordedTaxFields value={tax} onChange={setTax} />
+
         {/* Reason Category */}
         <div>
           <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
@@ -299,9 +297,7 @@ export function ManualNoteModal({
             type="submit"
             isLoading={submitting}
             variant="primary"
-            className={`px-6 py-2 text-sm font-bold text-white ${
-              isCredit ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"
-            }`}
+            className="px-6 py-2 text-sm font-bold"
           >
             {isCredit ? "Issue Credit Note" : "Issue Debit Note"}
           </AsyncButton>

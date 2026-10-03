@@ -1,3 +1,7 @@
+import { readLaterAllocations } from "@/lib/report-later-allocations";
+import { readReportRows, requireReportResults } from "@/lib/report-data";
+import { paidAtCutoff, dueDateAging } from "@/lib/report-balances";
+import { validReportRequest } from "@/lib/report-request";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -11,11 +15,13 @@ export async function GET(req: NextRequest) {
   const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
+  if (!validReportRequest(searchParams)) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
   const from = searchParams.get("from") ?? defaultFrom;
   const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const billType = searchParams.get("bill_type");
   const partyId = searchParams.get("party_id");
   const paymentStatus = searchParams.get("payment_status");
+  const designId = searchParams.get("design_id");
   const brandId = searchParams.get("brand_id"); // global header brand filter
   const bid = businessId;
 
@@ -42,38 +48,41 @@ export async function GET(req: NextRequest) {
     if (partyId && partyId !== "all") {
       billsQuery = billsQuery.eq("party_id", partyId);
     }
-    if (paymentStatus && paymentStatus !== "all") {
-      billsQuery = billsQuery.eq("payment_status", paymentStatus);
-    }
-    if (brandId && brandId !== "all") {
-      // sale_bills links to designs which link to brands; filter via items subquery not supported
-      // so apply brand filter via sale_bill_items → designs → brand_id
-      // For simplicity, we note the brand filter — filtered in summary only
-    }
 
-    const [billsResult, returnsResult, paymentsResult] = await Promise.all([
-      billsQuery,
-      supabase
+    const itemScope = (brandId && brandId !== "all") || (designId && designId !== "all");
+    let itemQuery = supabase.from("sale_bill_items").select("id,bill_id,design:designs!inner(brand_id),bill:sale_bills!inner(business_id)").eq("bill.business_id", bid);
+    if (brandId && brandId !== "all") itemQuery = itemQuery.eq("design.brand_id", brandId);
+    if (designId && designId !== "all") itemQuery = itemQuery.eq("design_id", designId);
+
+    const [billsResult, returnsResult, paymentsResult, agingResult, allocationsResult, brandResult] = await Promise.all([
+      readReportRows(billsQuery.order("id")),
+      readReportRows(supabase
         .from("sales_returns")
-        .select("id, return_number, return_date, grand_total, status, party_id, parties(id, name, company_name)")
+        .select("id, return_number, return_date, grand_total, status, party_id, original_bill_id, parties(id, name, company_name)")
         .eq("business_id", bid)
         .gte("return_date", from)
         .lte("return_date", to)
-        .neq("status", "rejected"),
-      supabase
+        .eq("status", "approved").order("id")),
+      readReportRows(supabase
         .from("payments")
-        .select("id, payment_date, payment_mode, amount, direction")
+        .select("id, party_id, payment_date, payment_mode, amount, direction")
         .eq("business_id", bid)
         .eq("direction", "received")
         .gte("payment_date", from)
-        .lte("payment_date", to),
+        .lte("payment_date", to).in("status", ["completed", "success"]).order("id")),
+      readReportRows(supabase.from("sale_bills").select("id,bill_type,bill_date,due_date,grand_total,paid_amount,party_id,status,payment_status").eq("business_id", bid).eq("status", "active").is("deleted_at", null).lte("bill_date", to).order("id")),
+      readLaterAllocations(supabase, bid, to).then(data => ({ data, error: null })),
+      itemScope ? readReportRows(itemQuery.order("id")) : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (billsResult.error) throw billsResult.error;
-
-    const allBills = billsResult.data ?? [];
-    const allReturns = returnsResult.data ?? [];
-    const allPayments = paymentsResult.data ?? [];
+    requireReportResults([billsResult, returnsResult, paymentsResult, agingResult, allocationsResult, brandResult]);
+    const brandBills = new Set(brandResult.data.map((r: any) => r.bill_id));
+    const scope = (row: any) => (!billType || billType === "all" || row.bill_type === billType) && (!partyId || partyId === "all" || row.party_id === partyId) && (!itemScope || brandBills.has(row.id));
+    const agingBills = paidAtCutoff(agingResult.data, allocationsResult.data, "sale_bill").filter(scope);
+    const invoiceIds = new Set(agingBills.map(row => row.id));
+    const allBills = paidAtCutoff(billsResult.data, allocationsResult.data, "sale_bill").filter(row => (!itemScope || brandBills.has(row.id)) && (!paymentStatus || paymentStatus === "all" || row.payment_status === paymentStatus || (paymentStatus === "partially_paid" && row.payment_status === "partial")));
+    const allReturns = returnsResult.data.filter((row: any) => (!partyId || partyId === "all" || row.party_id === partyId) && ((!billType || billType === "all") && !itemScope || invoiceIds.has(row.original_bill_id)));
+    const allPayments = paymentsResult.data.filter((row: any) => !partyId || partyId === "all" || row.party_id === partyId);
 
     // ── 2. KPI Calculations ───────────────────────────────────────────────────
     const grossSales = allBills.reduce((s, b) => s + Number(b.grand_total), 0);
@@ -98,18 +107,7 @@ export async function GET(req: NextRequest) {
       .reduce((s, b) => s + Number(b.grand_total) - Number(b.paid_amount), 0);
 
     // ── 3. Ageing Buckets ─────────────────────────────────────────────────────
-    const todayMs = new Date().getTime();
-    const ageing = { current: 0, d30: 0, d60: 0, d90: 0, over90: 0 };
-    for (const b of allBills.filter(b => b.payment_status !== "paid")) {
-      const outstanding = Number(b.grand_total) - Number(b.paid_amount);
-      const dueDate = b.due_date ? new Date(b.due_date) : new Date(b.bill_date);
-      const diffDays = Math.floor((todayMs - dueDate.getTime()) / 86_400_000);
-      if (diffDays <= 0) ageing.current += outstanding;
-      else if (diffDays <= 30) ageing.d30 += outstanding;
-      else if (diffDays <= 60) ageing.d60 += outstanding;
-      else if (diffDays <= 90) ageing.d90 += outstanding;
-      else ageing.over90 += outstanding;
-    }
+    const ageing = dueDateAging(agingBills, to, "bill_date");
 
     // ── 4. Monthly Trend ──────────────────────────────────────────────────────
     const monthMap: Record<string, { sales: number; returns: number }> = {};
@@ -236,6 +234,7 @@ export async function GET(req: NextRequest) {
       },
 
       ageing,
+      metadata: { agingBasis: "All outstanding invoices at cutoff, by due date", paymentBasis: "Posted receipts in period, filtered by party; brand/bill-type attribution requires allocation detail", historicalBasis: "Current paid totals less known later unified allocations" },
       monthlyTrend,
       topParties,
       paymentModeSummary,

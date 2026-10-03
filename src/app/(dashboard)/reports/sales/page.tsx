@@ -1,7 +1,11 @@
 "use client";
 
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   TrendingUp, Users, ShoppingBag, IndianRupee, Receipt,
@@ -60,12 +64,13 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function SalesReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<BillTypeTab>("all");
-  const [subTab, setSubTab] = useState<SubTab>("register");
-  const [partyId, setPartyId] = useState("all");
-  const [paymentStatus, setPaymentStatus] = useState("all");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<BillTypeTab>("all", "tab", ["all","kacha","pakka"]);
+  const [subTab, setSubTab] = useReportState<SubTab>("register", "view", ["register","ageing","returns","payment_modes","top_customers"]);
+  const [designId, setDesignId] = useReportState<string>("all", "design_id");
+  const [partyId, setPartyId] = useReportState<string>("all", "party_id");
+  const [paymentStatus, setPaymentStatus] = useReportState<string>("all", "payment_status");
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
   const [expandedReturnId, setExpandedReturnId] = useState<string | null>(null);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<string | null>(null);
@@ -89,9 +94,10 @@ export default function SalesReportsPage() {
   }));
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["report-sales-v4", from, to, activeTab, partyId, paymentStatus, globalBrandId],
+    queryKey: ["report-sales-v4", from, to, activeTab, partyId, paymentStatus, globalBrandId, designId],
     queryFn: async () => {
       const params = new URLSearchParams({ from, to });
+      if (designId !== "all") params.set("design_id", designId);
       if (activeTab !== "all") params.set("bill_type", activeTab);
       if (partyId !== "all") params.set("party_id", partyId);
       if (paymentStatus !== "all") params.set("payment_status", paymentStatus);
@@ -107,7 +113,7 @@ export default function SalesReportsPage() {
     setFrom(filters.from);
     setTo(filters.to);
     setExpandedBillId(null);
-  }, []);
+  }, [setFrom, setTo]);
 
   // ── Exports ────────────────────────────────────────────────────────────────
   const handleExportExcel = useCallback(() => {
@@ -202,6 +208,8 @@ export default function SalesReportsPage() {
 
   return (
     <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Sales Reports"
       infoTooltip="Sales bills analysis — Kaacha, Pakka and Combined view with trends, ageing, returns, and payment modes."
       breadcrumbs={["Reports", "Sales Reports"]}
@@ -209,6 +217,7 @@ export default function SalesReportsPage() {
       onExportExcel={handleExportExcel}
       extraFilters={
         <div className="flex flex-wrap items-center gap-3">
+          {designId !== "all" && <button type="button" onClick={() => setDesignId("all")} className="min-h-11 text-xs text-[var(--primary)]">Clear selected design</button>}
           <FilterSelect
             label="Customer"
             value={partyId}
@@ -354,8 +363,8 @@ export default function SalesReportsPage() {
                   {/* ── Tab: Bill Register ── */}
                   {subTab === "register" && (
                     <div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               <th className="py-2.5 px-4 w-8"></th>
@@ -426,11 +435,11 @@ export default function SalesReportsPage() {
                               <tr><td colSpan={11} className="py-10 text-center text-[var(--text-muted)]">No bills found.</td></tr>
                             )}
                           </tbody>
-                        </table>
+                        </ReportTable>
                       </div>
                       {/* Mobile cards with tap-to-drilldown */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)]">
-                        {(data.bills ?? []).slice(0, 30).map((b: any) => {
+                      <div className="hidden divide-y divide-[var(--border-light)]">
+                        {(data.bills ?? []) .map((b: any) => {
                           const isExpanded = expandedBillId === b.id;
                           return (
                             <div key={b.id} className="p-3.5 space-y-2">
@@ -579,8 +588,8 @@ export default function SalesReportsPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full text-left text-xs">
+                          <div className="overflow-x-auto">
+                            <ReportTable className="w-full text-left text-xs">
                               <thead>
                                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                   {["Return No.", "Date", "Customer", "Amount", "Status"].map(h => (
@@ -606,10 +615,10 @@ export default function SalesReportsPage() {
                                   <td></td>
                                 </tr>
                               </tfoot>
-                            </table>
+                            </ReportTable>
                           </div>
                           {/* Mobile Returns Cards with Drilldown */}
-                          <div className="md:hidden divide-y divide-[var(--border-light)]">
+                          <div className="hidden divide-y divide-[var(--border-light)]">
                             {(data.returns ?? []).map((r: any) => {
                               const isExpanded = expandedReturnId === r.id;
                               return (
@@ -726,8 +735,8 @@ export default function SalesReportsPage() {
                   {/* ── Tab: Top Customers ── */}
                   {subTab === "top_customers" && (
                     <div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               <th className="py-2.5 px-4">#</th>
@@ -755,10 +764,10 @@ export default function SalesReportsPage() {
                               <tr><td colSpan={5} className="py-8 text-center text-[var(--text-muted)]">No customers found.</td></tr>
                             )}
                           </tbody>
-                        </table>
+                        </ReportTable>
                       </div>
                       {/* Mobile Top Customers Cards */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)]">
+                      <div className="hidden divide-y divide-[var(--border-light)]">
                         {(data.topParties ?? []).length === 0 ? (
                           <div className="py-8 text-center text-[var(--text-muted)] text-xs">No customers found.</div>
                         ) : (

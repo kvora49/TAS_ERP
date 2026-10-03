@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 export default function RedirectToFinancial() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/reports/financial");
+    router.replace("/reports/financial?tab=balance");
   }, [router]);
   return <div className="p-8 text-center text-xs text-[var(--text-muted)]">Redirecting to Financial Reports...</div>;
 }

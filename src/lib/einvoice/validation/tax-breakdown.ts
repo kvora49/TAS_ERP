@@ -10,6 +10,7 @@ export interface TaxBreakdownInvoiceParams {
   igst: number;
   grandTotal: number;
   chargesTotal?: number;
+  nonTaxableChargesTotal?: number;
   discountAmount?: number;
   items: Array<{
     line_index: number;
@@ -92,18 +93,22 @@ export function validateTaxBreakdown(
     }
   }
 
-  // 3. Tax computation reconciliation across line items
+  // 3. Tax computation reconciliation across line items (taking invoice-level discounts and charges into account)
+  const itemTotalAfterDiscount = items.reduce(
+    (sum, it) => sum + Number(it.rate || 0) * Number(it.quantity || 0) * (1 - Number(it.discount_percent || 0) / 100),
+    0
+  );
+
+  const billDiscount = Number(params.discountAmount || 0);
+  const taxableCharges = Math.max(0, taxableAmount - Math.max(0, itemTotalAfterDiscount - billDiscount));
+
   let computedItemTax = 0;
-  let computedItemTaxable = 0;
-
   for (const item of items) {
-    const qty = Number(item.quantity || 0);
-    const rate = Number(item.rate || 0);
-    const disc = Number(item.discount_percent || 0);
-    const lineTaxable = qty * rate * (1 - disc / 100);
-    const lineTax = lineTaxable * (Number(item.tax_percent || 0) / 100);
-
-    computedItemTaxable += lineTaxable;
+    const itemAmt = Number(item.rate || 0) * Number(item.quantity || 0) * (1 - Number(item.discount_percent || 0) / 100);
+    const share = itemTotalAfterDiscount > 0 ? itemAmt / itemTotalAfterDiscount : 0;
+    const itemShareOfSubtotal = itemAmt + (taxableCharges * share);
+    const itemNetTaxable = Math.max(0, itemShareOfSubtotal - (billDiscount * share));
+    const lineTax = itemNetTaxable * (Number(item.tax_percent || 0) / 100);
     computedItemTax += lineTax;
   }
 
@@ -122,7 +127,14 @@ export function validateTaxBreakdown(
   }
 
   // 4. Grand Total Rounding Reconciliation
-  const expectedTotal = taxableAmount + declaredTax + Number(params.chargesTotal || 0);
+  // In TAS ERP: grandTotal = round(taxableAmount + declaredTax + nonTaxableChargesTotal)
+  // Note: taxableAmount already includes taxable charges (subTotal = itemTotalAfterDiscount + taxableCharges)
+  const nonTaxableCharges =
+    params.nonTaxableChargesTotal !== undefined
+      ? Number(params.nonTaxableChargesTotal || 0)
+      : Math.max(0, Number(params.chargesTotal || 0) - taxableCharges);
+
+  const expectedTotal = taxableAmount + declaredTax + nonTaxableCharges;
   const roundDiff = Math.abs(grandTotal - expectedTotal);
 
   if (roundDiff > config.rounding_tolerance) {

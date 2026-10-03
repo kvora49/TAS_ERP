@@ -49,8 +49,8 @@ async function runReconciliationTest() {
     let partyId = partyRes.rows[0]?.id;
     if (!partyId) {
       const newParty = await client.query(`
-        INSERT INTO parties (business_id, name, company_name, gstin, billing_address_line1, status)
-        VALUES ($1, 'Recon Party', 'Recon Retailers', '27AAPFU0939F1ZV', 'Lower Parel, Mumbai', 'active')
+        INSERT INTO parties (business_id, name, company_name, gstin, billing_address_line1, status, type)
+        VALUES ($1, 'Recon Party', 'Recon Retailers', '27AAPFU0939F1ZV', 'Lower Parel, Mumbai', 'active', ARRAY['customer'])
         RETURNING id
       `, [business.id]);
       partyId = newParty.rows[0].id;

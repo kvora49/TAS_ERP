@@ -137,6 +137,16 @@ export async function validateInvoiceForEInvoice(
     });
   }
 
+  if (invoice.irn_status === "cancelled") {
+    recordIssue({
+      code: "INVOICE_IRN_ALREADY_CANCELLED",
+      field: "irn_status",
+      message: "The IRN for this invoice was already cancelled on the government IRP. Under GST rules, a new IRN cannot be generated for the same invoice number. Please issue a new invoice with a fresh document number.",
+      severity: "error",
+      helpText: "Create a new invoice with a new sequential bill number.",
+    });
+  }
+
   // ── 2. Seller / Business Details Validation ──────────────────────
   const sellerErrors = validateGSTIN(business.gstin, "Seller (Company) GSTIN", {
     required: true,
@@ -164,11 +174,21 @@ export async function validateInvoiceForEInvoice(
 
   // ── 3. Buyer / Recipient Details Validation ──────────────────────
   const buyerGstin = invoice.gstin || invoice.party?.gstin;
-  const buyerErrors = validateGSTIN(buyerGstin, "Buyer (Party) GSTIN", {
-    required: true,
-    fieldKey: "party_gstin",
-  });
-  recordIssues(buyerErrors);
+  if (!buyerGstin || buyerGstin.toUpperCase().trim() === "URP") {
+    recordIssue({
+      code: "B2C_NOT_ELIGIBLE_FOR_EINVOICE",
+      field: "party_gstin",
+      message: "E-Invoicing (IRN) is not applicable to Unregistered Parties (URP / B2C). E-Invoice can only be generated for registered B2B customers with a valid 15-character GSTIN.",
+      severity: "error",
+      helpText: "Ensure the customer has a valid GSTIN registered in their party profile.",
+    });
+  } else {
+    const buyerErrors = validateGSTIN(buyerGstin, "Buyer (Party) GSTIN", {
+      required: true,
+      fieldKey: "party_gstin",
+    });
+    recordIssues(buyerErrors);
+  }
 
   const buyerAddress =
     invoice.billing_address || invoice.party?.billing_address_line1 || "";
@@ -280,7 +300,13 @@ export async function validateInvoiceForEInvoice(
       item_name: it.item_name || it.description,
       design_name: it.design?.name,
       design_code: it.design?.design_number,
-      hsn_sac: it.hsn_sac,
+      hsn_sac:
+        it.hsn_sac ||
+        it.hsn_code ||
+        it.design?.hsn_code ||
+        it.design?.hsn_sac ||
+        it.material_type?.hsn_code ||
+        it.material_type?.hsn_sac,
       line_index: idx + 1,
     }));
     recordIssues(validateInvoiceHSNCodes(itemsForHsn, aatoBracket, config));
@@ -288,9 +314,18 @@ export async function validateInvoiceForEInvoice(
 
   // ── 7. Place of Supply & Tax Reconciliation ──────────────────────
   const posCode = getPlaceOfSupplyCode({
+    businessGstin: business.gstin,
+    businessStateCode: sellerState.code,
+    businessState: business.state,
+    businessAddress: business.address,
     partyGstin: buyerGstin,
+    partyState: invoice.billing_state || invoice.party?.billing_state || invoice.party?.state,
+    billingState: invoice.billing_state || invoice.party?.billing_state,
+    billingAddress: buyerAddress,
     consigneeGstin: invoice.consignee_gstin,
     consigneeStateCode: invoice.consignee_state_code,
+    consigneeState: invoice.consignee_state,
+    consigneeAddress: invoice.consignee_address,
     shipToSameAsBillTo: invoice.ship_to_same_as_bill_to !== false,
   });
 

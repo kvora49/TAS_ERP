@@ -1,10 +1,7 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
-import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
-import { runStockIntegrityCheck } from "@/lib/stock-integrity-watchdog";
-import { logAudit } from "@/lib/audit";
+import { runStockIntegrityCheckJob, runStockIntegritySyncJob } from "@/lib/cron/stock-integrity";
 
 async function resolveAuthAndClient(request: Request, body?: any) {
   let supabase = createClient();
@@ -42,7 +39,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const watchdogReport = await runStockIntegrityCheck(supabase, businessId);
+    const watchdogReport = await runStockIntegrityCheckJob(supabase, businessId);
     return NextResponse.json({
       mode: "check_only",
       report: watchdogReport,
@@ -68,59 +65,8 @@ export async function POST(request: Request) {
 
   try {
     const { design_id } = body;
-
-    const startTime = Date.now();
-
-    // 1. Full reconciliation — Finished Goods
-    const fgResult = await reconcileFinishedStock(supabase, businessId, design_id);
-
-    // 2. Full reconciliation — Raw Materials (only if not scoped to a specific design)
-    let rmResult = null;
-    if (!design_id) {
-      rmResult = await reconcileRawMaterialStock(supabase, businessId);
-    }
-
-    // 3. Watchdog check
-    const watchdogReport = await runStockIntegrityCheck(supabase, businessId, design_id);
-
-    const durationMs = Date.now() - startTime;
-
-    // 4. Log to standard audit_log table
-    // NOTE: record_id is UUID type in DB — pass null for full-company syncs,
-    // or the design_id UUID for design-scoped runs.
-    try {
-      await logAudit(
-        businessId,
-        "sync_and_reconcile",
-        "stock_integrity",
-        design_id || null,   // ← null for full sync (not a plain string — column is UUID)
-        {
-          status: watchdogReport.discrepancies_unresolved === 0 ? "healthy" : "reconciled_with_notes",
-          scope: design_id ? "design" : "full",
-          target_design_id: design_id || null,
-          discrepancies_found: watchdogReport.discrepancies_found,
-          discrepancies_fixed: watchdogReport.discrepancies_fixed,
-          discrepancies_unresolved: watchdogReport.discrepancies_unresolved,
-          duration_ms: durationMs,
-          summary: watchdogReport.summary,
-        },
-        {},
-        request,
-        supabase  // pass authenticated client so session is resolved for user_id
-      );
-    } catch (_auditErr) {
-      console.warn("Failed to write to audit_log:", _auditErr);
-    }
-
-    return NextResponse.json({
-      success: true,
-      mode: "full_sync",
-      duration_ms: durationMs,
-      finished_goods_reconciliation: fgResult,
-      raw_materials_reconciliation: rmResult,
-      integrity_report: watchdogReport,
-      summary: watchdogReport.summary,
-    });
+    const result = await runStockIntegritySyncJob(supabase, businessId, design_id, request);
+    return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   } finally {

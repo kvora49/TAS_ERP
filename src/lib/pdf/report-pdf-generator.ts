@@ -332,27 +332,28 @@ export function exportBalanceSheetPDF(
   options: ReportPDFOptions
 ): void {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  addDocumentHeader(doc, "Balance Sheet Statement", options);
+  addDocumentHeader(doc, data.metadata?.reviewedPositionAvailable ? "Approved Dated Balance Position" : "Preliminary Balance Position", options);
 
   const liabilitiesBody: any[] = [
     [{ content: "A. OWNER'S FUNDS / EQUITY", colSpan: 2, styles: { fontStyle: "bold", fillColor: [238, 242, 255], textColor: [67, 56, 202] } }],
-    ["    Net Position / Retained Reserves", pdfINR(data.net_position)],
+    ["    Recorded Equity / Capital", data.metadata?.equityAvailable ? pdfINR(data.equity) : "Not available"],
     [{ content: "B. NON-CURRENT LIABILITIES", colSpan: 2, styles: { fontStyle: "bold", fillColor: [241, 245, 249] } }],
-    ["    Long-term Borrowings & Loans", pdfINR(data.liabilities.non_current.total)],
+    ["    Long-term Borrowings & Loans", data.metadata?.nonCurrentAvailable ? pdfINR(data.liabilities.non_current.total) : "Not available"],
     [{ content: "C. CURRENT LIABILITIES", colSpan: 2, styles: { fontStyle: "bold", fillColor: [255, 241, 242], textColor: [159, 18, 57] } }],
     ["    Trade Payables (Suppliers)", pdfINR(data.liabilities.current.trade_payables)],
     ["      Raw Material Suppliers", pdfINR(data.liabilities.current.rm_payables)],
     ["      Finished Goods Suppliers", pdfINR(data.liabilities.current.fg_payables)],
     ["    Worker & Job Work Payables", pdfINR(data.liabilities.current.worker_payables)],
     ["    Outstanding Incurred Expenses", pdfINR(data.liabilities.current.outstanding_expenses)],
-    [{ content: "TOTAL LIABILITIES & EQUITY", styles: { fontStyle: "bold" } }, { content: pdfINR(data.assets.total), styles: { fontStyle: "bold", halign: "right", textColor: [159, 18, 57] } }],
+    [{ content: "TOTAL LIABILITIES & EQUITY", styles: { fontStyle: "bold" } }, { content: data.metadata?.equityAvailable ? pdfINR(data.liabilities.total + data.equity) : "Equity unavailable", styles: { fontStyle: "bold", halign: "right", textColor: [159, 18, 57] } }],
   ];
 
   const assetsBody: any[] = [
     [{ content: "A. NON-CURRENT ASSETS", colSpan: 2, styles: { fontStyle: "bold", fillColor: [241, 245, 249] } }],
-    ["    Fixed Assets & Security Deposits", pdfINR(data.assets.non_current.total)],
+    ["    Fixed Assets & Security Deposits", data.metadata?.nonCurrentAvailable ? pdfINR(data.assets.non_current.total) : "Not available"],
     [{ content: "B. CURRENT ASSETS", colSpan: 2, styles: { fontStyle: "bold", fillColor: [239, 246, 255], textColor: [29, 78, 216] } }],
     ["    Inventories (Total Stock Assets)", pdfINR(data.assets.current.inventory.total)],
+    ["    Reviewed Work in Progress", data.assets.current.wip != null ? pdfINR(data.assets.current.wip) : "Not available"],
     ["      Raw Material Stock", pdfINR(data.assets.current.inventory.raw_material)],
     ["      Finished Goods Stock", pdfINR(data.assets.current.inventory.finished_goods)],
     ["    Trade Receivables (Customer Outstanding)", pdfINR(data.assets.current.trade_receivables)],
@@ -435,6 +436,9 @@ export function exportBalanceSheetPDF(
     appendBSList("Schedule: Active Bank Accounts & Liquid Funds", data.drill_records.bank_accounts);
   }
 
+  if(data.drill_records?.approved_opening?.length){
+    autoTable(doc,{startY:currentY,head:[["Account / label","Debit","Credit","Qty / unit","Source reference"]],body:data.drill_records.approved_opening.map((line:any)=>[`${line.kind}: ${line.label}`,pdfINR(line.debit),pdfINR(line.credit),line.quantity==null?"Not recorded":`${line.quantity} ${line.unit||""}`,line.reference]),styles:{fontSize:7,overflow:"linebreak"},margin:{bottom:16}});
+  }
   addDocumentFooter(doc);
   const fname = `Balance_Sheet_${options.asOn || "Report"}.pdf`;
   doc.save(fname);
@@ -454,7 +458,7 @@ export function exportGSTSummaryPDF(
   const summaryBody: any[] = [
     ["Output GST on Sales (Total)", pdfINR(data.summary.output_gst.total), pdfINR(data.summary.output_gst.cgst), pdfINR(data.summary.output_gst.sgst), pdfINR(data.summary.output_gst.igst)],
     ["Add: RCM Liability", pdfINR(data.summary.rcm_gst.total), pdfINR(data.summary.rcm_gst.cgst), pdfINR(data.summary.rcm_gst.sgst), pdfINR(data.summary.rcm_gst.igst)],
-    ["Less: Eligible Input Tax Credit (ITC)", `(${pdfINR(data.summary.input_gst.total)})`, `(${pdfINR(data.summary.input_gst.cgst)})`, `(${pdfINR(data.summary.input_gst.sgst)})`, `(${pdfINR(data.summary.input_gst.igst)})`],
+    ["Less: Recorded Input GST (eligibility not verified)", `(${pdfINR(data.summary.input_gst.total)})`, `(${pdfINR(data.summary.input_gst.cgst)})`, `(${pdfINR(data.summary.input_gst.sgst)})`, `(${pdfINR(data.summary.input_gst.igst)})`],
     [
       { content: isPayable ? "NET GST PAYABLE" : "NET ITC CREDIT BALANCE", styles: { fontStyle: "bold" } },
       { content: pdfINR(Math.abs(data.summary.net_payable.total)), styles: { fontStyle: "bold", textColor: isPayable ? [159, 18, 57] : [22, 101, 52] } },
@@ -599,5 +603,155 @@ export function exportSingleLedgerPDF(
   const sanitized = title.replace(/[^a-zA-Z0-9]/g, "_");
   doc.save(`${sanitized}_Schedule.pdf`);
 }
+
+// ——————————————————————————————————————————————————————————————————
+
+export function exportPaymentsPDF(
+  tab: string,
+  data: any,
+  options: ReportPDFOptions
+): void {
+  const isWide = ["all_transactions", "transfers", "receivables", "payables"].includes(tab);
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: isWide ? "landscape" : "portrait" });
+
+  const tabLabels: Record<string, string> = {
+    receivables: "Outstanding Receivables Statement",
+    payables: "Outstanding Payables Statement",
+    receipts: "Receipt Register",
+    payments: "Payment Register",
+    accounts: "Accounts Balance Summary",
+    cheques: "Cheques Register",
+    advances: "Advances Register",
+    transfers: "Bank & UPI Vouchers",
+    all_transactions: "All Transactions Register",
+  };
+
+  const title = tabLabels[tab] || "Payment Report";
+  addDocumentHeader(doc, title, options);
+
+  let headers: string[] = [];
+  let rows: any[] = [];
+
+  if (tab === "receivables" || tab === "payables") {
+    headers = tab === "receivables"
+      ? ["Invoice No.", "Party Name", "Bill Type", "Invoice (Rs.)", "Received (Rs.)", "Outstanding (Rs.)", "Due Date", "Age", "Status"]
+      : ["Bill No.", "Supplier Name", "Type", "Bill (Rs.)", "Paid (Rs.)", "Outstanding (Rs.)", "Due Date", "Age", "Status"];
+
+    rows = (data.rows || []).map((r: any) => [
+      r.number || "—",
+      r.party || "—",
+      r.bill_type || r.type || "—",
+      pdfINR(r.total),
+      pdfINR(r.paid),
+      pdfINR(r.outstanding),
+      fmtDate(r.due_date),
+      `${r.age_days ?? 0}d`,
+      r.status || "—",
+    ]);
+  } else if (tab === "receipts") {
+    headers = ["Date", "Receipt No.", "Party Name", "Type", "Mode", "Account", "Reference", "Amount (Rs.)"];
+    rows = (data.rows || []).map((r: any) => [
+      fmtDate(r.date),
+      r.number || "—",
+      r.party || "—",
+      r.type || "—",
+      r.mode || "—",
+      r.account || "—",
+      r.reference || "—",
+      pdfINR(r.amount),
+    ]);
+  } else if (tab === "payments") {
+    headers = ["Date", "Payment No.", "Payee", "Purpose / Type", "Mode", "Account", "Reference", "Amount (Rs.)"];
+    rows = (data.rows || []).map((r: any) => [
+      fmtDate(r.date),
+      r.number || "—",
+      r.payee || r.party || "—",
+      r.purpose_type || "—",
+      r.mode || "—",
+      r.account || "—",
+      r.reference || "—",
+      pdfINR(r.amount),
+    ]);
+  } else if (tab === "accounts") {
+    headers = ["Account Name", "Type", "Opening Bal. (Rs.)", "Received (Rs.)", "Paid (Rs.)", "Closing Bal. (Rs.)"];
+    rows = (data.accounts || []).map((a: any) => [
+      a.name || "—",
+      (a.type || "").toUpperCase(),
+      pdfINR(a.opening_balance),
+      pdfINR(a.received),
+      pdfINR(a.paid),
+      pdfINR(a.closing_balance),
+    ]);
+  } else if (tab === "cheques") {
+    headers = ["Date", "Cheque No.", "Party Name", "Bank", "Amount (Rs.)", "Cheque Date", "Status", "Direction"];
+    const allCheques = [...(data.received || []).map((c: any) => ({ ...c, dir: "Received" })), ...(data.issued || []).map((c: any) => ({ ...c, dir: "Issued" }))];
+    rows = allCheques.map((c: any) => [
+      fmtDate(c.date),
+      c.number || "—",
+      c.party || "—",
+      c.bank || "—",
+      pdfINR(c.amount),
+      fmtDate(c.cheque_date),
+      c.status || "—",
+      c.dir,
+    ]);
+  } else if (tab === "advances") {
+    headers = ["Date", "Advance No.", "Party Name", "Mode", "Account", "Advance (Rs.)", "Adjusted (Rs.)", "Balance (Rs.)", "Status"];
+    const allAdv = [...(data.customerAdvances || []), ...(data.supplierAdvances || [])];
+    rows = allAdv.map((a: any) => [
+      fmtDate(a.date),
+      a.advance_number || "—",
+      a.party || "—",
+      a.mode || "—",
+      a.account || "—",
+      pdfINR(a.amount),
+      pdfINR(a.adjusted),
+      pdfINR(a.balance),
+      a.status || "—",
+    ]);
+  } else if (tab === "transfers") {
+    headers = ["Date", "Ref No.", "Direction", "From Account", "To Account", "Party Name", "Mode", "Amount (Rs.)", "Status"];
+    rows = (data.rows || []).map((r: any) => [
+      fmtDate(r.date),
+      r.number || "—",
+      r.direction || "—",
+      r.from_account || "—",
+      r.to_account || "—",
+      r.party || "—",
+      r.mode || "—",
+      pdfINR(r.amount),
+      r.status || "—",
+    ]);
+  } else {
+    // all_transactions
+    headers = ["Date", "Voucher No.", "Type", "Party / Account", "Mode", "From Acct", "To Acct", "Debit (Rs.)", "Credit (Rs.)", "Amount (Rs.)"];
+    rows = (data.rows || []).map((r: any) => [
+      fmtDate(r.date),
+      r.number || r.voucher_no || "—",
+      r.type || "—",
+      r.party || "—",
+      r.mode || "—",
+      r.from_account || (r.direction === "paid" ? r.account : r.party) || "—",
+      r.to_account || (r.direction === "received" ? r.account : r.party) || "—",
+      r.debit > 0 ? pdfINR(r.debit) : "—",
+      r.credit > 0 ? pdfINR(r.credit) : "—",
+      pdfINR(r.amount),
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: 32,
+    head: [headers],
+    body: rows,
+    theme: "striped",
+    styles: { fontSize: isWide ? 7.5 : 8, cellPadding: 1.8 },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
+  });
+
+  addDocumentFooter(doc);
+  const fname = `${tab}_${options.from || ""}_${options.to || ""}.pdf`;
+  doc.save(fname);
+}
+
 
 

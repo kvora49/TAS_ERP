@@ -10,7 +10,7 @@ import { fmtINR } from "@/lib/report-export";
 
 export interface ReportKPICardProps {
   label: string;
-  value: number | string;
+  value: number | string | null | undefined;
   subLabel?: string;
   icon?: React.ReactNode;
   /** 'currency' shows ₹ formatting, 'number' shows plain number, 'text' shows raw */
@@ -84,6 +84,7 @@ export default function ReportKPICard({
   const colors = COLOR_MAP[color] ?? COLOR_MAP.indigo;
 
   const displayValue = () => {
+    if (value == null) return "Not available";
     if (format === "currency") {
       return fmtINR(typeof value === "number" ? value : parseFloat(String(value)) || 0);
     }
@@ -127,7 +128,7 @@ export default function ReportKPICard({
       </div>
 
       {/* Value */}
-      <p className="text-xl font-extrabold text-[var(--text-primary)] leading-none">{displayValue()}</p>
+      <p className="min-w-0 text-base sm:text-xl break-words font-extrabold text-[var(--text-primary)] leading-snug">{displayValue()}</p>
 
       {/* Sub-label + vs badge */}
       <div className="flex items-center justify-between gap-2 flex-wrap">

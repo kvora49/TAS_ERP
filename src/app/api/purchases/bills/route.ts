@@ -78,7 +78,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount = 0, godown_id, items } = body;
+    const parsed = CreatePurchaseBillSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid purchase bill fields" }, { status: 400 });
+    const { supplier_id, invoice_no, invoice_date, grand_total, paid_amount = 0 } = parsed.data;
+    const { godown_id, items } = body;
+    const { data: supplier, error: supplierError } = await supabase.from("parties").select("id").eq("id", supplier_id).eq("business_id", businessId).maybeSingle();
+    if (supplierError) return NextResponse.json({ error: "Unable to validate supplier" }, { status: 500 });
+    if (!supplier) return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
 
     if (!supplier_id) {
       return NextResponse.json({ error: "Supplier is required" }, { status: 400 });
@@ -116,6 +122,12 @@ export async function POST(request: Request) {
         supplier_id,
         invoice_no: invoice_no || null,
         invoice_date,
+        due_date: parsed.data.due_date ?? null,
+        bill_type: parsed.data.bill_type ?? null,
+        taxable_amount: parsed.data.taxable_amount ?? null,
+        cgst: parsed.data.cgst ?? null,
+        sgst: parsed.data.sgst ?? null,
+        igst: parsed.data.igst ?? null,
         grand_total: total,
         paid_amount: paid,
         payment_status: paymentStatus,

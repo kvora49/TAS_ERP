@@ -1,14 +1,37 @@
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 // @ts-ignore
 import { Pool } from "pg";
 
 export async function GET(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+
   try {
-    const connectionString =
-      process.env.DATABASE_URL ||
-      process.env.POSTGRES_URL ||
-      process.env.SUPABASE_DB_URL ||
-      "postgres://postgres.ykhzfspserazymewivgh:DroneDropGarments2026@aws-0-ap-south-1.pooler.supabase.com:6543/postgres";
+    let connectionString: string | undefined;
+    try {
+      const cfContext = getCloudflareContext();
+      if ((cfContext?.env as any)?.HYPERDRIVE?.connectionString) {
+        connectionString = (cfContext.env as any).HYPERDRIVE.connectionString;
+      }
+    } catch {
+      // Local dev or non-worker environment fallback
+    }
+
+    if (!connectionString) {
+      connectionString =
+        process.env.DATABASE_URL ||
+        process.env.POSTGRES_URL ||
+        process.env.SUPABASE_DB_URL;
+    }
+
+    if (!connectionString) {
+      return NextResponse.json(
+        { error: "DATABASE_URL or Hyperdrive binding is missing" },
+        { status: 500 }
+      );
+    }
 
     const pool = new Pool({
       connectionString,

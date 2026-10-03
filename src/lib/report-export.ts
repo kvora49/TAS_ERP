@@ -269,8 +269,8 @@ export async function exportFormattedBalanceExcel(data: any, asOn: string): Prom
     [`As on: ${fmtDate(asOn)}`],
     [],
     ["LIABILITIES & OWNER'S EQUITY", "Amount (₹)", "ASSETS & RESOURCES", "Amount (₹)"],
-    ["A. Owner's Funds (Net Worth)", Number(data.net_position || 0), "A. Non-Current Assets", Number(data.assets?.non_current?.total || 0)],
-    ["B. Non-Current Liabilities", Number(data.liabilities?.non_current?.total || 0), "B. Current Assets", Number(data.assets?.current?.total || 0)],
+    ["A. Recorded Equity", data.metadata?.equityAvailable ? Number(data.equity) : "Not available", "A. Non-Current Assets", data.metadata?.nonCurrentAvailable ? Number(data.assets?.non_current?.total || 0) : "Not available"],
+    ["B. Non-Current Liabilities", data.metadata?.nonCurrentAvailable ? Number(data.liabilities?.non_current?.total || 0) : "Not available", "B. Current Assets", Number(data.assets?.current?.total || 0)],
     ["C. Current Liabilities", Number(data.liabilities?.current?.total || 0), "   Inventory (Stock Assets)", Number(data.assets?.current?.inventory?.total || 0)],
     ["   Trade Payables (Suppliers)", Number(data.liabilities?.current?.trade_payables || 0), "     Raw Material Stock", Number(data.assets?.current?.inventory?.raw_material || 0)],
     ["     Raw Material Payables", Number(data.liabilities?.current?.rm_payables || 0), "     Finished Goods Stock", Number(data.assets?.current?.inventory?.finished_goods || 0)],
@@ -278,9 +278,9 @@ export async function exportFormattedBalanceExcel(data: any, asOn: string): Prom
     ["   Worker & Job Work Payables", Number(data.liabilities?.current?.worker_payables || 0), "   Cash in Hand", Number(data.assets?.current?.cash_in_hand || 0)],
     ["   Outstanding Expenses", Number(data.liabilities?.current?.outstanding_expenses || 0), "   Bank Accounts", Number(data.assets?.current?.bank_accounts || 0)],
     [],
-    ["TOTAL LIABILITIES & EQUITY", Number(data.assets?.total || 0), "TOTAL ASSETS", Number(data.assets?.total || 0)],
+    ["TOTAL LIABILITIES & EQUITY", data.metadata?.equityAvailable ? Number(data.liabilities.total) + Number(data.equity) : "Equity unavailable", "TOTAL ASSETS", Number(data.assets?.total || 0)],
     [],
-    ["Working Capital", Number(data.working_capital || 0), "Balance Status", data.is_balanced ? "BALANCED" : "OUT OF BALANCE"],
+    ["Working Capital", Number(data.working_capital || 0), "Balance Status", data.is_balanced ? "APPROVED POSITION BALANCES" : "PRELIMINARY / INCOMPLETE SOURCES"],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -309,6 +309,8 @@ export async function exportFormattedBalanceExcel(data: any, asOn: string): Prom
   if (data.drill_records?.inventory_rm?.length > 0) addBSDetail("RM Stock Valuation", data.drill_records.inventory_rm);
   if (data.drill_records?.inventory_fg?.length > 0) addBSDetail("FG Stock Valuation", data.drill_records.inventory_fg);
 
+  if (data.drill_records?.approved_opening?.length) { const approved = XLSX.utils.json_to_sheet(data.drill_records.approved_opening); XLSX.utils.book_append_sheet(wb, approved, "Approved Opening Sources"); }
+  const basis = XLSX.utils.aoa_to_sheet([["Report basis",JSON.stringify(data.metadata||{})],["WIP",data.assets.current.wip ?? "Not available"]]); XLSX.utils.book_append_sheet(wb,basis,"Basis");
   XLSX.writeFile(wb, `Balance_Sheet_${asOn}.xlsx`);
 }
 

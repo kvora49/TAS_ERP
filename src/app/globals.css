@@ -892,3 +892,44 @@ html, body {
     user-select: none !important;
   }
 }
+/* Report tables retain all fields as labelled cards on phones. */
+.report-surface { min-width: 0; overflow-wrap: anywhere; }
+.report-surface > *, .report-surface .recharts-responsive-container { min-width: 0; max-width: 100%; }
+@media screen and (max-width: 767px) {
+  .report-surface table, .report-surface tbody, .report-surface tfoot { display: block; width: 100%; min-width: 0 !important; }
+  .report-surface thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .report-surface tbody tr, .report-surface tfoot tr { display: block; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); }
+  .report-surface td { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 8px; width: 100%; white-space: normal !important; text-align: right; padding: 6px 4px; overflow-wrap: anywhere; }
+  .report-surface td::before { content: attr(data-column-label); text-align: left; font-weight: 600; color: var(--text-muted); font-family: inherit; }
+  .report-surface td > * { min-width: 0; max-width: 100%; white-space: normal; }
+  .report-surface .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+  .report-surface .font-mono { overflow-wrap: anywhere; }
+}
+.report-column-hidden { display: none !important; }
+.report-register-dense td { padding-top: 4px; padding-bottom: 4px; }
+.report-register table { width: 100%; border-collapse: collapse; }
+.report-register table.payment-planner-register { table-layout: fixed; }
+.report-register .payment-planner-register th, .report-register .payment-planner-register td { box-sizing: border-box; text-align: left; vertical-align: middle; padding-left: 10px; padding-right: 10px; overflow-wrap: anywhere; }
+.report-register .payment-planner-register th > button { width: 100%; text-align: inherit; }
+.report-register .payment-planner-register td input { max-width: 100%; }
+.report-donut { min-width: 0; width: 100%; }
+.report-donut-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; min-width: 0; padding-top: 4px; color: var(--text-muted); font-size: 11px; }
+.report-donut-legend-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.report-donut-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+@media screen and (max-width: 767px) {
+  .report-surface .report-register { width: 100%; min-width: 0; }
+  .report-surface .report-register td { max-width: none !important; min-width: 0 !important; width: 100% !important; }
+  .report-surface .report-register td::before { grid-column: 1; }
+  .report-surface .report-register td > * { grid-column: 2; }
+  .report-surface .report-table-tools { min-width: 0; }
+  .report-surface .grid > *, .report-surface .flex > * { min-width: 0; }
+  .report-surface input:not([type="checkbox"]):not([type="radio"]), .report-surface select { max-width: 100%; }
+}
+@media print {
+  .report-register { break-inside: auto; }
+  .report-register tr { break-inside: avoid; }
+  .report-register thead { display: table-header-group; }
+}
+
+@media (min-width: 768px) { .report-column-pinned { position: sticky; left: 0; z-index: 2; background: var(--card-bg); } }
+@media print { .report-column-pinned { position: static; } }

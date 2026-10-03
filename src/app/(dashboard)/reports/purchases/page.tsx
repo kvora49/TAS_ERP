@@ -1,7 +1,11 @@
 "use client";
 
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import { AnimatePresence } from "framer-motion";
 import {
   TrendingDown, Users, Package, IndianRupee, Receipt,
@@ -67,13 +71,13 @@ const CATEGORY_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
 
 export default function PurchaseReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<PurchaseTab>("all");
-  const [subTab, setSubTab] = useState<SubTab>("register");
-  const [billType, setBillType] = useState<BillType>("all");
-  const [partyId, setPartyId] = useState("all");
-  const [paymentStatus, setPaymentStatus] = useState("all");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<PurchaseTab>("all", "tab", ["all","raw","finished"]);
+  const [subTab, setSubTab] = useReportState<SubTab>("register", "view", ["register","category","ageing","returns","top_suppliers"]);
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [partyId, setPartyId] = useReportState<string>("all", "party_id");
+  const [paymentStatus, setPaymentStatus] = useReportState<string>("all", "payment_status");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Global header filters
@@ -114,7 +118,7 @@ export default function PurchaseReportsPage() {
     setFrom(filters.from);
     setTo(filters.to);
     setExpandedId(null);
-  }, []);
+  }, [setFrom, setTo]);
 
   const handleExportExcel = useCallback(() => {
     if (!data) return;
@@ -191,6 +195,8 @@ export default function PurchaseReportsPage() {
   return (
     <PullToRefresh onRefresh={async () => { await refetch(); }}>
       <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Purchase Reports"
       infoTooltip="Purchase analysis — Raw Materials, Finished Goods, ageing, returns, category breakdown, and payment modes."
       breadcrumbs={["Reports", "Purchase Reports"]}
@@ -278,8 +284,8 @@ export default function PurchaseReportsPage() {
                   {/* Purchase Register */}
                   {subTab === "register" && (
                     <div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               <th className="py-2.5 px-3 w-8"></th>
@@ -347,12 +353,12 @@ export default function PurchaseReportsPage() {
                               <tr><td colSpan={9} className="py-10 text-center text-[var(--text-muted)]">No purchases found.</td></tr>
                             )}
                           </tbody>
-                        </table>
+                        </ReportTable>
                       </div>
 
                       {/* Mobile cards with tap-to-drilldown */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)]">
-                        {(data.bills ?? []).slice(0, 30).map((p: any) => {
+                      <div className="hidden divide-y divide-[var(--border-light)]">
+                        {(data.bills ?? []) .map((p: any) => {
                           const isExpanded = expandedId === p.id;
                           return (
                             <div key={p.id} className="p-3.5 space-y-2">
@@ -522,8 +528,8 @@ export default function PurchaseReportsPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full text-left text-xs">
+                          <div className="overflow-x-auto">
+                            <ReportTable className="w-full text-left text-xs">
                               <thead>
                                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                   {["Return No.", "Date", "Type", "Supplier", "Amount"].map(h => (
@@ -548,10 +554,10 @@ export default function PurchaseReportsPage() {
                                   <td className="py-2.5 px-4 text-right font-mono text-rose-600">{fmtINR(summary.totalReturns ?? 0)}</td>
                                 </tr>
                               </tfoot>
-                            </table>
+                            </ReportTable>
                           </div>
                           {/* Mobile Returns Cards */}
-                          <div className="md:hidden divide-y divide-[var(--border-light)]">
+                          <div className="hidden divide-y divide-[var(--border-light)]">
                             {(data.returns ?? []).map((r: any) => (
                               <div key={r.id} className="p-3.5 space-y-1.5">
                                 <div className="flex items-center justify-between">
@@ -577,8 +583,8 @@ export default function PurchaseReportsPage() {
                   {/* Top Suppliers */}
                   {subTab === "top_suppliers" && (
                     <div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               <th className="py-2.5 px-4">#</th>
@@ -606,10 +612,10 @@ export default function PurchaseReportsPage() {
                               <tr><td colSpan={5} className="py-8 text-center text-[var(--text-muted)]">No suppliers found.</td></tr>
                             )}
                           </tbody>
-                        </table>
+                        </ReportTable>
                       </div>
                       {/* Mobile Top Suppliers Cards */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)]">
+                      <div className="hidden divide-y divide-[var(--border-light)]">
                         {(data.topSuppliers ?? []).length === 0 ? (
                           <div className="py-8 text-center text-xs text-[var(--text-muted)]">No suppliers found.</div>
                         ) : (

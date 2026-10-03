@@ -2,7 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { handleApiError, validateRequestBody } from "@/lib/api-response";
 import { CreatePartySchema } from "@/lib/schemas/parties.schema";
-import { getStateNameFromGSTIN } from "@/lib/gst-utils";
+import { getStateNameFromGSTIN, deriveStateDetails } from "@/lib/gst-utils";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -127,7 +127,8 @@ export async function POST(request: Request) {
 
     const finalGstin = gstin && gstin.trim() ? gstin.trim() : "URP";
     const autoState = finalGstin !== "URP" ? getStateNameFromGSTIN(finalGstin) : null;
-    const finalBillingState = billing_state?.trim() || autoState || null;
+    const derivedState = deriveStateDetails(billing_address_line1 || billing_address_line2).name || null;
+    const finalBillingState = autoState || billing_state?.trim() || derivedState || null;
     const finalShippingState = shipping_state?.trim() || finalBillingState || null;
     const finalPan = pan && pan.trim() && pan.trim() !== "N/A"
       ? pan.trim()

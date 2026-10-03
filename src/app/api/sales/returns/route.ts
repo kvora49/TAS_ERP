@@ -1,3 +1,4 @@
+import { recordedTaxSchema, recordedTaxFields } from "@/lib/report-source-fields";
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -76,6 +77,8 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const tax = recordedTaxSchema.safeParse(body);
+    if (!tax.success) return NextResponse.json({ error: "Invalid recorded tax amounts" }, { status: 400 });
     const {
       party_id,
       original_bill_id,
@@ -131,10 +134,7 @@ export async function POST(request: Request) {
         return_date,
         return_reason: return_reason || null,
         gst_type: body.gst_type || "with_gst",
-        taxable_amount: Number(body.taxable_amount || 0),
-        cgst: Number(body.cgst || 0),
-        sgst: Number(body.sgst || 0),
-        igst: Number(body.igst || 0),
+        ...recordedTaxFields(tax.data),
         round_off: Number(body.round_off || 0),
         grand_total: Number(grand_total),
         status: "approved", // Auto-approved to directly apply stock & credit note
@@ -178,6 +178,7 @@ export async function POST(request: Request) {
         cn_number: cnNumber,
         party_id,
         return_id: sReturn.id,
+        ...recordedTaxFields(tax.data),
         cn_date: return_date,
         amount: Number(grand_total),
         reason: `Sales Return ${returnNumber}`

@@ -55,7 +55,11 @@ export default function ReportTabs<T extends string = string>({
   };
 
   return (
-    <div className={cn("relative group border-b border-[var(--border)] -mt-2 print:hidden", className)}>
+    <>
+    <select aria-label="Report section" value={activeTab} onChange={e => onChange(e.target.value as T)} className="sm:hidden w-full min-w-0 h-11 rounded-lg border border-[var(--border)] bg-[var(--input-bg)] text-[var(--text-primary)] px-3">
+      {tabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}{tab.badge ? ` (${tab.badge})` : ""}</option>)}
+    </select>
+    <div className={cn("hidden sm:block relative group border-b border-[var(--border)] -mt-2 print:hidden", className)}>
       {/* Scroll indicator - Left */}
       {canScrollLeft && (
         <button
@@ -138,5 +142,6 @@ export default function ReportTabs<T extends string = string>({
         </button>
       )}
     </div>
+    </>
   );
 }

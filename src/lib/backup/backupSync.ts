@@ -1,5 +1,6 @@
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { Logger } from "@/lib/logger";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export async function processBackupSync() {
   const primaryAccountId = process.env.R2_ACCOUNT_ID;
@@ -41,14 +42,26 @@ export async function processBackupSync() {
   }
 
   try {
-    const primaryS3 = new S3Client({
-      region: "auto",
-      endpoint: `https://${primaryAccountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: primaryAccessKey,
-        secretAccessKey: primarySecretKey,
-      },
-    });
+    let cfPrimaryBucket: any = null;
+    try {
+      const cfContext = getCloudflareContext();
+      if ((cfContext?.env as any)?.R2_BUCKET) {
+        cfPrimaryBucket = (cfContext.env as any).R2_BUCKET;
+      }
+    } catch {
+      // outside cloudflare worker context
+    }
+
+    const primaryS3 = cfPrimaryBucket
+      ? null
+      : new S3Client({
+          region: "auto",
+          endpoint: `https://${primaryAccountId}.r2.cloudflarestorage.com`,
+          credentials: {
+            accessKeyId: primaryAccessKey,
+            secretAccessKey: primarySecretKey,
+          },
+        });
 
     const backupS3 = new S3Client({
       region: "auto",
@@ -63,44 +76,76 @@ export async function processBackupSync() {
     let continuationToken: string | undefined = undefined;
 
     do {
-      const listResult: ListObjectsV2CommandOutput = await primaryS3.send(
-        new ListObjectsV2Command({
-          Bucket: primaryBucket,
-          Prefix: "backups/",
-          ContinuationToken: continuationToken,
-        })
-      );
+      let contents: { Key?: string; ContentType?: string }[] = [];
+      let isTruncated = false;
+      let nextCursor: string | undefined = undefined;
 
-      const contents = listResult.Contents || [];
+      if (cfPrimaryBucket) {
+        const listRes: any = await cfPrimaryBucket.list({
+          prefix: "backups/",
+          cursor: continuationToken,
+        });
+        contents = (listRes.objects || []).map((o: any) => ({ Key: o.key, ContentType: o.httpMetadata?.contentType }));
+        isTruncated = listRes.truncated;
+        nextCursor = listRes.cursor;
+      } else if (primaryS3) {
+        const listResult: ListObjectsV2CommandOutput = await primaryS3.send(
+          new ListObjectsV2Command({
+            Bucket: primaryBucket,
+            Prefix: "backups/",
+            ContinuationToken: continuationToken,
+          })
+        );
+        contents = listResult.Contents || [];
+        isTruncated = !!listResult.IsTruncated;
+        nextCursor = listResult.NextContinuationToken;
+      }
 
       for (const obj of contents) {
         if (!obj.Key) continue;
 
-        // Fetch stream from primary R2 account
-        const getObjRes = await primaryS3.send(
-          new GetObjectCommand({
-            Bucket: primaryBucket,
-            Key: obj.Key,
-          })
-        );
+        let byteArray: Uint8Array | null = null;
+        let contentType = obj.ContentType || "application/sql";
 
-        if (!getObjRes.Body) continue;
-        const byteArray = await getObjRes.Body.transformToByteArray();
+        if (cfPrimaryBucket) {
+          const r2Obj = await cfPrimaryBucket.get(obj.Key);
+          if (r2Obj) {
+            byteArray = new Uint8Array(await r2Obj.arrayBuffer());
+            if (r2Obj.httpMetadata?.contentType) {
+              contentType = r2Obj.httpMetadata.contentType;
+            }
+          }
+        } else if (primaryS3) {
+          const getObjRes = await primaryS3.send(
+            new GetObjectCommand({
+              Bucket: primaryBucket,
+              Key: obj.Key,
+            })
+          );
+          if (getObjRes.Body) {
+            byteArray = await getObjRes.Body.transformToByteArray();
+            if (getObjRes.ContentType) {
+              contentType = getObjRes.ContentType;
+            }
+          }
+        }
 
-        // Write stream to secondary R2 account
+        if (!byteArray) continue;
+
+        // Write stream to secondary R2 account via S3-compatible API
         await backupS3.send(
           new PutObjectCommand({
             Bucket: backupBucket,
             Key: obj.Key,
             Body: byteArray,
-            ContentType: getObjRes.ContentType || "application/sql",
+            ContentType: contentType,
           })
         );
 
         syncedCount++;
       }
 
-      continuationToken = listResult.IsTruncated ? listResult.NextContinuationToken : undefined;
+      continuationToken = isTruncated ? nextCursor : undefined;
     } while (continuationToken);
 
     Logger.debug(`[R2 Backup Sync] Successfully synced ${syncedCount} objects to secondary backup bucket ${backupBucket}`);

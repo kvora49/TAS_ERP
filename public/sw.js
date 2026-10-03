@@ -169,7 +169,7 @@ self.addEventListener("push", function (event) {
   const options = {
     body: body,
     icon: data.icon || "/icons/icon-192x192.png",
-    badge: "/favicon.ico",
+    badge: data.badge || "/icons/badge-72x72.png",
     tag: data.tag || "tas-erp-system-alert",
     renotify: true,
     requireInteraction: true, // Keeps notification visible on Mobile Lock Screen

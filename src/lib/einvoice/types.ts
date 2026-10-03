@@ -51,6 +51,8 @@ export interface TenantIRPCredentials {
   userName?: string; // Layer 2: Taxpayer GSP API Username created on einvoice1.gst.gov.in
   password?: string; // Layer 2: Taxpayer GSP API Password
   authMode?: "direct" | "intermediary";
+  authToken?: string; // Live or cached session token from businesses.irp_auth_token
+  tokenExpiry?: string; // Token expiry from businesses.irp_token_expiry
 }
 
 export interface IRPAuthToken {
@@ -105,6 +107,7 @@ export interface IRPPartyDetails {
   location: string; // City / Town
   pinCode: string;
   stateCode: string;
+  placeOfSupply?: string; // 2-digit POS State Code
   phone?: string;
   email?: string;
 }

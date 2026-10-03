@@ -1,41 +1,57 @@
-# dependencies
+# Dependencies
 /node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
 
-# testing
+# Testing
 /coverage
 
-# next.js
+# Next.js Build & Cache
 /.next/
 /out/
 tsconfig.tsbuildinfo
 
-# production
+# Production Builds
 /build
 
-# misc
-.DS_Store
-*.pem
+# Cloudflare Workers & OpenNext
+/.open-next/
+/.wrangler/
+/dist-worker/
+.dev.vars
+.dev.vars.*
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
+# Local Environment Files & Secrets (Never commit secrets!)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env*.local
+*.pem
 
 # Keep .env.example tracked
 !.env.example
 
-# IDEs and editors
+# Local Backups & Private Storage (Never commit database dumps!)
+/private-storage/
+*.sql.gz
+auto_backup_*.sql
+backup_*.sql
+!supabase/migrations/**
+!supabase_schema.sql
+
+# Logs & Debugging
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Operating System & IDEs
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.suo
@@ -43,13 +59,23 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
 
-# Scratch files / diagnostic scripts / temporary folders
+# Archives, Vercel, Turbo & Serena
+.vercel/
+.turbo/
+*.zip
+*.tar.gz
+.serena/
+
+# Scratch & Diagnostic Scripts
 /scratch/
 /call-reload-rpc.js
 /check-event-triggers.js
 /check-grants.js
 /check-schema-permissions.js
+/check_policies.mjs
 /create-reload-rpc.js
 /execute-db-commands.js
 /extract-request-phase4.js
@@ -61,17 +87,12 @@ yarn-error.log*
 /reload-schema.js
 /run-migrations-pg.js
 /run-rls-auto-enable.js
+/scratch_test_supabase.js
 /search-gemini-folder.js
 /search-markdown-full.js
 /search-markdown.js
 /test-workers-http.js
 /test-workers-sql.js
 /test-workers-table.js
+/test_rls_companies.mjs
 /user_request_phase4.md
-
-# Archives, Vercel, Turbo and Serena settings
-.vercel/
-.turbo/
-*.log
-*.zip
-.serena/

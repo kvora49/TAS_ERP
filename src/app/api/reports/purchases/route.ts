@@ -1,3 +1,7 @@
+import { readLaterAllocations } from "@/lib/report-later-allocations";
+import { readReportRows, requireReportResults } from "@/lib/report-data";
+import { paidAtCutoff, dueDateAging } from "@/lib/report-balances";
+import { validReportRequest } from "@/lib/report-request";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -11,6 +15,8 @@ export async function GET(req: NextRequest) {
   const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
+  const dateFilters = new URLSearchParams(searchParams); dateFilters.delete("tab");
+  if (!validReportRequest(dateFilters)) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
   const from = searchParams.get("from") ?? defaultFrom;
   const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const tab = searchParams.get("tab") ?? "all";
@@ -26,7 +32,7 @@ export async function GET(req: NextRequest) {
       .from("raw_material_purchases")
       .select(`
         id, purchase_number, invoice_date, grand_total, paid_amount,
-        payment_status, status, gst_type,
+        payment_status, status, gst_type, due_date,
         supplier:parties(id, name, company_name)
       `)
       .eq("business_id", bid)
@@ -39,7 +45,7 @@ export async function GET(req: NextRequest) {
       .from("purchase_bills")
       .select(`
         id, bill_number, invoice_date, grand_total, paid_amount,
-        payment_status, status, bill_type,
+        payment_status, status, bill_type, due_date,
         supplier:parties(id, name, company_name)
       `)
       .eq("business_id", bid)
@@ -61,64 +67,72 @@ export async function GET(req: NextRequest) {
       rawQuery = rawQuery.eq("supplier_id", partyId);
       finishedQuery = finishedQuery.eq("supplier_id", partyId);
     }
-    if (paymentStatus && paymentStatus !== "all") {
-      rawQuery = rawQuery.eq("payment_status", paymentStatus);
-      finishedQuery = finishedQuery.eq("payment_status", paymentStatus);
-    }
+
 
     // ── Parallel fetch ────────────────────────────────────────────────────────
-    const [rawResult, finishedResult, returnsResult, paymentsResult] = await Promise.all([
-      rawQuery.order("invoice_date", { ascending: false }).order("created_at", { ascending: false }),
-      finishedQuery.order("invoice_date", { ascending: false }).order("created_at", { ascending: false }),
+    const [rawResult, finishedResult, returnsResult, paymentsResult, agingRawResult, agingFinishedResult, allocationsResult] = await Promise.all([
+      readReportRows(rawQuery.order("invoice_date", { ascending: false }).order("id")),
+      readReportRows(finishedQuery.order("invoice_date", { ascending: false }).order("id")),
       // Purchase returns (all RM returns in date range)
-      supabase
+      readReportRows(supabase
         .from("purchase_returns")
-        .select("id, return_number, return_date, grand_total, return_type, supplier_id, parties(id, name, company_name)")
+        .select("id, purchase_id, return_number, return_date, grand_total, return_type, supplier_id, parties(id, name, company_name)")
         .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("status", "completed")
         .is("deleted_at", null)
         .gte("return_date", from)
-        .lte("return_date", to),
+        .lte("return_date", to).order("id")),
       // Outgoing payments
-      supabase
+      readReportRows(supabase
         .from("payments")
-        .select("id, payment_date, payment_mode, amount, direction")
+        .select("id, party_id, payment_date, payment_mode, amount, direction")
         .eq("business_id", bid)
         .eq("direction", "paid")
         .gte("payment_date", from)
-        .lte("payment_date", to),
+        .lte("payment_date", to).in("status", ["completed", "success"]).order("id")),
+      readReportRows(supabase.from("raw_material_purchases").select("id,supplier_id,gst_type,invoice_date,due_date,grand_total,paid_amount,payment_status").eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null).lte("invoice_date", to).order("id")),
+      readReportRows(supabase.from("purchase_bills").select("id,supplier_id,bill_type,invoice_date,due_date,grand_total,paid_amount,payment_status").eq("business_id", bid).neq("status", "cancelled").lte("invoice_date", to).order("id")),
+      readLaterAllocations(supabase, bid, to).then(data => ({ data, error: null })),
     ]);
 
-    const rawPurchases = (rawResult.data ?? []).map(p => ({
+    requireReportResults([rawResult, finishedResult, returnsResult, paymentsResult, agingRawResult, agingFinishedResult, allocationsResult]);
+    const scope = (row: any) => (!partyId || partyId === "all" || row.supplier_id === partyId) && (!billType || billType === "all" || row.bill_type === billType);
+    const agingBills = [...(tab === "finished" ? [] : paidAtCutoff(agingRawResult.data, allocationsResult.data, "raw_material_purchase").map((row): Record<string, any> => ({ ...row, bill_type: row.gst_type === "without_gst" ? "kacha" : "pakka" }))), ...(tab === "raw" ? [] : paidAtCutoff(agingFinishedResult.data, allocationsResult.data, "purchase_bill"))].filter(scope);
+    const scopedInvoices = new Set(agingBills.map(row => row.id));
+    returnsResult.data = tab === "finished" ? [] : returnsResult.data.filter((r: any) => (!partyId || partyId === "all" || r.supplier_id === partyId) && ((!billType || billType === "all") || scopedInvoices.has(r.purchase_id)));
+    paymentsResult.data = paymentsResult.data.filter((p: any) => !partyId || partyId === "all" || p.party_id === partyId);
+    const rawPurchases = paidAtCutoff(rawResult.data, allocationsResult.data, "raw_material_purchase").map((p): Record<string, any> => ({
       ...p,
       purchase_type: "raw_material" as const,
       bill_type: p.gst_type === "without_gst" ? ("kacha" as const) : ("pakka" as const),
     }));
-    const finishedPurchases = (finishedResult.data ?? []).map(p => ({
+    const finishedPurchases = paidAtCutoff(finishedResult.data, allocationsResult.data, "purchase_bill").map((p): Record<string, any> => ({
       ...p,
       purchase_number: p.bill_number,
       purchase_type: "finished_goods" as const,
-      bill_type: (p.bill_type === "kacha" ? "kacha" : "pakka") as "kacha" | "pakka",
+      bill_type: p.bill_type || "unknown",
     }));
 
+    const matchesStatus = (p: Record<string, any>) => !paymentStatus || paymentStatus === "all" || p.payment_status === paymentStatus || (paymentStatus === "partially_paid" && p.payment_status === "partial");
+    const filteredRaw = rawPurchases.filter(matchesStatus), filteredFinished = finishedPurchases.filter(matchesStatus);
     const allPurchases = tab === "raw"
-      ? rawPurchases
+      ? filteredRaw
       : tab === "finished"
-      ? finishedPurchases
-      : [...rawPurchases, ...finishedPurchases].sort((a, b) =>
+      ? filteredFinished
+      : [...filteredRaw, ...filteredFinished].sort((a, b) =>
           new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime()
         );
 
     // ── Category breakdown — FIX: use IN clause on actual purchase IDs ─────────
     // Only meaningful for raw_material purchases (they have item_type on items)
-    const rmIds = rawPurchases.map(p => p.id);
+    const rmIds = (tab === "finished" ? [] : filteredRaw).map(p => p.id);
     let categoryBreakdown: { category: string; key: string; amount: number }[] = [];
 
     if (rmIds.length > 0) {
-      const { data: itemsData } = await supabase
-        .from("raw_material_purchase_items")
-        .select("purchase_id, item_type, total_amount")
-        .in("purchase_id", rmIds);
+      const itemResult = await readReportRows(supabase.from("raw_material_purchase_items").select("id,purchase_id,item_type,amount,purchase:raw_material_purchases!inner(business_id,invoice_date)").eq("purchase.business_id", bid).gte("purchase.invoice_date", from).lte("purchase.invoice_date", to).order("id"));
+      requireReportResults([itemResult]);
+      const selectedIds = new Set(rmIds);
+      const itemsData = itemResult.data.filter(item => selectedIds.has(item.purchase_id));
 
       const categoryMap: Record<string, number> = {
         fabric: 0,
@@ -129,9 +143,9 @@ export async function GET(req: NextRequest) {
       for (const item of itemsData ?? []) {
         const t = item.item_type || "others";
         if (t in categoryMap) {
-          categoryMap[t] += Number(item.total_amount || 0);
+          categoryMap[t] += Number(item.amount || 0);
         } else {
-          categoryMap.others += Number(item.total_amount || 0);
+          categoryMap.others += Number(item.amount || 0);
         }
       }
       categoryBreakdown = [
@@ -161,18 +175,7 @@ export async function GET(req: NextRequest) {
     const pakkaOutstanding = pakkaPurchases.filter(p => p.payment_status !== "paid").reduce((s, p) => s + Number(p.grand_total) - Number(p.paid_amount), 0);
 
     // ── Ageing buckets (payables) ─────────────────────────────────────────────
-    const todayMs = new Date().getTime();
-    const ageing = { current: 0, d30: 0, d60: 0, d90: 0, over90: 0 };
-    for (const p of allPurchases.filter(p => p.payment_status !== "paid")) {
-      const outstanding = Number(p.grand_total) - Number(p.paid_amount);
-      const dueDate = new Date(p.invoice_date);
-      const diffDays = Math.floor((todayMs - dueDate.getTime()) / 86_400_000);
-      if (diffDays <= 0) ageing.current += outstanding;
-      else if (diffDays <= 30) ageing.d30 += outstanding;
-      else if (diffDays <= 60) ageing.d60 += outstanding;
-      else if (diffDays <= 90) ageing.d90 += outstanding;
-      else ageing.over90 += outstanding;
-    }
+    const ageing = dueDateAging(agingBills, to, "invoice_date");
 
     // ── Monthly trend ─────────────────────────────────────────────────────────
     const monthMap: Record<string, { purchases: number; returns: number }> = {};
@@ -223,7 +226,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.amount - a.amount);
 
     // ── Bill rows — include view_url for navigation ───────────────────────────
-    const bills = allPurchases.map(p => ({
+    const bills = allPurchases.map((p): Record<string, any> => ({
       id: p.id,
       purchase_number: (p as any).purchase_number,
       purchase_type: p.purchase_type,
@@ -274,6 +277,7 @@ export async function GET(req: NextRequest) {
         pakkaCount: pakkaPurchases.length,
       },
       ageing,
+      metadata: { agingBasis: "All outstanding invoices at cutoff, by due date", paymentBasis: "Posted supplier payments in period; allocation-based type attribution is unavailable", historicalBasis: "Current paid totals less known later unified allocations" },
       categoryBreakdown,
       monthlyTrend,
       topSuppliers,

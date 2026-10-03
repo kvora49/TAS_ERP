@@ -196,6 +196,9 @@ export function PostInvoiceSuccessModal({
         </div>
 
         {/* Bottom Secondary Actions */}
+        <button type="button" onClick={() => { onOpenChange(false); router.push(`/sales/bills/${invoice.id}/delivery-challan`); }} className="w-full px-4 py-3 rounded-lg border border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)] text-sm font-bold flex items-center justify-center gap-2">
+          <FileText size={17} /> Create delivery challan
+        </button>
         <div className="pt-3 border-t border-[var(--border)] flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             onClick={handleGoToList}

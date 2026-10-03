@@ -16,10 +16,11 @@ import {
   PieChart,
 } from "lucide-react";
 import { ModuleHubPage } from "@/components/shared/ModuleHubPage";
+import ReportWorkspace from "@/components/reports/ReportWorkspace";
 
 export default function ReportsPage() {
   return (
-    <ModuleHubPage
+    <div className="min-w-0 w-full"><div className="p-3 sm:p-6"><ReportWorkspace title="Reports" hub /></div><ModuleHubPage
       title="Reports"
       subtitle="Business intelligence and financial analytics"
       sections={[
@@ -28,6 +29,7 @@ export default function ReportsPage() {
           items: [
             { label: "Financial", href: "/reports/financial", icon: TrendingUp, accent: "text-indigo-500" },
             { label: "Profit & Loss", href: "/reports/profit-loss", icon: TrendingUp, accent: "text-emerald-500" },
+            { label: "Reviewed Opening Balances", href: "/reports/opening-balances", icon: BookOpen, accent: "text-blue-500" },
             { label: "Balance Sheet", href: "/reports/balance-sheet", icon: Scale, accent: "text-blue-500" },
             { label: "Cash Flow", href: "/reports/cash-flow", icon: Wallet, accent: "text-cyan-500" },
             { label: "GST Summary", href: "/reports/gst-summary", icon: Percent, accent: "text-purple-500" },
@@ -58,6 +60,6 @@ export default function ReportsPage() {
           ],
         },
       ]}
-    />
+    /></div>
   );
 }

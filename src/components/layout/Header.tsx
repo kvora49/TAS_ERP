@@ -41,6 +41,7 @@ const ROUTE_LABELS: Record<string, string> = {
   production: "Production & Workers",
   "party-statement": "Party Ledger",
   analysis: "Executive Analysis",
+  "opening-balances": "Reviewed Opening Balances",
   "master-data": "Master Data",
   stock: "Stock",
   "raw-materials": "Raw Materials",
@@ -55,6 +56,8 @@ const ROUTE_LABELS: Record<string, string> = {
   transfers: "Transfers",
   adjustments: "Adjustments",
   challans: "Delivery Challans",
+  "delivery-challan": "Delivery Challan",
+  "delivery-challans": "Sales Delivery Challans",
   lots: "Production Lots",
   "stage-entries": "Stage Entries",
   "job-work": "Job Work",
@@ -125,6 +128,7 @@ export default function Header() {
     const parts = pathname.split("/").filter(Boolean);
     if (parts.length === 0) return ["Dashboard"];
     return parts.map((part, idx) => {
+      if (idx === 1 && parts[0] === "reports" && part === "payments") return "Payment Reports";
       if (ROUTE_LABELS[part]) return ROUTE_LABELS[part];
       // If segment is a UUID or hex ID, render readable 'Details'
       if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(part) || /^[0-9a-f]{16,}$/i.test(part) || /^\d+$/.test(part)) {

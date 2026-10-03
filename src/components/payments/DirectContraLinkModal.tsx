@@ -1,4 +1,6 @@
 "use client";
+import { invalidateReports } from "@/lib/report-cache";
+
 
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -124,6 +126,7 @@ export default function DirectContraLinkModal({
       return data;
     },
     onSuccess: () => {
+      void invalidateReports(queryClient);
       toast.success("Direct Customer-to-Supplier Contra Link executed successfully");
       queryClient.invalidateQueries({ queryKey: ["payments-list"] });
       onOpenChange(false);

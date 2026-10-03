@@ -1,7 +1,11 @@
 "use client";
 
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import { AnimatePresence } from "framer-motion";
 import {
   FileText, ArrowDownLeft, ArrowUpRight, Scale, Calendar, UserCheck,
@@ -71,24 +75,24 @@ const CATEGORY_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
 
 export default function PartyReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<PartyTab>("statement");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<PartyTab>("statement", "tab", ["statement","outstanding","aging","customer_report","supplier_report","all_transactions"]);
 
   // Filters
-  const [partyId, setPartyId] = useState<string>("all");
-  const [partyType, setPartyType] = useState<string>("all");
-  const [billType, setBillType] = useState<BillType>("all");
-  const [voucherType, setVoucherType] = useState<string>("all");
-  const [purchaseType, setPurchaseType] = useState<string>("all");
-  const [agingBasedOn, setAgingBasedOn] = useState<string>("due_date");
-  const [brandId, setBrandId] = useState<string>("all");
+  const [partyId, setPartyId] = useReportState<string>("all", "party_id");
+  const [partyType, setPartyType] = useReportState<string>("all", "party_type");
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [voucherType, setVoucherType] = useReportState<string>("all", "voucher_type");
+  const [purchaseType, setPurchaseType] = useReportState<string>("all", "purchase_type");
+  const [agingBasedOn, setAgingBasedOn] = useReportState<string>("due_date", "aging_based_on");
+  const [brandId, setBrandId] = useReportState<string>("all", "brand_id");
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   // Sub-views for customer / supplier tabs
-  const [customerSubTab, setCustomerSubTab] = useState<"summary" | "customer_wise" | "top_customers" | "tx_details">("summary");
-  const [supplierSubTab, setSupplierSubTab] = useState<"summary" | "supplier_wise" | "top_suppliers" | "purchase_details">("summary");
-  const [txSubTab, setTxSubTab] = useState<"all" | "by_voucher" | "by_party_type" | "by_bill_type">("all");
+  const [customerSubTab, setCustomerSubTab] = useReportState<"summary" | "customer_wise" | "top_customers" | "tx_details">("summary", "customer_view", ["summary","customer_wise","top_customers","tx_details"]);
+  const [supplierSubTab, setSupplierSubTab] = useReportState<"summary" | "supplier_wise" | "top_suppliers" | "purchase_details">("summary", "supplier_view", ["summary","supplier_wise","top_suppliers","purchase_details"]);
+  const [txSubTab, setTxSubTab] = useReportState<"all" | "by_voucher" | "by_party_type" | "by_bill_type">("all", "transaction_view", ["all","by_voucher","by_party_type","by_bill_type"]);
 
   // Fetch Master Parties for dropdown
   const { data: partiesData } = useQuery({
@@ -152,7 +156,7 @@ export default function PartyReportsPage() {
     setFrom(filters.from);
     setTo(filters.to);
     setExpandedRowId(null);
-  }, []);
+  }, [setFrom, setTo]);
 
   const handleExportExcel = useCallback(() => {
     if (!data) return;
@@ -289,6 +293,8 @@ export default function PartyReportsPage() {
 
   return (
     <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Party Reports"
       infoTooltip="Comprehensive financial records, party ledger statement, outstanding dues, aging analysis, customer & supplier transaction registers."
       breadcrumbs={["Reports", "Party Reports", PARTY_TABS.find(t => t.id === activeTab)?.label ?? ""]}
@@ -486,8 +492,8 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="py-2.5 px-3">Date</th>
@@ -555,11 +561,11 @@ export default function PartyReportsPage() {
                             <td></td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
 
                     {/* Mobile Ledger Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                       {/* Opening Balance Card */}
                       <div className="p-3 bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl space-y-1.5 text-xs">
                         <div className="flex justify-between items-center text-[var(--text-muted)] text-[10px]">
@@ -704,8 +710,8 @@ export default function PartyReportsPage() {
                   </div>
 
                   {/* Desktop Table */}
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                           <th className="py-2.5 px-3">Party Name</th>
@@ -794,11 +800,11 @@ export default function PartyReportsPage() {
                           <td colSpan={2}></td>
                         </tr>
                       </tfoot>
-                    </table>
+                    </ReportTable>
                   </div>
 
                   {/* Mobile Outstanding Cards */}
-                  <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                  <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                     {(data.rows ?? []).map((p: any) => (
                       <div key={p.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                         <div className="flex items-start justify-between gap-2">
@@ -925,8 +931,8 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="py-2.5 px-3">Party Name</th>
@@ -984,11 +990,11 @@ export default function PartyReportsPage() {
                             <td></td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
 
                     {/* Mobile Aging Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                       {(data.rows ?? []).map((p: any) => (
                         <div key={p.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                           <div className="flex items-start justify-between gap-2">
@@ -1201,8 +1207,8 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="py-2.5 px-3 w-8">#</th>
@@ -1256,11 +1262,11 @@ export default function PartyReportsPage() {
                             <td></td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
 
                     {/* Mobile Customer Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                       {(data.rows ?? []).map((c: any, idx: number) => (
                         <div key={c.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                           <div className="flex items-start justify-between gap-2">
@@ -1454,8 +1460,8 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="py-2.5 px-3 w-8">#</th>
@@ -1509,11 +1515,11 @@ export default function PartyReportsPage() {
                             <td></td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
 
                     {/* Mobile Supplier Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                       {(data.rows ?? []).map((s: any, idx: number) => (
                         <div key={s.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                           <div className="flex items-start justify-between gap-2">
@@ -1659,8 +1665,8 @@ export default function PartyReportsPage() {
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="py-2.5 px-3">Date</th>
@@ -1720,11 +1726,11 @@ export default function PartyReportsPage() {
                             <td colSpan={3}></td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
 
                     {/* Mobile Transactions Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                    <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                       {(data.rows ?? []).map((t: any) => (
                         <div key={t.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                           <div className="flex items-start justify-between gap-2">

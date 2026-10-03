@@ -61,6 +61,13 @@ export async function PUT(
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
+    const sourceEdit=["due_date","bill_type","taxable_amount","cgst","sgst","igst"].some(key=>key in parsed.data);
+    if(sourceEdit){
+      if(request.headers.get("x-report-business-id")&&request.headers.get("x-report-business-id")!==businessId)return NextResponse.json({error:"Company changed; reload invoice"},{status:409});
+      const {data:{user}}=await supabase.auth.getUser();
+      const {data:profile}=user?await supabase.from("users").select("business_id,role").eq("id",user.id).maybeSingle():{data:null};
+      if(profile?.business_id!==businessId||!["owner","admin","accountant"].includes(profile?.role||""))return NextResponse.json({error:"Financial access required for source corrections"},{status:403});
+    }
     const { invoice_no, invoice_date, grand_total, paid_amount } = parsed.data;
 
     // Fetch existing bill first
@@ -92,6 +99,7 @@ export async function PUT(
     const { data: updatedBill, error: updateErr } = await supabase
       .from("purchase_bills")
       .update({
+        ...Object.fromEntries(["due_date", "bill_type", "taxable_amount", "cgst", "sgst", "igst"].filter(key => key in parsed.data).map(key => [key, (parsed.data as Record<string, unknown>)[key]])),
         invoice_no: newInvoiceNo || null,
         invoice_date: newInvoiceDate,
         grand_total: newGrandTotal,

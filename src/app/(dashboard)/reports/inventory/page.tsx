@@ -1,7 +1,11 @@
 "use client";
 
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import { Package, Boxes, Warehouse as WarehouseIcon, Tag, Layers } from "lucide-react";
 import PageState from "@/components/shared/PageState";
 import ReportShell, { ReportFilters } from "@/components/reports/ReportShell";
@@ -35,14 +39,14 @@ const STOCK_STATUS_OPTIONS = [
 
 export default function InventoryReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<InvTab>("valuation");
-  const [category, setCategory] = useState<StockCategory>("all");
-  const [billType, setBillType] = useState<BillType>("all");
-  const [godownId, setGodownId] = useState("all");
-  const [brandId, setBrandId] = useState("all");
-  const [stockStatus, setStockStatus] = useState("all");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<InvTab>("valuation", "tab", ["valuation","warehouse","design"]);
+  const [category, setCategory] = useReportState<StockCategory>("all", "category");
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [godownId, setGodownId] = useReportState<string>("all", "godown_id");
+  const [brandId, setBrandId] = useReportState<string>("all", "brand_id");
+  const [stockStatus, setStockStatus] = useReportState<string>("all", "stock_status");
 
   // Fetch Godowns
   const { data: godownsData } = useQuery({
@@ -94,7 +98,7 @@ export default function InventoryReportsPage() {
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
-  }, []);
+  }, [setFrom, setTo]);
 
   const handleExportExcel = useCallback(() => {
     if (!data) return;
@@ -122,11 +126,11 @@ export default function InventoryReportsPage() {
             { key: "name", label: "Godown", width: 24 },
             { key: "address", label: "Location", width: 24 },
             { key: "fg_qty", label: "FG Qty", format: "number" as const, width: 12 },
-            { key: "rm_qty", label: "RM Qty", format: "number" as const, width: 12 },
-            { key: "qty", label: "Total Qty", format: "number" as const, width: 14 },
+            { key: "raw_units", label: "Raw Materials by Unit", width: 28 },
+            { key: "accessory_units", label: "Accessories by Unit", width: 28 },
             { key: "value", label: "Total Value (Rs.)", format: "currency" as const, width: 20 },
           ],
-          rows: (activeTab === "warehouse" ? data.rows : []) ?? [],
+          rows: ((activeTab === "warehouse" ? data.rows : []) ?? []).map((r: any) => ({ ...r, raw_units: Object.entries(r.raw_quantities ?? {}).map(([unit, qty]) => `${qty} ${unit}`).join(" / "), accessory_units: Object.entries(r.accessory_quantities ?? {}).map(([unit, qty]) => `${qty} ${unit}`).join(" / ") })),
         },
         {
           name: "Design Stock",
@@ -145,9 +149,10 @@ export default function InventoryReportsPage() {
       ],
       `InventoryReport_${activeTab}_${category}_${new Date().toISOString().split("T")[0]}`
     );
-  }, [data, activeTab, category, billType]);
+  }, [data, activeTab, category]);
 
   const s = data?.summary ?? {};
+  const formatUnits = (values: Record<string, unknown> | undefined) => Object.entries(values || {}).map(([unit, qty]) => `${fmtNum(Number(qty))} ${unit}`).join(" / ") || "0";
 
   const brandChart = Object.entries(data?.brandBreakdown ?? {}).map(([name, v]: [string, any]) => ({
     name, value: Number(v.value),
@@ -161,6 +166,8 @@ export default function InventoryReportsPage() {
   return (
     <PullToRefresh onRefresh={async () => { await refetch(); }}>
       <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Inventory & Stock"
       infoTooltip="Stock valuation across finished goods, raw materials & accessories, godown breakdown, and design variant levels."
       breadcrumbs={["Reports", "Inventory & Stock"]}
@@ -168,9 +175,7 @@ export default function InventoryReportsPage() {
       onExportExcel={handleExportExcel}
       extraFilters={
         <div className="flex flex-wrap items-center gap-3">
-          {activeTab === "valuation" && (
-            <BillTypeFilter value={billType} onChange={setBillType} />
-          )}
+          <span className="text-xs text-[var(--text-muted)]">Current snapshot ? bill-type attribution unavailable</span>
           <FilterSelect
             label="Godown"
             value={godownId}
@@ -216,14 +221,15 @@ export default function InventoryReportsPage() {
       >
         {data && (
           <div className="space-y-4 sm:space-y-6">
+            <p className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-xs text-[var(--text-muted)]">Current recorded snapshot. {data.metadata?.missingCostCount ?? 0} positive-stock rows have missing costs. Dates do not reconstruct historical stock. {data.metadata?.note}</p>
             {/* KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-              <ReportKPICard label="Total Stock Value" value={s.totalValue} color="emerald" icon={<Tag size={16} />} />
-              <ReportKPICard label="Pakka Stock Value" value={s.pakkaStockValue ?? 0} color="blue" icon={<Tag size={16} />} />
-              <ReportKPICard label="Kaccha Stock Value" value={s.kachaStockValue ?? 0} color="amber" icon={<Tag size={16} />} />
+              <ReportKPICard label="Recorded Stock Value" value={s.totalValue} color="emerald" icon={<Tag size={16} />} />
+              <ReportKPICard label="Pakka Attribution" value="Not available" format="text" color="blue" icon={<Tag size={16} />} />
+              <ReportKPICard label="Kaccha Attribution" value="Not available" format="text" color="amber" icon={<Tag size={16} />} />
               <ReportKPICard label="Finished Goods Qty" value={s.totalFGQty ?? 0} format="number" color="indigo" icon={<Package size={16} />} />
-              <ReportKPICard label="Raw Material Qty" value={s.totalRMQty ?? 0} format="number" color="violet" icon={<Boxes size={16} />} />
-              <ReportKPICard label="Accessories Qty" value={s.totalAccQty ?? 0} format="number" color="violet" icon={<Layers size={16} />} />
+              <ReportKPICard label="Raw Material Qty" value={Object.entries(data.metadata?.quantitiesByCategory?.raw_material ?? {}).map(([unit, qty]) => `${fmtNum(Number(qty))} ${unit}`).join(" / ") || "0"} format="text" color="violet" icon={<Boxes size={16} />} />
+              <ReportKPICard label="Accessories Qty" value={Object.entries(data.metadata?.quantitiesByCategory?.accessory ?? {}).map(([unit, qty]) => `${fmtNum(Number(qty))} ${unit}`).join(" / ") || "0"} format="text" color="violet" icon={<Layers size={16} />} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -242,8 +248,8 @@ export default function InventoryReportsPage() {
                           </h3>
                           <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalDesigns ?? 0} Designs</span>
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
-                          <table className="w-full text-left text-xs">
+                        <div className="overflow-x-auto">
+                          <ReportTable className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                 {["#", "Design No.", "Design Name", "Brand", "Total Qty", "Stock Value"].map(h => (
@@ -281,10 +287,10 @@ export default function InventoryReportsPage() {
                                 <td className="py-3 px-4 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalFGValue)}</td>
                               </tr>
                             </tfoot>
-                          </table>
+                          </ReportTable>
                         </div>
                         {/* Mobile Finished Goods Cards */}
-                        <div className="md:hidden divide-y divide-[var(--border-light)]">
+                        <div className="hidden divide-y divide-[var(--border-light)]">
                           {(data.fgRows ?? []).length === 0 ? (
                             <div className="p-4 text-center text-xs text-[var(--text-muted)]">No finished goods records found.</div>
                           ) : (
@@ -325,8 +331,8 @@ export default function InventoryReportsPage() {
                           </h3>
                           <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalRMTypes ?? 0} Materials</span>
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
-                          <table className="w-full text-left text-xs">
+                        <div className="overflow-x-auto">
+                          <ReportTable className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                 {["#", "Material Name", "Category", "Unit", "Total Qty", "Stock Value"].map(h => (
@@ -356,14 +362,14 @@ export default function InventoryReportsPage() {
                             <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
                               <tr>
                                 <td colSpan={4} className="py-3 px-4 text-[10px] uppercase text-[var(--text-muted)]">Total Raw Materials & Accessories</td>
-                                <td className="py-3 px-4 text-right font-mono">{fmtNum((s.totalRMQty ?? 0) + (s.totalAccQty ?? 0))}</td>
+                                <td className="py-3 px-4 text-right font-mono">{[formatUnits(data.metadata?.quantitiesByCategory?.raw_material), formatUnits(data.metadata?.quantitiesByCategory?.accessory)].filter(Boolean).join(" / ")}</td>
                                 <td className="py-3 px-4 text-right font-mono text-[var(--primary)]">{fmtINR((s.totalRMValue ?? 0) + (s.totalAccValue ?? 0))}</td>
                               </tr>
                             </tfoot>
-                          </table>
+                          </ReportTable>
                         </div>
                         {/* Mobile RM Cards */}
-                        <div className="md:hidden divide-y divide-[var(--border-light)]">
+                        <div className="hidden divide-y divide-[var(--border-light)]">
                           {(data.rmRows ?? []).length === 0 ? (
                             <div className="p-4 text-center text-xs text-[var(--text-muted)]">No materials found.</div>
                           ) : (
@@ -399,8 +405,8 @@ export default function InventoryReportsPage() {
                       </h3>
                       <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalGodowns ?? 0} Active Godowns</span>
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             {["#", "Warehouse / Godown", "Location", "FG Qty", "RM Qty", "Accessories", "Total Qty", "Stock Value"].map(h => (
@@ -419,9 +425,9 @@ export default function InventoryReportsPage() {
                               </td>
                               <td className="py-2 px-3 text-[var(--text-muted)] max-w-[150px] truncate">{r.address || r.location || "Facility"}</td>
                               <td className="py-2 px-3 text-right font-mono">{fmtNum(r.fg_qty)}</td>
-                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{fmtNum(r.rm_qty)}</td>
-                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{fmtNum(r.acc_qty)}</td>
-                              <td className="py-2 px-3 text-right font-mono font-bold">{fmtNum(r.qty)}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{formatUnits(r.raw_quantities)}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">{formatUnits(r.accessory_quantities)}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold">{r.qty == null ? "See unit quantities" : fmtNum(r.qty)}</td>
                               <td className="py-2 px-3 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(r.value)}</td>
                             </tr>
                           ))}
@@ -433,16 +439,16 @@ export default function InventoryReportsPage() {
                           <tr>
                             <td colSpan={3} className="py-3 px-3 text-[10px] uppercase text-[var(--text-muted)]">Total Across Godowns</td>
                             <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalFGQty)}</td>
-                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalRMQty)}</td>
-                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalAccQty)}</td>
-                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{formatUnits(data.metadata?.quantitiesByCategory?.raw_material)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{formatUnits(data.metadata?.quantitiesByCategory?.accessory)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{s.totalQty == null ? "Mixed units ? see unit totals" : fmtNum(s.totalQty)}</td>
                             <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
                     {/* Mobile Warehouse Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    <div className="hidden divide-y divide-[var(--border-light)]">
                       {(data.rows ?? []).length === 0 ? (
                         <div className="p-4 text-center text-xs text-[var(--text-muted)]">No warehouse stock found.</div>
                       ) : (
@@ -462,22 +468,22 @@ export default function InventoryReportsPage() {
                               </div>
                               <div>
                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">RM</p>
-                                <p className="text-xs font-mono text-[var(--text-muted)]">{fmtNum(r.rm_qty)}</p>
+                                <p className="text-xs font-mono text-[var(--text-muted)]">{formatUnits(r.raw_quantities)}</p>
                               </div>
                               <div>
                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Acc</p>
-                                <p className="text-xs font-mono text-[var(--text-muted)]">{fmtNum(r.acc_qty)}</p>
+                                <p className="text-xs font-mono text-[var(--text-muted)]">{formatUnits(r.accessory_quantities)}</p>
                               </div>
                               <div>
                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)]">Total</p>
-                                <p className="text-xs font-mono font-bold text-[var(--text-primary)]">{fmtNum(r.qty)}</p>
+                                <p className="text-xs font-mono font-bold text-[var(--text-primary)]">{r.qty == null ? "See unit quantities" : fmtNum(r.qty)}</p>
                               </div>
                             </div>
                           </div>
                         ))
                       )}
                       <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
-                        <span className="text-[var(--text-muted)]">Total ({fmtNum(s.totalQty)} pcs)</span>
+                        <span className="text-[var(--text-muted)]">Total ({s.totalQty == null ? "Mixed units ? see unit totals" : fmtNum(s.totalQty)} pcs)</span>
                         <span className="font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</span>
                       </div>
                     </div>
@@ -493,8 +499,8 @@ export default function InventoryReportsPage() {
                       </h3>
                       <span className="text-xs font-mono text-[var(--text-muted)]">{s.totalItems ?? 0} Variant Items</span>
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             {["Design No.", "Name", "Brand", "Colour", "Godown", "Qty", "Cost/Pc", "Value"].map(h => (
@@ -534,15 +540,15 @@ export default function InventoryReportsPage() {
                         <tfoot className="border-t-2 border-[var(--border)] bg-[var(--table-header-bg)] font-bold">
                           <tr>
                             <td colSpan={5} className="py-3 px-3 text-[10px] uppercase text-[var(--text-muted)]">Total Design Variant Stock</td>
-                            <td className="py-3 px-3 text-right font-mono">{fmtNum(s.totalQty)}</td>
+                            <td className="py-3 px-3 text-right font-mono">{s.totalQty == null ? "Mixed units ? see unit totals" : fmtNum(s.totalQty)}</td>
                             <td />
                             <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
                     {/* Mobile Design Variant Stock Cards */}
-                    <div className="md:hidden divide-y divide-[var(--border-light)]">
+                    <div className="hidden divide-y divide-[var(--border-light)]">
                       {(data.rows ?? []).length === 0 ? (
                         <div className="p-4 text-center text-xs text-[var(--text-muted)]">No design variant stock records found.</div>
                       ) : (
@@ -570,7 +576,7 @@ export default function InventoryReportsPage() {
                         ))
                       )}
                       <div className="p-3 bg-[var(--table-header-bg)] flex justify-between items-center text-xs font-bold">
-                        <span className="text-[var(--text-muted)]">Total Variant Stock ({fmtNum(s.totalQty)} pcs)</span>
+                        <span className="text-[var(--text-muted)]">Total Variant Stock ({s.totalQty == null ? "Mixed units ? see unit totals" : fmtNum(s.totalQty)} pcs)</span>
                         <span className="font-mono text-[var(--primary)]">{fmtINR(s.totalValue)}</span>
                       </div>
                     </div>
@@ -596,10 +602,10 @@ export default function InventoryReportsPage() {
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Stock Summary</h3>
                   {[
                     { label: "Total Stock Value", value: fmtINR(s.totalValue) },
-                    { label: "Total Combined Quantity", value: fmtNum(s.totalQty) },
+                    { label: "Quantities by unit", value: Object.entries(data.metadata?.quantitiesByUnit ?? {}).map(([unit, qty]) => `${fmtNum(Number(qty))} ${unit}`).join(" / ") },
                     { label: "Finished Goods Stock", value: `${fmtNum(s.totalFGQty)} pcs (${fmtINR(s.totalFGValue)})` },
-                    { label: "Raw Materials Stock", value: `${fmtNum(s.totalRMQty)} units (${fmtINR(s.totalRMValue)})` },
-                    { label: "Accessories Stock", value: `${fmtNum(s.totalAccQty)} units (${fmtINR(s.totalAccValue)})` },
+                    { label: "Raw Materials Stock", value: `${Object.entries(data.metadata?.quantitiesByCategory?.raw_material ?? {}).map(([unit, qty]) => `${fmtNum(Number(qty))} ${unit}`).join(" / ")} (${fmtINR(s.totalRMValue)})` },
+                    { label: "Accessories Stock", value: `${formatUnits(data.metadata?.quantitiesByCategory?.accessory)} units (${fmtINR(s.totalAccValue)})` },
                   ].map(r => (
                     <div key={r.label} className="flex justify-between text-xs border-b border-[var(--border-light)] pb-2">
                       <span className="text-[var(--text-muted)]">{r.label}</span>

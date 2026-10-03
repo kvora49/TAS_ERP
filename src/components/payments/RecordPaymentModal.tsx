@@ -1,4 +1,6 @@
 "use client";
+import { invalidateReports } from "@/lib/report-cache";
+
 
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -153,6 +155,7 @@ export default function RecordPaymentModal({
       return data;
     },
     onSuccess: () => {
+      void invalidateReports(queryClient);
       toast.success(direction === "received" ? "Payment received successfully" : "Payment recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["payments-list"] });
       queryClient.invalidateQueries({ queryKey: ["party-outstanding"] });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
-import { reconcileFinishedStock } from "@/lib/finished-stock-reconciliation";
+import { readReportRows, requireReportResults } from "@/lib/report-data";
 
 export async function GET(req: NextRequest) {
   const supabase = createClient();
@@ -17,13 +17,38 @@ export async function GET(req: NextRequest) {
   const bid = businessId;
 
   try {
-    // Run ground-truth finished stock reconciliation for current net stock
-    await reconcileFinishedStock(supabase, bid);
-    // 1. Master Brands (to map brand names safely without nested PostgREST join failures)
-    const { data: brandsData } = await supabase
+    const [brandsResult, godownsResult, finishedRawResult, rawMaterialsRawResult] = await Promise.all([
+      readReportRows(supabase
       .from("brands")
       .select("id, name")
-      .eq("business_id", bid);
+      .eq("business_id", bid).order("id")),
+      readReportRows(supabase
+      .from("godowns")
+      .select("id, name, address, code")
+      .eq("business_id", bid).order("id")),
+      readReportRows(supabase
+      .from("finished_stock")
+      .select(`
+        id, godown_id, total_quantity, total_value, cost_per_piece, size_quantities, design_id, colour_id,
+        design:designs(id, name, design_number, sale_price, brand_id),
+        colour:design_colours(id, colour_name),
+        godown:godowns(id, name)
+      `)
+      .eq("business_id", bid).order("id")),
+      readReportRows(supabase
+      .from("raw_material_current_stock")
+      .select(`
+        id, godown_id, current_stock, unit_cost, stock_value,
+        godown:godowns(id, name),
+        material_type:raw_material_types(id, name, category, unit, reorder_level)
+      `)
+      .eq("business_id", bid).order("id")),
+    ]);
+    requireReportResults([brandsResult, godownsResult, finishedRawResult, rawMaterialsRawResult]);
+    // Reports read recorded stock only; reconciliation is a separate controlled operation.
+    // 1. Master Brands (to map brand names safely without nested PostgREST join failures)
+    
+    const brandsData = brandsResult.data;
 
     const brandMap: Record<string, string> = {};
     (brandsData ?? []).forEach((b: any) => {
@@ -31,10 +56,9 @@ export async function GET(req: NextRequest) {
     });
 
     // 2. Master Godowns (Correct column: address, code)
-    const { data: godownsData, error: godownsErr } = await supabase
-      .from("godowns")
-      .select("id, name, address, code")
-      .eq("business_id", bid);
+    
+    const godownsData = godownsResult.data;
+    const godownsErr = godownsResult.error;
 
     if (godownsErr) {
       console.error("[reports/inventory] Godowns query error:", godownsErr);
@@ -43,29 +67,18 @@ export async function GET(req: NextRequest) {
     const godownsList = godownsData ?? [];
 
     // 3. Finished Stock with Design Prices (Correct column: sale_price without non-existent sample_cost)
-    const { data: finishedRawData, error: fgErr } = await supabase
-      .from("finished_stock")
-      .select(`
-        id, godown_id, total_quantity, total_value, cost_per_piece, size_quantities, design_id, colour_id,
-        design:designs(id, name, design_number, sale_price, brand_id),
-        colour:design_colours(id, colour_name),
-        godown:godowns(id, name)
-      `)
-      .eq("business_id", bid);
+    
+    const finishedRawData = finishedRawResult.data;
+    const fgErr = finishedRawResult.error;
 
     if (fgErr) {
       console.error("[reports/inventory] Finished stock query error:", fgErr);
     }
 
     // 4. Raw Material Current Stock with Unit Cost
-    const { data: rawMaterialsRawData, error: rmErr } = await supabase
-      .from("raw_material_current_stock")
-      .select(`
-        id, godown_id, current_stock, unit_cost, stock_value,
-        godown:godowns(id, name),
-        material_type:raw_material_types(id, name, category, unit, reorder_level)
-      `)
-      .eq("business_id", bid);
+    
+    const rawMaterialsRawData = rawMaterialsRawResult.data;
+    const rmErr = rawMaterialsRawResult.error;
 
     if (rmErr) {
       console.error("[reports/inventory] Raw material stock query error:", rmErr);
@@ -83,6 +96,7 @@ export async function GET(req: NextRequest) {
     // Apply brand filtering
     if (brandId && brandId !== "all") {
       finishedRaw = finishedRaw.filter((s: any) => s.design?.brand_id === brandId);
+      rawMaterialsRaw = []; // Raw stock has no supported brand attribution.
     }
 
     // Apply stock status filtering
@@ -91,6 +105,7 @@ export async function GET(req: NextRequest) {
         finishedRaw = finishedRaw.filter((s: any) => Number(s.total_quantity ?? 0) <= 0);
         rawMaterialsRaw = rawMaterialsRaw.filter((r: any) => Number(r.current_stock ?? 0) <= 0);
       } else if (stockStatus === "low_stock") {
+        finishedRaw = []; // Finished-goods reorder thresholds are not recorded.
         rawMaterialsRaw = rawMaterialsRaw.filter((r: any) => {
           const stock = Number(r.current_stock ?? 0);
           const reorder = Number(r.material_type?.reorder_level ?? 0);
@@ -103,11 +118,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Compute Finished Goods items with valuation fallback
-    const finishedItems = finishedRaw.map((s: any) => {
+    let finishedItems = finishedRaw.map((s: any) => {
       const qty = Number(s.total_quantity ?? 0);
       const costPerPiece = Number(s.cost_per_piece || 0);
       const salePrice = Number(s.design?.sale_price || 0);
-      const unitCost = costPerPiece > 0 ? costPerPiece : (salePrice > 0 ? Math.round(salePrice * 0.6) : 0);
+      const unitCost = costPerPiece;
       const val = Number(s.total_value || 0) > 0 ? Number(s.total_value) : qty * unitCost;
       const brandName = s.design?.brand_id ? (brandMap[s.design.brand_id] ?? "Default") : "Default";
       return {
@@ -120,7 +135,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Compute Raw Material items with valuation fallback
-    const rawItems = rawMaterialsRaw.map((r: any) => {
+    let rawItems = rawMaterialsRaw.map((r: any) => {
       const qty = Number(r.current_stock ?? 0);
       const unitCost = Number(r.unit_cost ?? 0);
       const val = Number(r.stock_value ?? 0) > 0 ? Number(r.stock_value) : qty * unitCost;
@@ -135,6 +150,15 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    if (category === "finished_goods") rawItems = [];
+    if (category === "raw_material") { finishedItems = []; rawItems = rawItems.filter(r => !r.isAcc); }
+    if (category === "accessory") { finishedItems = []; rawItems = rawItems.filter(r => r.isAcc); }
+    const units: Record<string, number> = {};
+    for (const item of finishedItems) units.pcs = (units.pcs || 0) + item.qty;
+    for (const item of rawItems) { const unit = (item.material_type?.unit || "Unknown unit").trim().toLowerCase(); units[unit] = (units[unit] || 0) + item.qty; }
+    const quantitiesByCategory: Record<string, Record<string, number>> = { finished_goods: { pcs: finishedItems.reduce((sum, item) => sum + item.qty, 0) }, raw_material: {}, accessory: {} };
+    for (const item of rawItems) { const bucket = quantitiesByCategory[item.isAcc ? "accessory" : "raw_material"], unit = (item.material_type?.unit || "Unknown unit").trim().toLowerCase(); bucket[unit] = (bucket[unit] || 0) + item.qty; }
+    const metadata = { quantitiesByCategory, basis: "Current recorded stock snapshot", asOf: new Date().toISOString(), historical: false, quantitiesByUnit: units, missingCostCount: [...finishedItems, ...rawItems].filter(r => r.qty > 0 && r.val <= 0).length, note: "Missing costs are excluded from recorded value. Bill-type ownership is unavailable. Brand filters exclude unattributed raw stock; low-stock scope uses recorded raw reorder thresholds only." };
     const totalFGQty = finishedItems.reduce((s, r) => s + r.qty, 0);
     const totalFGValue = finishedItems.reduce((s, r) => s + r.val, 0);
 
@@ -144,7 +168,7 @@ export async function GET(req: NextRequest) {
     const totalAccQty = rawItems.filter(r => r.isAcc).reduce((s, r) => s + r.qty, 0);
     const totalAccValue = rawItems.filter(r => r.isAcc).reduce((s, r) => s + r.val, 0);
 
-    const grandTotalQty = totalFGQty + totalRMQty + totalAccQty;
+    const grandTotalQty = Object.keys(units).length === 1 ? Object.values(units)[0] : null;
     const grandTotalValue = totalFGValue + totalRMValue + totalAccValue;
 
     // ── TAB: VALUATION ──
@@ -207,33 +231,11 @@ export async function GET(req: NextRequest) {
         return acc;
       }, {});
 
-      // Calculate Kaccha vs Pakka purchase ratio to derive valuation split
-      const [rmPurchasesRes, fgPurchasesRes] = await Promise.all([
-        supabase.from("raw_material_purchases").select("grand_total, gst_type").eq("business_id", bid).neq("status", "cancelled").is("deleted_at", null),
-        supabase.from("purchase_bills").select("grand_total, bill_type").eq("business_id", bid).neq("status", "cancelled"),
-      ]);
-
-      const rmPurchases = rmPurchasesRes.data ?? [];
-      const fgPurchases = fgPurchasesRes.data ?? [];
-
-      const kachaPurchaseVal = rmPurchases.filter(p => p.gst_type === "without_gst").reduce((s, p) => s + Number(p.grand_total), 0) +
-        fgPurchases.filter(p => p.bill_type === "kacha").reduce((s, p) => s + Number(p.grand_total), 0);
-
-      const pakkaPurchaseVal = rmPurchases.filter(p => p.gst_type !== "without_gst").reduce((s, p) => s + Number(p.grand_total), 0) +
-        fgPurchases.filter(p => p.bill_type === "pakka" || !p.bill_type).reduce((s, p) => s + Number(p.grand_total), 0);
-
-      const totalPurchaseVal = kachaPurchaseVal + pakkaPurchaseVal;
-      const kachaRatio = totalPurchaseVal > 0 ? kachaPurchaseVal / totalPurchaseVal : 0;
-      const pakkaRatio = totalPurchaseVal > 0 ? pakkaPurchaseVal / totalPurchaseVal : 1;
-
-      const kachaStockValue = Math.round(grandTotalValue * kachaRatio);
-      const pakkaStockValue = grandTotalValue - kachaStockValue;
-
-      let effectiveTotalValue = grandTotalValue;
-      if (billType === "kacha") effectiveTotalValue = kachaStockValue;
-      else if (billType === "pakka") effectiveTotalValue = pakkaStockValue;
-
+      // Stock ownership cannot be inferred from unrelated invoice proportions.
+      const kachaStockValue = null, pakkaStockValue = null;
+      const effectiveTotalValue = grandTotalValue;
       return NextResponse.json({
+        metadata,
         tab,
         category,
         bill_type: billType ?? "all",
@@ -266,7 +268,7 @@ export async function GET(req: NextRequest) {
         fg_qty: number; fg_value: number;
         rm_qty: number; rm_value: number;
         acc_qty: number; acc_value: number;
-        qty: number; value: number;
+        qty: number; value: number; raw_quantities?: Record<string, number>; accessory_quantities?: Record<string, number>;
       }> = {};
 
       // Seed all active godowns from Master Data
@@ -316,13 +318,17 @@ export async function GET(req: NextRequest) {
           godownMap[gid].rm_qty += r.qty;
           godownMap[gid].rm_value += r.val;
         }
+        const unit = (r.material_type?.unit || "Unknown unit").trim().toLowerCase();
+        const quantities = r.isAcc ? (godownMap[gid].accessory_quantities ||= {}) : (godownMap[gid].raw_quantities ||= {});
+        quantities[unit] = (quantities[unit] || 0) + r.qty;
         godownMap[gid].qty += r.qty;
         godownMap[gid].value += r.val;
       });
 
-      const rows = Object.values(godownMap).sort((a, b) => b.value - a.value);
+      const rows = Object.values(godownMap).map(row => ({ ...row, rm_qty: Object.keys(row.raw_quantities || {}).length > 1 ? null : row.rm_qty, acc_qty: Object.keys(row.accessory_quantities || {}).length > 1 ? null : row.acc_qty, qty: null })).sort((a, b) => b.value - a.value);
 
       return NextResponse.json({
+        metadata,
         tab,
         category,
         rows,
@@ -350,9 +356,12 @@ export async function GET(req: NextRequest) {
         quantity: s.qty,
         cost_per_piece: s.unitCost,
         value: s.val,
+        size_quantities: s.size_quantities,
+        valuation_status: s.qty > 0 && s.val <= 0 ? "Missing cost" : "Recorded",
       }));
 
       return NextResponse.json({
+        metadata,
         tab,
         category,
         rows,

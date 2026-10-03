@@ -1,7 +1,13 @@
 "use client";
 
+const showPercent = (value: number | null | undefined) => value == null ? "Not available" : `${Number(value).toFixed(2)}%`;
+
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import { AnimatePresence } from "framer-motion";
 import {
   Factory, Users, Package, CheckCircle2, Zap, Wallet, RotateCcw,
@@ -70,20 +76,20 @@ const DEFECT_COLORS = ["#3B82F6", "#EF4444", "#F59E0B", "#8B5CF6", "#10B981", "#
 
 export default function ProductionReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeMainTab, setActiveMainTab] = useState<ProdMainTab>("overview");
-  const [overviewSubTab, setOverviewSubTab] = useState<OverviewSubTab>("all");
-  const [workerSubTab, setWorkerSubTab] = useState<WorkerSubTab>("summary");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeMainTab, setActiveMainTab] = useReportState<ProdMainTab>("overview", "tab", ["overview","worker_job_work"]);
+  const [overviewSubTab, setOverviewSubTab] = useReportState<OverviewSubTab>("all", "overview_view", ["all","stage_analysis","rework_damage","cost_analysis","lot_timeline","reconciliation"]);
+  const [workerSubTab, setWorkerSubTab] = useReportState<WorkerSubTab>("summary", "worker_view", ["summary","job_register","stage_breakdown","efficiency","payments"]);
 
   // Filters
-  const [workerId, setWorkerId] = useState<string>("all");
-  const [stageName, setStageName] = useState<string>("all");
-  const [lotStatus, setLotStatus] = useState<string>("all");
-  const [brandId, setBrandId] = useState<string>("all");
-  const [designId, setDesignId] = useState<string>("all");
-  const [paymentStatus, setPaymentStatus] = useState<string>("all");
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>("all");
+  const [workerId, setWorkerId] = useReportState<string>("all", "worker_id");
+  const [stageName, setStageName] = useReportState<string>("all", "stage_name");
+  const [lotStatus, setLotStatus] = useReportState<string>("all", "status");
+  const [brandId, setBrandId] = useReportState<string>("all", "brand_id");
+  const [designId, setDesignId] = useReportState<string>("all", "design_id");
+  const [paymentStatus, setPaymentStatus] = useReportState<string>("all", "payment_status");
+  const [selectedWorkerId, setSelectedWorkerId] = useReportState<string>("all", "selected_worker_id");
   const [expandedLotId, setExpandedLotId] = useState<string | null>(null);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
@@ -179,6 +185,7 @@ export default function ProductionReportsPage() {
       const params = new URLSearchParams({ from, to });
       if (workerId !== "all") params.set("worker_id", workerId);
       if (stageName !== "all") params.set("stage_name", stageName);
+      if (selectedWorkerId !== "all") params.set("selected_worker_id", selectedWorkerId);
       if (paymentStatus !== "all") params.set("payment_status", paymentStatus);
 
       const res = await fetch(`/api/reports/worker-job-work?${params}`);
@@ -194,7 +201,7 @@ export default function ProductionReportsPage() {
     setTo(filters.to);
     setExpandedLotId(null);
     setExpandedJobId(null);
-  }, []);
+  }, [setFrom, setTo]);
 
   const handleExportExcel = useCallback(() => {
     if (activeMainTab === "overview" && prodQuery.data) {
@@ -310,6 +317,8 @@ export default function ProductionReportsPage() {
   return (
     <PullToRefresh onRefresh={async () => { await refetch(); }}>
       <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Production & Workers"
       infoTooltip="Track all production lots, stage progress, output, rework, damage, production cost, worker performance and job-work charges."
       breadcrumbs={["Reports", "Production & Workers", activeMainTab === "overview" ? "Production Overview" : "Worker Job Work"]}
@@ -388,6 +397,7 @@ export default function ProductionReportsPage() {
         isEmpty={false}
       >
         {/* ═════════════════════════════════════════════════════════════════════ */}
+        {(activeMainTab === "overview" ? pData : wData)?.metadata && <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] rounded-lg p-3">{(activeMainTab === "overview" ? pData : wData).metadata.note} {(activeMainTab === "overview" ? pData : wData).metadata.wipBasis}</p>}
         {/* SECTION 1: PRODUCTION OVERVIEW */}
         {/* ═════════════════════════════════════════════════════════════════════ */}
         {activeMainTab === "overview" && pData && (
@@ -492,7 +502,7 @@ export default function ProductionReportsPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Overall Production Efficiency</p>
-                  <p className="text-base font-black font-mono text-emerald-600">{(pData.summary?.overallEfficiency ?? 96.12).toFixed(2)}%</p>
+                  <p className="text-base font-black font-mono text-emerald-600">{showPercent(pData.summary?.overallEfficiency)}</p>
                   <p className="text-[10px] text-[var(--text-faint)]">(Final Output / Input)</p>
                 </div>
               </div>
@@ -523,8 +533,8 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(pData.lots ?? []).length} lots</span>
                   </div>
 
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                           <th className="py-2.5 px-3">Date</th>
@@ -612,11 +622,11 @@ export default function ProductionReportsPage() {
                           </React.Fragment>
                         ))}
                       </tbody>
-                    </table>
+                    </ReportTable>
                   </div>
 
                   {/* Mobile Lot Cards */}
-                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                  <div className="hidden divide-y divide-[var(--border-light)]">
                     {(pData.lots ?? []).length === 0 ? (
                       <div className="p-4 text-center text-xs text-[var(--text-muted)]">No production lots found.</div>
                     ) : (
@@ -743,7 +753,7 @@ export default function ProductionReportsPage() {
                       </h3>
                     </div>
                     <div className="p-4 space-y-2.5">
-                      <table className="w-full text-xs text-left">
+                      <ReportTable className="w-full text-xs text-left">
                         <thead>
                           <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                             <th>Cost Type</th>
@@ -767,7 +777,7 @@ export default function ProductionReportsPage() {
                             <td className="py-2 text-right font-mono">100.00%</td>
                           </tr>
                         </tfoot>
-                      </table>
+                      </ReportTable>
                     </div>
                   </div>
                 </div>
@@ -781,7 +791,7 @@ export default function ProductionReportsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2 text-center text-xs">
                       <div className="bg-[var(--table-header-bg)] border border-[var(--border)] px-3 py-2 rounded-xl min-w-[100px]">
                         <p className="text-[10px] text-[var(--text-muted)] font-bold">Opening WIP</p>
-                        <p className="text-sm font-bold font-mono text-[var(--text-primary)]">{pData.reconciliation.opening_wip} pcs</p>
+                        <p className="text-sm font-bold font-mono text-[var(--text-primary)]">{pData.reconciliation.opening_wip == null ? "Not available" : `${pData.reconciliation.opening_wip} pcs`}</p>
                       </div>
                       <span className="font-black text-[var(--text-muted)]">+</span>
                       <div className="bg-[var(--table-header-bg)] border border-[var(--border)] px-3 py-2 rounded-xl min-w-[100px]">
@@ -811,7 +821,7 @@ export default function ProductionReportsPage() {
                       <span className="font-black text-[var(--text-muted)]">=</span>
                       <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl min-w-[100px]">
                         <p className="text-[10px] text-emerald-600 font-bold uppercase">Closing WIP</p>
-                        <p className="text-sm font-black font-mono text-emerald-600">{fmtNum(pData.reconciliation.closing_wip)} pcs</p>
+                        <p className="text-sm font-black font-mono text-emerald-600">{pData.reconciliation.closing_wip == null ? "Not available" : `${fmtNum(pData.reconciliation.closing_wip)} pcs`}</p>
                       </div>
                     </div>
                   </div>
@@ -828,7 +838,7 @@ export default function ProductionReportsPage() {
                     </h3>
                   </div>
                   <div className="p-3">
-                    <table className="w-full text-left text-xs">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                           <th>Stage</th>
@@ -847,11 +857,11 @@ export default function ProductionReportsPage() {
                             <td className="text-right font-mono font-bold text-emerald-600">{fmtNum(s.output_qty)}</td>
                             <td className="text-right font-mono text-amber-600">{s.rework_qty > 0 ? s.rework_qty : 0}</td>
                             <td className="text-right font-mono text-rose-600">{s.damage_qty > 0 ? s.damage_qty : 0}</td>
-                            <td className="text-right font-mono font-bold text-[var(--primary)]">{s.efficiency}%</td>
+                            <td className="text-right font-mono font-bold text-[var(--primary)]">{showPercent(s.efficiency == null ? null : Number(s.efficiency))}</td>
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </ReportTable>
                   </div>
                 </div>
 
@@ -912,7 +922,7 @@ export default function ProductionReportsPage() {
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Production Stage Analysis</h3>
                 </div>
                 <div className="p-3">
-                  <table className="w-full text-left text-xs">
+                  <ReportTable className="w-full text-left text-xs">
                     <thead>
                       <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                         <th>Stage</th><th className="text-right">Input</th><th className="text-right">Output</th>
@@ -927,11 +937,11 @@ export default function ProductionReportsPage() {
                           <td className="text-right font-mono font-bold text-emerald-600">{fmtNum(s.output_qty)}</td>
                           <td className="text-right font-mono text-amber-600">{s.rework_qty > 0 ? s.rework_qty : 0}</td>
                           <td className="text-right font-mono text-rose-600">{s.damage_qty > 0 ? s.damage_qty : 0}</td>
-                          <td className="text-right font-mono font-bold text-[var(--primary)]">{s.efficiency}%</td>
+                          <td className="text-right font-mono font-bold text-[var(--primary)]">{showPercent(s.efficiency == null ? null : Number(s.efficiency))}</td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </ReportTable>
                 </div>
               </div>
             )}
@@ -980,7 +990,7 @@ export default function ProductionReportsPage() {
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Production Cost Analysis</h3>
                 </div>
                 <div className="p-4">
-                  <table className="w-full text-xs text-left">
+                  <ReportTable className="w-full text-xs text-left">
                     <thead>
                       <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                         <th>Cost Type</th><th className="text-right">Amount (Rs.)</th><th className="text-right">% of Total</th>
@@ -1002,7 +1012,7 @@ export default function ProductionReportsPage() {
                         <td className="py-2 text-right font-mono">100.00%</td>
                       </tr>
                     </tfoot>
-                  </table>
+                  </ReportTable>
                 </div>
               </div>
             )}
@@ -1039,13 +1049,13 @@ export default function ProductionReportsPage() {
                 <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Production Reconciliation (All Lots)</h3>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-center text-xs">
                   {[
-                    { label: "Opening WIP", val: `${pData.reconciliation.opening_wip} pcs`, color: "text-[var(--text-primary)]" },
+                    { label: "Opening WIP", val: `${pData.reconciliation.opening_wip == null ? "Not available" : `${pData.reconciliation.opening_wip} pcs`}`, color: "text-[var(--text-primary)]" },
                     { label: "+ Production Input", val: `${fmtNum(pData.reconciliation.production_input)} pcs`, color: "text-blue-600" },
                     { label: "+ Reworked", val: `${pData.reconciliation.reworked_recovered} pcs`, color: "text-amber-600" },
                     { label: "− Final Output", val: `${fmtNum(pData.reconciliation.final_good_output)} pcs`, color: "text-emerald-600" },
                     { label: "− Damage", val: `${pData.reconciliation.damage_rejection} pcs`, color: "text-rose-600" },
                     { label: "− Wastage", val: `${pData.reconciliation.wastage} pcs`, color: "text-[var(--text-muted)]" },
-                    { label: "= Closing WIP", val: `${fmtNum(pData.reconciliation.closing_wip)} pcs`, color: "text-emerald-600" },
+                    { label: "Reviewed Closing WIP", val: `${pData.reconciliation.closing_wip == null ? "Not available" : `${fmtNum(pData.reconciliation.closing_wip)} pcs`}`, color: "text-emerald-600" },
                   ].map(item => (
                     <div key={item.label} className="bg-[var(--table-header-bg)] border border-[var(--border)] px-3 py-2 rounded-xl min-w-[100px]">
                       <p className="text-[10px] text-[var(--text-muted)] font-bold">{item.label}</p>
@@ -1152,8 +1162,8 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(wData.workers ?? []).length} workers</span>
                   </div>
 
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                           <th className="py-2.5 px-3">Worker</th>
@@ -1179,7 +1189,7 @@ export default function ProductionReportsPage() {
                             <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600">{fmtNum(w.qty_out)}</td>
                             <td className="py-2 px-3 text-right font-mono text-amber-600">{w.rework > 0 ? w.rework : 0}</td>
                             <td className="py-2 px-3 text-right font-mono text-rose-600">{w.damage > 0 ? w.damage : 0}</td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-[var(--primary)]">{w.efficiency.toFixed(2)}%</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-[var(--primary)]">{showPercent(w.efficiency)}</td>
                             <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-primary)]">{fmtINR(w.amount_due)}</td>
                             <td className="py-2 px-3 text-right font-mono text-emerald-600">{fmtINR(w.amount_paid)}</td>
                             <td className="py-2 px-3 text-right font-mono font-black text-rose-600">{fmtINR(w.outstanding)}</td>
@@ -1193,17 +1203,17 @@ export default function ProductionReportsPage() {
                           <td className="py-3 px-3 text-right font-mono text-[var(--text-muted)]">{fmtNum(wData.summary?.totalQtyIn)}</td>
                           <td className="py-3 px-3 text-right font-mono text-emerald-600">{fmtNum(wData.summary?.totalQtyOut)}</td>
                           <td colSpan={2}></td>
-                          <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{(wData.summary?.avgEfficiency ?? 96.71).toFixed(2)}%</td>
+                          <td className="py-3 px-3 text-right font-mono text-[var(--primary)]">{showPercent(wData.summary?.avgEfficiency)}</td>
                           <td className="py-3 px-3 text-right font-mono font-bold text-[var(--text-primary)]">{fmtINR(wData.summary?.totalJobWorkAmount)}</td>
                           <td className="py-3 px-3 text-right font-mono text-emerald-600">{fmtINR(wData.summary?.totalPaid)}</td>
                           <td className="py-3 px-3 text-right font-mono font-black text-rose-600">{fmtINR(wData.summary?.totalOutstanding)}</td>
                         </tr>
                       </tfoot>
-                    </table>
+                    </ReportTable>
                   </div>
 
                   {/* Mobile Worker Summary Cards */}
-                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                  <div className="hidden divide-y divide-[var(--border-light)]">
                     {(wData.workers ?? []).length === 0 ? (
                       <div className="p-4 text-center text-xs text-[var(--text-muted)]">No worker records found.</div>
                     ) : (
@@ -1212,7 +1222,7 @@ export default function ProductionReportsPage() {
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-xs text-[var(--text-primary)]">{w.name}</span>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--table-header-bg)] text-[var(--primary)] border border-[var(--border)]">
-                              {w.efficiency.toFixed(1)}% Eff.
+                              {showPercent(w.efficiency)} Eff.
                             </span>
                           </div>
                           <p className="text-[11px] text-[var(--text-muted)] truncate">{w.stages || "All stages"}</p>
@@ -1251,8 +1261,8 @@ export default function ProductionReportsPage() {
                     <span className="text-xs text-[var(--text-muted)]">{(wData.jobWiseRegister ?? []).length} job entries</span>
                   </div>
 
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                           <th className="py-2.5 px-3">Date</th>
@@ -1296,11 +1306,11 @@ export default function ProductionReportsPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </ReportTable>
                   </div>
 
                   {/* Mobile Job Wise Cards */}
-                  <div className="md:hidden divide-y divide-[var(--border-light)]">
+                  <div className="hidden divide-y divide-[var(--border-light)]">
                     {(wData.jobWiseRegister ?? []).length === 0 ? (
                       <div className="p-4 text-center text-xs text-[var(--text-muted)]">No job entries found.</div>
                     ) : (
@@ -1351,7 +1361,7 @@ export default function ProductionReportsPage() {
                       </h3>
                     </div>
                     <div className="p-3 overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                             <th>Worker</th>
@@ -1372,7 +1382,7 @@ export default function ProductionReportsPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </ReportTable>
                     </div>
                   </div>
 
@@ -1384,7 +1394,7 @@ export default function ProductionReportsPage() {
                       </h3>
                     </div>
                     <div className="p-3 overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <ReportTable className="w-full text-left text-xs">
                         <thead>
                           <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                             <th>Type</th>
@@ -1405,7 +1415,7 @@ export default function ProductionReportsPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </ReportTable>
                     </div>
                   </div>
                 </div>
@@ -1434,7 +1444,7 @@ export default function ProductionReportsPage() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <ReportTable className="w-full text-left text-xs">
                       <thead>
                         <tr className="text-[var(--text-muted)] font-bold uppercase text-[10px] border-b border-[var(--border-light)] pb-1">
                           <th>Stage</th>
@@ -1455,7 +1465,7 @@ export default function ProductionReportsPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </ReportTable>
                   </div>
 
                   <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-xl p-3 flex justify-between items-center text-xs">
@@ -1483,22 +1493,22 @@ export default function ProductionReportsPage() {
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-center text-xs">
                     <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-                      <p className="text-lg font-black font-mono text-emerald-600">{(wData.efficiencyGauges?.overall ?? 96.71).toFixed(2)}%</p>
+                      <p className="text-lg font-black font-mono text-emerald-600">{showPercent(wData.efficiencyGauges?.overall)}</p>
                       <p className="text-[10px] text-emerald-600 font-bold uppercase mt-0.5">Overall Efficiency</p>
                       <p className="text-[9px] text-[var(--text-faint)]">(Good Output / Input)</p>
                     </div>
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                      <p className="text-lg font-black font-mono text-amber-600">0.66%</p>
+                      <p className="text-lg font-black font-mono text-amber-600">{showPercent(wData.efficiencyGauges?.rework_pct)}</p>
                       <p className="text-[10px] text-amber-600 font-bold uppercase mt-0.5">Rework %</p>
                       <p className="text-[9px] text-[var(--text-faint)]">(Rework / Input)</p>
                     </div>
                     <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
-                      <p className="text-lg font-black font-mono text-rose-600">1.40%</p>
+                      <p className="text-lg font-black font-mono text-rose-600">{showPercent(wData.efficiencyGauges?.damage_pct)}</p>
                       <p className="text-[10px] text-rose-600 font-bold uppercase mt-0.5">Damage %</p>
                       <p className="text-[9px] text-[var(--text-faint)]">(Damage / Input)</p>
                     </div>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                      <p className="text-lg font-black font-mono text-blue-600">1.23%</p>
+                      <p className="text-lg font-black font-mono text-blue-600">{showPercent(wData.efficiencyGauges?.wastage_pct)}</p>
                       <p className="text-[10px] text-blue-600 font-bold uppercase mt-0.5">Wastage %</p>
                       <p className="text-[9px] text-[var(--text-faint)]">(Wastage / Input)</p>
                     </div>

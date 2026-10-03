@@ -1,5 +1,7 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateReports } from "@/lib/report-cache";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,6 +53,7 @@ export function RecordPaymentModal({
   purchase,
   onSuccess,
 }: RecordPaymentModalProps) {
+  const queryClient = useQueryClient();
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
 
@@ -150,6 +153,7 @@ export function RecordPaymentModal({
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to record payment");
 
+      void invalidateReports(queryClient);
       toast.success("Payment recorded successfully!");
       onSuccess();
       onClose();

@@ -302,7 +302,7 @@ export function NotificationPopover() {
         {/* Header */}
         <div className="p-3.5 border-b border-[var(--border-light)] flex items-center justify-between bg-[var(--page-bg)] select-none">
           <div className="flex items-center gap-2">
-            <Bell className="size-4 text-[var(--primary)]" />
+            <img src="/icons/icon-192x192.png" alt="TAS ERP" className="w-5 h-5 rounded-md object-contain shadow-xs" />
             <span className="text-sm font-bold text-[var(--text-primary)]">
               Notifications
             </span>
@@ -369,8 +369,11 @@ export function NotificationPopover() {
                   !n.is_read ? "bg-[var(--primary-light)]/30 font-medium" : ""
                 }`}
               >
-                <div className="p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border-light)] shrink-0 mt-0.5">
+                <div className="relative p-2 rounded-lg bg-[var(--page-bg)] border border-[var(--border-light)] shrink-0 mt-0.5">
                   {getNotificationIcon(n.rule_type)}
+                  <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full overflow-hidden border border-[var(--card-bg)] shadow-xs">
+                    <img src="/icons/icon-192x192.png" alt="TAS" className="w-full h-full object-cover" />
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">

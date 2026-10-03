@@ -1,7 +1,12 @@
 "use client";
 
+import PaymentPlanner from "@/components/reports/PaymentPlanner";
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import {
   ArrowDownLeft, ArrowUpRight, Wallet, CreditCard, Banknote, Building2, QrCode,
   FileText, Clock, RotateCcw, ChevronDown, ChevronRight, Eye,
@@ -17,6 +22,8 @@ import { cn } from "@/lib/utils";
 import FilterSelect from "@/components/reports/filters/FilterSelect";
 import BillTypeFilter, { BillType } from "@/components/reports/BillTypeFilter";
 import ReportTabs from "@/components/reports/ReportTabs";
+import { useBanksList } from "@/hooks/queries/useMasterData";
+import { exportPaymentsPDF } from "@/lib/pdf/report-pdf-generator";
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
 
@@ -30,7 +37,7 @@ const TABS: { id: PayTab; label: string; icon: React.ReactNode }[] = [
   { id: "accounts", label: "Accounts", icon: <Building2 size={12} /> },
   { id: "cheques", label: "Cheques", icon: <FileText size={12} /> },
   { id: "advances", label: "Advances", icon: <Package size={12} /> },
-  { id: "transfers", label: "Transfers", icon: <ArrowLeftRight size={12} /> },
+  { id: "transfers", label: "Bank / UPI Vouchers", icon: <ArrowLeftRight size={12} /> },
   { id: "all_transactions", label: "All Transactions", icon: <Layers size={12} /> },
 ];
 
@@ -71,16 +78,16 @@ const ADV_SUB = [{ id: "customer", label: "Customer Advances" }, { id: "supplier
 
 export default function PaymentCollectionsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<PayTab>("receivables");
-  const [billType, setBillType] = useState<BillType>("all");
-  const [partyId, setPartyId] = useState("all");
-  const [accountId, setAccountId] = useState("all");
-  const [agingBucket, setAgingBucket] = useState("all");
-  const [direction, setDirection] = useState("all");
-  const [chequeSubTab, setChequeSubTab] = useState("received");
-  const [advSubTab, setAdvSubTab] = useState("customer");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<PayTab>("receivables", "tab", ["receivables","payables","receipts","payments","accounts","cheques","advances","transfers","all_transactions"]);
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [partyId, setPartyId] = useReportState<string>("all", "party_id");
+  const [accountId, setAccountId] = useReportState<string>("all", "account_id");
+  const [agingBucket, setAgingBucket] = useReportState<string>("all", "aging_bucket");
+  const [direction, setDirection] = useReportState<string>("all", "direction");
+  const [chequeSubTab, setChequeSubTab] = useReportState<string>("received", "cheque_view");
+  const [advSubTab, setAdvSubTab] = useReportState<string>("customer", "advance_view");
 
   // Parties list
   const { data: partiesData } = useQuery({
@@ -96,6 +103,15 @@ export default function PaymentCollectionsPage() {
     label: p.company_name ? `${p.company_name} (${p.name})` : p.name,
     value: p.id,
   }));
+
+  // Banks / Accounts list for filtering
+  const { data: banksData } = useBanksList();
+  const bankAccountOptions = useMemo(() => {
+    return (banksData?.accounts ?? []).map((a: any) => ({
+      label: `${a.name} (${(a.type || "").toUpperCase()})`,
+      value: a.id,
+    }));
+  }, [banksData]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report-payments-v2", from, to, activeTab, billType, partyId, accountId, agingBucket, direction],
@@ -116,12 +132,56 @@ export default function PaymentCollectionsPage() {
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
-  }, []);
+  }, [setFrom, setTo]);
 
   const s = data?.summary ?? {};
 
+  // Export handlers
+  const handleExportPDF = useCallback(() => {
+    if (!data) return;
+    exportPaymentsPDF(activeTab, data, { from, to });
+  }, [activeTab, data, from, to]);
+
   // Export handler
   const handleExport = useCallback(() => {
+    if (!data) return;
+    if (activeTab === "accounts") {
+      exportToExcel([
+        { key: "name", label: "Account", width: 28 },
+        { key: "type", label: "Type", width: 14 },
+        { key: "opening_balance", label: "Opening Balance", format: "currency", width: 20 },
+        { key: "received", label: "Received", format: "currency", width: 18 },
+        { key: "paid", label: "Paid", format: "currency", width: 18 },
+        { key: "closing_balance", label: "Closing Balance", format: "currency", width: 20 },
+      ], data.accounts ?? [], `accounts_${from}_${to}`);
+      return;
+    }
+    if (activeTab === "advances") {
+      exportToExcel([
+        { key: "advance_number", label: "Voucher No.", width: 18 },
+        { key: "date", label: "Date", format: "date", width: 14 },
+        { key: "party", label: "Party", width: 28 },
+        { key: "party_type", label: "Party Type", width: 14 },
+        { key: "amount", label: "Advance", format: "currency", width: 18 },
+        { key: "adjusted", label: "Adjusted to Date", format: "currency", width: 20 },
+        { key: "balance", label: "Remaining", format: "currency", width: 18 },
+        { key: "status", label: "Status", width: 14 },
+      ], [...(data.customerAdvances ?? []), ...(data.supplierAdvances ?? [])], `advances_${from}_${to}`);
+      return;
+    }
+    if (activeTab === "cheques") {
+      exportToExcel([
+        { key: "number", label: "Cheque No.", width: 18 },
+        { key: "date", label: "Entry Date", format: "date", width: 14 },
+        { key: "cheque_date", label: "Cheque Date", format: "date", width: 14 },
+        { key: "party", label: "Party", width: 28 },
+        { key: "bank", label: "Bank", width: 22 },
+        { key: "register", label: "Register", width: 14 },
+        { key: "amount", label: "Amount", format: "currency", width: 18 },
+        { key: "status", label: "Status", width: 14 },
+      ], [...(data.received ?? []).map((row: any) => ({ ...row, register: "Received" })), ...(data.issued ?? []).map((row: any) => ({ ...row, register: "Issued" }))], `cheques_${from}_${to}`);
+      return;
+    }
     if (!data?.rows?.length) return;
     if (activeTab === "receivables" || activeTab === "payables") {
       exportToExcel([
@@ -135,7 +195,38 @@ export default function PaymentCollectionsPage() {
         { key: "outstanding", label: "Outstanding (₹)", format: "currency", width: 18 },
         { key: "age_days", label: "Age (Days)", format: "number", width: 12 },
         { key: "status", label: "Status", width: 12 },
-      ], data.rows, `${activeTab}_${from}_${to}`);
+      ], data.rows.map((row: any) => ({ ...row, account: row.account ?? row.account_name })), `${activeTab}_${from}_${to}`);
+    } else if (activeTab === "all_transactions") {
+      exportToExcel([
+        { key: "number", label: "Voucher No.", width: 18 },
+        { key: "date", label: "Date", format: "date", width: 14 },
+        { key: "type", label: "Type", width: 14 },
+        { key: "party", label: "Party", width: 28 },
+        { key: "mode", label: "Mode", width: 14 },
+        { key: "from_account", label: "From Account", width: 22 },
+        { key: "to_account", label: "To Account", width: 22 },
+        { key: "debit", label: "Debit (₹)", format: "currency", width: 16 },
+        { key: "credit", label: "Credit (₹)", format: "currency", width: 16 },
+        { key: "amount", label: "Amount (₹)", format: "currency", width: 18 },
+        { key: "status", label: "Status", width: 14 },
+      ], data.rows.map((r: any) => ({
+        ...r,
+        number: r.number || r.voucher_no || "—",
+        from_account: r.from_account || (r.direction === "paid" ? (r.account || r.account_name) : (r.party || "—")),
+        to_account: r.to_account || (r.direction === "received" ? (r.account || r.account_name) : (r.party || "—")),
+      })), `all_transactions_${from}_${to}`);
+    } else if (activeTab === "transfers") {
+      exportToExcel([
+        { key: "number", label: "Ref No.", width: 18 },
+        { key: "date", label: "Date", format: "date", width: 14 },
+        { key: "direction", label: "Direction", width: 14 },
+        { key: "from_account", label: "From Account", width: 22 },
+        { key: "to_account", label: "To Account", width: 22 },
+        { key: "party", label: "Party", width: 28 },
+        { key: "mode", label: "Mode", width: 14 },
+        { key: "amount", label: "Amount (₹)", format: "currency", width: 18 },
+        { key: "status", label: "Status", width: 14 },
+      ], data.rows, `transfers_${from}_${to}`);
     } else {
       exportToExcel([
         { key: "number", label: "No.", width: 16 },
@@ -163,10 +254,13 @@ export default function PaymentCollectionsPage() {
 
   return (
     <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Payment & Collections"
       infoTooltip="Track all financial inflows and outflows — receivables, payables, receipts, payments, accounts, cheques, advances, and transfers."
       breadcrumbs={["Reports", "Payment & Collections"]}
       onApply={handleApply}
+      onExportPDF={handleExportPDF}
       onExportExcel={handleExport}
       extraFilters={
         <div className="flex flex-wrap items-center gap-3">
@@ -177,12 +271,12 @@ export default function PaymentCollectionsPage() {
             options={partyOptions}
             placeholder="All Parties"
           />
-          {(activeTab === "accounts") && (
+          {["accounts", "receipts", "payments", "transfers", "all_transactions"].includes(activeTab) && (
             <FilterSelect
               label="Account"
               value={accountId}
               onChange={setAccountId}
-              options={(data?.accountOptions ?? []).map((a: any) => ({ label: a.label, value: a.id }))}
+              options={bankAccountOptions.length > 0 ? bankAccountOptions : (data?.accountOptions ?? []).map((a: any) => ({ label: a.label, value: a.id }))}
               placeholder="All Accounts"
             />
           )}
@@ -260,6 +354,7 @@ export default function PaymentCollectionsPage() {
       >
         {data && (
           <div className="space-y-6">
+            {(activeTab === "receivables" || activeTab === "payables") && <PaymentPlanner rows={data.rows || []} direction={activeTab === "receivables" ? "received" : "paid"} cutoff={to} balance={s.cashBalance || 0} />}
 
             {/* ── RECEIVABLES ─────────────────────────────────────────── */}
             {activeTab === "receivables" && (
@@ -344,7 +439,7 @@ export default function PaymentCollectionsPage() {
                   {(data.topCustomers ?? []).length > 0 && (
                     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
                       <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Customers (Outstanding)</h3>
-                      <table className="w-full text-xs">
+                      <ReportTable className="w-full text-xs">
                         <thead>
                           <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="pb-2 text-left">Customer</th>
@@ -361,7 +456,7 @@ export default function PaymentCollectionsPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </ReportTable>
                     </div>
                   )}
 
@@ -495,7 +590,7 @@ export default function PaymentCollectionsPage() {
                   {(data.topSuppliers ?? []).length > 0 && (
                     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
                       <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Suppliers (Outstanding)</h3>
-                      <table className="w-full text-xs">
+                      <ReportTable className="w-full text-xs">
                         <thead>
                           <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                             <th className="pb-2 text-left">Supplier</th>
@@ -512,7 +607,7 @@ export default function PaymentCollectionsPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </ReportTable>
                     </div>
                   )}
                   <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
@@ -613,7 +708,7 @@ export default function PaymentCollectionsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
                       <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Customers (By Receipts)</h3>
-                      <table className="w-full text-xs">
+                      <ReportTable className="w-full text-xs">
                         <thead><tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                           <th className="pb-2 text-left">Customer</th>
                           <th className="pb-2 text-right">Received (₹)</th>
@@ -628,7 +723,7 @@ export default function PaymentCollectionsPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </ReportTable>
                     </div>
                   </div>
                 )}
@@ -686,7 +781,7 @@ export default function PaymentCollectionsPage() {
                 {(data.topSuppliers ?? []).length > 0 && (
                   <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Suppliers (By Payments)</h3>
-                    <table className="w-full text-xs">
+                    <ReportTable className="w-full text-xs">
                       <thead><tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                         <th className="pb-2 text-left">Supplier</th>
                         <th className="pb-2 text-right">Total Paid (₹)</th>
@@ -701,7 +796,7 @@ export default function PaymentCollectionsPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </ReportTable>
                   </div>
                 )}
               </>
@@ -711,9 +806,9 @@ export default function PaymentCollectionsPage() {
             {activeTab === "accounts" && (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
-                  <ReportKPICard label="Total Cash in Hand" value={(data.accounts ?? []).filter((a: any) => a.type === "cash").reduce((s: number, a: any) => s + a.current_balance, 0)} color="emerald" icon={<Banknote size={15} />} />
-                  <ReportKPICard label="Total Bank Balance" value={(data.accounts ?? []).filter((a: any) => a.type === "bank").reduce((s: number, a: any) => s + a.current_balance, 0)} color="blue" icon={<Building2 size={15} />} />
-                  <ReportKPICard label="Total UPI Balance" value={(data.accounts ?? []).filter((a: any) => a.type === "upi").reduce((s: number, a: any) => s + a.current_balance, 0)} color="violet" icon={<QrCode size={15} />} />
+                  <ReportKPICard label="Total Cash in Hand" value={s.totalCash ?? 0} color="emerald" icon={<Banknote size={15} />} />
+                  <ReportKPICard label="Total Bank Balance" value={s.totalBank ?? 0} color="blue" icon={<Building2 size={15} />} />
+                  <ReportKPICard label="Total UPI Balance" value={s.totalUPI ?? 0} color="violet" icon={<QrCode size={15} />} />
                   <ReportKPICard label="Total Accounts Balance" value={s.totalBalance ?? 0} color="indigo" icon={<Wallet size={15} />} />
                   <ReportKPICard label="Net Transfers" value={s.netTransfers ?? 0} color="amber" icon={<ArrowLeftRight size={15} />} />
                 </div>
@@ -724,8 +819,8 @@ export default function PaymentCollectionsPage() {
                       <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ACCOUNT SUMMARY</h3>
                       </div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               <th className="py-2.5 px-4">Account</th>
@@ -758,10 +853,10 @@ export default function PaymentCollectionsPage() {
                               <td className="py-3 px-4 text-right font-mono font-bold">{fmtINR(s.totalBalance ?? 0)}</td>
                             </tr>
                           </tfoot>
-                        </table>
+                        </ReportTable>
                       </div>
                       {/* Mobile Cards for Account Summary */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                      <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
                         {(data.accounts ?? []).map((a: any) => (
                           <div key={a.id} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                             <div className="flex items-center justify-between">
@@ -798,8 +893,8 @@ export default function PaymentCollectionsPage() {
                         <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                           <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ACCOUNT TRANSACTIONS</h3>
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
-                          <table className="w-full text-left text-xs">
+                        <div className="overflow-x-auto">
+                          <ReportTable className="w-full text-left text-xs">
                             <thead>
                               <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                 <th className="py-2.5 px-4">Date</th>
@@ -812,7 +907,7 @@ export default function PaymentCollectionsPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-                              {(data.txRows ?? []).slice(0, 25).map((r: any, idx: number) => (
+                              {(data.txRows ?? []).map((r: any, idx: number) => (
                                 <tr key={idx} className="hover:bg-[var(--table-row-hover)] h-10">
                                   <td className="py-2 px-4 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
                                   <td className="py-2 px-4 font-mono font-bold text-[var(--primary)]">{r.number}</td>
@@ -828,11 +923,11 @@ export default function PaymentCollectionsPage() {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </ReportTable>
                         </div>
                         {/* Mobile Cards for Account Transactions */}
-                        <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
-                          {(data.txRows ?? []).slice(0, 25).map((r: any, idx: number) => (
+                        <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                          {(data.txRows ?? []).map((r: any, idx: number) => (
                             <div key={idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
@@ -994,7 +1089,7 @@ export default function PaymentCollectionsPage() {
                   <ReportKPICard label="Customer Advances" value={s.customerAdvances ?? 0} color="blue" icon={<ArrowDownLeft size={15} />} />
                   <ReportKPICard label="Supplier Advances" value={s.supplierAdvances ?? 0} color="rose" icon={<ArrowUpRight size={15} />} />
                   <ReportKPICard label="Total Advances" value={s.totalAdvances ?? 0} color="violet" icon={<Package size={15} />} />
-                  <ReportKPICard label="Adjusted (Period)" value={s.adjustedThisPeriod ?? 0} color="emerald" />
+                  <ReportKPICard label="Adjusted to Date" subLabel="For advances recorded in this period" value={s.adjustedThisPeriod ?? 0} color="emerald" />
                   <ReportKPICard label="Outstanding Advances" value={s.outstandingAdvances ?? 0} color="amber" />
                 </div>
 
@@ -1036,11 +1131,7 @@ export default function PaymentCollectionsPage() {
                   <div className="space-y-4">
                     <ChartCard title={advSubTab === "customer" ? "Customer Advances Summary" : "Supplier Advances Summary"}>
                       <ReportDonutChart
-                        data={[
-                          { name: "Adjusted", value: advSubTab === "customer" ? (s.customerAdvances ?? 0) - (s.outstandingAdvances ?? 0) / 2 : (s.supplierAdvances ?? 0) - (s.outstandingAdvances ?? 0) / 2 },
-                          { name: "Partial", value: (s.outstandingAdvances ?? 0) * 0.4 },
-                          { name: "Unadjusted", value: (s.outstandingAdvances ?? 0) * 0.6 },
-                        ].filter(d => d.value > 0)}
+                        data={(advSubTab === "customer" ? data.customerByStatus : data.supplierByStatus) ?? []}
                         height={160} innerRadius={35} outerRadius={58} valueFormat="currency"
                       />
                     </ChartCard>
@@ -1052,16 +1143,17 @@ export default function PaymentCollectionsPage() {
             {/* ── TRANSFERS ─────────────────────────────────────────────── */}
             {activeTab === "transfers" && (
               <>
+                <p className="text-xs text-[var(--text-muted)]">Posted bank/UPI party vouchers. Internal account-to-account transfers require a separate recorded source and are not represented as party payments.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-                  <ReportKPICard label="Total Transfers" value={s.totalTransfers ?? 0} color="blue" icon={<ArrowLeftRight size={15} />} />
+                  <ReportKPICard label="Total Voucher Amount" value={s.totalTransfers ?? 0} color="blue" icon={<ArrowLeftRight size={15} />} />
                   <ReportKPICard label="Total Transactions" value={s.totalRows ?? 0} format="number" color="violet" />
-                  <ReportKPICard label="Net Amount" value={s.totalTransfers ?? 0} color="indigo" />
+                  <ReportKPICard label="Net Cash Flow" value={s.netCashFlow ?? 0} color="indigo" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
                     <TransactionTable
-                      title="TRANSFERS REGISTER"
+                      title="BANK / UPI PARTY VOUCHERS"
                       rows={data.rows ?? []}
                       columns={["Date", "Reference No.", "Direction", "From Account", "To Account", "Party", "Mode", "Amount", "Status"]}
                       renderRow={(r: any) => (
@@ -1106,7 +1198,7 @@ export default function PaymentCollectionsPage() {
                   <ReportKPICard label="Total Receipts" value={s.totalReceipts ?? 0} color="emerald" icon={<ArrowDownLeft size={14} />} />
                   <ReportKPICard label="Total Payments" value={s.totalPayments ?? 0} color="rose" icon={<ArrowUpRight size={14} />} />
                   <ReportKPICard label="Total Advances" value={s.totalAdvances ?? 0} color="violet" />
-                  <ReportKPICard label="Total Transfers" value={s.totalCheques ?? 0} color="amber" />
+                  <ReportKPICard label="Cheque Vouchers" value={s.totalCheques ?? 0} color="amber" />
                   <ReportKPICard label="Closing Balance" value={s.closingBalance ?? 0} color="blue" icon={<Building2 size={14} />} />
                 </div>
 
@@ -1115,10 +1207,10 @@ export default function PaymentCollectionsPage() {
                     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
                       <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
                         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">ALL TRANSACTIONS (MASTER REGISTER)</h3>
-                        <span className="text-[10px] text-[var(--text-muted)]">Showing {Math.min(50, (data.rows ?? []).length)} of {(data.rows ?? []).length}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">Showing {(data.rows ?? []).length} of {(data.rows ?? []).length}</span>
                       </div>
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto">
+                        <ReportTable className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                               {["Date", "Voucher No.", "Type", "Party / Account", "Mode", "From Acct", "To Acct", "Debit (₹)", "Credit (₹)", "Amount (₹)", "Status"].map(h => (
@@ -1127,59 +1219,69 @@ export default function PaymentCollectionsPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-                            {(data.rows ?? []).slice(0, 50).map((r: any, idx: number) => (
-                              <tr key={idx} className="hover:bg-[var(--table-row-hover)] h-10">
-                                <td className="py-2 px-3 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
-                                <td className="py-2 px-3 font-mono font-bold text-[var(--primary)]">{r.voucher_no}</td>
-                                <td className="py-2 px-3">
-                                  <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border whitespace-nowrap",
-                                    r.credit > 0 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                                  )}>{r.type}</span>
-                                </td>
-                                <td className="py-2 px-3 max-w-[110px] truncate">{r.party}</td>
-                                <td className="py-2 px-3 text-[var(--text-muted)] capitalize">{MODE_LABEL[r.mode] ?? r.mode}</td>
-                                <td className="py-2 px-3 text-[var(--text-muted)] truncate max-w-[90px]">{r.from_account}</td>
-                                <td className="py-2 px-3 text-[var(--text-muted)] truncate max-w-[90px]">{r.to_account}</td>
-                                <td className="py-2 px-3 text-right font-mono text-rose-500">{r.debit > 0 ? fmtINR(r.debit) : "—"}</td>
-                                <td className="py-2 px-3 text-right font-mono text-emerald-500">{r.credit > 0 ? fmtINR(r.credit) : "—"}</td>
-                                <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-primary)]">{fmtINR(r.amount)}</td>
-                                <td className="py-2 px-3">
-                                  <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", STATUS_BADGE[r.status] ?? "")}>{r.status}</span>
-                                </td>
-                              </tr>
-                            ))}
+                            {(data.rows ?? []).map((r: any, idx: number) => {
+                              const vNo = r.number || r.voucher_no || "—";
+                              const fromAcct = r.from_account || (r.direction === "paid" ? (r.account || r.account_name) : (r.party || "—"));
+                              const toAcct = r.to_account || (r.direction === "received" ? (r.account || r.account_name) : (r.party || "—"));
+                              return (
+                                <tr key={idx} className="hover:bg-[var(--table-row-hover)] h-10">
+                                  <td className="py-2 px-3 text-[var(--text-muted)]">{fmtDate(r.date)}</td>
+                                  <td className="py-2 px-3 font-mono font-bold text-[var(--primary)]">{vNo}</td>
+                                  <td className="py-2 px-3">
+                                    <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border whitespace-nowrap",
+                                      r.credit > 0 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                    )}>{r.type}</span>
+                                  </td>
+                                  <td className="py-2 px-3 max-w-[110px] truncate">{r.party}</td>
+                                  <td className="py-2 px-3 text-[var(--text-muted)] capitalize">{MODE_LABEL[r.mode] ?? r.mode}</td>
+                                  <td className="py-2 px-3 text-[var(--text-muted)] truncate max-w-[90px]">{fromAcct}</td>
+                                  <td className="py-2 px-3 text-[var(--text-muted)] truncate max-w-[90px]">{toAcct}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-rose-500">{r.debit > 0 ? fmtINR(r.debit) : "—"}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-emerald-500">{r.credit > 0 ? fmtINR(r.credit) : "—"}</td>
+                                  <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-primary)]">{fmtINR(r.amount)}</td>
+                                  <td className="py-2 px-3">
+                                    <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", STATUS_BADGE[r.status] ?? "")}>{r.status}</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
-                        </table>
+                        </ReportTable>
                       </div>
                       {/* Mobile Cards for Master Transactions */}
-                      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
-                        {(data.rows ?? []).slice(0, 50).map((r: any, idx: number) => (
-                          <div key={idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-mono font-bold text-[var(--primary)] text-xs">{r.voucher_no}</span>
-                                <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{r.party || r.from_account || "—"}</h4>
-                              </div>
-                              <div className="text-right">
-                                <span className={cn("font-mono font-bold text-xs", r.credit > 0 ? "text-emerald-500" : "text-rose-500")}>
-                                  {r.credit > 0 ? `+${fmtINR(r.credit)}` : r.debit > 0 ? `-${fmtINR(r.debit)}` : fmtINR(r.amount)}
-                                </span>
-                                <div className="mt-1">
-                                  <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", r.credit > 0 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20")}>
-                                    {r.type}
+                      <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+                        {(data.rows ?? []).map((r: any, idx: number) => {
+                          const vNo = r.number || r.voucher_no || "—";
+                          const fromAcct = r.from_account || (r.direction === "paid" ? (r.account || r.account_name) : (r.party || "—"));
+                          const toAcct = r.to_account || (r.direction === "received" ? (r.account || r.account_name) : (r.party || "—"));
+                          return (
+                            <div key={idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-mono font-bold text-[var(--primary)] text-xs">{vNo}</span>
+                                  <h4 className="font-semibold text-[var(--text-primary)] text-xs mt-0.5">{r.party || fromAcct || "—"}</h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className={cn("font-mono font-bold text-xs", r.credit > 0 ? "text-emerald-500" : "text-rose-500")}>
+                                    {r.credit > 0 ? `+${fmtINR(r.credit)}` : r.debit > 0 ? `-${fmtINR(r.debit)}` : fmtINR(r.amount)}
                                   </span>
+                                  <div className="mt-1">
+                                    <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[8px] font-bold border capitalize", r.credit > 0 ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 border-rose-500/20")}>
+                                      {r.type}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
+                                <span>{fmtDate(r.date)}</span>
+                                <span className="capitalize">{MODE_LABEL[r.mode] ?? r.mode}</span>
+                                {fromAcct && toAcct && (
+                                  <span className="truncate max-w-[140px]">{fromAcct} → {toAcct}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-light)] text-[10px] text-[var(--text-muted)]">
-                              <span>{fmtDate(r.date)}</span>
-                              <span className="capitalize">{MODE_LABEL[r.mode] ?? r.mode}</span>
-                              {r.from_account && r.to_account && (
-                                <span className="truncate max-w-[140px]">{r.from_account} → {r.to_account}</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1200,16 +1302,19 @@ export default function PaymentCollectionsPage() {
                     )}
                     {(data.topParties ?? []).length > 0 && (
                       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
-                        <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Parties (By Net Impact)</h3>
+                        <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Top Parties (By Volume)</h3>
                         <div className="space-y-2">
-                          {(data.topParties ?? []).map((p: any) => (
-                            <div key={p.name} className="flex justify-between items-center text-xs">
-                              <span className="text-[var(--text-body)] truncate max-w-[140px]">{p.name}</span>
-                              <span className={cn("font-mono font-bold", p.net >= 0 ? "text-emerald-500" : "text-rose-500")}>
-                                {p.net >= 0 ? "+" : ""}{fmtINR(p.net)}
-                              </span>
-                            </div>
-                          ))}
+                          {(data.topParties ?? []).map((p: any) => {
+                            const val = Number(p.amount ?? p.net ?? 0);
+                            return (
+                              <div key={p.name} className="flex justify-between items-center text-xs">
+                                <span className="text-[var(--text-body)] truncate max-w-[140px]">{p.name}</span>
+                                <span className={cn("font-mono font-bold", val >= 0 ? "text-emerald-500" : "text-rose-500")}>
+                                  {fmtINR(val)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1257,11 +1362,11 @@ function OutstandingTable({
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
       <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">{title}</h3>
-        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {rows.length} of {rows.length} entries</span>
       </div>
       {/* Desktop Table */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto">
+        <ReportTable className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
               {columns.map(c => (
@@ -1270,21 +1375,21 @@ function OutstandingTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-            {rows.slice(0, 30).map(renderRow)}
+            {rows.map(renderRow)}
             {rows.length === 0 && (
               <tr><td colSpan={columns.length} className="py-8 text-center text-[var(--text-muted)]">No records found.</td></tr>
             )}
           </tbody>
           {footer && <tfoot>{footer}</tfoot>}
-        </table>
+        </ReportTable>
       </div>
 
       {/* Mobile Cards List */}
-      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+      <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
         {rows.length === 0 ? (
           <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found.</div>
         ) : (
-          rows.slice(0, 30).map((r: any, idx: number) => {
+          rows.map((r: any, idx: number) => {
             if (renderMobileCard) return renderMobileCard(r);
             return (
               <div key={r.id || idx} className="p-3 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl space-y-2 text-xs shadow-xs">
@@ -1348,11 +1453,11 @@ function TransactionTable({
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
       <div className="px-4 sm:px-5 py-3.5 border-b border-[var(--border)] bg-[var(--table-header-bg)] flex justify-between items-center">
         <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">{title}</h3>
-        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {Math.min(rows.length, 30)} of {rows.length} entries</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-medium">Showing {rows.length} of {rows.length} entries</span>
       </div>
       {/* Desktop Table */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto">
+        <ReportTable className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
               {columns.map(c => (
@@ -1361,7 +1466,7 @@ function TransactionTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-light)] text-[var(--text-body)]">
-            {rows.slice(0, 30).map(renderRow)}
+            {rows.map(renderRow)}
             {rows.length === 0 && (
               <tr><td colSpan={columns.length} className="py-8 text-center text-[var(--text-muted)]">No records found.</td></tr>
             )}
@@ -1374,15 +1479,15 @@ function TransactionTable({
               </td>
             </tr>
           </tfoot>
-        </table>
+        </ReportTable>
       </div>
 
       {/* Mobile Card List */}
-      <div className="md:hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
+      <div className="hidden divide-y divide-[var(--border-light)] p-3 space-y-2.5">
         {rows.length === 0 ? (
           <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found.</div>
         ) : (
-          rows.slice(0, 30).map((r: any, idx: number) => {
+          rows.map((r: any, idx: number) => {
             if (renderMobileCard) return renderMobileCard(r);
             const partyOrAccount = r.party || r.payee || r.account || r.from_account || "—";
             const num = r.number || r.advance_number || r.voucher_no || `#${idx + 1}`;

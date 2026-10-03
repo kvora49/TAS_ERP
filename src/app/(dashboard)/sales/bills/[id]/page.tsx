@@ -40,6 +40,7 @@ import { KachaBillTemplate } from "@/components/sales/KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { GenerateEInvoiceButton } from "@/components/sales/GenerateEInvoiceButton";
 import { EInvoiceSuccessCard } from "@/components/sales/EInvoiceSuccessCard";
+import { PostInvoiceSuccessModal } from "@/components/sales/PostInvoiceSuccessModal";
 
 interface BillItem {
   id: string;
@@ -167,6 +168,7 @@ export default function SaleBillDetailPage() {
   const { id } = params;
 
   const [copied, setCopied] = useState(false);
+  const [showInvoiceActions, setShowInvoiceActions] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
 
   const { data, isPending: loading, isError, error, refetch } = useERPQuery(
@@ -382,7 +384,7 @@ export default function SaleBillDetailPage() {
               billId={bill.id}
               billType={bill.bill_type}
               irnStatus={bill.irn_status}
-              onSuccess={refetch}
+              onSuccess={() => { void refetch(); setShowInvoiceActions(true); }}
             />
           )}
 
@@ -412,6 +414,10 @@ export default function SaleBillDetailPage() {
             <Share2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[var(--primary)]" />
             <span className="hidden sm:inline">Share</span>
           </button>
+
+          <Link href={`/sales/bills/${bill.id}/delivery-challan`} className="h-9 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] text-[var(--text-primary)] text-xs font-semibold inline-flex items-center gap-1.5">
+            <Truck size={15} />Delivery challan
+          </Link>
 
           <button onClick={handleWhatsAppShare}
             className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
@@ -1022,6 +1028,7 @@ export default function SaleBillDetailPage() {
           </div>
         </div>
       </Modal>
+      <PostInvoiceSuccessModal open={showInvoiceActions} onOpenChange={setShowInvoiceActions} invoice={{ id: bill.id, bill_number: bill.bill_number, party_name: bill.party?.name, phone: bill.phone || undefined, grand_total: bill.grand_total, bill_type: bill.bill_type }} />
       {/* ── MOBILE: STICKY BOTTOM ACTION BAR ── */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--card-bg)] border-t border-[var(--border)] p-2.5 flex items-center justify-around gap-2 shadow-lg">
         <button onClick={handleWhatsAppShare}

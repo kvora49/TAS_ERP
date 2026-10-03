@@ -1,3 +1,4 @@
+import { validReportRequest } from "@/lib/report-request";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
+  if (!validReportRequest(searchParams)) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
   const from = searchParams.get("from") ?? null;
   const to = searchParams.get("to") ?? null;
   const billType = searchParams.get("bill_type") ?? null;
@@ -20,11 +22,12 @@ export async function GET(req: NextRequest) {
       p_to: to,
       p_bill_type: billType,
       p_brand_id: brandId,
+      p_compare: searchParams.get("compare") ?? "prev_period",
     });
 
     if (error) {
       console.error("[reports/analysis RPC error]", error);
-      return NextResponse.json({ error: error.message || "Failed to fetch analysis report" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch analysis report" }, { status: 500 });
     }
 
     return NextResponse.json(data);

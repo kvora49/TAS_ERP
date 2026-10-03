@@ -1,3 +1,4 @@
+import { manualNoteSchema, recordedTaxFields } from "@/lib/report-source-fields";
 import { NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: "Unable to process note" }, { status: 500 });
     }
 
     // Client-side search filtering
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ debitNotes: filtered });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
+      { error: "Unable to process note" },
       { status: 500 }
     );
   }
@@ -68,7 +69,12 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { party_id, dn_date, amount, reason } = body;
+    const parsed = manualNoteSchema.safeParse(body);
+    if (!parsed.success || !parsed.data.dn_date) return NextResponse.json({ error: "Invalid note fields or tax breakdown" }, { status: 400 });
+    const { party_id, dn_date, amount, reason } = parsed.data;
+    const { data: ownedParty, error: partyError } = await supabase.from("parties").select("id").eq("id", party_id).eq("business_id", businessId).maybeSingle();
+    if (partyError) return NextResponse.json({ error: "Unable to validate party" }, { status: 500 });
+    if (!ownedParty) return NextResponse.json({ error: "Party not found" }, { status: 404 });
 
     if (!party_id) {
       return NextResponse.json({ error: "Party/Supplier is required" }, { status: 400 });
@@ -99,6 +105,7 @@ export async function POST(request: Request) {
         party_id,
         dn_date,
         amount: Number(amount),
+        ...recordedTaxFields(parsed.data),
         reason: reason || null
       })
       .select(`
@@ -108,7 +115,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: "Unable to process note" }, { status: 500 });
     }
 
     // Update Party Current Balance
@@ -123,13 +130,13 @@ export async function POST(request: Request) {
       await supabase
         .from("parties")
         .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-        .eq("id", party_id);
+        .eq("id", party_id).eq("business_id", businessId);
     }
 
     return NextResponse.json({ debitNote });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
+      { error: "Unable to process note" },
       { status: 500 }
     );
   }

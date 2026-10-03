@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { ArrowLeft, Loader2, Calendar, CreditCard, DollarSign, Receipt, ChevronDown, ChevronUp, Plus, ExternalLink, Landmark } from "lucide-react";
 import Link from "next/link";
 import { useERPQuery } from "@/hooks/useERPQuery";
+import { useAppStore } from "@/store";
 import { formatDate, cn } from "@/lib/utils";
 import { ManualNoteModal } from "@/components/sales/ManualNoteModal";
 import { PullToRefresh } from "@/components/shared/PullToRefresh";
@@ -21,7 +22,7 @@ interface LedgerEntry {
   viewUrl?: string;
   date: string;
   particulars: string;
-  voucherType: "Opening" | "Purchase" | "Sale" | "Return" | "Payment" | "Advance" | "Write-off" | "Job Work" | "Salary" | "Credit Note" | "Debit Note";
+  voucherType: "Opening" | "Purchase" | "Sale" | "Return" | "Receipt" | "Payment" | "Advance" | "Write-off" | "Job Work" | "Salary" | "Credit Note" | "Debit Note";
   voucherNo: string;
   debit: number;
   credit: number;
@@ -50,6 +51,8 @@ interface Party {
 
 export default function PartyLedgerPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const businessId = useAppStore(s => s.selectedBusinessId || s.user?.businessId);
+  const userId = useAppStore(s => s.user?.id);
 
   // Active Bill Category Tab: 'total' (combined), 'pakka' (tax invoice), 'kacha' (estimate)
   const [activeBillTab, setActiveBillTab] = useState<"total" | "pakka" | "kacha">("total");
@@ -62,7 +65,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
   const [noteModalType, setNoteModalType] = useState<"credit_note" | "debit_note">("credit_note");
 
   const { data: partyData, isLoading: partyLoading } = useERPQuery<Party | null>(
-    ["party", id],
+    ["party", id, businessId, userId],
     async () => {
       const res = await fetch(`/api/parties/${id}`);
       if (!res.ok) throw new Error("Failed to load party info");
@@ -77,7 +80,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
     remainingAdvance: number;
     pendingCheques?: any[];
   }>(
-    ["ledger", id, activeBillTab],
+    ["ledger", id, activeBillTab, "report-company", businessId, userId],
     async () => {
       const url = activeBillTab === "total"
         ? `/api/parties/${id}/ledger`
@@ -86,7 +89,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
       if (!res.ok) throw new Error("Failed to load ledger details");
       return res.json();
     },
-    { skeleton: "table" }
+    { skeleton: "table", enabled: !!businessId && !!userId, staleTime: 300_000, gcTime: 1_800_000 }
   );
 
 
@@ -346,6 +349,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
             <option value="credit note">Credit Note</option>
             <option value="debit note">Debit Note</option>
             <option value="payment">Payment</option>
+            <option value="receipt">Receipt</option>
             <option value="advance">Advance</option>
             <option value="write-off">Write-off</option>
           </select>
@@ -465,7 +469,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
             if (row.voucherType === "Purchase") badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
             else if (row.voucherType === "Sale") badgeClass = "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300";
             else if (row.voucherType === "Return") badgeClass = "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-            else if (row.voucherType === "Payment") badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+            else if ((row.voucherType === "Payment" || row.voucherType === "Receipt")) badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
 
             return (
               <div key={rowId} className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)] space-y-2.5">
@@ -588,7 +592,7 @@ export default function PartyLedgerPage({ params }: { params: { id: string } }) 
                   if (row.voucherType === "Purchase") badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
                   else if (row.voucherType === "Sale") badgeClass = "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300";
                   else if (row.voucherType === "Return") badgeClass = "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-                  else if (row.voucherType === "Payment") badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+                  else if ((row.voucherType === "Payment" || row.voucherType === "Receipt")) badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
                   else if (row.voucherType === "Advance") badgeClass = "bg-[var(--badge-advance-bg)] text-[var(--badge-advance-text)]";
                   else if (row.voucherType === "Write-off") badgeClass = "bg-[var(--badge-writeoff-bg)] text-[var(--badge-writeoff-text)]";
                   else if (row.voucherType === "Opening") badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";

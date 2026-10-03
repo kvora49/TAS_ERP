@@ -1,7 +1,13 @@
 "use client";
 
+import ReportExceptions from "@/components/reports/ReportExceptions";
+import GarmentInsights from "@/components/reports/GarmentInsights";
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import {
   TrendingUp, TrendingDown, RefreshCw, RotateCcw,
   AlertTriangle, AlertCircle, CheckCircle2, Info,
@@ -44,24 +50,24 @@ const COMPARE_OPTIONS = [
 
 export default function AnalysisPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [billType, setBillType] = useState<BillType>("all");
-  const [brandId, setBrandId] = useState("all");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [brandId, setBrandId] = useReportState<string>("all", "brand_id");
   const [period, setPeriod] = useState<DatePreset>("this_fy");
-  const [compareWith, setCompareWith] = useState("prev_fy");
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [compareWith, setCompareWith] = useReportState<string>("prev_fy", "compare");
+
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
-    setLastUpdated(new Date());
-  }, []);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["reports-analysis-v2", from, to, billType, brandId],
+  }, [setFrom, setTo]);
+
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ["reports-analysis-v2", from, to, billType, brandId, compareWith],
     queryFn: async () => {
-      const params = new URLSearchParams({ from, to });
+      const params = new URLSearchParams({ from, to, compare: compareWith });
       if (billType !== "all") params.set("bill_type", billType);
       if (brandId !== "all") params.set("brand_id", brandId);
       const res = await fetch(`/api/reports/analysis?${params}`);
@@ -73,7 +79,7 @@ export default function AnalysisPage() {
 
   const handleRefresh = useCallback(() => {
     refetch();
-    setLastUpdated(new Date());
+
   }, [refetch]);
 
   const handleExport = useCallback(() => {
@@ -84,23 +90,25 @@ export default function AnalysisPage() {
       { key: "previous", label: "Previous Period (₹)", format: "currency", width: 22 },
       { key: "change_pct", label: "Change %", format: "number", width: 14 },
     ], [
-      { metric: "Net Sales", current: data.sales?.netSales, previous: data.sales?.netSales / (1 + data.sales?.growth / 100), change_pct: data.sales?.growth },
-      { metric: "Net Purchases", current: data.purchases?.netPurchases, previous: data.purchases?.netPurchases / (1 + data.purchases?.growth / 100), change_pct: data.purchases?.growth },
-      { metric: "Gross Profit", current: data.financial?.grossProfit, change_pct: 0 },
-      { metric: "Gross Margin %", current: data.financial?.grossMargin, change_pct: 0 },
-      { metric: "Collections", current: data.collections?.total, change_pct: data.collections?.growth },
-      { metric: "Payments", current: data.paymentsOut?.total, change_pct: data.paymentsOut?.growth },
+      { metric: "Net Sales", current: data.sales?.netSales, previous: data.comparison?.sales, change_pct: data.sales?.growth },
+      { metric: "Net Purchases", current: data.purchases?.netPurchases, previous: data.comparison?.purchases, change_pct: data.purchases?.growth },
+      { metric: "Gross Profit", current: data.financial?.grossProfit, previous: data.comparison?.grossProfit },
+      { metric: "Gross Margin %", current: data.financial?.grossMargin, previous: data.comparison?.grossMargin },
+      { metric: "Collections", current: data.collections?.total, previous: data.comparison?.collections, change_pct: data.collections?.growth },
+      { metric: "Payments", current: data.paymentsOut?.total, previous: data.comparison?.payments, change_pct: data.paymentsOut?.growth },
       { metric: "Outstanding Receivables", current: data.outstanding?.receivables, change_pct: 0 },
       { metric: "Outstanding Payables", current: data.outstanding?.payables, change_pct: 0 },
       { metric: "Cash Balance", current: data.cashFlow?.closingBalance, change_pct: 0 },
     ], `analysis_report_${from}_${to}`);
   }, [data, from, to]);
 
-  const pct = (n: number | undefined) => n !== undefined ? `${n >= 0 ? "+" : ""}${n.toFixed(1)}%` : "—";
+  const pct = (n: number | undefined) => n !== undefined && n !== null ? `${n >= 0 ? "+" : ""}${n.toFixed(1)}%` : "—";
   const isUp = (n: number | undefined) => (n ?? 0) >= 0;
 
   return (
     <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
       title="Analysis"
       infoTooltip="Complete business overview and insights across sales, purchases, inventory, production, and financial position."
       breadcrumbs={["Reports", "Analysis"]}
@@ -141,7 +149,7 @@ export default function AnalysisPage() {
           {/* Refresh + Last Updated */}
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3 sm:ml-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-[var(--border-light)]">
             <span className="text-[10px] text-[var(--text-faint)]">
-              Last updated: {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+              Last updated: {new Date(dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </span>
             <button
               type="button"
@@ -166,6 +174,9 @@ export default function AnalysisPage() {
       >
         {data && (
           <div className="space-y-4 sm:space-y-6">
+            <ReportExceptions from={from} to={to} />
+            {data.garmentInsights && <GarmentInsights data={data.garmentInsights} from={from} to={to} billType={billType} />}
+            {data.metadata && <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] rounded-lg p-3">{data.metadata.financialScope}. {data.metadata.purchaseScope}. Inventory: {data.metadata.inventoryBasis}. {data.metadata.cashBasis}.</p>}
 
             {/* ── Section: Executive Overview ──────────────────────────── */}
             <div>
@@ -182,36 +193,36 @@ export default function AnalysisPage() {
                 <ExecKPICard
                   label="Net Profit"
                   value={data.financial?.netProfit ?? 0}
-                  change={2.1}
+                  change={data.comparison?.netProfit ? (data.financial.netProfit - data.comparison.netProfit) / Math.abs(data.comparison.netProfit) * 100 : undefined}
                   icon={<TrendingUp size={16} />}
                   color="emerald"
                 />
                 <ExecKPICard
                   label="Gross Profit Margin"
-                  value={data.financial?.grossMargin ?? 0}
+                  value={data.financial?.grossMargin ?? null}
                   format="percent"
-                  change={2.1}
+                  change={undefined}
                   icon={<Activity size={16} />}
                   color="violet"
                 />
                 <ExecKPICard
                   label="Inventory Value"
                   value={data.inventory?.totalValue ?? 0}
-                  change={6.8}
+                  change={undefined}
                   icon={<Package size={16} />}
                   color="amber"
                 />
                 <ExecKPICard
                   label="Outstanding"
                   value={data.outstanding?.receivables ?? 0}
-                  change={(data.outstanding?.receivables ?? 0) > 0 ? 14.3 : 0}
+                  change={undefined}
                   icon={<AlertCircle size={16} />}
                   color="rose"
                 />
                 <ExecKPICard
                   label="Cash Balance"
                   value={data.cashFlow?.closingBalance ?? 0}
-                  change={15.6}
+                  change={undefined}
                   icon={<IndianRupee size={16} />}
                   color="indigo"
                 />
@@ -223,7 +234,7 @@ export default function AnalysisPage() {
               {[
                 { label: "Sales", value: data.sales?.growth, suffix: "vs prev." },
                 { label: "Purchases", value: data.purchases?.growth, suffix: "vs prev." },
-                { label: "Production", value: 14.5, suffix: "vs prev." },
+                { label: "Production", value: null, suffix: "vs prev." },
                 { label: "Collections", value: data.collections?.growth, suffix: "vs prev." },
                 { label: "Payments", value: data.paymentsOut?.growth, suffix: "vs prev." },
                 { label: "Return % (Sales)", value: data.sales?.returnPct, suffix: "of sales", neutral: true },
@@ -300,14 +311,14 @@ export default function AnalysisPage() {
                 <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Inventory Health</h3>
                 <div className="space-y-2">
                   {[
-                    { label: "Fast Moving", value: data.inventory?.health?.fastMoving ?? 0, color: "text-emerald-500" },
-                    { label: "Slow Moving", value: data.inventory?.health?.slowMoving ?? 0, color: "text-amber-500" },
-                    { label: "Non Moving", value: data.inventory?.health?.nonMoving ?? 0, color: "text-orange-500" },
-                    { label: "90+ Days", value: data.inventory?.health?.overdue90 ?? 0, color: "text-rose-500" },
+                    { label: "Fast Moving", value: data.inventory?.health?.fastMoving, color: "text-emerald-500" },
+                    { label: "Slow Moving", value: data.inventory?.health?.slowMoving, color: "text-amber-500" },
+                    { label: "Non Moving", value: data.inventory?.health?.nonMoving, color: "text-orange-500" },
+                    { label: "90+ Days", value: data.inventory?.health?.overdue90, color: "text-rose-500" },
                   ].map(item => (
                     <div key={item.label} className="flex justify-between text-xs">
                       <span className="text-[var(--text-muted)]">{item.label}</span>
-                      <span className={cn("font-mono font-bold", item.color)}>{fmtINR(item.value)}</span>
+                      <span className={cn("font-mono font-bold", item.color)}>{item.value == null ? "Not available" : fmtINR(item.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -385,8 +396,8 @@ export default function AnalysisPage() {
                     { label: "Rework", value: data.production?.reworkQty ?? 0, color: "text-amber-500" },
                     { label: "Damage", value: data.production?.damageQty ?? 0, color: "text-rose-500" },
                     { label: "Wastage", value: data.production?.wastageQty ?? 0, color: "text-orange-500" },
-                    { label: "Rewash", value: Math.round((data.production?.reworkQty ?? 0) * 0.53), color: "text-amber-600" },
-                    { label: "Rejected", value: Math.round((data.production?.damageQty ?? 0) * 0.23), color: "text-rose-600" },
+                    { label: "Rework", value: data.production?.reworkQty ?? 0, color: "text-amber-600" },
+                    { label: "Damage", value: data.production?.damageQty ?? 0, color: "text-rose-600" },
                   ].map(item => (
                     <div key={item.label} className="flex justify-between text-xs">
                       <span className="text-[var(--text-muted)]">{item.label}</span>
@@ -411,7 +422,7 @@ export default function AnalysisPage() {
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Top 5 Customers</h3>
                   <Link href="/reports/party-reports?tab=customer" className="text-[10px] text-[var(--primary)] flex items-center gap-0.5 hover:underline">View All <ArrowRight size={9} /></Link>
                 </div>
-                <table className="w-full text-xs">
+                <ReportTable className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                       <th className="pb-2 text-left">#</th>
@@ -433,7 +444,7 @@ export default function AnalysisPage() {
                       <tr><td colSpan={4} className="py-4 text-center text-[var(--text-muted)]">No data</td></tr>
                     )}
                   </tbody>
-                </table>
+                </ReportTable>
               </div>
 
               {/* Top 5 Suppliers */}
@@ -442,7 +453,7 @@ export default function AnalysisPage() {
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Top 5 Suppliers</h3>
                   <Link href="/reports/party-reports?tab=supplier" className="text-[10px] text-[var(--primary)] flex items-center gap-0.5 hover:underline">View All <ArrowRight size={9} /></Link>
                 </div>
-                <table className="w-full text-xs">
+                <ReportTable className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-muted)] font-bold uppercase tracking-wider">
                       <th className="pb-2 text-left">#</th>
@@ -464,7 +475,7 @@ export default function AnalysisPage() {
                       <tr><td colSpan={4} className="py-4 text-center text-[var(--text-muted)]">No data</td></tr>
                     )}
                   </tbody>
-                </table>
+                </ReportTable>
               </div>
 
               {/* Receivables vs Payables */}
@@ -585,8 +596,8 @@ function ExecKPICard({
   label, value, change, compareLabel, icon, color, format = "currency",
 }: {
   label: string;
-  value: number;
-  change?: number;
+  value: number | null;
+  change?: number | null;
   compareLabel?: string;
   icon?: React.ReactNode;
   color?: string;
@@ -613,9 +624,9 @@ function ExecKPICard({
         )}
       </div>
       <div className="text-lg font-extrabold text-[var(--text-primary)] mb-1 leading-tight">
-        {format === "currency" ? fmtINR(value) : format === "percent" ? `${value.toFixed(2)}%` : fmtNum(value)}
+        {value == null ? "Not available" : format === "currency" ? fmtINR(value) : format === "percent" ? `${value.toFixed(2)}%` : fmtNum(value)}
       </div>
-      {change !== undefined && (
+      {change != null && (
         <div className="flex items-center gap-1">
           {up ? <TrendingUp size={10} className="text-emerald-500" /> : <TrendingDown size={10} className="text-rose-500" />}
           <span className={cn("text-[10px] font-bold", up ? "text-emerald-500" : "text-rose-500")}>

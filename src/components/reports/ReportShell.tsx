@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -14,6 +14,8 @@ import {
   Calendar,
 } from "lucide-react";
 import { DATE_PRESETS, DatePreset, getPresetDates, printReport, fmtDate } from "@/lib/report-export";
+import MobileReportTables from "./MobileReportTables";
+import ReportWorkspace from "./ReportWorkspace";
 import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { NavItem } from "@/lib/moduleNav";
@@ -82,6 +84,7 @@ export default function ReportShell({
   const [preset, setPreset] = useState<DatePreset | "custom">("this_fy");
   const [from, setFrom] = useState(defaultFrom ?? fyStart());
   const [to, setTo] = useState(defaultTo ?? today());
+  useEffect(() => { if (defaultFrom) setFrom(defaultFrom); if (defaultTo) setTo(defaultTo); }, [defaultFrom, defaultTo]);
 
   const handlePreset = useCallback(
     (p: DatePreset) => {
@@ -117,7 +120,7 @@ export default function ReportShell({
   });
 
   return (
-    <div className="flex flex-col min-h-full bg-[var(--page-bg)]">
+    <div className="report-surface flex flex-col min-w-0 w-full max-w-full min-h-full bg-[var(--page-bg)]">
       {/* ── Top Header Bar ── */}
       <div className="bg-[var(--card-bg)] border-b border-[var(--border)] px-3 sm:px-6 pt-3 sm:pt-4 pb-0 print:hidden space-y-3 md:space-y-0">
         {/* Title row + actions */}
@@ -315,6 +318,9 @@ export default function ReportShell({
 
       {/* ── Page Content ── */}
       <div className="flex-1 p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <MobileReportTables />
+        <p className="text-xs text-[var(--text-muted)] break-words">{title} · {fmtDate(defaultFrom ?? from)} to {fmtDate(defaultTo ?? to)} · {user?.fullName ?? ""}</p>
+        <ReportWorkspace title={title} />
         {children}
       </div>
 
@@ -341,6 +347,8 @@ function ActionBtn({
   return (
     <button
       type="button"
+      aria-label={label}
+      title={label}
       onClick={onClick}
       className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] hover:bg-[var(--page-bg)] text-xs font-semibold text-[var(--text-body)] transition-all cursor-pointer"
     >

@@ -25,8 +25,8 @@ export function GenerateEInvoiceButton({
   const [validationErrors, setValidationErrors] = useState<EInvoiceValidationError[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<EInvoiceValidationError[]>([]);
 
-  // Only applicable to Pakka bills and bills not already registered
-  if (billType !== "pakka" || irnStatus === "registered") {
+  // Only applicable to Pakka bills and bills not already registered or cancelled
+  if (billType !== "pakka" || irnStatus === "registered" || irnStatus === "cancelled") {
     return null;
   }
 

@@ -205,18 +205,42 @@ export class SalesBillService {
     }
 
     // Determine Place of Supply for CGST+SGST vs IGST
-    // If consignee/ship-to is different from bill-to, use consignee state
     const { data: biz } = await this.repository.supabase
       .from("businesses")
-      .select("gstin")
+      .select("gstin, address")
       .eq("id", businessId)
       .maybeSingle();
 
+    let partyBillingState: string | null = null;
+    let partyBillingAddress: string | null = null;
+    let partyGstin = rest.gstin;
+
+    if (rest.party_id) {
+      const { data: party } = await this.repository.supabase
+        .from("parties")
+        .select("gstin, billing_state, billing_address_line1, billing_city")
+        .eq("id", rest.party_id)
+        .maybeSingle();
+
+      if (party) {
+        partyBillingState = party.billing_state || null;
+        partyBillingAddress = party.billing_address_line1 || null;
+        if (!partyGstin || partyGstin === "URP") {
+          partyGstin = party.gstin;
+        }
+      }
+    }
+
     const isInterstate = isInterstateTransaction({
       businessGstin: biz?.gstin,
-      partyGstin: rest.gstin,
+      businessAddress: (biz as any)?.address,
+      partyGstin: partyGstin,
+      billingState: partyBillingState,
+      billingAddress: rest.billing_address || partyBillingAddress,
       consigneeGstin: rest.consignee_gstin,
       consigneeStateCode: rest.consignee_state_code,
+      consigneeState: rest.consignee_state,
+      consigneeAddress: rest.consignee_address,
       shipToSameAsBillTo: rest.ship_to_same_as_bill_to !== false,
     });
 
@@ -285,7 +309,7 @@ export class SalesBillService {
     // Immutability lock check: If invoice is registered with an IRN, core updates are legally prohibited
     const { data: existingBill } = await this.repository.supabase
       .from("sale_bills")
-      .select("locked_for_edit, irn_status, irn")
+      .select("locked_for_edit, irn_status, irn, party_id, gstin, billing_address, consignee_gstin, consignee_state_code, consignee_state, consignee_address, ship_to_same_as_bill_to")
       .eq("id", billId)
       .eq("business_id", businessId)
       .maybeSingle();
@@ -299,16 +323,42 @@ export class SalesBillService {
     // Determine Place of Supply for CGST+SGST vs IGST
     const { data: biz } = await this.repository.supabase
       .from("businesses")
-      .select("gstin")
+      .select("gstin, address")
       .eq("id", businessId)
       .maybeSingle();
 
+    let partyBillingState: string | null = null;
+    let partyBillingAddress: string | null = null;
+    let partyGstin = rest.gstin || existingBill?.gstin;
+    const effectivePartyId = rest.party_id || existingBill?.party_id;
+
+    if (effectivePartyId) {
+      const { data: party } = await this.repository.supabase
+        .from("parties")
+        .select("gstin, billing_state, billing_address_line1, billing_city")
+        .eq("id", effectivePartyId)
+        .maybeSingle();
+
+      if (party) {
+        partyBillingState = party.billing_state || null;
+        partyBillingAddress = party.billing_address_line1 || null;
+        if (!partyGstin || partyGstin === "URP") {
+          partyGstin = party.gstin;
+        }
+      }
+    }
+
     const isInterstate = isInterstateTransaction({
       businessGstin: biz?.gstin,
-      partyGstin: rest.gstin,
-      consigneeGstin: rest.consignee_gstin,
-      consigneeStateCode: rest.consignee_state_code,
-      shipToSameAsBillTo: rest.ship_to_same_as_bill_to !== false,
+      businessAddress: (biz as any)?.address,
+      partyGstin: partyGstin,
+      billingState: partyBillingState,
+      billingAddress: rest.billing_address || existingBill?.billing_address || partyBillingAddress,
+      consigneeGstin: rest.consignee_gstin !== undefined ? rest.consignee_gstin : existingBill?.consignee_gstin,
+      consigneeStateCode: rest.consignee_state_code !== undefined ? rest.consignee_state_code : existingBill?.consignee_state_code,
+      consigneeState: rest.consignee_state !== undefined ? rest.consignee_state : existingBill?.consignee_state,
+      consigneeAddress: rest.consignee_address !== undefined ? rest.consignee_address : existingBill?.consignee_address,
+      shipToSameAsBillTo: rest.ship_to_same_as_bill_to !== undefined ? (rest.ship_to_same_as_bill_to !== false) : (existingBill?.ship_to_same_as_bill_to !== false),
     });
 
     const calculated = this.calculateTotals({

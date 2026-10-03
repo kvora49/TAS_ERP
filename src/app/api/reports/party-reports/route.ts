@@ -1,3 +1,7 @@
+import { readLaterAllocations } from "@/lib/report-later-allocations";
+import { readReportRows, requireReportResults } from "@/lib/report-data";
+import { validReportRequest } from "@/lib/report-request";
+import { paidAtCutoff } from "@/lib/report-balances";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 
@@ -12,6 +16,8 @@ export async function GET(req: NextRequest) {
   const defaultTo = today.toISOString().split("T")[0];
 
   const { searchParams } = new URL(req.url);
+  const validationParams = new URLSearchParams(searchParams); validationParams.delete("tab");
+  if (!validReportRequest(validationParams)) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
   const tab = searchParams.get("tab") ?? "statement"; // 'statement' | 'outstanding' | 'aging' | 'customer-report' | 'supplier-report' | 'all-transactions'
   const partyId = searchParams.get("party_id");
   const partyType = searchParams.get("party_type") ?? "all"; // 'all' | 'customer' | 'supplier'
@@ -26,67 +32,65 @@ export async function GET(req: NextRequest) {
   const bid = businessId;
 
   try {
+    const futureAllocations = await readLaterAllocations(supabase, bid, to).then(data => ({ data, error: null }));
+    requireReportResults([futureAllocations]);
     // ───────────────────────────────────────────────────────────────────────────
     // TAB: STATEMENT / LEDGER
     // ───────────────────────────────────────────────────────────────────────────
     if (tab === "statement") {
       // 1. Initial load: list of parties for selector
       if (!partyId || partyId === "all") {
-        const { data: parties } = await supabase
+        const partyListResult = await readReportRows(supabase
           .from("parties")
-          .select("id, name, company_name, type, phone, gstin, address, opening_balance")
+          .select("id, name, company_name, type, phone, gstin, address:billing_address_line1, opening_balance")
           .eq("business_id", bid)
           .is("deleted_at", null)
-          .order("name");
-        return NextResponse.json({ parties: parties ?? [] });
+          .order("name").order("id"));
+        requireReportResults([partyListResult]);
+        return NextResponse.json({ parties: partyListResult.data });
       }
 
       let salesQuery = supabase
         .from("sale_bills")
         .select("id, bill_number, bill_date, due_date, grand_total, remarks, bill_type, status")
         .eq("party_id", partyId)
-        .eq("business_id", bid)
-        .neq("status", "cancelled");
+        .eq("business_id", bid).eq("status", "active");
 
       let purchaseBillsQuery = supabase
         .from("purchase_bills")
         .select("id, bill_number, invoice_date, grand_total, bill_type, status")
         .eq("supplier_id", partyId)
-        .eq("business_id", bid)
-        .neq("status", "cancelled");
+        .eq("business_id", bid).neq("status", "cancelled");
 
       let rmPurchasesQuery = supabase
         .from("raw_material_purchases")
         .select("id, purchase_number, invoice_date, grand_total, gst_type, status")
         .eq("supplier_id", partyId)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("business_id", bid).neq("status", "cancelled")
         .is("deleted_at", null);
 
       let purchaseReturnsQuery = supabase
         .from("purchase_returns")
-        .select("id, return_number, return_date, grand_total, gst_type, status")
+        .select("*,purchase:raw_material_purchases!inner(gst_type)")
         .eq("supplier_id", partyId)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("business_id", bid).eq("status", "completed")
         .is("deleted_at", null);
 
       let salesReturnsQuery = supabase
         .from("sales_returns")
         .select("id, return_number, return_date, grand_total, status")
         .eq("party_id", partyId)
-        .eq("business_id", bid)
-        .neq("status", "rejected");
+        .eq("business_id", bid).eq("status", "approved");
 
       if (billType && billType !== "all") {
         salesQuery = salesQuery.eq("bill_type", billType);
         purchaseBillsQuery = purchaseBillsQuery.eq("bill_type", billType);
         if (billType === "kacha") {
           rmPurchasesQuery = rmPurchasesQuery.eq("gst_type", "without_gst");
-          purchaseReturnsQuery = purchaseReturnsQuery.eq("gst_type", "without_gst");
+          purchaseReturnsQuery = purchaseReturnsQuery.eq("purchase.gst_type", "without_gst");
         } else {
           rmPurchasesQuery = rmPurchasesQuery.neq("gst_type", "without_gst");
-          purchaseReturnsQuery = purchaseReturnsQuery.neq("gst_type", "without_gst");
+          purchaseReturnsQuery = purchaseReturnsQuery.neq("purchase.gst_type", "without_gst");
         }
       }
 
@@ -102,26 +106,30 @@ export async function GET(req: NextRequest) {
         salesReturnsRes,
       ] = await Promise.all([
         supabase.from("parties").select("*").eq("id", partyId).eq("business_id", bid).single(),
-        rmPurchasesQuery,
-        purchaseBillsQuery,
-        salesQuery,
-        supabase
+        readReportRows((rmPurchasesQuery).order("id")),
+        readReportRows((purchaseBillsQuery).order("id")),
+        readReportRows((salesQuery).order("id")),
+        readReportRows((supabase
           .from("payments")
-          .select("id, payment_number, payment_date, direction, payment_mode, amount, reference_number, notes, bank_account:bank_accounts(id, name, account_category)")
+          .select("id, payment_number, payment_date, direction, payment_mode, amount, reference_no, remarks, bank_account:bank_accounts(id, name, account_category)")
           .eq("party_id", partyId)
-          .eq("business_id", bid)
-          .neq("status", "cancelled"),
-        supabase.from("credit_notes").select("id, cn_number, cn_date, amount, return_id, note_type").eq("party_id", partyId).eq("business_id", bid),
-        supabase.from("debit_notes").select("id, dn_number, dn_date, amount, related_purchase_return_id, note_type").eq("party_id", partyId).eq("business_id", bid),
-        purchaseReturnsQuery,
-        salesReturnsQuery,
+          .eq("business_id", bid).in("status", ["completed", "success"])).order("id")),
+        readReportRows((supabase.from("credit_notes").select("*").eq("party_id", partyId).eq("business_id", bid)).order("id")),
+        readReportRows((supabase.from("debit_notes").select("*").eq("party_id", partyId).eq("business_id", bid)).order("id")),
+        readReportRows((purchaseReturnsQuery).order("id")),
+        readReportRows((salesReturnsQuery).order("id")),
       ]);
+      requireReportResults([rmPurchasesRes,purchaseBillsRes,saleBillsRes,paymentsRes,creditNotesRes,debitNotesRes,purchaseReturnsRes,salesReturnsRes]);
 
+      for (const result of [rmPurchasesRes, purchaseBillsRes, saleBillsRes, paymentsRes, creditNotesRes, debitNotesRes, purchaseReturnsRes, salesReturnsRes]) {
+        if (result.error) throw result.error;
+      }
       const party = partyRes.data;
       if (!party) return NextResponse.json({ error: "Party not found" }, { status: 404 });
 
-      const isCustomer = party.type === "customer";
-      const openingBalance = Number(party.opening_balance ?? 0);
+      const roles = Array.isArray(party.type) ? party.type : [party.type];
+      const isCustomer = roles.includes("customer") && !roles.includes("supplier") && !roles.includes("worker");
+      const openingBalance = Number(party.opening_balance ?? 0) * (isCustomer ? -1 : 1);
 
       interface LedgerItem {
         id: string;
@@ -157,7 +165,7 @@ export async function GET(req: NextRequest) {
       });
 
       // Sales Returns (Credit for customer)
-      (salesReturnsRes.data ?? []).forEach((sr: any) => {
+      (salesReturnsRes.data ?? []).filter((sr: any) => !(creditNotesRes.data ?? []).some((cn: any) => cn.return_id === sr.id)).forEach((sr: any) => {
         entries.push({
           id: sr.id,
           date: sr.return_date,
@@ -216,7 +224,7 @@ export async function GET(req: NextRequest) {
           voucher_type: "purchase_return",
           voucher_no: pr.return_number,
           reference: `Against Purchase`,
-          bill_type: pr.gst_type === "without_gst" ? "Kachha" : "Pakka",
+          bill_type: (Array.isArray(pr.purchase) ? pr.purchase[0] : pr.purchase)?.gst_type === "without_gst" ? "Kachha" : "Pakka",
           debit: Number(pr.grand_total || 0),
           credit: 0,
           narration: "Return of Raw Material / Goods to Supplier",
@@ -236,11 +244,11 @@ export async function GET(req: NextRequest) {
             type: "Receipt",
             voucher_type: "receipt",
             voucher_no: p.payment_number || "REC",
-            reference: p.reference_number || p.payment_mode,
+            reference: p.reference_no || p.payment_mode,
             bill_type: "—",
             debit: 0,
             credit: Number(p.amount || 0),
-            narration: `Payment received (${modeLabel}${bankStr})${p.notes ? ` - ${p.notes}` : ""}`,
+            narration: `Payment received (${modeLabel}${bankStr})${p.remarks ? ` - ${p.remarks}` : ""}`,
             view_url: `/payments`,
           });
         } else {
@@ -251,18 +259,18 @@ export async function GET(req: NextRequest) {
             type: "Payment Made",
             voucher_type: "payment",
             voucher_no: p.payment_number || "PAY",
-            reference: p.reference_number || p.payment_mode,
+            reference: p.reference_no || p.payment_mode,
             bill_type: "—",
             debit: Number(p.amount || 0),
             credit: 0,
-            narration: `Payment made (${modeLabel}${bankStr})${p.notes ? ` - ${p.notes}` : ""}`,
+            narration: `Payment made (${modeLabel}${bankStr})${p.remarks ? ` - ${p.remarks}` : ""}`,
             view_url: `/payments`,
           });
         }
       });
 
       // Debit Notes (Debit for party)
-      (debitNotesRes.data ?? []).forEach((dn: any) => {
+      (debitNotesRes.data ?? []).filter((dn: any) => !dn.related_purchase_return_id).forEach((dn: any) => {
         entries.push({
           id: dn.id,
           date: dn.dn_date,
@@ -296,11 +304,11 @@ export async function GET(req: NextRequest) {
       });
 
       // Chronological sort
-      entries.sort((a, b) => a.date.localeCompare(b.date));
+      entries.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 
       // Calculate running balance
       let runningBalance = openingBalance;
-      const allRowsWithBalance = entries.map((e) => {
+      const allRowsWithBalance = entries.filter((e) => e.date <= to).map((e) => {
         if (isCustomer) {
           runningBalance += e.debit - e.credit;
         } else {
@@ -316,14 +324,14 @@ export async function GET(req: NextRequest) {
       let filteredRows = allRowsWithBalance.filter((r) => r.date >= from && r.date <= to);
 
       if (voucherType && voucherType !== "all") {
-        filteredRows = filteredRows.filter((r) => r.voucher_type === voucherType);
+        filteredRows = filteredRows.filter((r) => voucherType === "payment" ? ["payment", "receipt"].includes(r.voucher_type) : r.voucher_type === voucherType);
       }
 
       const totalDebits = filteredRows.reduce((s, r) => s + r.debit, 0);
       const totalCredits = filteredRows.reduce((s, r) => s + r.credit, 0);
 
       // Aging calculation
-      const todayMs = new Date().getTime();
+      const todayMs = new Date(`${to}T00:00:00Z`).getTime();
       const aging = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
       const outstandingBills = filteredRows.filter((r) => (isCustomer ? r.debit > 0 : r.credit > 0));
       outstandingBills.forEach((r) => {
@@ -349,7 +357,7 @@ export async function GET(req: NextRequest) {
           address: party.address,
         },
         summary: {
-          openingBalance,
+          openingBalance: allRowsWithBalance.filter((r) => r.date < from).at(-1)?.runningBalance ?? openingBalance,
           totalDebits,
           totalCredits,
           closingBalance: runningBalance,
@@ -373,62 +381,60 @@ export async function GET(req: NextRequest) {
     if (tab === "outstanding" || tab === "aging") {
       let partiesQuery = supabase
         .from("parties")
-        .select("id, name, company_name, type, phone, gstin, address, opening_balance")
+        .select("id, name, company_name, type, phone, gstin, address:billing_address_line1, opening_balance")
         .eq("business_id", bid)
         .is("deleted_at", null)
         .order("name");
 
       if (partyType && partyType !== "all") {
-        partiesQuery = partiesQuery.eq("type", partyType);
+        partiesQuery = partiesQuery.contains("type", [partyType]);
       }
       if (partyId && partyId !== "all") {
         partiesQuery = partiesQuery.eq("id", partyId);
       }
 
       const [partiesRes, saleBillsRes, rmPurchasesRes, fgPurchasesRes, paymentsRes, creditNotesRes, debitNotesRes] = await Promise.all([
-        partiesQuery,
-        (() => {
+        readReportRows((partiesQuery).order("id")),
+        readReportRows(((() => {
           let q = supabase
             .from("sale_bills")
             .select("id, bill_number, party_id, bill_date, due_date, grand_total, paid_amount, payment_status, bill_type")
-            .eq("business_id", bid)
-            .neq("status", "cancelled")
+            .eq("business_id", bid).eq("status", "active")
             .is("deleted_at", null);
           if (billType && billType !== "all") q = q.eq("bill_type", billType);
           return q;
-        })(),
-        supabase
+        })()).order("id")),
+        readReportRows((supabase
           .from("raw_material_purchases")
-          .select("id, purchase_number, supplier_id, invoice_date, grand_total, paid_amount, payment_status, gst_type")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
-          .is("deleted_at", null),
-        supabase
+          .select("id, purchase_number, supplier_id, invoice_date, due_date, grand_total, paid_amount, payment_status, gst_type")
+          .eq("business_id", bid).neq("status", "cancelled")
+          .is("deleted_at", null)).order("id")),
+        readReportRows((supabase
           .from("purchase_bills")
-          .select("id, bill_number, supplier_id, invoice_date, grand_total, paid_amount, payment_status, bill_type")
-          .eq("business_id", bid)
-          .neq("status", "cancelled"),
-        supabase
+          .select("id, bill_number, supplier_id, invoice_date, due_date, grand_total, paid_amount, payment_status, bill_type")
+          .eq("business_id", bid).neq("status", "cancelled")).order("id")),
+        readReportRows((supabase
           .from("payments")
           .select("id, party_id, payment_date, direction, amount")
-          .eq("business_id", bid)
-          .neq("status", "cancelled"),
-        supabase.from("credit_notes").select("party_id, amount").eq("business_id", bid),
-        supabase.from("debit_notes").select("party_id, amount").eq("business_id", bid),
+          .eq("business_id", bid).in("status", ["completed", "success"])).order("id")),
+        readReportRows((supabase.from("credit_notes").select("*").eq("business_id", bid)).order("id")),
+        readReportRows((supabase.from("debit_notes").select("*").eq("business_id", bid)).order("id")),
       ]);
+      requireReportResults([partiesRes,saleBillsRes,rmPurchasesRes,fgPurchasesRes,paymentsRes,creditNotesRes,debitNotesRes]);
 
       const parties = partiesRes.data ?? [];
-      const saleBills = saleBillsRes.data ?? [];
-      const rmPurchases = rmPurchasesRes.data ?? [];
-      const fgPurchases = fgPurchasesRes.data ?? [];
-      const payments = paymentsRes.data ?? [];
-      const creditNotes = creditNotesRes.data ?? [];
-      const debitNotes = debitNotesRes.data ?? [];
+      const saleBills = paidAtCutoff(saleBillsRes.data ?? [], futureAllocations.data, "sale_bill").filter(b => b.bill_date <= to);
+      const rmPurchases = paidAtCutoff(rmPurchasesRes.data ?? [], futureAllocations.data, "raw_material_purchase").filter(b => b.invoice_date <= to);
+      const fgPurchases = paidAtCutoff(fgPurchasesRes.data ?? [], futureAllocations.data, "purchase_bill").filter(b => b.invoice_date <= to);
+      const payments = (paymentsRes.data ?? []).filter(p => p.payment_date <= to);
+      const creditNotes = (creditNotesRes.data ?? []).filter(p => p.cn_date <= to);
+      const debitNotes = (debitNotesRes.data ?? []).filter(p => p.dn_date <= to);
 
-      const todayMs = new Date().getTime();
+      const todayMs = new Date(`${to}T00:00:00Z`).getTime();
 
       const partyRows = parties.map((p) => {
-        const isCust = p.type === "customer";
+        const roles = Array.isArray(p.type) ? p.type : [p.type];
+        const isCust = partyType === "customer" || (partyType !== "supplier" && roles.includes("customer") && !roles.includes("supplier"));
         const pId = p.id;
 
         const custSales = saleBills.filter((b) => b.party_id === pId);
@@ -498,7 +504,7 @@ export async function GET(req: NextRequest) {
         } else {
           suppRMPurchases.forEach((b) => {
             const outAmt = Number(b.grand_total || 0) - Number((b as any).paid_amount || 0);
-            if (outAmt > 0) billDates.push({ date: b.invoice_date, amt: outAmt });
+            if (outAmt > 0) billDates.push({ date: agingBasedOn === "due_date" ? b.due_date || b.invoice_date : b.invoice_date, amt: outAmt });
           });
           suppFGPurchases.forEach((b) => {
             const outAmt = Number(b.grand_total || 0) - Number(b.paid_amount || 0);
@@ -515,7 +521,7 @@ export async function GET(req: NextRequest) {
             else if (diffDays <= 60) d60 += bd.amt;
             else if (diffDays <= 90) d90 += bd.amt;
             else over90 += bd.amt;
-            if (diffDays > 30) overdue += bd.amt;
+            if (diffDays > 0) overdue += bd.amt;
           });
         } else if (totalDue > 0) {
           d30 = totalDue;
@@ -525,7 +531,7 @@ export async function GET(req: NextRequest) {
           id: p.id,
           party_name: p.company_name || p.name,
           contact_name: p.name,
-          party_type: p.type,
+          party_type: isCust ? "customer" : roles.includes("supplier") ? "supplier" : roles[0],
           phone: p.phone,
           gstin: p.gstin,
           total_due: totalDue,
@@ -552,6 +558,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         tab,
+        metadata: { note: "Closing dues use the selected cutoff and known unified allocations. Category charts use recorded item values; shared charges, legacy settlements and unallocated adjustments require reconciliation." },
         summary: {
           totalOutstanding,
           totalReceivables,
@@ -586,8 +593,7 @@ export async function GET(req: NextRequest) {
           id, bill_number, bill_date, due_date, grand_total, taxable_amount, paid_amount, payment_status, bill_type, party_id,
           party:parties(id, name, company_name, phone, gstin)
         `)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("business_id", bid).eq("status", "active")
         .is("deleted_at", null)
         .gte("bill_date", from)
         .lte("bill_date", to);
@@ -596,28 +602,27 @@ export async function GET(req: NextRequest) {
       if (billType && billType !== "all") billsQuery = billsQuery.eq("bill_type", billType);
 
       const [billsRes, returnsRes, paymentsRes, billItemsRes] = await Promise.all([
-        billsQuery,
-        supabase
+        readReportRows((billsQuery).order("id")),
+        readReportRows((supabase
           .from("sales_returns")
           .select("id, return_number, return_date, grand_total, party_id")
-          .eq("business_id", bid)
-          .neq("status", "rejected")
+          .eq("business_id", bid).eq("status", "approved")
           .gte("return_date", from)
-          .lte("return_date", to),
-        supabase
+          .lte("return_date", to)).order("id")),
+        readReportRows((supabase
           .from("payments")
           .select("id, party_id, payment_date, amount, payment_mode")
           .eq("business_id", bid)
-          .eq("direction", "received")
-          .neq("status", "cancelled")
+          .eq("direction", "received").in("status", ["completed", "success"])
           .gte("payment_date", from)
-          .lte("payment_date", to),
-        supabase
+          .lte("payment_date", to)).order("id")),
+        readReportRows((supabase
           .from("sale_bill_items")
-          .select("id, bill_id, quantity, rate, unit, design:designs(id, name, category)"),
+          .select("*,design:designs(id, name, category)").eq("business_id", bid)).order("id")),
       ]);
+      requireReportResults([billsRes,returnsRes,paymentsRes,billItemsRes]);
 
-      const bills = billsRes.data ?? [];
+      const bills = paidAtCutoff(billsRes.data ?? [], futureAllocations.data, "sale_bill");
       const returns = returnsRes.data ?? [];
       const payments = paymentsRes.data ?? [];
       const billItems = billItemsRes.data ?? [];
@@ -641,7 +646,7 @@ export async function GET(req: NextRequest) {
         overdue: number;
       }> = {};
 
-      const todayMs = new Date().getTime();
+      const todayMs = new Date(`${to}T00:00:00Z`).getTime();
 
       bills.forEach((b: any) => {
         const cId = b.party_id || "unknown";
@@ -702,28 +707,23 @@ export async function GET(req: NextRequest) {
 
       // Sales by Product Category (Manufactured FG, Raw Material, Accessories, Purchased FG)
       const catMap: Record<string, number> = {
-        "Manufactured FG": 0,
+        "Finished Goods (origin unclassified)": 0,
         "Raw Material / Fabric": 0,
         "Accessories & Trims": 0,
         "Purchased FG": 0,
       };
 
-      billItems.forEach((bi: any) => {
-        const cat = (bi.design?.category || "").toLowerCase();
+      const selectedBills = new Set(bills.map(b => b.id));
+      billItems.filter((bi: any) => selectedBills.has(bi.bill_id)).forEach((bi: any) => {
+        const cat = (bi.item_type || "finished_goods").toLowerCase();
         const amt = Number(bi.quantity || 0) * Number(bi.rate || 0);
         if (cat.includes("raw") || cat.includes("fabric")) catMap["Raw Material / Fabric"] += amt;
         else if (cat.includes("access") || cat.includes("trim")) catMap["Accessories & Trims"] += amt;
         else if (cat.includes("purchase") || cat.includes("trading")) catMap["Purchased FG"] += amt;
-        else catMap["Manufactured FG"] += amt;
+        else catMap["Finished Goods (origin unclassified)"] += amt;
       });
 
-      // Default distribution if no line item category tagging exists
-      if (Object.values(catMap).reduce((s, v) => s + v, 0) === 0 && netSales > 0) {
-        catMap["Manufactured FG"] = Math.round(netSales * 0.65);
-        catMap["Raw Material / Fabric"] = Math.round(netSales * 0.20);
-        catMap["Accessories & Trims"] = Math.round(netSales * 0.10);
-        catMap["Purchased FG"] = netSales - catMap["Manufactured FG"] - catMap["Raw Material / Fabric"] - catMap["Accessories & Trims"];
-      }
+
 
       const categoryBreakdown = Object.entries(catMap).map(([category, amount]) => ({
         category,
@@ -773,8 +773,7 @@ export async function GET(req: NextRequest) {
           id, purchase_number, invoice_date, grand_total, paid_amount, payment_status, gst_type, supplier_id,
           supplier:parties(id, name, company_name, phone, gstin)
         `)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("business_id", bid).neq("status", "cancelled")
         .is("deleted_at", null)
         .gte("invoice_date", from)
         .lte("invoice_date", to);
@@ -785,8 +784,7 @@ export async function GET(req: NextRequest) {
           id, bill_number, invoice_date, grand_total, paid_amount, payment_status, bill_type, supplier_id,
           supplier:parties(id, name, company_name, phone, gstin)
         `)
-        .eq("business_id", bid)
-        .neq("status", "cancelled")
+        .eq("business_id", bid).neq("status", "cancelled")
         .gte("invoice_date", from)
         .lte("invoice_date", to);
 
@@ -796,31 +794,30 @@ export async function GET(req: NextRequest) {
       }
 
       const [rmRes, fgRes, returnsRes, paymentsRes, rmItemsRes] = await Promise.all([
-        rmQuery,
-        fgQuery,
-        supabase
+        readReportRows((rmQuery).order("id")),
+        readReportRows((fgQuery).order("id")),
+        readReportRows((supabase
           .from("purchase_returns")
           .select("id, return_number, return_date, grand_total, supplier_id")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .eq("business_id", bid).eq("status", "completed")
           .is("deleted_at", null)
           .gte("return_date", from)
-          .lte("return_date", to),
-        supabase
+          .lte("return_date", to)).order("id")),
+        readReportRows((supabase
           .from("payments")
           .select("id, party_id, payment_date, amount, payment_mode")
           .eq("business_id", bid)
-          .eq("direction", "sent")
-          .neq("status", "cancelled")
+          .eq("direction", "paid").in("status", ["completed", "success"])
           .gte("payment_date", from)
-          .lte("payment_date", to),
-        supabase
+          .lte("payment_date", to)).order("id")),
+        readReportRows((supabase
           .from("raw_material_purchase_items")
-          .select("id, purchase_id, item_type, grand_total, quantity, rate"),
+          .select("id, purchase_id, item_type, amount, quantity, rate").eq("business_id", bid)).order("id")),
       ]);
+      requireReportResults([rmRes,fgRes,returnsRes,paymentsRes,rmItemsRes]);
 
-      const rmPurchases = rmRes.data ?? [];
-      const fgPurchases = fgRes.data ?? [];
+      const rmPurchases = paidAtCutoff(rmRes.data ?? [], futureAllocations.data, "raw_material_purchase");
+      const fgPurchases = paidAtCutoff(fgRes.data ?? [], futureAllocations.data, "purchase_bill");
       const returns = returnsRes.data ?? [];
       const payments = paymentsRes.data ?? [];
       const rmItems = rmItemsRes.data ?? [];
@@ -843,7 +840,7 @@ export async function GET(req: NextRequest) {
         overdue: number;
       }> = {};
 
-      const todayMs = new Date().getTime();
+      const todayMs = new Date(`${to}T00:00:00Z`).getTime();
 
       const addPurchaseToMap = (b: any, isFG: boolean) => {
         const sId = b.supplier_id || "unknown";
@@ -911,20 +908,16 @@ export async function GET(req: NextRequest) {
         "Others": 0,
       };
 
-      rmItems.forEach((item: any) => {
-        const amt = Number(item.grand_total || (Number(item.quantity || 0) * Number(item.rate || 0)));
+      const selectedPurchases = new Set(rmPurchases.map(b => b.id));
+      rmItems.filter((item: any) => selectedPurchases.has(item.purchase_id)).forEach((item: any) => {
+        const amt = Number(item.amount || 0);
         if (item.item_type === "accessory") pTypeMap["Accessories"] += amt;
         else if (item.item_type === "others") pTypeMap["Others"] += amt;
         else if (item.item_type === "finished_goods") pTypeMap["Finished Goods"] += amt;
         else pTypeMap["Raw Material"] += amt;
       });
 
-      // Fallback if no item breakdown exists
-      if (pTypeMap["Raw Material"] === 0 && rmPurchases.length > 0) {
-        const rmGross = rmPurchases.reduce((s, p) => s + Number(p.grand_total || 0), 0);
-        pTypeMap["Raw Material"] = Math.round(rmGross * 0.75);
-        pTypeMap["Accessories"] = rmGross - pTypeMap["Raw Material"];
-      }
+
 
       const purchaseTypeBreakdown = Object.entries(pTypeMap).map(([type, amount]) => ({
         type,
@@ -984,64 +977,59 @@ export async function GET(req: NextRequest) {
         creditNotesRes,
         debitNotesRes,
       ] = await Promise.all([
-        supabase
+        readReportRows((supabase
           .from("sale_bills")
           .select("id, bill_number, bill_date, grand_total, bill_type, party:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .eq("business_id", bid).eq("status", "active")
           .is("deleted_at", null)
           .gte("bill_date", from)
-          .lte("bill_date", to),
-        supabase
+          .lte("bill_date", to)).order("id")),
+        readReportRows((supabase
           .from("sales_returns")
           .select("id, return_number, return_date, grand_total, party:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "rejected")
+          .eq("business_id", bid).eq("status", "approved")
           .gte("return_date", from)
-          .lte("return_date", to),
-        supabase
+          .lte("return_date", to)).order("id")),
+        readReportRows((supabase
           .from("raw_material_purchases")
           .select("id, purchase_number, invoice_date, grand_total, gst_type, supplier:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .eq("business_id", bid).neq("status", "cancelled")
           .is("deleted_at", null)
           .gte("invoice_date", from)
-          .lte("invoice_date", to),
-        supabase
+          .lte("invoice_date", to)).order("id")),
+        readReportRows((supabase
           .from("purchase_bills")
           .select("id, bill_number, invoice_date, grand_total, bill_type, supplier:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .eq("business_id", bid).neq("status", "cancelled")
           .gte("invoice_date", from)
-          .lte("invoice_date", to),
-        supabase
+          .lte("invoice_date", to)).order("id")),
+        readReportRows((supabase
           .from("purchase_returns")
-          .select("id, return_number, return_date, grand_total, gst_type, supplier:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .select("*,purchase:raw_material_purchases!inner(gst_type),supplier:parties(id, name, company_name, type)")
+          .eq("business_id", bid).eq("status", "completed")
           .is("deleted_at", null)
           .gte("return_date", from)
-          .lte("return_date", to),
-        supabase
+          .lte("return_date", to)).order("id")),
+        readReportRows((supabase
           .from("payments")
-          .select("id, payment_number, payment_date, direction, payment_mode, amount, reference_number, party:parties(id, name, company_name, type)")
-          .eq("business_id", bid)
-          .neq("status", "cancelled")
+          .select("id, payment_number, payment_date, direction, payment_mode, amount, reference_no, party:parties(id, name, company_name, type)")
+          .eq("business_id", bid).in("status", ["completed", "success"])
           .gte("payment_date", from)
-          .lte("payment_date", to),
-        supabase
+          .lte("payment_date", to)).order("id")),
+        readReportRows((supabase
           .from("credit_notes")
-          .select("id, cn_number, cn_date, amount, party:parties(id, name, company_name, type)")
+          .select("id, return_id, cn_number, cn_date, amount, party:parties(id, name, company_name, type)")
           .eq("business_id", bid)
           .gte("cn_date", from)
-          .lte("cn_date", to),
-        supabase
+          .lte("cn_date", to)).order("id")),
+        readReportRows((supabase
           .from("debit_notes")
-          .select("id, dn_number, dn_date, amount, party:parties(id, name, company_name, type)")
+          .select("id, related_purchase_return_id, dn_number, dn_date, amount, party:parties(id, name, company_name, type)")
           .eq("business_id", bid)
           .gte("dn_date", from)
-          .lte("dn_date", to),
+          .lte("dn_date", to)).order("id")),
       ]);
+      requireReportResults([saleBillsRes,salesReturnsRes,rmPurchasesRes,fgPurchasesRes,purchaseReturnsRes,paymentsRes,creditNotesRes,debitNotesRes]);
 
       interface MasterTransaction {
         id: string;
@@ -1173,7 +1161,7 @@ export async function GET(req: NextRequest) {
           party_id: sId,
           party_name: sName,
           party_type: "Supplier",
-          bill_type: pr.gst_type === "without_gst" ? "Kachha (Non-GST)" : "Pakka (GST)",
+          bill_type: (Array.isArray(pr.purchase) ? pr.purchase[0] : pr.purchase)?.gst_type === "without_gst" ? "Kachha (Non-GST)" : "Pakka (GST)",
           debit: Number(pr.grand_total || 0),
           credit: 0,
           net: Number(pr.grand_total || 0),
@@ -1184,6 +1172,7 @@ export async function GET(req: NextRequest) {
       });
 
       // Payments & Receipts
+      if (paymentsRes.error) throw paymentsRes.error;
       (paymentsRes.data ?? []).forEach((py: any) => {
         const p = py.party;
         const pId = p?.id || "unknown";
@@ -1204,7 +1193,7 @@ export async function GET(req: NextRequest) {
           credit: isRec ? Number(py.amount || 0) : 0,
           net: Number(py.amount || 0),
           payment_mode: py.payment_mode ? py.payment_mode.toUpperCase() : "CASH",
-          reference: py.reference_number || "—",
+          reference: py.reference_no || "—",
           view_url: `/finance/payments/${py.id}`,
         });
       });
@@ -1222,7 +1211,7 @@ export async function GET(req: NextRequest) {
           voucher_no: dn.dn_number,
           party_id: pId,
           party_name: pName,
-          party_type: p?.type === "customer" ? "Customer" : "Supplier",
+          party_type: (Array.isArray(p?.type) ? p.type : [p?.type]).includes("customer") ? "Customer" : "Supplier",
           bill_type: "Pakka (GST)",
           debit: Number(dn.amount || 0),
           credit: 0,
@@ -1246,7 +1235,7 @@ export async function GET(req: NextRequest) {
           voucher_no: cn.cn_number,
           party_id: pId,
           party_name: pName,
-          party_type: p?.type === "customer" ? "Customer" : "Supplier",
+          party_type: (Array.isArray(p?.type) ? p.type : [p?.type]).includes("customer") ? "Customer" : "Supplier",
           bill_type: "Pakka (GST)",
           debit: 0,
           credit: Number(cn.amount || 0),

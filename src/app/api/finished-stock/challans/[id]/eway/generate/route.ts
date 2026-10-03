@@ -69,9 +69,11 @@ export async function POST(
     const adapter = getEInvoiceAdapter();
     const credentials = {
       gstin: business.gstin,
-      clientId: process.env.IRIS_CLIENT_ID || "tas_iris_client",
-      clientSecret: process.env.IRIS_CLIENT_SECRET || "tas_iris_secret",
+      clientId: process.env.IRIS_CLIENT_ID,
+      clientSecret: process.env.IRIS_CLIENT_SECRET,
       userName: business.irp_client_id || undefined,
+      authToken: business.irp_auth_token || undefined,
+      tokenExpiry: business.irp_token_expiry || undefined,
     };
 
     const ewbResult = await adapter.generateEWB(

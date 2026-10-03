@@ -1,4 +1,6 @@
 "use client";
+import { invalidateReports } from "@/lib/report-cache";
+
 
 import React, { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Save, Wallet } from "lucide-react";
@@ -157,6 +159,7 @@ export default function MakePaymentView({
       return json;
     },
     onSuccess: () => {
+      void invalidateReports(queryClient);
       toast.success("Outward payment recorded successfully!");
       queryClient.invalidateQueries({ queryKey: ["payments-list-overview"] });
       queryClient.invalidateQueries({ queryKey: ["outstanding-bills-make"] });

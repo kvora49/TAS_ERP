@@ -1,5 +1,7 @@
 "use client";
 
+import ReportTable from "./ReportTable";
+
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -205,7 +207,7 @@ export default function InlineDrillDownPanel({
           )}
 
           {/* Search Input */}
-          <div className="relative min-w-[240px] max-w-xs">
+          <div className="relative w-full min-w-0 sm:min-w-[240px] sm:max-w-xs">
             <Search
               size={13}
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]"
@@ -231,7 +233,7 @@ export default function InlineDrillDownPanel({
               </p>
             </div>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
+            <ReportTable className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider sticky top-0 z-10">
                   <th className="py-2.5 px-3 whitespace-nowrap">Doc / Invoice</th>
@@ -304,7 +306,7 @@ export default function InlineDrillDownPanel({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ReportTable>
           )}
         </div>
 

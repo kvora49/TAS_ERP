@@ -1,7 +1,13 @@
 "use client";
 
+import ReportBudget from "@/components/reports/ReportBudget";
+import Link from "next/link";
+import ReportTable from "@/components/reports/ReportTable";
+
+import { useReportState } from "@/hooks/useReportState";
+
 import React, { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useReportQuery as useQuery } from "@/hooks/useReportQuery";
 import {
   TrendingUp, TrendingDown, DollarSign, Scale,
   Building2, ArrowDownLeft, ArrowUpRight, Receipt,
@@ -48,7 +54,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 // ─── Query hooks ──────────────────────────────────────────────────────────────
 
-function usePLQuery(from: string, to: string, billType: BillType) {
+function usePLQuery(from: string, to: string, billType: BillType, enabled = true) {
   return useQuery({
     queryKey: ["report-financial-pl", from, to, billType],
     queryFn: async () => {
@@ -59,10 +65,11 @@ function usePLQuery(from: string, to: string, billType: BillType) {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 
-function useBalanceQuery(to: string) {
+function useBalanceQuery(to: string, enabled = true) {
   return useQuery({
     queryKey: ["report-financial-balance", to],
     queryFn: async () => {
@@ -71,10 +78,11 @@ function useBalanceQuery(to: string) {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 
-function useGSTQuery(from: string, to: string) {
+function useGSTQuery(from: string, to: string, enabled = true) {
   return useQuery({
     queryKey: ["report-financial-gst", from, to],
     queryFn: async () => {
@@ -83,10 +91,11 @@ function useGSTQuery(from: string, to: string) {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 
-function useCashFlowQuery(from: string, to: string) {
+function useCashFlowQuery(from: string, to: string, enabled = true) {
   return useQuery({
     queryKey: ["report-financial-cashflow", from, to],
     queryFn: async () => {
@@ -95,6 +104,7 @@ function useCashFlowQuery(from: string, to: string) {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 
@@ -102,22 +112,22 @@ function useCashFlowQuery(from: string, to: string) {
 
 export default function FinancialReportsPage() {
   const defaultDates = getPresetDates("this_fy");
-  const [from, setFrom] = useState(defaultDates.from);
-  const [to, setTo] = useState(defaultDates.to);
-  const [activeTab, setActiveTab] = useState<Tab>("pl");
-  const [billType, setBillType] = useState<BillType>("all");
-  const [gstSubTab, setGstSubTab] = useState<"overview" | "output" | "input" | "rcm">("overview");
+  const [from, setFrom] = useReportState<string>(defaultDates.from, "from");
+  const [to, setTo] = useReportState<string>(defaultDates.to, "to");
+  const [activeTab, setActiveTab] = useReportState<Tab>("pl", "tab", ["pl","balance","gst","cashflow"]);
+  const [billType, setBillType] = useReportState<BillType>("all", "bill_type", ["all","kacha","pakka"]);
+  const [gstSubTab, setGstSubTab] = useReportState<"overview" | "output" | "input" | "rcm">("overview", "gst_view", ["overview","output","input","rcm"]);
 
   // Pre-fetch active queries for top-level export
-  const plQuery = usePLQuery(from, to, billType);
-  const balanceQuery = useBalanceQuery(to);
-  const gstQuery = useGSTQuery(from, to);
-  const cashFlowQuery = useCashFlowQuery(from, to);
+  const plQuery = usePLQuery(from, to, billType, activeTab === "pl");
+  const balanceQuery = useBalanceQuery(to, activeTab === "balance");
+  const gstQuery = useGSTQuery(from, to, activeTab === "gst");
+  const cashFlowQuery = useCashFlowQuery(from, to, activeTab === "cashflow");
 
   const handleApply = useCallback((filters: ReportFilters) => {
     setFrom(filters.from);
     setTo(filters.to);
-  }, []);
+  }, [setFrom, setTo]);
 
   // Top Level Header PDF Export Handler
   const handleTopExportPDF = useCallback(() => {
@@ -155,6 +165,8 @@ export default function FinancialReportsPage() {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <ReportShell
+      defaultFrom={from}
+      defaultTo={to}
         title="Financial Reports"
         infoTooltip="Comprehensive financial reporting — Profit & Loss, Balance Sheet, GST Summary, and Cash Flow with full inline drill-down auditability and formal exports."
         breadcrumbs={["Reports", "Financial Reports"]}
@@ -276,6 +288,10 @@ function PLTab({
           </div>
 
           {/* Top 4 KPI Cards */}
+          <p className="rounded-lg border border-[var(--border)] bg-[var(--card-bg)] p-3 text-xs text-[var(--text-muted)]">
+            {data.metadata?.stockBasis || "Inventory uses stock-ledger posting dates."} {data.metadata?.note || "Margins depend on complete cost postings and reconciled opening/closing valuations."}
+          </p>
+          <ReportBudget data={data} from={from} to={to} />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <ReportKPICard
               label="Net Sales"
@@ -556,6 +572,9 @@ function PLTab({
                       )}
                     </AnimatePresence>
 
+                    {data.cogs.wip_change != null && <PLRow label="Reviewed WIP Movement (Opening ? Closing)" value={data.cogs.wip_change} negative indent />}
+                    <PLRow label="Other Recorded Direct Purchases" value={data.cogs.others ?? 0} negative indent />
+                    <PLRow label="Less: Recorded Purchase Returns" value={data.cogs.purchase_returns ?? 0} indent />
                     {/* Accessories */}
                     <PLRow
                       label="C. Accessories Direct Used"
@@ -832,34 +851,34 @@ function PLTab({
           {/* Drill Down Flow Diagram */}
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-[var(--shadow-sm)]">
             <h4 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)] mb-3">Costing Traceability Flow</h4>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 text-xs font-semibold">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 pb-2 text-xs font-semibold">
               <div
                 onClick={() => toggleDrill("cogs_rm")}
-                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-[170px] shrink-0 cursor-pointer transition-colors"
+                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-0 sm:min-w-[170px] sm:flex-1 cursor-pointer transition-colors"
               >
                 <div className="text-[10px] text-[var(--text-faint)] font-bold uppercase">1. Raw Material Inflow</div>
                 <div className="text-[var(--text-primary)] font-bold mt-1">Fabric Purchases</div>
                 <div className="text-[var(--primary)] font-mono font-extrabold mt-0.5">{fmtINR(data.cogs.purchases_in_period.fabric)}</div>
               </div>
-              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0" />
+              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0 rotate-90 sm:rotate-0 self-center" />
               <div
                 onClick={() => toggleDrill("cogs_job_work")}
-                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-[170px] shrink-0 cursor-pointer transition-colors"
+                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-0 sm:min-w-[170px] sm:flex-1 cursor-pointer transition-colors"
               >
                 <div className="text-[10px] text-[var(--text-faint)] font-bold uppercase">2. Manufacturing Labor</div>
                 <div className="text-[var(--text-primary)] font-bold mt-1">Job Work Added</div>
                 <div className="text-violet-600 font-mono font-extrabold mt-0.5">{fmtINR(data.cogs.job_work)}</div>
               </div>
-              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0" />
-              <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-lg p-3 min-w-[170px] shrink-0">
+              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0 rotate-90 sm:rotate-0 self-center" />
+              <div className="bg-[var(--table-header-bg)] border border-[var(--border)] rounded-lg p-3 min-w-0 sm:min-w-[170px] sm:flex-1">
                 <div className="text-[10px] text-[var(--text-faint)] font-bold uppercase">3. Closing Stock Offset</div>
                 <div className="text-[var(--text-primary)] font-bold mt-1">RM + FG Stock Deducted</div>
                 <div className="text-amber-600 font-mono font-extrabold mt-0.5">−{fmtINR(data.cogs.closing_stock.total)}</div>
               </div>
-              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0" />
+              <ArrowRight size={16} className="text-[var(--text-muted)] shrink-0 rotate-90 sm:rotate-0 self-center" />
               <div
                 onClick={() => toggleDrill("cogs_rm")}
-                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-[170px] shrink-0 cursor-pointer transition-colors"
+                className="bg-[var(--table-header-bg)] border border-[var(--border)] hover:border-[var(--primary)] rounded-lg p-3 min-w-0 sm:min-w-[170px] sm:flex-1 cursor-pointer transition-colors"
               >
                 <div className="text-[10px] text-[var(--text-faint)] font-bold uppercase">4. Net COGS Matched</div>
                 <div className="text-[var(--text-primary)] font-bold mt-1">Cost of Goods Sold</div>
@@ -927,7 +946,7 @@ function BalanceTab({
           {/* Top 4 KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <ReportKPICard
-              label="Total Liabilities + Net Worth"
+              label="Total Liabilities + Equity"
               value={data.assets.total}
               color="blue"
               icon={<Building2 size={16} />}
@@ -948,7 +967,7 @@ function BalanceTab({
               subLabel="Current Assets − Current Liabilities"
             />
             <ReportKPICard
-              label="Net Worth"
+              label="Recorded Net Position"
               value={data.net_position}
               color="violet"
               icon={<DollarSign size={16} />}
@@ -964,13 +983,15 @@ function BalanceTab({
           )}>
             <span className="flex items-center gap-2">
               {data.is_balanced ? <ShieldCheck size={16} /> : <AlertCircle size={16} />}
-              {data.is_balanced ? "✓ Balance Sheet is Balanced" : `Out of balance by ${fmtINR(Math.abs(data.difference))}`}
+              {data.is_balanced ? "✓ Balance Sheet is Balanced" : "Preliminary position: equity and non-current schedules are unavailable; inventory uses current stock."}
             </span>
             <span className="font-mono text-[11px] opacity-80">
-              Total Assets ({fmtINR(data.assets.total)}) = Total Liabilities + Owner&apos;s Funds ({fmtINR(data.assets.total)})
+              Recorded assets: {fmtINR(data.assets.total)} / recorded liabilities: {fmtINR(data.liabilities.total)}
             </span>
           </div>
 
+          <Link href="/reports/opening-balances" className="text-xs text-[var(--primary)]">Open accountant-reviewed opening entries</Link>
+          {data.metadata?.reviewedPositionAvailable && <section className="min-w-0 border border-[var(--border)] rounded-lg p-3 space-y-3"><p className="text-xs text-[var(--text-muted)]">Source: {data.metadata.sourceTitle}. Approved on {fmtDate(data.metadata.reviewedAt)}. {data.metadata.reviewNote}. These are approved balances for this exact date, not values added to the current transaction projection.</p><ReportTable className="w-full text-xs"><thead><tr>{["Account", "Label", "Debit", "Credit", "Quantity", "Unit", "Source reference"].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody>{(data.drill_records?.approved_opening||[]).map((line:any,index:number)=><tr key={index}><td>{line.kind}</td><td>{line.label}</td><td>{fmtINR(line.debit)}</td><td>{fmtINR(line.credit)}</td><td>{line.quantity??"Not recorded"}</td><td>{line.unit||"Not recorded"}</td><td>{line.reference}</td></tr>)}</tbody></ReportTable></section>}
           {/* Dual Column Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column: Liabilities & Owner's Funds */}
@@ -985,15 +1006,15 @@ function BalanceTab({
               </div>
               <div className="divide-y divide-[var(--border-light)] text-xs font-semibold">
                 <SectionHeader label="A. OWNER'S FUNDS" color="blue" small />
-                <BSRow label="Net Worth / Capital Balance" value={data.net_position} indent />
-                <BSRowTotal label="Total Owner's Funds" value={data.net_position} color="blue" />
+                <BSRow label="Recorded Equity / Capital" value={data.metadata?.equityAvailable ? data.equity : null} indent />
+                <BSRowTotal label="Total Owner's Funds" value={data.metadata?.equityAvailable ? data.equity : null} color="blue" />
 
                 <SectionHeader label="B. NON-CURRENT LIABILITIES" color="slate" small />
-                <BSRow label="Term Loans & Long-term Borrowings" value={data.liabilities.non_current.total} indent />
-                <BSRowTotal label="Total Non-Current Liabilities" value={data.liabilities.non_current.total} />
+                <BSRow label="Term Loans & Long-term Borrowings" value={data.metadata?.nonCurrentAvailable ? data.liabilities.non_current.total : null} indent />
+                <BSRowTotal label="Total Non-Current Liabilities" value={data.metadata?.nonCurrentAvailable ? data.liabilities.non_current.total : null} />
 
                 <SectionHeader label="C. CURRENT LIABILITIES" color="rose" small />
-                
+
                 {/* Trade Payables */}
                 <BSRow
                   label="Trade Payables"
@@ -1021,7 +1042,7 @@ function BalanceTab({
                 {/* RM Payables */}
                 <BSRow
                   label="  Raw Material Payables"
-                  value={data.liabilities.current.rm_payables}
+                  value={data.metadata?.reviewedPositionAvailable ? null : data.liabilities.current.rm_payables}
                   indent
                   sub
                   isExpanded={expandedDrills.has("bs_payables_rm")}
@@ -1046,7 +1067,7 @@ function BalanceTab({
                 {/* FG Payables */}
                 <BSRow
                   label="  Finished Goods Payables"
-                  value={data.liabilities.current.fg_payables}
+                  value={data.metadata?.reviewedPositionAvailable ? null : data.liabilities.current.fg_payables}
                   indent
                   sub
                   isExpanded={expandedDrills.has("bs_payables_fg")}
@@ -1116,11 +1137,12 @@ function BalanceTab({
                   )}
                 </AnimatePresence>
 
+                <BSRow label="Other Recorded Liabilities" value={data.liabilities.current.other_liabilities ?? null} indent />
                 <BSRowTotal label="Total Current Liabilities" value={data.liabilities.current.total} color="rose" />
 
                 <div className="flex justify-between px-5 py-3.5 bg-rose-500/5 border-t-2 border-[var(--border)] font-extrabold">
                   <span className="text-xs uppercase text-rose-600 dark:text-rose-400">Total Liabilities + Owner&apos;s Funds</span>
-                  <span className="font-mono text-sm text-rose-600 dark:text-rose-400">{fmtINR(data.assets.total)}</span>
+                  <span className="font-mono text-sm text-rose-600 dark:text-rose-400">{data.metadata?.equityAvailable ? fmtINR(data.liabilities.total + data.equity) : "Equity unavailable"}</span>
                 </div>
               </div>
             </div>
@@ -1137,9 +1159,8 @@ function BalanceTab({
               </div>
               <div className="divide-y divide-[var(--border-light)] text-xs font-semibold">
                 <SectionHeader label="A. NON-CURRENT ASSETS" color="slate" small />
-                <BSRow label="Fixed Assets (Net)" value={0} indent />
-                <BSRow label="Security Deposits" value={0} indent />
-                <BSRowTotal label="Total Non-Current Assets" value={data.assets.non_current.total} />
+                <BSRow label="Recorded Non-Current Assets (Net)" value={data.metadata?.nonCurrentAvailable ? data.assets.non_current.total : null} indent />
+                <BSRowTotal label="Total Non-Current Assets" value={data.metadata?.nonCurrentAvailable ? data.assets.non_current.total : null} />
 
                 <SectionHeader label="B. CURRENT ASSETS" color="blue" small />
 
@@ -1293,6 +1314,8 @@ function BalanceTab({
                   )}
                 </AnimatePresence>
 
+                {data.assets.current.wip != null && <BSRow label="Reviewed WIP" value={data.assets.current.wip} indent />}
+
                 <BSRowTotal label="Total Current Assets" value={data.assets.current.total} color="blue" />
 
                 <div className="flex justify-between px-5 py-3.5 bg-blue-500/5 border-t-2 border-[var(--border)] font-extrabold">
@@ -1310,7 +1333,7 @@ function BalanceTab({
                   { label: "Current Assets", value: data.assets.current.total },
                   { label: "Current Liabilities", value: data.liabilities.current.total },
                   { label: "Working Capital", value: data.working_capital, bold: true },
-                  { label: "Net Worth", value: data.net_position, bold: true },
+                  { label: "Net Position", value: data.net_position, bold: true },
                 ].map((r) => (
                   <div key={r.label} className="flex justify-between items-center text-xs border-b border-[var(--border-light)] pb-2">
                     <span className="text-[var(--text-muted)] font-medium">{r.label}</span>
@@ -1436,6 +1459,9 @@ function GSTTab({
             )}
           </div>
 
+          {data.metadata && <div className="p-3 border border-[var(--border)] rounded-lg text-xs text-[var(--text-muted)]">{data.metadata.note}
+            {data.metadata.exceptions?.length > 0 && <details className="mt-2"><summary className="cursor-pointer min-h-11">{data.metadata.exceptions.length} source exceptions</summary><ReportTable className="w-full text-xs"><thead><tr><th>Document</th><th>Date</th><th>Source</th><th>Exception</th></tr></thead><tbody>{data.metadata.exceptions.map((e: any) => <tr key={`${e.source}:${e.id}`}><td>{e.doc_number}</td><td>{fmtDate(e.date)}</td><td>{e.source}</td><td>{e.reason}</td></tr>)}</tbody></ReportTable></details>}
+          </div>}
           {/* 5 Top KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
             <ReportKPICard
@@ -1452,7 +1478,7 @@ function GSTTab({
               onClick={() => toggleDrill("gst_output")}
             />
             <ReportKPICard
-              label="Eligible ITC (Total)"
+              label="Recorded Input GST"
               value={data.input_gst.totals.total}
               color="rose"
               onClick={() => toggleDrill("gst_input")}
@@ -1465,7 +1491,7 @@ function GSTTab({
             />
             <div className="col-span-2 md:col-span-1">
               <ReportKPICard
-                label={data.summary.net_payable.direction === "payable" ? "Net GST Payable" : "ITC Credit Available"}
+                label={data.summary.net_payable.direction === "payable" ? "Provisional Output Excess" : "Provisional Input Excess"}
                 value={Math.abs(data.summary.net_payable.total)}
                 color={data.summary.net_payable.direction === "payable" ? "violet" : "emerald"}
                 onClick={() => toggleDrill("gst_output")}
@@ -1579,10 +1605,10 @@ function GSTOverview({
               <span>Category</span><span>GST Amount (₹)</span>
             </div>
             {[
-              { label: "Raw Materials", value: data.input_gst.totals.cgst + data.input_gst.totals.sgst },
-              { label: "Finished Goods", value: 0 },
-              { label: "Accessories", value: 0 },
-              { label: "Others", value: 0 },
+              { label: "Raw Materials", value: data.metadata?.input_breakdown?.raw_materials ?? 0 },
+              { label: "Finished Goods", value: data.metadata?.input_breakdown?.finished_goods ?? 0 },
+              { label: "Expenses", value: data.metadata?.input_breakdown?.expenses ?? 0 },
+              { label: "Return / Note Adjustments", value: data.metadata?.input_breakdown?.adjustments ?? 0 },
             ].map((r) => (
               <div key={r.label} className="flex justify-between px-5 py-2.5 font-semibold">
                 <span className="text-[var(--text-muted)]">{r.label}</span>
@@ -1596,14 +1622,14 @@ function GSTOverview({
           </div>
         </div>
 
-        {/* GST Liability Calculation */}
+        {/* Recorded Tax Difference */}
         <div className="space-y-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 space-y-3 shadow-[var(--shadow-sm)]">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">GST Liability Calculation</h3>
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">Recorded Tax Difference</h3>
             {[
               { label: "Output GST (Total)", value: data.summary.output_gst.total, color: "text-[var(--text-primary)]" },
               { label: "Add: RCM Liability", value: data.summary.rcm_gst.total, color: "text-amber-500" },
-              { label: "Less: Eligible ITC", value: -data.summary.input_gst.total, color: "text-rose-500" },
+              { label: "Less: Recorded Input GST", value: -data.summary.input_gst.total, color: "text-rose-500" },
               { label: "Less: Eligible RCM ITC", value: 0, color: "text-rose-500" },
             ].map((r) => (
               <div key={r.label} className="flex justify-between text-xs border-b border-[var(--border-light)] pb-2">
@@ -1612,7 +1638,7 @@ function GSTOverview({
               </div>
             ))}
             <div className={cn("text-center text-sm font-extrabold py-2.5 rounded-xl mt-2 border", isPayable ? "bg-amber-500/10 border-amber-500/30 text-amber-500" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500")}>
-              {isPayable ? "Net GST Payable" : "ITC Credit Available"}: <span className="font-mono">{fmtINR(Math.abs(data.summary.net_payable.total))}</span>
+              {isPayable ? "Provisional Output Excess" : "Provisional Input Excess"}: <span className="font-mono">{fmtINR(Math.abs(data.summary.net_payable.total))}</span>
             </div>
           </div>
 
@@ -1733,8 +1759,8 @@ function GSTTable({ rows, totals, type, note }: { rows: any[]; totals: any; type
       )}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
         {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto">
+          <ReportTable className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                 {["Bill / Invoice No.", "Date", type === "output" ? "Customer" : "Supplier", "GSTIN", "Taxable (₹)", "CGST (₹)", "SGST (₹)", "IGST (₹)", "Total GST (₹)"].map((h) => (
@@ -1752,9 +1778,9 @@ function GSTTable({ rows, totals, type, note }: { rows: any[]; totals: any; type
                   <td className="py-2 px-4 max-w-[180px] truncate">{row.party_name}</td>
                   <td className="py-2 px-4 font-mono text-[var(--text-faint)]">{row.gstin}</td>
                   <td className="py-2 px-4 text-right font-mono">{fmtINR(row.taxable_value)}</td>
-                  <td className="py-2 px-4 text-right font-mono">{fmtINR(row.cgst)}</td>
-                  <td className="py-2 px-4 text-right font-mono">{fmtINR(row.sgst)}</td>
-                  <td className="py-2 px-4 text-right font-mono">{fmtINR(row.igst)}</td>
+                  <td className="py-2 px-4 text-right font-mono">{row.tax_components_missing ? "Incomplete source" : fmtINR(row.cgst)}</td>
+                  <td className="py-2 px-4 text-right font-mono">{row.tax_components_missing ? "Incomplete source" : fmtINR(row.sgst)}</td>
+                  <td className="py-2 px-4 text-right font-mono">{row.tax_components_missing ? "Incomplete source" : fmtINR(row.igst)}</td>
                   <td className="py-2 px-4 text-right font-mono font-bold text-[var(--primary)]">{fmtINR(row.total_gst)}</td>
                 </tr>
               ))}
@@ -1769,11 +1795,11 @@ function GSTTable({ rows, totals, type, note }: { rows: any[]; totals: any; type
                 <td className="py-3 px-4 text-right font-mono text-[var(--primary)]">{fmtINR(totals.total)}</td>
               </tr>
             </tfoot>
-          </table>
+          </ReportTable>
         </div>
 
         {/* Mobile Cards View */}
-        <div className="md:hidden divide-y divide-[var(--border-light)]">
+        <div className="hidden divide-y divide-[var(--border-light)]">
           {rows.length === 0 ? (
             <div className="py-8 text-center text-xs text-[var(--text-muted)]">No records found for this period.</div>
           ) : (
@@ -1827,7 +1853,7 @@ function CashFlowTab({
   from: string; to: string;
 }) {
   const { data, isLoading, error, refetch } = useCashFlowQuery(from, to);
-  const [cfTab, setCfTab] = useState<"overview" | "transactions">("overview");
+  const [cfTab, setCfTab] = useReportState<"overview" | "transactions">("overview", "cashflow_view", ["overview","transactions"]);
   const [expandedDrills, setExpandedDrills] = useState<Set<string>>(new Set());
 
   const toggleDrill = (id: string) => {
@@ -2062,7 +2088,7 @@ function CashFlowTab({
                 </span>
               </div>
               <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse">
+                <ReportTable className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-[var(--table-header-bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider sticky top-0 z-10">
                       <th className="py-3 px-4">Date</th>
@@ -2100,7 +2126,7 @@ function CashFlowTab({
                         </tr>
                       ))}
                   </tbody>
-                </table>
+                </ReportTable>
               </div>
             </div>
           )}
@@ -2218,7 +2244,7 @@ function PLTotalRow({
 function BSRow({
   label, value, indent = false, sub = false, isExpanded = false, onSelect,
 }: {
-  label: string; value: number; indent?: boolean; sub?: boolean; isExpanded?: boolean; onSelect?: () => void;
+  label: string; value: number | null; indent?: boolean; sub?: boolean; isExpanded?: boolean; onSelect?: () => void;
 }) {
   return (
     <div
@@ -2244,12 +2270,12 @@ function BSRow({
           {label}
         </span>
       </div>
-      <span className="font-bold font-mono text-[var(--text-body)]">{fmtINR(value)}</span>
+      <span className="font-bold font-mono text-[var(--text-body)]">{value == null ? "Not available" : fmtINR(value)}</span>
     </div>
   );
 }
 
-function BSRowTotal({ label, value, color = "" }: { label: string; value: number; color?: string }) {
+function BSRowTotal({ label, value, color = "" }: { label: string; value: number | null; color?: string }) {
   const colorClass = color === "blue"
     ? "text-blue-600 dark:text-blue-400 bg-blue-500/5"
     : color === "rose"
@@ -2258,7 +2284,7 @@ function BSRowTotal({ label, value, color = "" }: { label: string; value: number
   return (
     <div className={cn("flex justify-between px-5 py-2.5 border-t border-[var(--border)]", colorClass)}>
       <span className="font-extrabold text-[10px] uppercase tracking-wide">{label}</span>
-      <span className="font-extrabold font-mono">{fmtINR(value)}</span>
+      <span className="font-extrabold font-mono">{value == null ? "Not available" : fmtINR(value)}</span>
     </div>
   );
 }

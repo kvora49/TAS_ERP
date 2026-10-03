@@ -63,6 +63,7 @@ async function runPhase45Test() {
       SET einvoice_applicability = 'mandatory',
           aato_bracket = '10cr_and_above',
           irp_client_id = 'test_gsp_api_user',
+          gstin = '27AAACT2727Q1ZW',
           irp_onboarding_status = 'not_started'
       WHERE id = $1
     `, [business.id]);
@@ -83,7 +84,7 @@ async function runPhase45Test() {
     // 3. Test Phase 4: IRP Adapter Handshake & Verification (Layer 1 Platform + Layer 2 GSP User)
     const adapter = getEInvoiceAdapter();
     const authResult = await adapter.authenticate({
-      gstin: business.gstin || "27AAACT2727Q1ZW",
+      gstin: "27AAACT2727Q1ZW",
       userName: "test_gsp_api_user",
     });
 
