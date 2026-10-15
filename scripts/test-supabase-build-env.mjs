@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { resolveSupabaseBuildEnv } from './supabase-build-env.mjs';
+const key = role => `header.${Buffer.from(JSON.stringify({role,ref:'example'})).toString('base64url')}.signature`;
+const source = `[vars]\nNEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co"\nNEXT_PUBLIC_SUPABASE_ANON_KEY = "${key('anon')}"\nSUPABASE_SERVICE_ROLE_KEY = "private-secret"\n[assets]\ndirectory="assets"`;
+const configured = resolveSupabaseBuildEnv({},source);
+assert.deepEqual(Object.keys(configured),['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY']);
+assert.equal(configured.NEXT_PUBLIC_SUPABASE_URL,'https://example.supabase.co');
+assert.ok(!JSON.stringify(configured).includes('private-secret'));
+assert.equal(resolveSupabaseBuildEnv({NEXT_PUBLIC_SUPABASE_URL:'https://other.supabase.co',NEXT_PUBLIC_SUPABASE_ANON_KEY:'sb_publishable_test'},source).NEXT_PUBLIC_SUPABASE_URL,'https://other.supabase.co');
+assert.throws(()=>resolveSupabaseBuildEnv({NEXT_PUBLIC_SUPABASE_URL:'https://other.supabase.co'},source),/incomplete/);
+assert.throws(()=>resolveSupabaseBuildEnv({NEXT_PUBLIC_SUPABASE_URL:'https://example.supabase.co',NEXT_PUBLIC_SUPABASE_ANON_KEY:key('service_role')},source),/Only a Supabase/);
+assert.throws(()=>resolveSupabaseBuildEnv({NEXT_PUBLIC_SUPABASE_URL:'https://other.supabase.co',NEXT_PUBLIC_SUPABASE_ANON_KEY:key('anon')},source),/different projects/);
+assert.throws(()=>resolveSupabaseBuildEnv({},''),/incomplete/);
+console.log('PASS public build config fallback, overrides, partial-config rejection and service-secret exclusion');

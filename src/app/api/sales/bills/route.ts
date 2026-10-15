@@ -4,6 +4,7 @@ import { SalesBillRepository } from "@/repositories/sales-bill.repository";
 import { SalesBillService } from "@/services/sales-bill.service";
 import { logAudit } from "@/lib/audit";
 import { onSalesBillCreated } from "@/lib/calendar-integration";
+import { getUserFriendlyErrorMessage } from "@/lib/user-friendly-error";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -49,13 +50,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const supabase = createClient();
+    const businessId = await getSessionBusinessId();
+    if (!businessId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const idempotencyKey = request.headers.get("Idempotency-Key") || request.headers.get("idempotency-key");
     if (idempotencyKey) {
       const existing = await supabase
@@ -123,6 +123,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: bill });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("[Sales bill create]", err);
+    const status = typeof err?.status === "number" && err.status >= 400 && err.status < 500 ? err.status : 500;
+    return NextResponse.json({ error: getUserFriendlyErrorMessage(err, "Unable to save invoice. Check the sales bill list before trying again.") }, { status });
   }
 }

@@ -28,6 +28,7 @@ import { KachaBillTemplate } from "./KachaBillTemplate";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { useGstRateLookup } from "@/hooks/useGstRateLookup";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { readSalesSaveResponse } from "@/lib/sales-save-response";
 
 interface SalesBillEditorProps {
   mode: "create" | "edit";
@@ -44,6 +45,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
   const [createdInvoice, setCreatedInvoice] = useState<CreatedInvoiceInfo | null>(null);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   // Initialize unified state hook
   const { state, totals, loading: loadingBill } = useSalesBill(billId);
@@ -216,21 +218,20 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
 
   // Create / Update mutations
   const saveMutation = useERPMutation(
-    async (payload: any) => {
+    async ({ payload, idempotencyKey }: { payload: any; idempotencyKey?: string }) => {
       const endpoint = mode === "create" ? "/api/sales/bills" : `/api/sales/bills/${billId}`;
       const method = mode === "create" ? "POST" : "PUT";
 
       const res = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to save invoice");
-      }
-      return res.json();
+      return readSalesSaveResponse(res, mode === "create");
     },
     {
       successMessage: mode === "create" ? "Invoice generated successfully!" : "Invoice updated successfully!",
@@ -247,6 +248,7 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
         ["raw-materials"],
       ],
       onSuccess: (data: any) => {
+        idempotencyKeyRef.current = null;
         setIsSubmitting(false);
         const billObj = data?.data || data?.bill || data;
         const selectedParty = parties.find((p: any) => p.id === state.partyId);
@@ -340,7 +342,10 @@ export function SalesBillEditor({ mode, billId, type = "pakka" }: SalesBillEdito
       status: saveStatus,
     };
 
-    saveMutation.mutate(payload);
+    const idempotencyKey = mode === "create"
+      ? (idempotencyKeyRef.current ||= crypto.randomUUID())
+      : undefined;
+    saveMutation.mutate({ payload, idempotencyKey });
   };
 
   const isInitialLoading = (mode === "edit" && loadingBill) || (loadingParties && parties.length === 0) || (loadingDesigns && designs.length === 0);

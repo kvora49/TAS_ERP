@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError, ZodSchema } from "zod";
+import { getUserFacingError, getUserFriendlyErrorMessage } from "@/lib/user-friendly-error";
 
 export interface StandardApiResponse<T = any> {
   success: boolean;
@@ -68,6 +69,10 @@ export function handleApiError(error: unknown): NextResponse<StandardApiResponse
         error: firstErrorMessage,
         code: "VALIDATION_ERROR",
         errors: fieldErrors as Record<string, string[]>,
+        details: {
+          reason: firstErrorMessage,
+          action: "Correct the indicated field and submit again.",
+        },
       },
       { status: 400 }
     );
@@ -92,7 +97,7 @@ export function handleApiError(error: unknown): NextResponse<StandardApiResponse
   }
 
   // In production, sanitize database internals and technical SQL constraints
-  let clientMessage = message;
+  let clientMessage = getUserFriendlyErrorMessage(message, "We couldn't complete that request. Please try again.");
   if (process.env.NODE_ENV === "production" && status === 500) {
     if (
       code?.startsWith("23") ||
@@ -106,12 +111,23 @@ export function handleApiError(error: unknown): NextResponse<StandardApiResponse
       clientMessage = "A database error occurred while processing your request. Please contact support if this persists.";
     }
   }
+  const userError = getUserFacingError(clientMessage, "We couldn't complete that request. Please try again.");
+  const action = status === 401
+    ? "Sign in again, then repeat the action."
+    : status === 403
+    ? "Ask an administrator if you need access."
+    : status === 404
+    ? "Refresh the page and confirm the record still exists."
+    : status === 409
+    ? "Refresh the page, review the existing record, and try again."
+    : "Review the reason above and try again.";
 
   return NextResponse.json(
     {
       success: false,
-      error: clientMessage,
+      error: userError.description,
       code,
+      details: { reason: userError.description, action },
     },
     { status }
   );

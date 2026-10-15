@@ -1,9 +1,16 @@
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import { readFileSync } from "node:fs";
+import { resolveSupabaseBuildEnv } from "./scripts/supabase-build-env.mjs";
+
+// NEXT_PUBLIC values must exist while Next builds the browser bundle, not only
+// as Worker runtime bindings. Reuse the checked-in PUBLIC pair when CI has no override.
+const supabaseBuildEnv = resolveSupabaseBuildEnv(process.env, readFileSync(new URL("./wrangler.toml", import.meta.url), "utf8"));
 
 initOpenNextCloudflareForDev();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: supabaseBuildEnv,
   images: {
     unoptimized: true,
     remotePatterns: [

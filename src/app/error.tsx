@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { getUserFacingError } from "@/lib/user-friendly-error";
 
 export default function GlobalError({
   error,
@@ -19,6 +20,7 @@ export default function GlobalError({
     error.message?.includes("Loading chunk") ||
     error.message?.includes("missing") ||
     error.name === "ChunkLoadError";
+  const userError = getUserFacingError(error, "We couldn't open this page. Please try again.");
 
   const handleRefresh = () => {
     if (typeof window !== "undefined") {
@@ -38,12 +40,12 @@ export default function GlobalError({
 
           <div className="space-y-1.5">
             <h2 className="text-xl font-extrabold text-[var(--text-primary)] tracking-tight">
-              {isChunkError ? "App Updated / Cache Reset" : "Something Went Wrong"}
+              {isChunkError ? "App Updated / Cache Reset" : userError.title}
             </h2>
             <p className="text-xs text-[var(--text-muted)] leading-relaxed">
               {isChunkError
                 ? "A new version of TAS ERP is available or cache was refreshed. Tap reload to update."
-                : error.message || "An unexpected system error occurred. Please try reloading."}
+                : userError.description}
             </p>
           </div>
 

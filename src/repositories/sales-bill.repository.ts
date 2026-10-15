@@ -402,7 +402,8 @@ export class SalesBillRepository {
               }
             }
 
-            const { data: bStocks } = await bStockQuery.in("status", ["available", "partially_sold"]).limit(1);
+            const { data: bStocks, error: bStockError } = await bStockQuery.in("status", ["available", "partially_sold"]).limit(1);
+            if (bStockError) throw bStockError;
             const targetBStock = bStocks?.[0];
 
             if (targetBStock) {
@@ -413,7 +414,7 @@ export class SalesBillRepository {
               }
               const newStatus = newTotal === 0 ? "fully_sold" : "partially_sold";
 
-              await this.supabase
+              const { error: bStockUpdateError } = await this.supabase
                 .from("b_grade_stock")
                 .update({
                   total_quantity: newTotal,
@@ -422,8 +423,9 @@ export class SalesBillRepository {
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", targetBStock.id);
+              if (bStockUpdateError) throw bStockUpdateError;
 
-              await this.supabase.from("stock_ledger").insert({
+              const { error: bGradeLedgerError } = await this.supabase.from("stock_ledger").insert({
                 business_id: billData.business_id,
                 item_type: "b_grade_stock",
                 item_id: item.design_id || targetBStock.id,
@@ -435,9 +437,10 @@ export class SalesBillRepository {
                 reference_id: bill.id,
                 created_by: billData.created_by || null,
               });
+              if (bGradeLedgerError) throw bGradeLedgerError;
             }
           }
-        } else if (isFabric && insertedItem) {
+        } else if (isFabric && insertedItem && !billData.is_temporary) {
           // A) Insert fabric rolls into sale_rolls
           if (item.rolls && Array.isArray(item.rolls) && item.rolls.length > 0) {
             const rollsToInsert = item.rolls.map((r: any) => ({
@@ -450,24 +453,30 @@ export class SalesBillRepository {
               width: r.width ? Number(r.width) : null,
               comment: r.comment || null,
             }));
-            await this.supabase.from("sale_rolls").insert(rollsToInsert);
+            const { error: saleRollsError } = await this.supabase.from("sale_rolls").insert(rollsToInsert);
+            if (saleRollsError) throw saleRollsError;
 
             // B) Deduct remaining_meters from purchase_rolls
             for (const r of item.rolls) {
               if (r.purchase_roll_id) {
-                const { data: pRoll } = await this.supabase
+                const { data: pRoll, error: purchaseRollError } = await this.supabase
                   .from("purchase_rolls")
                   .select("remaining_meters")
                   .eq("id", r.purchase_roll_id)
+                  .eq("business_id", billData.business_id)
                   .maybeSingle();
 
-                if (pRoll) {
-                  const newRem = Math.max(0, Number(pRoll.remaining_meters || 0) - Number(r.meters || 0));
-                  await this.supabase
-                    .from("purchase_rolls")
-                    .update({ remaining_meters: newRem })
-                    .eq("id", r.purchase_roll_id);
-                }
+                if (purchaseRollError) throw purchaseRollError;
+                if (!pRoll) throw new Error("A selected fabric roll is no longer available.");
+
+                const newRem = Number(pRoll.remaining_meters || 0) - Number(r.meters || 0);
+                if (newRem < 0) throw new Error("A selected fabric roll no longer has enough meters. Refresh the invoice and try again.");
+                const { error: purchaseRollUpdateError } = await this.supabase
+                  .from("purchase_rolls")
+                  .update({ remaining_meters: newRem })
+                  .eq("id", r.purchase_roll_id)
+                  .eq("business_id", billData.business_id);
+                if (purchaseRollUpdateError) throw purchaseRollUpdateError;
               }
             }
           }
@@ -476,7 +485,7 @@ export class SalesBillRepository {
           if (!billData.is_temporary && item.material_type_id) {
             let rmGodownId = billData.godown_id || null;
             if (!rmGodownId) {
-              const { data: rmStock } = await this.supabase
+              const { data: rmStock, error: rawMaterialStockError } = await this.supabase
                 .from("raw_material_current_stock")
                 .select("godown_id")
                 .eq("business_id", billData.business_id)
@@ -485,12 +494,13 @@ export class SalesBillRepository {
                 .order("current_stock", { ascending: false })
                 .limit(1)
                 .maybeSingle();
+              if (rawMaterialStockError) throw rawMaterialStockError;
 
               rmGodownId = rmStock?.godown_id || null;
             }
 
             if (!rmGodownId) {
-              const { data: firstGodown } = await this.supabase
+              const { data: firstGodown, error: firstGodownError } = await this.supabase
                 .from("godowns")
                 .select("id")
                 .eq("business_id", billData.business_id)
@@ -498,11 +508,12 @@ export class SalesBillRepository {
                 .order("created_at", { ascending: true })
                 .limit(1)
                 .maybeSingle();
+              if (firstGodownError) throw firstGodownError;
               rmGodownId = firstGodown?.id || null;
             }
 
             if (rmGodownId) {
-              await this.supabase.from("stock_ledger").insert({
+              const { error: rawMaterialLedgerError } = await this.supabase.from("stock_ledger").insert({
                 business_id: billData.business_id,
                 item_type: "raw_material",
                 item_id: item.material_type_id,
@@ -514,6 +525,7 @@ export class SalesBillRepository {
                 reference_id: bill.id,
                 created_by: billData.created_by || null,
               });
+              if (rawMaterialLedgerError) throw rawMaterialLedgerError;
 
               await reconcileRawMaterialStock(
                 this.supabase,
@@ -527,7 +539,7 @@ export class SalesBillRepository {
           // this design's stock (prefer godown with highest quantity).
           let resolvedGodownId = billData.godown_id || null;
           if (!resolvedGodownId) {
-            const { data: stockRows } = await this.supabase
+            const { data: stockRows, error: finishedStockError } = await this.supabase
               .from("finished_stock")
               .select("godown_id, total_quantity")
               .eq("business_id", billData.business_id)
@@ -536,12 +548,13 @@ export class SalesBillRepository {
               .order("total_quantity", { ascending: false })
               .limit(1)
               .maybeSingle();
+            if (finishedStockError) throw finishedStockError;
 
             resolvedGodownId = stockRows?.godown_id || null;
           }
 
           if (!resolvedGodownId) {
-            const { data: anyGodown } = await this.supabase
+            const { data: anyGodown, error: anyGodownError } = await this.supabase
               .from("godowns")
               .select("id")
               .eq("business_id", billData.business_id)
@@ -549,11 +562,12 @@ export class SalesBillRepository {
               .order("created_at", { ascending: true })
               .limit(1)
               .maybeSingle();
+            if (anyGodownError) throw anyGodownError;
             resolvedGodownId = anyGodown?.id || null;
           }
 
           if (resolvedGodownId) {
-            await this.supabase.from("stock_ledger").insert({
+            const { error: finishedGoodsLedgerError } = await this.supabase.from("stock_ledger").insert({
               business_id: billData.business_id,
               item_type: "finished_good",
               item_id: item.design_id,
@@ -565,6 +579,7 @@ export class SalesBillRepository {
               reference_id: bill.id,
               created_by: billData.created_by || null,
             });
+            if (finishedGoodsLedgerError) throw finishedGoodsLedgerError;
           }
         }
       }

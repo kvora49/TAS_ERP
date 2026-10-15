@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import React from "react";
 import { TableSkeleton } from "@/components/tables/TableSkeleton";
 import { CardSkeleton, DashboardSkeleton, FormSkeleton } from "@/components/ui/skeletons";
+import { getUserFacingError, getUserFriendlyErrorMessage } from "@/lib/user-friendly-error";
 
 type SkeletonType = "table" | "card" | "dashboard" | "form" | boolean;
 
@@ -19,7 +20,13 @@ export function useERPQuery<TQueryFnData = unknown, TError = unknown, TData = TQ
   const queryClient = useQueryClient();
   const queryResult = useQuery({
     queryKey: key,
-    queryFn: fetcher,
+    queryFn: async () => {
+      try {
+        return await fetcher();
+      } catch (error) {
+        throw new Error(getUserFriendlyErrorMessage(error, "Couldn't load this information. Please try again."));
+      }
+    },
     staleTime: 30_000,
     gcTime: 300_000,
     retry: 1,
@@ -78,10 +85,12 @@ export function useERPMutation<TData = unknown, TError = Error, TVariables = voi
       }
     },
     onError: async (error: TError, variables: TVariables) => {
-      const msg = (error instanceof Error) ? error.message : String(error);
-      toast.error(msg);
+      const userError = getUserFacingError(error, "Couldn't save your changes. Please try again.");
+      const msg = userError.description;
+      toast.error(userError.title, { description: userError.description });
       if (options?.onError) {
-        await options.onError(error, variables);
+        const userFriendlyError = error instanceof Error && error.message === msg ? error : new Error(msg) as TError;
+        await options.onError(userFriendlyError, variables);
       }
     },
   });

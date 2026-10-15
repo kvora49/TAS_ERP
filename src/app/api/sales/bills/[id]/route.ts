@@ -100,13 +100,12 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const supabase = createClient();
+    const businessId = await getSessionBusinessId();
+    if (!businessId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const repo = new SalesBillRepository(supabase);
     const service = new SalesBillService(repo);
@@ -122,6 +121,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
+    console.error("[Sales bill update]", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

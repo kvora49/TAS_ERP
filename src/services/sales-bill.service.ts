@@ -5,6 +5,48 @@ import { isInterstateTransaction } from "@/lib/gst-utils";
 export class SalesBillService {
   constructor(private repository: SalesBillRepository) {}
 
+  private validationError(message: string) {
+    const error = new Error(message) as Error & { status?: number };
+    error.status = 400;
+    return error;
+  }
+
+  private async validateFabricRolls(items: any[], businessId: string, isTemporary: boolean) {
+    const selectedMeters = new Map<string, number>();
+
+    for (const item of items) {
+      const isFabric = item.item_type === "fabric" || !!item.material_type_id;
+      if (!isFabric || !Array.isArray(item.rolls)) continue;
+
+      for (const roll of item.rolls) {
+        const meters = Number(roll?.meters);
+        if (!Number.isFinite(meters) || meters <= 0) {
+          throw this.validationError("Each fabric roll must have a meter quantity greater than zero.");
+        }
+        if (typeof roll?.roll_number !== "string" || !roll.roll_number.trim()) {
+          throw this.validationError("Each fabric roll must have a roll number.");
+        }
+        if (roll.purchase_roll_id && !isTemporary) {
+          selectedMeters.set(roll.purchase_roll_id, (selectedMeters.get(roll.purchase_roll_id) || 0) + meters);
+        }
+      }
+    }
+
+    for (const [rollId, meters] of Array.from(selectedMeters.entries())) {
+      const { data: purchaseRoll, error } = await this.repository.supabase
+        .from("purchase_rolls")
+        .select("roll_number, remaining_meters")
+        .eq("id", rollId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!purchaseRoll) throw new Error("A selected fabric roll is no longer available. Refresh the invoice and choose the roll again.");
+      if (Number(purchaseRoll.remaining_meters || 0) < meters) {
+        throw new Error(`Insufficient meters in roll ${purchaseRoll.roll_number}. Available: ${purchaseRoll.remaining_meters}, Requested: ${meters}`);
+      }
+    }
+  }
+
   calculateTotals(params: {
     items: any[];
     charges?: any[];
@@ -102,10 +144,13 @@ export class SalesBillService {
   async validateAndCreate(body: any, businessId: string, userId: string | null) {
     const parsed = CreateSaleBillSchema.safeParse(body);
     if (!parsed.success) {
-      throw new Error(JSON.stringify(parsed.error.flatten()));
+      const issue = parsed.error.issues[0];
+      throw this.validationError(issue ? `${issue.path.join(".") || "Invoice"}: ${issue.message}` : "Invoice details are invalid.");
     }
 
     const { items, charges, ...rest } = parsed.data;
+
+    await this.validateFabricRolls(items, businessId, rest.is_temporary);
 
     // Check allow_negative_stock setting
     const { getBusinessServerSettings } = await import("@/lib/settings/serverSettings");
@@ -301,7 +346,8 @@ export class SalesBillService {
   async validateAndUpdate(billId: string, body: any, businessId: string) {
     const parsed = UpdateSaleBillSchema.safeParse(body);
     if (!parsed.success) {
-      throw new Error(JSON.stringify(parsed.error.flatten()));
+      const issue = parsed.error.issues[0];
+      throw this.validationError(issue ? `${issue.path.join(".") || "Invoice"}: ${issue.message}` : "Invoice details are invalid.");
     }
 
     const { items, charges, ...rest } = parsed.data;
