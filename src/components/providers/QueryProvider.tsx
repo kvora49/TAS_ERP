@@ -15,15 +15,18 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
         }),
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
-            gcTime: 300_000,
+            // Most ERP data is invalidated after writes. Keep it in memory longer so
+            // navigation between screens does not repeatedly invoke the Worker.
+            staleTime: 120_000,
+            gcTime: 600_000,
             retry: 1,
             refetchOnWindowFocus: false,
-            refetchOnReconnect: true,
+            refetchOnReconnect: false,
             refetchOnMount: true,
           },
           mutations: {
-            retry: 1,
+            // Retrying a mutation can duplicate financial and inventory operations.
+            retry: false,
             onError: (err) => {
               const msg = err instanceof Error ? err.message : "An error occurred";
               import("sonner").then(({ toast }) => toast.error(msg));

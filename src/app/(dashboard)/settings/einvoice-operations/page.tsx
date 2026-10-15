@@ -169,7 +169,13 @@ export default function EInvoiceOperationsPage() {
       }
       return res.json();
     },
-    refetchInterval: 30_000, // Refresh every 30s for live ops monitoring
+    // This is an operations screen, not a live trading feed. Manual reconcile and
+    // mutation invalidation still refresh immediately; background polling is a fallback.
+    refetchInterval: () =>
+      typeof document !== "undefined" && document.visibilityState === "visible"
+        ? 5 * 60_000
+        : false,
+    refetchIntervalInBackground: false,
   });
 
   const reconcileMutation = useMutation({

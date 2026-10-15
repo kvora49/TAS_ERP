@@ -87,8 +87,14 @@ export function NotificationPopover() {
       if (!res.ok) return { notifications: [], unreadCount: 0 };
       return res.json();
     },
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 60 * 60 * 1000,
+    // Push is the immediate delivery channel. Poll only while the app is visible,
+    // once an hour as a fallback for browsers without push permission.
+    refetchInterval: () =>
+      typeof document !== "undefined" && document.visibilityState === "visible"
+        ? 60 * 60 * 1000
+        : false,
+    refetchIntervalInBackground: false,
   });
 
   useEffect(() => {

@@ -65,8 +65,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       }
       return res.json();
     },
-    staleTime: 5 * 1000,
-    gcTime: 5 * 60 * 1000,
+    // The company list changes only through an explicit switch or admin action.
+    // Both clear/invalidate this query, so a five-minute cache avoids remount traffic.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const companies = data?.companies || [];

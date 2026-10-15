@@ -27,8 +27,8 @@ export function useERPQuery<TQueryFnData = unknown, TError = unknown, TData = TQ
         throw new Error(getUserFriendlyErrorMessage(error, "Couldn't load this information. Please try again."));
       }
     },
-    staleTime: 30_000,
-    gcTime: 300_000,
+    staleTime: 120_000,
+    gcTime: 600_000,
     retry: 1,
     refetchOnWindowFocus: false,
     ...options,
