@@ -108,11 +108,10 @@ function getDefaultPermission(role: string, module: string) {
 }
 
 export async function GET(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     // 1. Fetch existing permissions
@@ -125,55 +124,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const existingMap = new Set(
-      (existing || []).map((p: any) => `${p.role}:${p.module}`)
-    );
-
-    // 2. Identify missing module-role combinations (auto-seed missing)
-    const missingInserts: any[] = [];
-    for (const role of ROLES) {
-      for (const moduleName of APP_MODULES) {
-        if (!existingMap.has(`${role}:${moduleName}`)) {
-          missingInserts.push({
-            business_id: businessId,
-            role,
-            module: moduleName,
-            ...getDefaultPermission(role, moduleName),
-          });
-        }
-      }
-    }
-
-    let allPermissions = existing || [];
-
-    // 3. Insert missing rows if any (handles newly added modules automatically!)
-    if (missingInserts.length > 0) {
-      const { createClient: createAdminClient } = await import(
-        "@supabase/supabase-js"
-      );
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: newSeeded, error: seedError } = await supabaseAdmin
-        .from("role_permissions")
-        .upsert(missingInserts, { onConflict: "business_id,role,module" })
-        .select();
-
-      if (!seedError && newSeeded) {
-        // Merge existing and newly seeded
-        const combinedMap = new Map();
-        [...allPermissions, ...newSeeded].forEach((p) => {
-          combinedMap.set(`${p.role}:${p.module}`, p);
-        });
-        allPermissions = Array.from(combinedMap.values());
-      }
-    }
-
-    // Filter to return only current active APP_MODULES
+    // Reads must not mutate authorization state. Missing rows deny access until
+    // a controlled onboarding/migration process initializes them.
     const activeModuleSet = new Set(APP_MODULES as readonly string[]);
-    const finalPermissions = allPermissions.filter((p: any) =>
+    const finalPermissions = (existing || []).filter((p: any) =>
       activeModuleSet.has(p.module)
     );
 

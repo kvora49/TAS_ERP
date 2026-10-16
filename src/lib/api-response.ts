@@ -141,7 +141,23 @@ export async function validateRequestBody<T>(
   schema: ZodSchema<T>
 ): Promise<{ success: true; data: T } | { success: false; response: NextResponse<StandardApiResponse> }> {
   try {
-    const rawBody = await request.json().catch(() => ({}));
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType && !contentType.toLowerCase().includes("application/json")) {
+      return {
+        success: false,
+        response: apiError("Content-Type must be application/json", 415, "UNSUPPORTED_MEDIA_TYPE"),
+      };
+    }
+
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return {
+        success: false,
+        response: apiError("Request body must contain valid JSON", 400, "INVALID_JSON"),
+      };
+    }
     const result = schema.safeParse(rawBody);
 
     if (!result.success) {

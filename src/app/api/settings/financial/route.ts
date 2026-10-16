@@ -16,14 +16,7 @@ export async function GET(request: Request) {
       .eq("business_id", businessId)
       .maybeSingle();
 
-    if (!settings && !setError) {
-      const { data: newSettings } = await supabase
-        .from("business_settings")
-        .insert({ business_id: businessId })
-        .select()
-        .single();
-      settings = newSettings;
-    }
+    if (setError) throw setError;
 
     // 2. Fetch brands
     const { data: brands, error: brandError } = await supabase

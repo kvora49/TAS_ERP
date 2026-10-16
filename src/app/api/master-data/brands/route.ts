@@ -1,6 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
+import { getStateNameFromGSTIN, getStateCodeFromGSTIN, validateGSTINInput } from "@/lib/gst-utils";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -64,6 +64,10 @@ export async function POST(request: Request) {
         { error: "Brand Name is required" },
         { status: 400 }
       );
+    }
+    const gstinValidation = validateGSTINInput(gstin);
+    if (!gstinValidation.isValid) {
+      return NextResponse.json({ error: gstinValidation.errorMessage || "Invalid GSTIN" }, { status: 400 });
     }
 
     // If this brand is marked as primary, reset all other brands of this tenant to false

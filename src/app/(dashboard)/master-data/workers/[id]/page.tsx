@@ -124,6 +124,10 @@ export default function WorkerProfilePage({ params }: WorkerProfileProps) {
       if (!presignedRes.ok) throw new Error("Failed to get upload signature");
       const { uploadUrl, publicUrl } = await presignedRes.json();
 
+      if (!uploadUrl || !publicUrl) {
+        throw new Error("Document storage is not configured for uploads");
+      }
+
       // 2. Perform direct PUT upload to S3/R2
       const putRes = await fetch(uploadUrl, {
         method: "PUT",

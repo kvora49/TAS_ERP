@@ -56,7 +56,7 @@ export async function getSessionBusinessId(): Promise<string | null> {
   const supabase = createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
-    return candidateId || null;
+    return null;
   }
 
   // 3. If candidate ID exists, verify user is an active member
@@ -72,6 +72,11 @@ export async function getSessionBusinessId(): Promise<string | null> {
     if (member?.company_id) {
       return member.company_id;
     }
+
+    // A selected company is an explicit security boundary.  Do not silently
+    // redirect a write to the user's first company when this selection is stale
+    // or belongs to another tenant.
+    return null;
   }
 
   // 4. Fallback: Lookup user's first active membership in company_members

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     // Verify entry exists and belongs to business
-    const { data: entry } = await supabase
+    const { data: entry, error: entryError } = await supabase
       .from("calendar_entries")
       .select("id")
       .eq("id", entryId)
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       .is("deleted_at", null)
       .single();
 
+    if (entryError) return NextResponse.json({ error: entryError.message }, { status: 500 });
     if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
 
     // File validation
@@ -35,8 +36,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File size exceeds 20MB limit" }, { status: 400 });
     }
 
-    // Determine file category
+    // Determine file category. Do not accept SVG or arbitrary MIME types: SVG is active
+    // content and public storage/viewers otherwise turn an attachment into an XSS vector.
     const mime = file.type.toLowerCase();
+    const allowedMimeTypes = new Set([
+      "image/jpeg", "image/png", "image/webp", "application/pdf",
+      "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv", "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4",
+    ]);
+    if (!allowedMimeTypes.has(mime)) {
+      return NextResponse.json({ error: "Unsupported attachment type" }, { status: 400 });
+    }
     let fileType = "other";
     if (mime.startsWith("image/")) fileType = "image";
     else if (mime.includes("pdf")) fileType = "pdf";
@@ -55,18 +66,17 @@ export async function POST(request: Request) {
       .from("calendar-attachments")
       .upload(storagePath, buffer, {
         contentType: file.type,
-        upsert: true,
+        upsert: false,
       });
 
-    let publicUrl = "";
-    if (!uploadError) {
-      const { data: urlData } = supabase.storage
-        .from("calendar-attachments")
-        .getPublicUrl(storagePath);
-      publicUrl = urlData.publicUrl;
-    } else {
-      console.warn("[Attachments API] Storage upload warning (falling back to path):", uploadError.message);
+    if (uploadError) {
+      return NextResponse.json({ error: "Attachment upload failed", code: "STORAGE_UPLOAD_FAILED" }, { status: 502 });
     }
+
+    const { data: urlData } = supabase.storage
+      .from("calendar-attachments")
+      .getPublicUrl(storagePath);
+    const publicUrl = urlData.publicUrl;
 
     // Insert database record
     const { data: attachment, error: dbError } = await supabase
@@ -85,6 +95,8 @@ export async function POST(request: Request) {
       .single();
 
     if (dbError) {
+      const { error: cleanupError } = await supabase.storage.from("calendar-attachments").remove([storagePath]);
+      if (cleanupError) console.error("[Attachments API] Failed to clean up orphaned object:", cleanupError.message);
       return NextResponse.json({ error: dbError.message }, { status: 500 });
     }
 
@@ -106,18 +118,20 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ error: "id parameter required" }, { status: 400 });
 
     // Get attachment to find storage path
-    const { data: attachment } = await supabase
+    const { data: attachment, error: attachmentError } = await supabase
       .from("calendar_attachments")
       .select("id, storage_path")
       .eq("id", id)
       .eq("business_id", businessId)
       .single();
 
+    if (attachmentError) return NextResponse.json({ error: attachmentError.message }, { status: 500 });
     if (!attachment) return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
 
     // Remove from storage
     if (attachment.storage_path) {
-      await supabase.storage.from("calendar-attachments").remove([attachment.storage_path]);
+      const { error: storageError } = await supabase.storage.from("calendar-attachments").remove([attachment.storage_path]);
+      if (storageError) return NextResponse.json({ error: "Attachment storage deletion failed" }, { status: 502 });
     }
 
     // Delete DB record

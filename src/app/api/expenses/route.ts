@@ -5,67 +5,37 @@ import { handleApiError } from "@/lib/api-response";
 export async function GET(request: Request) {
   const supabase = createClient();
   const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const formData = searchParams.get("form_data");
-
   try {
-    if (formData === "true") {
-      // Fetch expense types & bank accounts
+    if (searchParams.get("form_data") === "true") {
       const [typesResult, banksResult] = await Promise.all([
-        supabase
-          .from("expense_types")
-          .select("id, name")
-          .eq("business_id", businessId)
-          .is("deleted_at", null),
-        supabase
-          .from("bank_accounts")
-          .select("id, name, bank_name, type, account_category")
-          .eq("business_id", businessId)
-          .is("deleted_at", null)
+        supabase.from("expense_types").select("id, name").eq("business_id", businessId).is("deleted_at", null),
+        supabase.from("bank_accounts").select("id, name, bank_name, type, account_category").eq("business_id", businessId).is("deleted_at", null),
       ]);
-
-      const formattedBanks = (banksResult.data || []).map((b: any) => ({
-        id: b.id,
-        name: b.name,
-        account_name: b.name || b.bank_name || "Account",
-        bank_name: b.bank_name || "",
-        type: b.type,
-        account_category: b.account_category,
+      if (typesResult.error) throw typesResult.error;
+      if (banksResult.error) throw banksResult.error;
+      const bankAccounts = (banksResult.data || []).map((bank: any) => ({
+        id: bank.id,
+        name: bank.name,
+        account_name: bank.name || bank.bank_name || "Account",
+        bank_name: bank.bank_name || "",
+        type: bank.type,
+        account_category: bank.account_category,
       }));
-
-      return NextResponse.json({
-        expenseTypes: typesResult.data || [],
-        bankAccounts: formattedBanks,
-      });
+      return NextResponse.json({ expenseTypes: typesResult.data || [], bankAccounts });
     }
 
-    // List expenses
     const { data: expenses, error } = await supabase
       .from("expenses")
-      .select(`
-        id,
-        expense_number,
-        expense_date,
-        amount,
-        gst_percent,
-        gst_amount,
-        vendor_name,
-        vendor_invoice_no,
-        notes,
+      .select(`id, expense_number, expense_date, amount, gst_percent, gst_amount,
+        vendor_name, vendor_invoice_no, notes,
         expense_type:expense_types(id, name),
-        bank_account:bank_accounts!paid_from_account_id(id, account_name:name)
-      `)
+        bank_account:bank_accounts!paid_from_account_id(id, account_name:name)`)
       .eq("business_id", businessId)
       .order("expense_date", { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
+    if (error) throw error;
     return NextResponse.json({ expenses: expenses || [] });
   } catch (err: any) {
     return handleApiError(err);
@@ -75,112 +45,37 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const supabase = createClient();
   const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "User session not found" }, { status: 401 });
-  }
+  if (!businessId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await request.json();
-    const {
-      expense_type_id,
-      expense_date,
-      amount,
-      gst_percent,
-      paid_from_account_id,
-      vendor_name,
-      vendor_invoice_no,
-      notes,
-    } = body;
-
-    if (!expense_type_id || !expense_date || !amount) {
-      return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
-    }
-
-    // 1. Generate expense number
-    const dateStr = expense_date.replace(/-/g, "");
-    const { data: countData } = await supabase
-      .from("expenses")
-      .select("id", { count: "exact" })
-      .eq("business_id", businessId)
-      .eq("expense_date", expense_date);
-    
-    const seq = (countData?.length || 0) + 1;
-    const expenseNumber = `EXP-${dateStr}-${String(seq).padStart(4, "0")}`;
-
-    // 2. Compute GST
+    const { expense_type_id, expense_date, amount, gst_percent, paid_from_account_id, vendor_name, vendor_invoice_no, notes } = body;
     const amt = Number(amount);
     const gstPct = Number(gst_percent || 0);
-    const gstAmt = amt * (gstPct / 100);
-
-    // Validate sufficient bank balance if paying from a bank/cash account
-    if (paid_from_account_id) {
-      const { data: bank } = await supabase
-        .from("bank_accounts")
-        .select("current_balance, name")
-        .eq("id", paid_from_account_id)
-        .eq("business_id", businessId)
-        .maybeSingle();
-
-      if (bank) {
-        const curBal = Number(bank.current_balance || 0);
-        if (curBal < amt) {
-          return NextResponse.json(
-            { error: `Insufficient funds in "${bank.name}". Available balance is ₹${curBal.toLocaleString("en-IN")}, but expense amount is ₹${amt.toLocaleString("en-IN")}.` },
-            { status: 400 }
-          );
-        }
-      }
+    if (!expense_type_id || !/^\d{4}-\d{2}-\d{2}$/.test(expense_date || "") || !Number.isFinite(amt) || amt <= 0 || !Number.isFinite(gstPct) || gstPct < 0 || gstPct > 100) {
+      return NextResponse.json({ error: "Invalid expense amount, date, or GST percentage" }, { status: 400 });
     }
 
-    // 3. Insert record
-    const { data: expense, error } = await supabase
-      .from("expenses")
-      .insert({
-        business_id: businessId,
-        expense_number: expenseNumber,
-        expense_type_id,
-        expense_date,
-        amount: amt,
-        gst_percent: gstPct,
-        gst_amount: gstAmt,
-        paid_from_account_id: paid_from_account_id || null,
-        vendor_name: vendor_name || null,
-        vendor_invoice_no: vendor_invoice_no || null,
-        notes: notes || null,
-        created_by: userId,
-      })
-      .select()
-      .single();
+    // This pre-check gives a clear API response. The RPC repeats it inside the
+    // transaction, which is the authoritative validation and write boundary.
+    const { data: expenseType, error: expenseTypeError } = await supabase
+      .from("expense_types").select("id").eq("id", expense_type_id)
+      .eq("business_id", businessId).is("deleted_at", null).maybeSingle();
+    if (expenseTypeError) throw expenseTypeError;
+    if (!expenseType) return NextResponse.json({ error: "Invalid expense type" }, { status: 400 });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // 4. Update bank account current_balance if paid_from_account_id provided
-    if (paid_from_account_id) {
-      const { data: bank } = await supabase
-        .from("bank_accounts")
-        .select("current_balance")
-        .eq("id", paid_from_account_id)
-        .eq("business_id", businessId)
-        .maybeSingle();
-
-      if (bank) {
-        const newBal = Number(bank.current_balance || 0) - amt;
-        await supabase
-          .from("bank_accounts")
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq("id", paid_from_account_id)
-          .eq("business_id", businessId);
-      }
-    }
-
+    const { data: expense, error } = await supabase.rpc("post_expense_atomic", {
+      p_business_id: businessId,
+      p_expense_type_id: expense_type_id,
+      p_expense_date: expense_date,
+      p_amount: amt,
+      p_gst_percent: gstPct,
+      p_paid_from_account_id: paid_from_account_id || null,
+      p_vendor_name: vendor_name || null,
+      p_vendor_invoice_no: vendor_invoice_no || null,
+      p_notes: notes || null,
+    });
+    if (error) throw error;
     return NextResponse.json({ success: true, expense });
   } catch (err: any) {
     return handleApiError(err);

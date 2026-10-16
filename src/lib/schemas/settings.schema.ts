@@ -52,3 +52,28 @@ export const FinancialSettingsSchema = z.object({
   round_off_sales_invoices: z.boolean().optional(),
   interest_rate_overdue_percent: z.number().nonnegative().optional(),
 });
+
+export const InventorySettingsSchema = z.object({
+  default_godown_id: z.uuid().nullable(),
+  low_stock_threshold: z.number().finite().nonnegative().max(1_000_000),
+  stock_valuation_method: z.enum(["fifo", "lifo", "weighted_average"]),
+  allow_negative_stock: z.boolean(),
+  enable_batch_tracking: z.boolean(),
+  enable_serial_numbers: z.boolean(),
+});
+
+export const ProductionSettingsSchema = z.object({
+  job_work_default_bill_type: z.string().trim().min(1).max(60).optional(),
+  auto_complete_lot: z.boolean().optional(),
+  allow_back_date_production: z.boolean().optional(),
+  lock_completed_lots: z.boolean().optional(),
+  default_work_center_id: z.uuid().nullable().optional(),
+  default_template_id: z.uuid().nullable().optional(),
+  stages: z.array(z.object({ id: z.uuid(), sort_order: z.number().int().nonnegative().max(10_000).optional(), order_index: z.number().int().nonnegative().max(10_000).optional() })).max(100).optional(),
+});
+
+export const ImportRequestSchema = z.object({
+  entityType: z.enum(["parties", "designs"]),
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(1_000),
+  skipErrors: z.boolean().optional().default(false),
+});

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { validateGSTINInput } from "@/lib/gst-utils";
+
+const GstinSchema = z.string().trim().toUpperCase().optional().nullable().refine(
+  (value) => !value || validateGSTINInput(value).isValid,
+  "GSTIN must be a valid 15-character GSTIN or URP"
+);
 
 export const SaleBillItemSchema = z.object({
   item_type: z.enum(["finished_goods", "fabric", "accessory", "others", "b_grade"]).optional().nullable().default("finished_goods"),
@@ -19,7 +25,14 @@ export const SaleBillItemSchema = z.object({
   cost_per_piece: z.number().optional().nullable(),
   description: z.string().optional().nullable(),
   hsn_sac: z.string().optional().nullable(),
-  rolls: z.array(z.any()).optional().nullable(),
+  rolls: z.array(z.object({
+    purchase_roll_id: z.string().uuid().optional().nullable(),
+    roll_number: z.string().trim().min(1).max(100),
+    meters: z.number().finite().positive("Roll meters must be greater than zero"),
+    shade: z.string().trim().max(100).optional().nullable(),
+    width: z.number().finite().positive().optional().nullable(),
+    comment: z.string().trim().max(500).optional().nullable(),
+  })).max(100).optional().nullable(),
 });
 
 export const SaleBillChargeSchema = z.object({
@@ -38,7 +51,7 @@ export const CreateSaleBillSchema = z.object({
   reference_no: z.string().optional().nullable(),
   billing_address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
-  gstin: z.string().optional().nullable(),
+  gstin: GstinSchema,
   gst_treatment: z.string().optional().nullable(),
   transporter_name: z.string().optional().nullable(),
   vehicle_no: z.string().optional().nullable(),
@@ -54,7 +67,7 @@ export const CreateSaleBillSchema = z.object({
   ship_to_same_as_bill_to: z.boolean().optional().default(true),
   consignee_name: z.string().optional().nullable(),
   consignee_address: z.string().optional().nullable(),
-  consignee_gstin: z.string().optional().nullable(),
+  consignee_gstin: GstinSchema,
   consignee_state: z.string().optional().nullable(),
   consignee_state_code: z.string().optional().nullable(),
   // Dispatch details

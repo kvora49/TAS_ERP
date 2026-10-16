@@ -1,10 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAppStore } from "@/store";
+
+function useCompanyQueryKey(key: string, suffix?: unknown) {
+  const businessId = useAppStore((state) => state.user?.businessId || state.selectedBusinessId);
+  return ["master-data", businessId || "unresolved-company", key, suffix] as const;
+}
 
 // --- BRANDS ---
 export function useBrandsList() {
+  const queryKey = useCompanyQueryKey("brands");
   return useQuery({
-    queryKey: ["master-data", "brands"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/brands");
       if (!res.ok) {
@@ -19,8 +26,9 @@ export function useBrandsList() {
 
 // --- GODOWNS ---
 export function useGodownsList() {
+  const queryKey = useCompanyQueryKey("godowns");
   return useQuery({
-    queryKey: ["master-data", "godowns"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/godowns");
       if (!res.ok) {
@@ -35,8 +43,9 @@ export function useGodownsList() {
 
 // --- UNITS ---
 export function useUnitsList() {
+  const queryKey = useCompanyQueryKey("units");
   return useQuery({
-    queryKey: ["master-data", "units"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/units");
       if (!res.ok) {
@@ -51,8 +60,9 @@ export function useUnitsList() {
 
 // --- SIZE SETS ---
 export function useSizeSetsList() {
+  const queryKey = useCompanyQueryKey("size-sets");
   return useQuery({
-    queryKey: ["master-data", "size-sets"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/size-sets");
       if (!res.ok) {
@@ -67,8 +77,9 @@ export function useSizeSetsList() {
 
 // --- GST RATES ---
 export function useGstRatesList() {
+  const queryKey = useCompanyQueryKey("gst-rates");
   return useQuery({
-    queryKey: ["master-data", "gst-rates"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/gst-rates");
       if (!res.ok) {
@@ -83,8 +94,9 @@ export function useGstRatesList() {
 
 // --- RAW MATERIALS ---
 export function useRawMaterialsList(filters?: Record<string, string>) {
+  const queryKey = useCompanyQueryKey("raw-materials", filters);
   return useQuery({
-    queryKey: ["master-data", "raw-materials", filters],
+    queryKey,
     queryFn: async () => {
       const params = new URLSearchParams(filters).toString();
       const res = await fetch(`/api/master-data/raw-materials${params ? `?${params}` : ""}`);
@@ -100,8 +112,9 @@ export function useRawMaterialsList(filters?: Record<string, string>) {
 
 // --- GARMENT TYPES ---
 export function useGarmentTypesList() {
+  const queryKey = useCompanyQueryKey("garment-types");
   return useQuery({
-    queryKey: ["master-data", "garment-types"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/garment-types");
       if (!res.ok) {
@@ -116,8 +129,9 @@ export function useGarmentTypesList() {
 
 // --- EXPENSE TYPES ---
 export function useExpenseTypesList() {
+  const queryKey = useCompanyQueryKey("expense-types");
   return useQuery({
-    queryKey: ["master-data", "expense-types"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/expense-types");
       if (!res.ok) {
@@ -132,8 +146,9 @@ export function useExpenseTypesList() {
 
 // --- BANKS / UPI ---
 export function useBanksList() {
+  const queryKey = useCompanyQueryKey("banks-upi");
   return useQuery({
-    queryKey: ["master-data", "banks-upi"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/banks-upi");
       if (!res.ok) {
@@ -148,8 +163,9 @@ export function useBanksList() {
 
 // --- PRODUCTION STAGES ---
 export function useProductionStagesList() {
+  const queryKey = useCompanyQueryKey("production-stages");
   return useQuery({
-    queryKey: ["master-data", "production-stages"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/production-stages");
       if (!res.ok) {
@@ -164,8 +180,9 @@ export function useProductionStagesList() {
 
 // --- WORKERS ---
 export function useWorkersList() {
+  const queryKey = useCompanyQueryKey("workers");
   return useQuery({
-    queryKey: ["master-data", "workers"],
+    queryKey,
     queryFn: async () => {
       const res = await fetch("/api/master-data/workers");
       if (!res.ok) {

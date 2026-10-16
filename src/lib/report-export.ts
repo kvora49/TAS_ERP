@@ -16,6 +16,15 @@ export interface ExcelColumn {
   format?: "currency" | "number" | "percent" | "date" | "text";
 }
 
+/**
+ * Prevent spreadsheet applications from interpreting tenant-controlled values as formulas.
+ * Numeric values are deliberately left untouched so report totals remain numeric.
+ */
+export function escapeSpreadsheetFormula(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export async function exportToExcel(
   columns: ExcelColumn[],
   rows: Record<string, any>[],
@@ -23,7 +32,7 @@ export async function exportToExcel(
   sheetName = "Report"
 ): Promise<void> {
   const XLSX = await getXLSX();
-  const header = columns.map((c) => c.label);
+  const header = columns.map((c) => escapeSpreadsheetFormula(c.label));
   const data = rows.map((row) =>
     columns.map((col) => {
       const val = row[col.key];
@@ -34,7 +43,7 @@ export async function exportToExcel(
       if (col.format === "date" && val) {
         return new Date(val).toLocaleDateString("en-IN");
       }
-      return val;
+      return escapeSpreadsheetFormula(val);
     })
   );
 
@@ -69,14 +78,14 @@ export async function exportMultiSheetExcel(sheets: ExcelSheet[], filename: stri
   const XLSX = await getXLSX();
   const wb = XLSX.utils.book_new();
   for (const sheet of sheets) {
-    const header = sheet.columns.map((c) => c.label);
+    const header = sheet.columns.map((c) => escapeSpreadsheetFormula(c.label));
     const data = sheet.rows.map((row) =>
       sheet.columns.map((col) => {
         const val = row[col.key];
         if (val === null || val === undefined) return "";
         if (col.format === "currency") return typeof val === "number" ? val : parseFloat(val) || 0;
         if (col.format === "date" && val) return new Date(val).toLocaleDateString("en-IN");
-        return val;
+        return escapeSpreadsheetFormula(val);
       })
     );
     const ws = XLSX.utils.aoa_to_sheet([header, ...data]);

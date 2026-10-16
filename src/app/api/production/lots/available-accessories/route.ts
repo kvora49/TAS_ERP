@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     ));
 
     // 3. Fetch current stock for these materials
-    const { data: stockEntries } = matTypeIds.length > 0
+    const { data: stockEntries, error: stockError } = matTypeIds.length > 0
       ? await supabase
           .from("raw_material_current_stock")
           .select("material_type_id, godown_id, current_stock, unit_cost")
@@ -65,6 +65,7 @@ export async function GET(request: Request) {
           .in("material_type_id", matTypeIds)
           .gt("current_stock", 0)
       : { data: [] };
+    if (stockError) return NextResponse.json({ error: stockError.message }, { status: 500 });
 
     // 4. Build a map: material_type_id+godown_id → stock info
     const stockMap = new Map<string, { current_stock: number; unit_cost: number }>();
@@ -74,9 +75,10 @@ export async function GET(request: Request) {
     });
 
     // 5. Fetch godown details
-    const { data: godownsList } = godownIds.length > 0
+    const { data: godownsList, error: godownsError } = godownIds.length > 0
       ? await supabase.from("godowns").select("id, name").in("id", godownIds)
       : { data: [] };
+    if (godownsError) return NextResponse.json({ error: godownsError.message }, { status: 500 });
     const godownsMap = new Map((godownsList || []).map((g: any) => [g.id, g.name]));
 
     // 6. Build response — filter to only items with available stock

@@ -11,8 +11,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const partyId = searchParams.get("party_id");
   const direction = searchParams.get("direction"); // 'received' | 'paid' | 'all'
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "15", 10);
+  const requestedPage = Number.parseInt(searchParams.get("page") || "1", 10);
+  const requestedLimit = Number.parseInt(searchParams.get("limit") || "15", 10);
+  const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 15;
 
   try {
     if (partyId) {
@@ -83,6 +85,10 @@ export async function GET(request: Request) {
           .neq("status", "cancelled")
           .is("deleted_at", null),
       ]);
+      const outstandingQueryError = [saleBillsRes, rmPurchasesRes, fgPurchasesRes, jobWorkRes, creditNotesRes, debitNotesRes, advancesRes, salesReturnsRes, purchaseReturnsRes]
+        .map((result) => result.error)
+        .find(Boolean);
+      if (outstandingQueryError) throw outstandingQueryError;
 
       const salesReturnsMap: Record<string, number> = {};
       (salesReturnsRes.data || []).forEach((r) => {
@@ -248,6 +254,8 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false })
         .limit(10)
     ]);
+    const auxiliaryQueryError = [partiesRes, banksRes, directLinksRes].map((result) => result.error).find(Boolean);
+    if (auxiliaryQueryError) throw auxiliaryQueryError;
 
     const formattedBanks = (banksRes.data || []).map((b: any) => ({
       id: b.id,

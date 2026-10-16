@@ -2,7 +2,7 @@ import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { handleApiError, validateRequestBody } from "@/lib/api-response";
 import { CreatePartySchema } from "@/lib/schemas/parties.schema";
-import { getStateNameFromGSTIN, deriveStateDetails } from "@/lib/gst-utils";
+import { getStateNameFromGSTIN, deriveStateDetails, validateGSTINInput } from "@/lib/gst-utils";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from("parties")
-      .select("*")
+      .select("id, code, name, company_name, type, phone, gstin, status, opening_balance, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_pincode, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode")
       .eq("business_id", businessId)
       .is("deleted_at", null);
 
@@ -27,7 +27,8 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      const s = search.trim();
+      // PostgREST .or() is an expression language. Treat search as plain text.
+      const s = search.trim().replace(/[%_(),."]/g, "");
       if (s) {
         query = query.or(
           `name.ilike.%${s}%,` +
@@ -70,7 +71,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
+    const validated = await validateRequestBody(request, CreatePartySchema);
+    if (!validated.success) return validated.response;
+    const body = validated.data;
     const {
       name,
       type, // array of strings
@@ -126,6 +129,10 @@ export async function POST(request: Request) {
     const finalWhatsApp = (whatsapp_number && whatsapp_number.trim()) || (phone && phone.trim()) || null;
 
     const finalGstin = gstin && gstin.trim() ? gstin.trim() : "URP";
+    const gstinValidation = validateGSTINInput(finalGstin);
+    if (!gstinValidation.isValid) {
+      return NextResponse.json({ error: gstinValidation.errorMessage || "Invalid GSTIN" }, { status: 400 });
+    }
     const autoState = finalGstin !== "URP" ? getStateNameFromGSTIN(finalGstin) : null;
     const derivedState = deriveStateDetails(billing_address_line1 || billing_address_line2).name || null;
     const finalBillingState = autoState || billing_state?.trim() || derivedState || null;
@@ -215,30 +222,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Sync worker record if party type includes worker or job_worker
-    const isWorker = Array.isArray(type)
-      ? type.includes("worker") || type.includes("job_worker")
-      : type === "worker" || type === "job_worker";
-
-    if (isWorker) {
-      try {
-        const workerCode = (party.code && party.code.trim() !== "") ? `${party.code}_${party.id.substring(0, 6)}` : `WRK_${party.id.substring(0, 6)}`;
-        await supabase.from("workers").upsert({
-          id: party.id,
-          business_id: businessId,
-          name: party.name,
-          worker_id: workerCode,
-          type: party.worker_type === "in_house" ? "permanent" : "job_worker",
-          phone: party.phone || null,
-          address: party.billing_address_line1 || null,
-          default_rate: party.wage_rate ? Number(party.wage_rate) : 0,
-          is_active: party.is_active !== false,
-          remarks: party.remarks || null,
-        }, { onConflict: "id" });
-      } catch (wErr) {
-        console.warn("Failed to sync worker record:", wErr);
-      }
-    }
+    // The database trigger is the sole worker projection writer.
 
     return NextResponse.json({ party });
   } catch (err: any) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { validReportRequest } from "@/lib/report-request";
 
 export async function GET(req: NextRequest) {
   const supabase = createClient();
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
   const defaultFrom = `${fyStartYear}-04-01`;
 
   const { searchParams } = new URL(req.url);
+  if (!validReportRequest(searchParams)) {
+    return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
+  }
   const from = searchParams.get("from") ?? defaultFrom;
   const to = searchParams.get("to") ?? today.toISOString().split("T")[0];
   const billType = searchParams.get("bill_type"); // 'kacha' | 'pakka' | null = all
@@ -139,6 +143,25 @@ export async function GET(req: NextRequest) {
         .is("deleted_at", null),
     ]);
 
+    // This compatibility endpoint historically treated an error as an empty
+    // source set. Financial summaries must fail closed rather than publish a
+    // plausible-looking partial report.
+    const sourceResults = [
+      salesResult,
+      purchasesResult,
+      finishedPurchasesResult,
+      paymentsReceivedResult,
+      paymentsMadeResult,
+      jobWorkPaymentsResult,
+      expensesResult,
+      salaryResult,
+      miscIncomeResult,
+      writeoffsResult,
+      bankAccountsResult,
+    ];
+    const failedSource = sourceResults.find((result) => result.error);
+    if (failedSource?.error) throw failedSource.error;
+
     const bills = salesResult.data ?? [];
     const purchases = [...(purchasesResult.data ?? []), ...(finishedPurchasesResult.data ?? [])];
     const paymentsIn = paymentsReceivedResult.data ?? [];
@@ -240,16 +263,25 @@ export async function GET(req: NextRequest) {
       .gte("invoice_date", from)
       .lte("invoice_date", to);
 
+    if (gstBills.error) throw gstBills.error;
+    if (gstPurchases.error) throw gstPurchases.error;
+
     const totalOutputGST = (gstBills.data ?? []).reduce((s, b) => s + Number(b.cgst) + Number(b.sgst) + Number(b.igst), 0);
     const totalInputGST = (gstPurchases.data ?? []).reduce((s, p) => s + Number(p.total_gst_amount), 0);
 
     return NextResponse.json({
       from,
       to,
+      metadata: {
+        legacy_compatibility_endpoint: true,
+        authoritative_financial_routes: ["/api/reports/financial/pl", "/api/reports/financial/balance"],
+        warning: "This combined endpoint is retained for compatibility only. Its purchase-margin figures are not an approved cost-of-goods-sold calculation and must not be used as statutory financial statements.",
+      },
       // Profit & Loss
       pl: {
         income: { revenue: totalRevenue, misc_income: totalMiscIncome, total: totalIncome },
         cogs: totalPurchases,
+        purchase_margin_estimate: grossProfit,
         gross_profit: grossProfit,
         expenses: { total: totalExpenses, breakdown: expBreakdown },
         salary: totalSalary,

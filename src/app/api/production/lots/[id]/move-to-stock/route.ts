@@ -113,34 +113,7 @@ export async function POST(
                 reference_id: lot.id,
                 created_by: user?.id || null,
               });
-            // Also update raw_material_current_stock for returned fabric
-            const godownId = roll.item?.purchase?.godown_id;
-            const matTypeId = roll.item?.material_type_id;
-            if (godownId && matTypeId) {
-              const { data: stockEntry } = await supabase
-                .from("raw_material_current_stock")
-                .select("*")
-                .eq("business_id", businessId)
-                .eq("material_type_id", matTypeId)
-                .eq("godown_id", godownId)
-                .maybeSingle();
-
-              if (stockEntry) {
-                const updatedQty = Number(stockEntry.current_stock || 0) + unused;
-                const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
-                const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
-
-                await supabase
-                  .from("raw_material_current_stock")
-                  .update({
-                    current_stock: updatedQty,
-                    stock_value: updatedValue,
-                    unit_cost: updatedUnitCost,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", stockEntry.id);
-              }
-            }
+            // The stock-ledger trigger restores raw_material_current_stock.
           }
         }
 
@@ -199,32 +172,8 @@ export async function POST(
           const valDelta = unusedAcc * rate;
 
           if (godownId && matTypeId) {
-            const { data: stockEntry } = await supabase
-              .from("raw_material_current_stock")
-              .select("*")
-              .eq("business_id", businessId)
-              .eq("material_type_id", matTypeId)
-              .eq("godown_id", godownId)
-              .maybeSingle();
-
-            if (stockEntry) {
-              const updatedQty = Number(stockEntry.current_stock || 0) + unusedAcc;
-              const updatedValue = Number(stockEntry.stock_value || 0) + valDelta;
-              const updatedUnitCost = updatedQty > 0 ? updatedValue / updatedQty : Number(stockEntry.unit_cost || 0);
-
-              await supabase
-                .from("raw_material_current_stock")
-                .update({
-                  current_stock: updatedQty,
-                  stock_value: updatedValue,
-                  unit_cost: updatedUnitCost,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", stockEntry.id);
-            }
-
-            // Insert positive ledger entry for accessory return
-            await supabase
+            // Insert positive ledger entry; its trigger restores current stock.
+            const { error: accessoryReturnLedgerError } = await supabase
               .from("stock_ledger")
               .insert({
                 business_id: businessId,
@@ -238,6 +187,7 @@ export async function POST(
                 reference_id: lot.id,
                 created_by: user?.id || null,
               });
+            if (accessoryReturnLedgerError) throw accessoryReturnLedgerError;
           }
         }
       }

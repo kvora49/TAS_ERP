@@ -1,6 +1,8 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function parseDaysFromTerms(terms?: string | null): number {
   if (!terms) return 0;
   const match = terms.match(/\d+/);
@@ -45,7 +47,8 @@ export async function GET() {
         .eq("status", "active")
         .is("deleted_at", null)
         .neq("payment_status", "paid")
-        .limit(50),
+        .order("due_date", { ascending: true })
+        .limit(200),
       supabase
         .from("business_settings")
         .select("low_stock_threshold")
@@ -60,8 +63,10 @@ export async function GET() {
         .select("*")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(100),
     ]);
+    const failed = [rulesRes, billsRes, bSetRes, stockRes, persistedRes].find((result) => result.error);
+    if (failed?.error) throw failed.error;
 
     // Parse rules
     let enabledRules = new Set(["overdue", "payment_due", "low_stock"]);
@@ -201,13 +206,15 @@ export async function PUT(request: Request) {
     const { notificationIds, markAllRead } = body;
 
     try {
-      if (markAllRead) {
-        await supabase
+      if (markAllRead === true) {
+        const { error } = await supabase
           .from("in_app_notifications")
           .update({ is_read: true })
           .eq("business_id", businessId)
           .eq("is_read", false);
-      } else if (Array.isArray(notificationIds) && notificationIds.length > 0) {
+        if (error) throw error;
+      } else if (Array.isArray(notificationIds) && notificationIds.length > 0 && notificationIds.length <= 100) {
+        if (!notificationIds.every((id) => typeof id === "string")) return NextResponse.json({ error: "Invalid notification IDs" }, { status: 400 });
         const realIds = notificationIds.filter(
           (id: string) =>
             !id.startsWith("overdue-") &&
@@ -215,15 +222,22 @@ export async function PUT(request: Request) {
             !id.startsWith("due-soon-") &&
             !id.startsWith("no-payment-")
         );
+        if (!realIds.every((id: string) => UUID.test(id))) return NextResponse.json({ error: "Invalid notification IDs" }, { status: 400 });
         if (realIds.length > 0) {
-          await supabase
+          const { error } = await supabase
             .from("in_app_notifications")
             .update({ is_read: true })
             .in("id", realIds)
             .eq("business_id", businessId);
+          if (error) throw error;
         }
+      } else if (markAllRead !== undefined || notificationIds !== undefined) {
+        return NextResponse.json({ error: "Provide markAllRead or 1-100 notification IDs" }, { status: 400 });
       }
-    } catch (_ignored) {}
+    } catch (error) {
+      console.error("[notifications] mark-as-read failed", error);
+      return NextResponse.json({ error: "Failed to update notification status" }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

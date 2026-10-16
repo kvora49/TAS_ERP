@@ -7,13 +7,14 @@ interface PushPayload {
   message: string;
   linkUrl?: string;
   tag?: string;
+  targetRoles?: string[];
 }
 
 /**
  * Dispatches a high-priority mobile lock screen push notification to all subscribed device endpoints for a business.
  */
 export async function dispatchSystemPushAlert(payload: PushPayload) {
-  const { businessId, userId, title, message, linkUrl, tag } = payload;
+  const { businessId, userId, title, message, linkUrl, tag, targetRoles } = payload;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,15 +27,24 @@ export async function dispatchSystemPushAlert(payload: PushPayload) {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-    // 1. Fetch active web push subscriptions for this business (and optional user filter)
+    // Resolve active members before their device subscriptions. A subscription
+    // belonging to a suspended/removed member must never receive a company alert.
+    let memberQuery = supabase.from("company_members").select("user_id, role")
+      .eq("company_id", businessId).eq("status", "active");
+    if (userId) memberQuery = memberQuery.eq("user_id", userId);
+    const { data: members, error: memberError } = await memberQuery;
+    if (memberError) return { success: false, sentCount: 0, error: "Unable to resolve eligible recipients" };
+    const eligibleUserIds = (members || [])
+      .filter((member: any) => !targetRoles?.length || targetRoles.includes(String(member.role).toLowerCase()))
+      .map((member: any) => member.user_id);
+    if (!eligibleUserIds.length) return { success: true, sentCount: 0, totalSubscribers: 0 };
+
+    // Fetch subscriptions only for eligible active company members.
     let query = supabase
       .from("web_push_subscriptions")
       .select("id, endpoint, p256dh, auth")
-      .eq("business_id", businessId);
-
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
+      .eq("business_id", businessId)
+      .in("user_id", eligibleUserIds);
 
     const { data: subs, error } = await query;
     if (error || !subs || subs.length === 0) {

@@ -26,7 +26,12 @@ export function useLogout() {
         document.cookie = "sb-business-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
       // 4. Sign out from Supabase
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        // Local state is intentionally cleared even when the network prevents
+        // remote revocation; protected server routes still require a valid JWT.
+        console.warn("Remote sign-out could not be confirmed:", error.message);
+      }
     } catch (err) {
       console.error("Error signing out:", err);
     } finally {

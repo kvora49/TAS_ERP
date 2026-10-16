@@ -83,11 +83,26 @@ export async function POST(
 
     const buyerGstin = bill.gstin || bill.party?.gstin;
     const buyerAddress = bill.billing_address || bill.party?.billing_address_line1 || "";
-    const buyerPin =
+    const buyerPin = String(
       bill.billing_pincode ||
       bill.party?.billing_pincode ||
       (buyerAddress.match(/\b[1-9][0-9]{5}\b/) || [])[0] ||
-      "400001";
+      ""
+    ).trim();
+    const buyerLocation = (bill.billing_city || bill.party?.billing_city || bill.party?.city || "").trim();
+
+    // Never manufacture recipient location data for a statutory submission. Although
+    // validation normally catches these fields, keep this guard next to payload creation
+    // so later validation changes cannot reintroduce a fake PIN or city.
+    if (!buyerAddress.trim() || !/^[1-9][0-9]{5}$/.test(buyerPin) || !buyerLocation) {
+      return NextResponse.json(
+        {
+          error: "Buyer billing address, city, and valid 6-digit PIN code are required before IRN generation.",
+          code: "BUYER_ADDRESS_INCOMPLETE",
+        },
+        { status: 422 }
+      );
+    }
     const buyerState = deriveStateDetails(
       buyerAddress,
       buyerGstin,
@@ -220,17 +235,30 @@ export async function POST(
         bill.consignee_state,
         bill.consignee_state_code
       );
-      const shipPin =
+      const shipPin = String(
         bill.consignee_pincode ||
         (bill.consignee_address?.match(/\b[1-9][0-9]{5}\b/) || [])[0] ||
-        buyerPin;
+        ""
+      ).trim();
+      const shipAddress = bill.consignee_address?.trim() || "";
+      const shipLocation = (bill.consignee_city || "").trim();
+
+      if (!shipAddress || !/^[1-9][0-9]{5}$/.test(shipPin) || !shipLocation) {
+        return NextResponse.json(
+          {
+            error: "Consignee address, city, and valid 6-digit PIN code are required when ship-to differs from bill-to.",
+            code: "CONSIGNEE_ADDRESS_INCOMPLETE",
+          },
+          { status: 422 }
+        );
+      }
 
       shipToDetails = {
         gstin: bill.consignee_gstin || buyerGstin,
         legalName: (bill.consignee_name || buyerTradeName).trim(),
         tradeName: (bill.consignee_name || buyerTradeName).trim(),
-        addressLine1: bill.consignee_address?.substring(0, 100) || buyerAddress.substring(0, 100) || "Shipping Address",
-        location: bill.consignee_city || bill.billing_city || "City",
+        addressLine1: shipAddress.substring(0, 100),
+        location: shipLocation,
         pinCode: shipPin,
         stateCode: shipState.code || buyerState.code,
       };
@@ -268,17 +296,17 @@ export async function POST(
         gstin: business.gstin,
         legalName: business.name,
         tradeName: business.name,
-        addressLine1: business.address?.substring(0, 100) || "Office Address",
-        location: business.city || "Mumbai",
-        pinCode: business.pincode || "400001",
+        addressLine1: business.address?.substring(0, 100),
+        location: business.city,
+        pinCode: business.pincode,
         stateCode: sellerState.code,
       },
       buyerDetails: {
         gstin: buyerGstin,
         legalName: buyerTradeName,
         tradeName: buyerTradeName,
-        addressLine1: buyerAddress.substring(0, 100) || "Billing Address",
-        location: bill.billing_city || "City",
+        addressLine1: buyerAddress.substring(0, 100),
+        location: buyerLocation,
         pinCode: buyerPin,
         stateCode: buyerState.code,
         placeOfSupply: posCode || buyerState.code,

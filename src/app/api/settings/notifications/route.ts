@@ -1,5 +1,8 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError } from "@/lib/api-response";
+import { logAudit } from "@/lib/audit";
 
 const RULE_TYPES = [
   "payment_due",
@@ -63,37 +66,15 @@ export async function GET(request: Request) {
       settings = newSettings;
     }
 
-    // 3. Seed defaults if empty
+    // Do not create privileged configuration as a side effect of a read. The UI
+    // receives defaults for display; an authorized PUT persists selected rules.
     if (!rules || rules.length === 0) {
-      const inserts = DEFAULT_RULES.map((r) => ({
-        business_id: businessId,
-        type: r.type,
-        is_enabled: true,
-        days_before: r.days,
-        target_roles: r.roles,
-        enable_email: true,
-        enable_sms: false,
-        enable_in_app: true,
-      }));
-
-      const { createClient: createAdminClient } = await import("@supabase/supabase-js");
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: seeded, error: seedError } = await supabaseAdmin
-        .from("notification_rules")
-        .insert(inserts)
-        .select();
-
-      if (seedError) {
-        return NextResponse.json({ error: seedError.message }, { status: 500 });
-      }
-
       return NextResponse.json({
         settings: settings || {},
-        rules: seeded,
+        rules: DEFAULT_RULES.map((rule) => ({
+          type: rule.type, is_enabled: true, days_before: rule.days,
+          target_roles: rule.roles, enable_email: true, enable_sms: false, enable_in_app: true,
+        })),
       });
     }
 
@@ -110,11 +91,10 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId, user } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const body = await request.json();
@@ -126,6 +106,19 @@ export async function PUT(request: Request) {
       notif_holiday,
       rules, // Array of rule updates
     } = body;
+
+    if (notif_default_time != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(notif_default_time))) {
+      return NextResponse.json({ error: "Invalid notification time" }, { status: 400 });
+    }
+    if (notif_email_reply_to != null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(notif_email_reply_to))) {
+      return NextResponse.json({ error: "Invalid notification reply-to email" }, { status: 400 });
+    }
+    if (rules && (!Array.isArray(rules) || rules.length > RULE_TYPES.length)) return NextResponse.json({ error: "Invalid notification rules" }, { status: 400 });
+    for (const rule of rules || []) {
+      if (!RULE_TYPES.includes(rule.type) || !Number.isInteger(Number(rule.days_before)) || Number(rule.days_before) < 0 || Number(rule.days_before) > 365 || !Array.isArray(rule.target_roles) || rule.target_roles.some((role: unknown) => !["owner", "admin", "manager", "accountant", "staff", "intern"].includes(String(role)))) {
+        return NextResponse.json({ error: "Invalid notification rule" }, { status: 400 });
+      }
+    }
 
     // 1. Update general settings
     const { error: setError } = await supabase
@@ -171,11 +164,8 @@ export async function PUT(request: Request) {
       }
     }
 
+    void logAudit(businessId, "update", "notification_settings", businessId, { rule_count: rules?.length || 0 }, { actor_id: user.id }, request);
+
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
-  }
+  } catch (err) { return handleApiError(err); }
 }

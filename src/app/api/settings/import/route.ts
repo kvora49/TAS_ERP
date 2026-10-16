@@ -1,23 +1,22 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { ImportRequestSchema } from "@/lib/schemas/settings.schema";
+import { validateRequestBody, handleApiError } from "@/lib/api-response";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const __startTime = performance.now();
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId, user } = guard.ctx;
+  const userId = user.id;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
 
   try {
-    const { entityType, rows, skipErrors } = await request.json();
-
-    if (!entityType || !Array.isArray(rows) || rows.length === 0) {
-      return NextResponse.json({ error: "No data rows provided for import" }, { status: 400 });
-    }
+    const validation = await validateRequestBody(request, ImportRequestSchema);
+    if (!validation.success) return validation.response;
+    const { entityType, rows, skipErrors } = validation.data;
 
     let successCount = 0;
     let warningCount = 0;
@@ -137,13 +136,9 @@ export async function POST(request: Request) {
           }
         }
       }
-    } else {
-      // Default fallback generic handler for opening balances & raw materials
-      for (let i = 0; i < rows.length; i++) {
-        successCount++;
-        report.push({ rowNumber: i + 1, status: "success", message: "Imported row successfully" });
-      }
     }
+
+    void logAudit(businessId, "import", `import:${entityType}`, businessId, { total_rows: rows.length, successCount, warningCount, errorCount }, { actor_id: userId }, request);
 
     return NextResponse.json({
       success: true,
@@ -156,7 +151,7 @@ export async function POST(request: Request) {
       report,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Bulk import failed" }, { status: 500 });
+    return handleApiError(err);
   } finally {
     console.log(`[PERF_TIMING] POST /api/settings/import - ${(performance.now() - __startTime).toFixed(2)}ms`);
   }

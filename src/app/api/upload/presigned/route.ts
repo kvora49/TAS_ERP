@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   // 1. Verify User Session
   const guard = await requireAuthGuard();
   if (!guard.success) return guard.response;
-  const { user } = guard.ctx;
+  const { user, businessId } = guard.ctx;
 
   try {
     const { filename, contentType, folder } = await req.json();
@@ -41,7 +41,9 @@ export async function POST(req: Request) {
       "workers",
     ];
 
-    const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+    // SVG is active content in many viewers and must not be accepted through a generic
+    // document/image upload endpoint.
+    const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
     const allowedDocTypes = ["application/pdf", ...allowedImageTypes];
 
     const allowedTypes: Record<string, string[]> = {
@@ -83,7 +85,6 @@ export async function POST(req: Request) {
       "image/jpeg": ["jpg", "jpeg"],
       "image/png": ["png"],
       "image/webp": ["webp"],
-      "image/svg+xml": ["svg"]
     };
 
     const allowedExts = safeExtensions[contentType];
@@ -106,7 +107,8 @@ export async function POST(req: Request) {
     const cleanFileName = `${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 9)}.${fileExt}`;
-    const fileKey = `${folder}/${user.id}/${cleanFileName}`;
+    // Bind object keys to the active tenant as well as the authenticated uploader.
+    const fileKey = `${folder}/${businessId}/${user.id}/${cleanFileName}`;
 
     if (!isR2Configured) {
       // Return local placeholder mode indicator so frontend can upload as Data URL or local blob

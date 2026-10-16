@@ -44,7 +44,11 @@ export async function getBusinessServerSettings(
       .maybeSingle(),
   ]);
 
-  const bus: any = busRes.data || {};
+  if (busRes.error) throw busRes.error;
+  if (setRes.error) throw setRes.error;
+  if (!busRes.data) throw new Error("Business settings source was not found");
+
+  const bus: any = busRes.data;
   const set: any = setRes.data || {};
 
   const enableKachaBilling = set.job_work_default_bill_type !== "kacha_disabled";

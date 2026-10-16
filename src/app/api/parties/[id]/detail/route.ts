@@ -32,7 +32,8 @@ export async function GET(
       .from("party_bank_details")
       .select("*")
       .eq("party_id", id)
-      .eq("business_id", businessId);
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
 
     // Initialize stats & history arrays
     let purchases: any[] = [];

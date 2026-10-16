@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { setActiveCompanyId } from "@/lib/active-company";
 import { logAudit } from "@/lib/audit";
 import { NextResponse } from "next/server";
@@ -37,73 +36,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabaseAdmin = createAdminClient();
-
-    // 1. Create the new business / company record
-    const insertPayload: Record<string, any> = {
-      name: name.trim(),
-      address: address || null,
-      phone: phone || null,
-      email: email || user.email,
-      gstin: gstin || null,
-      pan: pan || null,
-      website: website || null,
-      logo_url: logo_url || null,
-      currency: currency || "INR",
-      enable_gst: true,
-      enable_batch_tracking: true,
-      allow_negative_stock: false,
-      low_stock_alerts: true,
-    };
-
-    if (financial_year_start !== undefined && financial_year_start !== null) {
-      const parsed = typeof financial_year_start === "number"
-        ? financial_year_start
-        : parseInt(String(financial_year_start), 10);
-      if (!isNaN(parsed)) {
-        insertPayload.financial_year_start = parsed;
-      }
-    }
-
-    const { data: businessData, error: businessError } = await supabaseAdmin
-      .from("businesses")
-      .insert(insertPayload)
-      .select()
-      .single();
-
-    if (businessError || !businessData) {
-      return NextResponse.json(
-        { error: `Failed to create company: ${businessError?.message}` },
-        { status: 500 }
-      );
-    }
-
-    const newCompanyId = businessData.id;
-
-    // 2. Insert owner membership in company_members
-    const { error: memberError } = await supabaseAdmin
-      .from("company_members")
-      .insert({
-        user_id: user.id,
-        company_id: newCompanyId,
-        role: "owner",
-        status: "active",
-      });
-
-    if (memberError) {
-      // Rollback business creation
-      await supabaseAdmin.from("businesses").delete().eq("id", newCompanyId);
-      return NextResponse.json(
-        { error: `Failed to create company membership: ${memberError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // 3. Update user active business_id in users table
-    await supabaseAdmin
-      .from("users")
-      .update({ business_id: newCompanyId })
-      .eq("id", user.id);
+    const { data: newCompanyId, error: createError } = await supabase.rpc("fn_create_company_for_current_user", {
+      p_name: name.trim(), p_address: address || null, p_phone: phone || null,
+      p_email: email || user.email || null, p_gstin: gstin || null, p_pan: pan || null,
+      p_website: website || null, p_logo_url: logo_url || null, p_currency: currency || "INR",
+    });
+    if (createError || !newCompanyId) throw createError || new Error("Failed to create company");
+    const { data: businessData, error: businessError } = await supabase.from("businesses").select().eq("id", newCompanyId).single();
+    if (businessError || !businessData) throw businessError || new Error("Created company could not be loaded");
 
     // 4. Auto-activate the new company in session cookies
     setActiveCompanyId(newCompanyId);

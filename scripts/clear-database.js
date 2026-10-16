@@ -31,6 +31,24 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const clearAuth = process.argv.includes('--with-auth');
+const confirmation = process.argv.find(arg => arg.startsWith('--confirm='))?.split('=')[1];
+const declaredEnvironment = process.env.DATABASE_ENV;
+
+function assertSafeTarget() {
+  if (confirmation !== 'ERASE_DEVELOPMENT_DATA') {
+    throw new Error('Refusing to clear data. Re-run with --confirm=ERASE_DEVELOPMENT_DATA.');
+  }
+  if (declaredEnvironment !== 'development') {
+    throw new Error('Refusing to clear data unless DATABASE_ENV=development.');
+  }
+  if (!dbUrl) return;
+
+  const host = new URL(dbUrl).hostname.toLowerCase();
+  const allowedHosts = (process.env.DEVELOPMENT_DATABASE_HOSTS || 'localhost,127.0.0.1').split(',').map(value => value.trim().toLowerCase());
+  if (!allowedHosts.includes(host)) {
+    throw new Error(`Refusing to clear non-development database host: ${host}`);
+  }
+}
 
 async function clearViaPg() {
   console.log('Connecting directly to PostgreSQL via connection string...');
@@ -123,6 +141,7 @@ async function clearViaSupabaseRest() {
 }
 
 async function main() {
+  assertSafeTarget();
   if (dbUrl) {
     await clearViaPg();
   } else {

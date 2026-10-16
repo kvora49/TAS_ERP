@@ -174,6 +174,7 @@ export async function runNotificationsJob(options: NotificationsJobOptions = {})
             message: notif.message,
             linkUrl: notif.link_url || "/",
             tag: `tas-erp-${notif.rule_type}`,
+            targetRoles: notif.target_roles,
           });
 
           if (pushRes?.sentCount) {

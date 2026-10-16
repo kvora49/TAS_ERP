@@ -3,8 +3,8 @@ import { runBackupJob } from "@/lib/cron/backup";
 import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret") || request.headers.get("authorization")?.replace("Bearer ", "");
+  const authorization = request.headers.get("authorization");
+  const secret = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : null;
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {

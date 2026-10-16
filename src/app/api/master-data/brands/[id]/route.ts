@@ -1,6 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { getStateNameFromGSTIN, getStateCodeFromGSTIN } from "@/lib/gst-utils";
+import { getStateNameFromGSTIN, getStateCodeFromGSTIN, validateGSTINInput } from "@/lib/gst-utils";
 
 export async function GET(
   request: Request,
@@ -128,6 +128,10 @@ export async function PUT(
 
     if (!name) {
       return NextResponse.json({ error: "Brand Name is required" }, { status: 400 });
+    }
+    const gstinValidation = validateGSTINInput(gstin);
+    if (!gstinValidation.isValid) {
+      return NextResponse.json({ error: gstinValidation.errorMessage || "Invalid GSTIN" }, { status: 400 });
     }
 
     if (is_primary) {

@@ -166,27 +166,19 @@ function LoginContent() {
         .eq("status", "active");
 
       if (memberships && memberships.length === 1) {
-        // Single company user: set active company cookie on client so middleware is ready immediately
+        // Server-side switch endpoint verifies membership and owns the cookie.
         const singleCompanyId = memberships[0].company_id;
-        document.cookie = `active_company_id=${singleCompanyId}; path=/; max-age=7776000; SameSite=Lax`;
-        document.cookie = `sb-business-id=${singleCompanyId}; path=/; max-age=7776000; SameSite=Lax`;
+        const switchResponse = await fetch("/api/companies/switch", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId: singleCompanyId }),
+        });
+        if (!switchResponse.ok) throw new Error("Unable to open your company workspace. Please try again.");
         router.push("/");
       } else if (memberships && memberships.length > 1) {
         // Multi-company user on fresh login: Show company selector
         router.push("/select-company");
       } else {
-        // Fallback: Check if user profile has a default business_id
-        const { data: profile } = await supabase
-          .from("users")
-          .select("business_id")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
-        if (profile?.business_id) {
-          document.cookie = `active_company_id=${profile.business_id}; path=/; max-age=7776000; SameSite=Lax`;
-          document.cookie = `sb-business-id=${profile.business_id}; path=/; max-age=7776000; SameSite=Lax`;
-        }
-        router.push("/");
+        router.push("/select-company");
       }
       router.refresh();
     } catch (err: any) {

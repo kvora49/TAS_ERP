@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         is_settled,
         created_at,
         party:parties(id, name, company_name, type, phone),
-        payment:payments(id, payment_date, payment_mode, reference_no)
+        payment:payments(id, payment_date, payment_mode, reference_no, direction)
       `)
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
@@ -29,13 +29,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Split advances into Given (to suppliers/workers) and Received (from customers)
+    // Payment direction is authoritative. A party may validly be both a customer
+    // and supplier, so classifying from party type misstates advances.
     const given: any[] = [];
     const received: any[] = [];
 
     advances?.forEach((adv: any) => {
-      const partyTypes = adv.party?.type || [];
-      if (partyTypes.includes("customer")) {
+      if (adv.payment?.direction === "received") {
         received.push(adv);
       } else {
         given.push(adv);
@@ -70,6 +70,16 @@ export async function POST(request: Request) {
     }
 
     if (allocations && Array.isArray(allocations) && allocations.length > 0) {
+      const allocationTotal = allocations.reduce((total: number, allocation: any) => {
+        const allocationAmount = Number(allocation.allocatedAmount ?? allocation.allocated_amount);
+        if (!allocation.billId && !allocation.bill_id || !Number.isFinite(allocationAmount) || allocationAmount <= 0) {
+          return Number.NaN;
+        }
+        return total + allocationAmount;
+      }, 0);
+      if (!Number.isFinite(allocationTotal) || allocationTotal <= 0) {
+        return NextResponse.json({ error: "Each allocation requires a bill and a positive amount" }, { status: 400 });
+      }
       // Call settle_advance_multi RPC procedure
       const { data: settledAmount, error } = await supabase.rpc("settle_advance_multi", {
         p_business_id: businessId,
@@ -85,7 +95,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, settledAmount });
     }
 
-    if (!bill_id || !bill_type || !amount_to_settle) {
+    const settlementAmount = Number(amount_to_settle);
+    if (!bill_id || !bill_type || !Number.isFinite(settlementAmount) || settlementAmount <= 0) {
       return NextResponse.json({ error: "Missing bill_id, bill_type, or amount_to_settle" }, { status: 400 });
     }
 
@@ -95,7 +106,7 @@ export async function POST(request: Request) {
       p_advance_id: advance_id,
       p_bill_id: bill_id,
       p_bill_type: bill_type,
-      p_amount: Number(amount_to_settle),
+      p_amount: settlementAmount,
     });
 
     if (error) {

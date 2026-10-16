@@ -1,13 +1,13 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { reconcileRawMaterialStock } from "@/lib/stock-reconciliation";
+import { requireAuthGuard } from "@/lib/auth/guards";
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === "production") return new NextResponse(null, { status: 404 });
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { businessId } = guard.ctx;
 
   const { searchParams } = new URL(request.url);
   const searchId = searchParams.get("id");
@@ -23,10 +23,7 @@ export async function GET(request: Request) {
     : matTypes?.find((m) => m.name?.toLowerCase().includes("imported denim")) || matTypes?.[0];
   const matId = targetMat?.id;
 
-  // Run reconciliation now to test
-  const recResult = matId ? await reconcileRawMaterialStock(supabase, businessId, matId) : null;
-
-  // Fetch raw_material_current_stock after reconciliation
+  // Diagnostic reads must not reconcile or otherwise mutate stock.
   const { data: currentStock } = await supabase
     .from("raw_material_current_stock")
     .select("*, godown:godowns(id, name)")
@@ -65,7 +62,6 @@ export async function GET(request: Request) {
   return NextResponse.json({
     businessId,
     targetMat,
-    recResult,
     currentStock,
     purchaseItems,
     rolls,

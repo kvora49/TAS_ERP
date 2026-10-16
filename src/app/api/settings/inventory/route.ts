@@ -1,5 +1,9 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
+import { InventorySettingsSchema } from "@/lib/schemas/settings.schema";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -33,15 +37,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: godownError.message }, { status: 500 });
     }
 
-    if (!settings) {
-      const { data: newSettings } = await supabase
-        .from("business_settings")
-        .insert({ business_id: businessId })
-        .select()
-        .single();
-      settings = newSettings;
-    }
-
     return NextResponse.json({
       settings: settings || {},
       godowns: godowns || [],
@@ -55,22 +50,26 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId, user } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
-    const body = await request.json();
+    const validation = await validateRequestBody(request, InventorySettingsSchema);
+    if (!validation.success) return validation.response;
+    const body = validation.data;
     const {
-      default_godown_id,
-      low_stock_threshold,
-      stock_valuation_method,
-      allow_negative_stock,
-      enable_batch_tracking,
-      enable_serial_numbers,
+      default_godown_id, low_stock_threshold, stock_valuation_method,
+      allow_negative_stock, enable_batch_tracking, enable_serial_numbers,
     } = body;
+
+    if (default_godown_id) {
+      const { data: godown, error: godownError } = await supabase.from("godowns").select("id")
+        .eq("id", default_godown_id).eq("business_id", businessId).is("deleted_at", null).maybeSingle();
+      if (godownError) throw godownError;
+      if (!godown) return NextResponse.json({ error: "Invalid default godown" }, { status: 400 });
+    }
 
     // 1. Update business settings table
     const { error: setError } = await supabase
@@ -94,7 +93,7 @@ export async function PUT(request: Request) {
     }
 
     // 2. Sync legacy business table fields
-    await supabase
+    const { error: legacyError } = await supabase
       .from("businesses")
       .update({
         enable_batch_tracking: !!enable_batch_tracking,
@@ -102,12 +101,10 @@ export async function PUT(request: Request) {
         low_stock_alerts: Number(low_stock_threshold) > 0,
       })
       .eq("id", businessId);
+    if (legacyError) throw legacyError;
+
+    void logAudit(businessId, "update", "inventory_settings", businessId, body, { actor_id: user.id }, request);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
-  }
+  } catch (err) { return handleApiError(err); }
 }

@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUser = useAppStore((state) => state.setUser);
   const setSelectedBusinessId = useAppStore((state) => state.setSelectedBusinessId);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
 
   useNotifications();
 
@@ -64,7 +65,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (cancelled) return;
 
-        if (error || !profile) {
+        if (error) {
+          setConnectionError(true);
+          return;
+        }
+        if (!profile) {
           await supabase.auth.signOut();
           routerRef.current.replace("/login");
           return;
@@ -104,11 +109,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           businessId: activeBizId,
         });
         setSelectedBusinessId(activeBizId);
+        setConnectionError(false);
       } catch (err) {
         console.error("Error syncing user session:", err);
         if (!cancelled) {
-          // On timeout or unexpected error, redirect to login
-          routerRef.current.replace("/login");
+          // A timeout/network failure does not prove that the session is invalid.
+          // Preserve the session and provide an explicit retry instead of signing
+          // the user out or redirecting to login.
+          setConnectionError(true);
         }
       } finally {
         if (!cancelled) {
@@ -152,6 +160,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         aria-label="Loading workspace"
       >
         <TASFabricLoader showText={true} />
+      </div>
+    );
+  }
+
+  if (connectionError) {
+    return (
+      <div className="min-h-screen bg-[var(--page-bg)] flex flex-col gap-4 items-center justify-center px-4 text-center">
+        <p role="alert" className="text-sm text-[var(--text-secondary)]">We couldn't verify your session because of a connection problem.</p>
+        <button type="button" onClick={() => window.location.reload()} className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white">Retry</button>
       </div>
     );
   }

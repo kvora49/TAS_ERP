@@ -35,7 +35,7 @@ export default function DashboardError({
         error={
           isChunkError
             ? "New application update detected. Please reload to sync the latest modules."
-            : error?.message || "An unexpected error occurred while loading this section."
+            : "We couldn't load this section. Please try again."
         }
         onRetry={handleRetry}
         emptyTitle="Unable to Display View"

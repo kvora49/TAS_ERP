@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runNotificationsJob } from "@/lib/cron/notifications";
 import { handleApiError } from "@/lib/api-response";
+import { timingSafeEqual } from "node:crypto";
 
 export async function GET(request: Request) {
   const __startTime = performance.now();
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "CRON_SECRET is not configured on server" }, { status: 500 });
   }
 
-  if (secret !== cronSecret) {
+  if (!secret || Buffer.byteLength(secret) !== Buffer.byteLength(cronSecret) || !timingSafeEqual(Buffer.from(secret), Buffer.from(cronSecret))) {
     return NextResponse.json({ error: "Unauthorized cron request" }, { status: 401 });
   }
 

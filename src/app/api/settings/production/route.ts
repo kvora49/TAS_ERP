@@ -1,5 +1,9 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
+import { handleApiError, validateRequestBody } from "@/lib/api-response";
+import { ProductionSettingsSchema } from "@/lib/schemas/settings.schema";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -16,14 +20,7 @@ export async function GET(request: Request) {
       .eq("business_id", businessId)
       .maybeSingle();
 
-    if (!settings && !setError) {
-      const { data: newSettings } = await supabase
-        .from("business_settings")
-        .insert({ business_id: businessId })
-        .select()
-        .single();
-      settings = newSettings;
-    }
+    if (setError) throw setError;
 
     // 2. Fetch default production template with its stages, and all active templates
     const { data: defaultTemplate } = await supabase
@@ -68,14 +65,15 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const guard = await requireAuthGuard(["owner", "admin"]);
+  if (!guard.success) return guard.response;
+  const { businessId, user } = guard.ctx;
   const supabase = createClient();
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
-    const body = await request.json();
+    const validation = await validateRequestBody(request, ProductionSettingsSchema);
+    if (!validation.success) return validation.response;
+    const body = validation.data;
     const {
       job_work_default_bill_type,
       auto_complete_lot,
@@ -85,6 +83,25 @@ export async function PUT(request: Request) {
       default_template_id, // Switch default workflow template
       stages, // Optional array of stages with their IDs and new sort_order/order_index values
     } = body;
+
+    if (default_work_center_id) {
+      const { data, error } = await supabase.from("godowns").select("id").eq("id", default_work_center_id).eq("business_id", businessId).is("deleted_at", null).maybeSingle();
+      if (error) throw error;
+      if (!data) return NextResponse.json({ error: "Invalid default work center" }, { status: 400 });
+    }
+    if (default_template_id) {
+      const { data, error } = await supabase.from("production_templates").select("id").eq("id", default_template_id).eq("business_id", businessId).is("deleted_at", null).maybeSingle();
+      if (error) throw error;
+      if (!data) return NextResponse.json({ error: "Invalid production template" }, { status: 400 });
+    }
+    if (stages?.length) {
+      const ids = stages.map((stage) => stage.id);
+      const positions = stages.map((stage) => stage.sort_order ?? stage.order_index ?? -1);
+      if (new Set(ids).size !== ids.length || new Set(positions).size !== positions.length) return NextResponse.json({ error: "Stage IDs and positions must be unique" }, { status: 400 });
+      const { data, error } = await supabase.from("production_stages").select("id").eq("business_id", businessId).in("id", ids);
+      if (error) throw error;
+      if ((data || []).length !== ids.length) return NextResponse.json({ error: "One or more stages do not belong to this company" }, { status: 400 });
+    }
 
     // 1. Update settings
     const { error: setError } = await supabase
@@ -108,35 +125,35 @@ export async function PUT(request: Request) {
 
     // 2. Switch default template if requested
     if (default_template_id) {
-      await supabase
+      const { error: clearDefaultError } = await supabase
         .from("production_templates")
         .update({ is_default: false })
         .eq("business_id", businessId);
+      if (clearDefaultError) throw clearDefaultError;
 
-      await supabase
+      const { error: setDefaultError } = await supabase
         .from("production_templates")
         .update({ is_default: true })
         .eq("id", default_template_id)
         .eq("business_id", businessId);
+      if (setDefaultError) throw setDefaultError;
     }
 
     // 3. Update production stages sorting order if passed
     if (stages && Array.isArray(stages)) {
       for (const stage of stages) {
         const orderVal = Number(stage.sort_order ?? stage.order_index ?? 0);
-        await supabase
+        const { error: stageError } = await supabase
           .from("production_stages")
           .update({ sort_order: orderVal, order_index: orderVal })
           .eq("id", stage.id)
           .eq("business_id", businessId);
+        if (stageError) throw stageError;
       }
     }
 
+    void logAudit(businessId, "update", "production_settings", businessId, { default_template_id, stage_count: stages?.length || 0 }, { actor_id: user.id }, request);
+
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "An unexpected error occurred" },
-      { status: 500 }
-    );
-  }
+  } catch (err) { return handleApiError(err); }
 }

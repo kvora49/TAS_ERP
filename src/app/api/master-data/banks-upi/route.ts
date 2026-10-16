@@ -73,6 +73,14 @@ export async function GET(request: Request) {
         .eq("business_id", businessId),
     ]);
 
+    const failedSource = [paymentsRes, expensesRes, incomeRes, salaryRes, chequesRes, purchasePaymentsRes, jobWorkPaymentsRes]
+      .find((result) => result.error);
+    if (failedSource?.error) {
+      // A partial ledger read must never be displayed or persisted as an
+      // authoritative account balance.
+      throw failedSource.error;
+    }
+
     const netMap: Record<string, number> = {};
 
     const addDelta = (accId: string | null | undefined, delta: number) => {
@@ -119,25 +127,6 @@ export async function GET(request: Request) {
         current_balance: liveCurrentBalance,
       };
     });
-
-    // Auto-heal any balance drift in the database so RPCs always see fresh balance
-    const driftsToSync = accounts.filter((acc: any) => {
-      const live = Number(acc.opening_balance || 0) + (netMap[acc.id] || 0);
-      return Number(acc.current_balance) !== live;
-    });
-
-    if (driftsToSync.length > 0) {
-      Promise.all(
-        driftsToSync.map((acc: any) => {
-          const live = Number(acc.opening_balance || 0) + (netMap[acc.id] || 0);
-          return supabase
-            .from("bank_accounts")
-            .update({ current_balance: live, updated_at: new Date().toISOString() })
-            .eq("id", acc.id)
-            .eq("business_id", businessId);
-        })
-      ).catch(() => {});
-    }
 
     return NextResponse.json({ accounts: accountsWithBalance });
   } catch (err: any) {

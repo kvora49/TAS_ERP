@@ -1,18 +1,15 @@
 "use client";
 
-import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        mutationCache: new MutationCache({
-          onSuccess: () => {
-            // Refresh mounted reports after writes; inactive results become stale.
-            void queryClient.invalidateQueries({ predicate: query => query.queryKey.includes("report-company") });
-          },
-        }),
+        // Mutations declare their own affected query keys through useERPMutation.
+        // A global report invalidation made unrelated writes trigger expensive
+        // financial/stock report refetches.
         defaultOptions: {
           queries: {
             // Most ERP data is invalidated after writes. Keep it in memory longer so

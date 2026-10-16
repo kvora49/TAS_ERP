@@ -16,6 +16,9 @@ export class SalesBillRepository {
     endDate?: string;
   }) {
     const { page, limit, type, partyId, status, search, startDate, endDate } = options;
+    // PostgREST .or() accepts an expression, so user text must not retain its
+    // expression delimiters or wildcard operators.
+    const safeSearch = search?.trim().slice(0, 100).replace(/[%_(),."]/g, "") || undefined;
     const offset = (page - 1) * limit;
 
     if (type === "return" || type === "sales_return") {
@@ -29,7 +32,7 @@ export class SalesBillRepository {
       if (partyId) query = query.eq("party_id", partyId);
       if (startDate) query = query.gte("return_date", startDate);
       if (endDate) query = query.lte("return_date", endDate);
-      if (search) query = query.or(`return_number.ilike.%${search}%,return_reason.ilike.%${search}%`);
+      if (safeSearch) query = query.or(`return_number.ilike.%${safeSearch}%,return_reason.ilike.%${safeSearch}%`);
 
       const { data, count, error } = await query.range(offset, offset + limit - 1);
       if (error) throw error;
@@ -79,8 +82,8 @@ export class SalesBillRepository {
       if (status) combined = combined.filter((c) => c.payment_status === status);
       if (startDate) combined = combined.filter((c) => c.bill_date >= startDate);
       if (endDate) combined = combined.filter((c) => c.bill_date <= endDate);
-      if (search) {
-        const s = search.toLowerCase();
+      if (safeSearch) {
+        const s = safeSearch.toLowerCase();
         combined = combined.filter(
           (c) =>
             (c.bill_number && c.bill_number.toLowerCase().includes(s)) ||
@@ -125,8 +128,8 @@ export class SalesBillRepository {
     if (endDate) {
       query = query.lte("bill_date", endDate);
     }
-    if (search) {
-      query = query.or(`bill_number.ilike.%${search}%,reference_no.ilike.%${search}%`);
+    if (safeSearch) {
+      query = query.or(`bill_number.ilike.%${safeSearch}%,reference_no.ilike.%${safeSearch}%`);
     }
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);

@@ -11,6 +11,9 @@ function load(name) {
 }
 const moduleParent = module;
 const { cashflowReportFacts } = load('cashflow-report-facts');
+const { requireReportResults } = load('report-data');
+assert.throws(() => requireReportResults([{ error: new Error('injected source failure') }]), /injected source failure/);
+console.log('PASS report source failures are not converted to empty financial facts');
 const account = [{ id: 'bank', type: 'bank', current_balance: 750 }];
 const payments = [{ id: 'receipt', payment_date: '2026-09-01', direction: 'received', bank_account_id: 'bank', amount: 1000, payment_mode: 'bank_transfer' }, { id: 'supplier', payment_date: '2026-09-02', direction: 'paid', bank_account_id: 'bank', amount: 100, payment_mode: 'bank_transfer' }, { id: 'later', payment_date: '2026-10-01', direction: 'received', bank_account_id: 'bank', amount: 100, payment_mode: 'bank_transfer' }];
 const jobs = [{ id: 'job', payment_date: '2026-09-03', bank_account_id: 'bank', paid_amount: 50, payment_mode: 'bank_transfer' }];

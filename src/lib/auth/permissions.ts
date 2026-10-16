@@ -1,4 +1,5 @@
-import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { requireAuthGuard } from "@/lib/auth/guards";
 
 export type PermissionAction =
   | "can_view"
@@ -11,24 +12,11 @@ export type PermissionAction =
 export async function verifyModulePermission(
   moduleName: string,
   action: PermissionAction = "can_view"
-): Promise<{ allowed: boolean; user: any; businessId: string }> {
+): Promise<{ allowed: boolean; user: unknown; businessId: string }> {
+  const guard = await requireAuthGuard();
+  if (!guard.success) return { allowed: false, user: null, businessId: "" };
+  const { user, businessId, role } = guard.ctx;
   const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { allowed: false, user: null, businessId: "" };
-  }
-
-  const businessId = await getSessionBusinessId();
-  if (!businessId) {
-    return { allowed: false, user, businessId: "" };
-  }
-
-  // Get user role from user_metadata or profiles
-  const role = user.user_metadata?.role || "staff";
 
   // Owner & Admin have full access by default
   if (role === "owner" || role === "admin") {
@@ -43,14 +31,7 @@ export async function verifyModulePermission(
     .ilike("module", moduleName)
     .maybeSingle();
 
-  if (!perm) {
-    // If no permission record exists yet, allow viewing by default, restrict writes
-    return {
-      allowed: action === "can_view",
-      user,
-      businessId,
-    };
-  }
+  if (!perm) return { allowed: false, user, businessId };
 
   return {
     allowed: !!perm[action],

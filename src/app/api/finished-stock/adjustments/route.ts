@@ -54,7 +54,10 @@ export async function POST(request: Request) {
     } = body;
 
     // Validate inputs
-    if (!adjustment_type || !adjustment_date || !godown_id || !design_id || !colour_id || !size || quantity_change === undefined || !unit_cost || !reason) {
+    const allowedTypes = new Set(["damage", "sample", "scrap", "correction", "other"]);
+    const quantity = Number(quantity_change);
+    const cost = Number(unit_cost);
+    if (!adjustment_type || !allowedTypes.has(adjustment_type) || !adjustment_date || !godown_id || !design_id || !colour_id || !size || !reason || !Number.isFinite(quantity) || quantity === 0 || !Number.isFinite(cost) || cost < 0) {
       return NextResponse.json({ error: "All required fields must be filled" }, { status: 400 });
     }
 
@@ -73,7 +76,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const valueImpact = quantity_change * unit_cost;
+    const valueImpact = quantity * cost;
 
     // Insert adjustment record
     const { data: adjustment, error: adjErr } = await supabase
@@ -87,8 +90,8 @@ export async function POST(request: Request) {
         design_id,
         colour_id,
         size,
-        quantity_change,
-        unit_cost,
+        quantity_change: quantity,
+        unit_cost: cost,
         value_impact: valueImpact,
         reason,
         remarks: remarks || null,
@@ -123,12 +126,12 @@ export async function POST(request: Request) {
     let calculatedUnitCost = unit_cost;
     const absQtyChange = Math.abs(quantity_change);
 
-    if (adjustment_type === "deduction") {
+    if (quantity < 0) {
       const remainingQty = Math.max(0, currentQty - absQtyChange);
       if (body.valuation_mode === "absorb" && remainingQty > 0 && currentValue > 0) {
         calculatedUnitCost = Number((currentValue / remainingQty).toFixed(2));
       }
-    } else if (adjustment_type === "addition") {
+    } else {
       const newTotalQty = currentQty + absQtyChange;
       if (body.valuation_mode === "dilute" && newTotalQty > 0 && currentValue > 0) {
         calculatedUnitCost = Number((currentValue / newTotalQty).toFixed(2));
@@ -146,22 +149,20 @@ export async function POST(request: Request) {
         item_type: "finished_good",
         item_id: design_id,
         godown_id,
-        transaction_type: adjustment_type === "addition" ? "adjustment_inflow" : "adjustment_outflow",
-        quantity_delta: quantity_change,
+        transaction_type: quantity > 0 ? "adjustment_inflow" : "adjustment_outflow",
+        quantity_delta: quantity,
         value_delta: valueImpact,
         reference_table: "stock_adjustments",
         reference_id: adjustment.id,
       });
 
-    if (ledgerErr) {
-      console.warn("Failed to insert stock ledger for adjustment:", ledgerErr.message);
-    }
+    if (ledgerErr) throw ledgerErr;
 
     // Reconcile finished stock ground-truth after adjustment creation
     const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
-    await reconcileFinishedStock(supabase, businessId, design_id);
+    const reconciliation = await reconcileFinishedStock(supabase, businessId, design_id);
 
-    return NextResponse.json({ adjustment, calculatedUnitCost });
+    return NextResponse.json({ adjustment, calculatedUnitCost, reconciliation }, { status: reconciliation.success ? 200 : 202 });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

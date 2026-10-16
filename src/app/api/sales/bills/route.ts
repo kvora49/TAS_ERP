@@ -20,8 +20,10 @@ export async function GET(request: Request) {
   const search = searchParams.get("search") || undefined;
   const startDate = searchParams.get("start_date") || undefined;
   const endDate = searchParams.get("end_date") || undefined;
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "10", 10);
+  const requestedPage = Number.parseInt(searchParams.get("page") || "1", 10);
+  const requestedLimit = Number.parseInt(searchParams.get("limit") || "10", 10);
+  const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 10;
 
   try {
     const repo = new SalesBillRepository(supabase);

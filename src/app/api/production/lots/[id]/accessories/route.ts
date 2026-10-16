@@ -41,11 +41,12 @@ export async function GET(
 
     // 2. Fetch total issued qty per lot_accessory from stage_entry_accessories
     const accessoryIds = lotAccessories.map((a: any) => a.id);
-    const { data: issuances } = await supabase
+    const { data: issuances, error: issuancesError } = await supabase
       .from("stage_entry_accessories")
       .select("lot_accessory_id, issued_qty")
       .eq("business_id", businessId)
       .in("lot_accessory_id", accessoryIds);
+    if (issuancesError) return NextResponse.json({ error: issuancesError.message }, { status: 500 });
 
     // 3. Build issued totals map
     const issuedMap = new Map<string, number>();

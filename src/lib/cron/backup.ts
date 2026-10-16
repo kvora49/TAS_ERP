@@ -1,13 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import fs from "fs";
-import path from "path";
 import { generateDatabaseBackup } from "@/lib/backup/backupEngine";
 import { processBackupSync } from "@/lib/backup/backupSync";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export async function runBackupJob() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Missing Supabase configuration for backup job");
@@ -100,33 +98,23 @@ export async function runBackupJob() {
     const { sqlDump, fileSize } = await generateDatabaseBackup(supabase, biz.id);
     const fileBuffer = Buffer.from(sqlDump, "utf8");
 
-    if (cfBucket) {
-      await cfBucket.put(storageKey, fileBuffer, {
-        httpMetadata: { contentType: "application/sql" },
-      });
-    } else {
-      try {
-        const privateDir = path.join(process.cwd(), "private-storage", "backups", biz.id);
-        if (!fs.existsSync(privateDir)) {
-          fs.mkdirSync(privateDir, { recursive: true });
-        }
-        fs.writeFileSync(path.join(privateDir, fileName), fileBuffer);
-      } catch (fsErr) {
-        console.warn("[Backup Job] Local filesystem write skipped or unsupported:", fsErr);
-      }
+    if (!cfBucket) {
+      throw new Error("Durable R2 backup storage is unavailable; refusing to record a non-durable backup.");
     }
+    await cfBucket.put(storageKey, fileBuffer, {
+      httpMetadata: { contentType: "application/sql" },
+    });
 
     // Insert record into backup_history
-    try {
-      await supabase.from("backup_history").insert({
-        business_id: biz.id,
-        backup_type: "automatic",
-        file_key: storageKey,
-        file_url: storageKey,
-        file_size_bytes: fileSize,
-        status: "completed",
-      });
-    } catch (e) {}
+    const { error: historyError } = await supabase.from("backup_history").insert({
+      business_id: biz.id,
+      backup_type: "automatic",
+      file_key: storageKey,
+      file_url: storageKey,
+      file_size_bytes: fileSize,
+      status: "completed",
+    });
+    if (historyError) throw historyError;
 
     // Enforce retention policy
     const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();

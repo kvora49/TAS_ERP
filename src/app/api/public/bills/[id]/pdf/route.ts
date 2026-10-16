@@ -18,20 +18,8 @@ export async function GET(
     const url = new URL(request.url);
     const forceDownload = url.searchParams.get("download") === "true";
 
-    // 1. Multi-tier storage check (Cloudflare R2 -> Supabase Storage)
-    const storedPdfBuffer = await getInvoicePdfFromStorage(id);
-    if (storedPdfBuffer) {
-      const disposition = forceDownload ? `attachment; filename="Invoice-${id}.pdf"` : `inline; filename="Invoice-${id}.pdf"`;
-      return new NextResponse(new Uint8Array(storedPdfBuffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": disposition,
-          "Cache-Control": "public, max-age=3600",
-        },
-      });
-    }
-
-    // 2. Fetch bill details from Supabase to verify existence
+    // 1. Verify that the public bill exists before attempting an object-store read.
+    // This avoids turning storage keys into a separate existence oracle.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -45,6 +33,21 @@ export async function GET(
 
     if (billErr || !bill) {
       return NextResponse.json({ error: "Invoice not found or expired", code: "NOT_FOUND" }, { status: 404 });
+    }
+
+    // 2. Multi-tier storage check (Cloudflare R2 -> Supabase Storage)
+    const storedPdfBuffer = await getInvoicePdfFromStorage(id);
+    if (storedPdfBuffer) {
+      const disposition = forceDownload ? `attachment; filename="Invoice-${id}.pdf"` : `inline; filename="Invoice-${id}.pdf"`;
+      return new NextResponse(new Uint8Array(storedPdfBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": disposition,
+          // The endpoint is intentionally customer-shareable today, but invoice PDFs
+          // must not be retained by shared browsers or intermediary caches.
+          "Cache-Control": "private, no-store",
+        },
+      });
     }
 
     // 3. Fallback: Redirect to public bill view with auto-print/download mode

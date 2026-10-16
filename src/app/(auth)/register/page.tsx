@@ -43,7 +43,7 @@ const registerSchema = z
     email: z.string().email("Enter a valid email address"),
     phone: z.string().optional(),
     industryType: z.string().min(1, "Select your industry type"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z.string().min(8, "Password must be at least 8 characters").max(128, "Password must be 128 characters or fewer"),
     confirmPassword: z.string(),
     agreeTerms: z.boolean().refine((val) => val === true, {
       message: "You must agree to the Terms and Privacy Policy",
@@ -186,6 +186,8 @@ export default function RegisterPage() {
           emailRedirectTo: redirectUrl,
           data: {
             full_name: values.fullName,
+            business_name: values.businessName,
+            phone: values.phone || null,
           },
         },
       });
@@ -220,12 +222,13 @@ export default function RegisterPage() {
         return;
       }
 
-      // 2. Call transactional endpoint to set up business and owner profiles
+      // 2. A confirmed session can complete setup immediately. With email
+      // confirmation enabled, /auth/callback completes the same RPC instead.
+      if (authData.session) {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: authData.user.id,
           businessName: values.businessName,
           fullName: values.fullName,
           email: values.email,
@@ -238,6 +241,7 @@ export default function RegisterPage() {
         toast.error(data.error || "Failed to set up workspace profiles");
         setLoading(false);
         return;
+      }
       }
 
       // 3. Check if email verification is required by Supabase

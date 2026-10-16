@@ -233,7 +233,7 @@ export async function POST(request: Request) {
     // insert into finished_stock here (single-writer pattern). Reconciliation reads
     // from stock_transfers + stock_transfer_items directly.
     for (const item of items) {
-      await supabase.from("stock_ledger").insert({
+      const { error: transferOutLedgerError } = await supabase.from("stock_ledger").insert({
         business_id: businessId,
         item_type: "finished_good",
         item_id: item.design_id,
@@ -244,9 +244,10 @@ export async function POST(request: Request) {
         reference_table: "stock_transfers",
         reference_id: transfer.id,
       });
+      if (transferOutLedgerError) throw transferOutLedgerError;
 
       if (status === "completed") {
-        await supabase.from("stock_ledger").insert({
+        const { error: transferInLedgerError } = await supabase.from("stock_ledger").insert({
           business_id: businessId,
           item_type: "finished_good",
           item_id: item.design_id,
@@ -257,14 +258,15 @@ export async function POST(request: Request) {
           reference_table: "stock_transfers",
           reference_id: transfer.id,
         });
+        if (transferInLedgerError) throw transferInLedgerError;
       }
     }
 
     // Reconcile finished stock ground-truth after transfer creation
     const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
-    await reconcileFinishedStock(supabase, businessId);
+    const reconciliation = await reconcileFinishedStock(supabase, businessId);
 
-    return NextResponse.json({ transfer });
+    return NextResponse.json({ transfer, reconciliation }, { status: reconciliation.success ? 200 : 202 });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

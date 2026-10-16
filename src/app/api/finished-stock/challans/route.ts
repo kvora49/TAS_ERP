@@ -141,7 +141,7 @@ export async function POST(request: Request) {
 
     if (isOutwardStockImpact) {
       for (const item of items) {
-        await supabase.from("stock_ledger").insert({
+        const { error: challanOutLedgerError } = await supabase.from("stock_ledger").insert({
           business_id: businessId,
           item_type: "finished_good",
           item_id: item.design_id,
@@ -152,10 +152,11 @@ export async function POST(request: Request) {
           reference_table: "challans",
           reference_id: challan.id,
         });
+        if (challanOutLedgerError) throw challanOutLedgerError;
       }
     } else if (isInwardStockImpact) {
       for (const item of items) {
-        await supabase.from("stock_ledger").insert({
+        const { error: challanInLedgerError } = await supabase.from("stock_ledger").insert({
           business_id: businessId,
           item_type: "finished_good",
           item_id: item.design_id,
@@ -166,14 +167,15 @@ export async function POST(request: Request) {
           reference_table: "challans",
           reference_id: challan.id,
         });
+        if (challanInLedgerError) throw challanInLedgerError;
       }
     }
 
     // Reconcile finished stock ground-truth after challan creation
     const { reconcileFinishedStock } = await import("@/lib/finished-stock-reconciliation");
-    await reconcileFinishedStock(supabase, businessId);
+    const reconciliation = await reconcileFinishedStock(supabase, businessId);
 
-    return NextResponse.json({ challan });
+    return NextResponse.json({ challan, reconciliation }, { status: reconciliation.success ? 200 : 202 });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "An unexpected error occurred" },

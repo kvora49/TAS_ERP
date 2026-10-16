@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z.string().min(8, "Password must be at least 8 characters").max(128, "Password must be 128 characters or fewer"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -57,11 +57,10 @@ function ResetPasswordContent() {
   useEffect(() => {
     async function exchangeCode() {
       if (!code) {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setErrorMsg("No active recovery session found. Please request a new recovery link.");
-        }
+        // An ordinary authenticated session is not proof of recovery-flow
+        // authorization. Authenticated password changes belong in account
+        // settings with reauthentication, not this recovery route.
+        setErrorMsg("This password reset link is invalid or has expired. Please request a new one.");
         setVerifying(false);
         return;
       }
@@ -115,6 +114,7 @@ function ResetPasswordContent() {
       }
 
       toast.success("Password updated successfully! Please sign in with your new password.");
+      await supabase.auth.signOut();
       router.push("/login");
     } catch (err: any) {
       toast.error(err.message || "An unexpected error occurred");

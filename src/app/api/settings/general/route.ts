@@ -35,24 +35,9 @@ export async function GET(request: Request) {
       console.error("GET /api/settings/general error setError:", setError);
     }
 
-    if (!settings && !setError) {
-      // Seed default settings record on-demand
-      const { data: newSettings, error: insertError } = await supabase
-        .from("business_settings")
-        .insert({
-          business_id: businessId,
-          enable_batch_tracking: business?.enable_batch_tracking ?? true,
-          allow_negative_stock: business?.allow_negative_stock ?? false,
-          low_stock_threshold: 10,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error("Failed to seed business_settings:", insertError.message);
-      } else {
-        settings = newSettings;
-      }
+    if (setError) {
+      console.error("GET /api/settings/general error setError:", setError);
+      return NextResponse.json({ error: "Unable to load business settings" }, { status: 500 });
     }
 
     const enableKachaBilling = settings ? settings.job_work_default_bill_type !== "kacha_disabled" : true;

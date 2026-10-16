@@ -1,5 +1,6 @@
 import { createClient, getSessionBusinessId } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { validateGSTINInput } from "@/lib/gst-utils";
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -85,6 +86,10 @@ export async function PUT(request: Request) {
         { error: "Missing required profile fields (name, address, phone, email)", code: "MISSING_FIELDS" },
         { status: 400 }
       );
+    }
+    const gstinValidation = validateGSTINInput(gstin);
+    if (!gstinValidation.isValid) {
+      return NextResponse.json({ error: gstinValidation.errorMessage || "Invalid GSTIN" }, { status: 400 });
     }
 
     const updatePayload: Record<string, any> = {

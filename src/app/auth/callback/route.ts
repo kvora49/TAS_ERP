@@ -4,22 +4,33 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const requestedNext = searchParams.get("next") ?? "/";
+  // Callback destinations are internal paths only. This prevents auth codes
+  // and newly-created sessions from being forwarded to an attacker-controlled
+  // origin through absolute, protocol-relative, or encoded URLs.
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\")
+    ? requestedNext
+    : "/";
+  const appOrigin = process.env.NEXT_PUBLIC_APP_URL || origin;
 
   if (code) {
     const supabase = createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = process.env.NODE_ENV === "development";
-      
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`);
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      } else {
-        return NextResponse.redirect(`${origin}${next}`);
+      const { data: { user } } = await supabase.auth.getUser();
+      const metadata = user?.user_metadata || {};
+      if (user?.email && metadata.business_name && metadata.full_name) {
+        const { error: registrationError } = await supabase.rpc("fn_complete_registration", {
+          p_business_name: String(metadata.business_name),
+          p_full_name: String(metadata.full_name),
+          p_email: user.email,
+          p_phone: metadata.phone ? String(metadata.phone) : null,
+        });
+        if (registrationError) {
+          return NextResponse.redirect(`${appOrigin}/login?error=workspace-setup-failed`);
+        }
       }
+      return NextResponse.redirect(new URL(next, appOrigin));
     }
   }
 
@@ -38,6 +49,6 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.redirect(
-    `${origin}/login?${redirectParams.toString()}`
+    `${appOrigin}/login?${redirectParams.toString()}`
   );
 }

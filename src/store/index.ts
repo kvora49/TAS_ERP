@@ -55,7 +55,6 @@ export const useAppStore = create<AppState>()(
       name: "tas-erp-app-store",
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
-        selectedBusinessId: state.selectedBusinessId,
         filters: state.filters,
       }),
     }
